@@ -63,14 +63,14 @@
 {% endmacro %}
 {% macro brand(nav) %}
   <a class="brand" href="/">
-    <span class="mark">{% if nav and nav.studio and nav.studio.logo_key %}<img src="/media/{{ nav.studio.logo_key }}" alt="">{% else %}{{ (nav.studio.name if nav and nav.studio and nav.studio.name else APP_NAME)[:1] }}{% endif %}</span>
+    <span class="mark">{% if nav and nav.studio and nav.studio.logo_key %}<img src="/media/{{ nav.studio.logo_key }}" alt="">{% else %}<img class="glyph" src="/static/brand-mark.png" alt="">{% endif %}</span>
     <span class="name">{{ nav.studio.name if nav and nav.studio and nav.studio.name else APP_NAME }}</span>
   </a>
 {% endmacro %}
 {% if public %}
 <header class="pubbar">{% block pubbar %}
   <div class="in-bar">
-    <span class="brand"><span class="mark">{% if studio is defined and studio.logo_key %}<img src="/media/{{ studio.logo_key }}" alt="">{% else %}{{ (studio.studio_name if studio is defined and studio.studio_name else APP_NAME)[:1] }}{% endif %}</span><span class="name">{{ studio.studio_name if studio is defined and studio.studio_name else APP_NAME }}</span></span>
+    <span class="brand"><span class="mark">{% if studio is defined and studio.logo_key %}<img src="/media/{{ studio.logo_key }}" alt="">{% else %}<img class="glyph" src="/static/brand-mark.png" alt="">{% endif %}</span><span class="name">{{ studio.studio_name if studio is defined and studio.studio_name else APP_NAME }}</span></span>
     <span class="ctx">{% block pubctx %}{% endblock %}</span>
     <span class="sp"></span>
     {% block pubactions %}{% endblock %}

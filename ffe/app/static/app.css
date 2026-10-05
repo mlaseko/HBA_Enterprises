@@ -51,7 +51,7 @@ p{margin:.3rem 0 .8rem}
 .brand{display:flex;align-items:center;gap:10px;color:var(--ink);font-weight:600;letter-spacing:-.01em;white-space:nowrap}
 .brand:hover{text-decoration:none}
 .mark{width:34px;height:34px;border-radius:10px;background:var(--grad);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:600;font-size:1.05rem;box-shadow:0 6px 16px -8px rgba(185,89,58,.7);overflow:hidden;flex:none}
-.mark img{width:100%;height:100%;object-fit:cover}
+.mark img{width:100%;height:100%;object-fit:cover}.mark img.glyph{object-fit:contain;padding:3px}
 .brand .name{font-family:var(--serif);font-size:1.08rem;font-weight:500}
 .switcher{position:relative;min-width:0;flex:1;max-width:360px}
 .switcher select{width:100%;appearance:none;-webkit-appearance:none;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:8px 36px 8px 14px;font-size:.9rem;font-weight:600;color:var(--ink);font-family:inherit;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
@@ -277,7 +277,7 @@ details summary{cursor:pointer;color:var(--ink);font-weight:600;margin:0}
 .auth{min-height:100vh;display:grid;grid-template-columns:1fr}
 .auth .pane{background:var(--grad-deep);color:#fff;padding:36px 28px 44px;position:relative;overflow:hidden}
 .auth .pane:after{content:"";position:absolute;right:-80px;bottom:-120px;width:360px;height:360px;border-radius:50%;background:radial-gradient(circle,rgba(201,162,39,.5),rgba(201,162,39,0) 70%)}
-.auth .pane .brand{color:#fff}.auth .pane h1{color:#fff;font-size:2.1rem;max-width:14ch;margin:34px 0 10px;position:relative;z-index:1}
+.auth .pane .logo{width:200px;max-width:60%;height:auto;display:block;position:relative;z-index:1}.auth .pane .brand{color:#fff}.auth .pane h1{color:#fff;font-size:2.1rem;max-width:14ch;margin:34px 0 10px;position:relative;z-index:1}
 .auth .pane p{color:rgba(255,255,255,.78);max-width:40ch;position:relative;z-index:1}
 .auth .pane .pts{display:flex;flex-direction:column;gap:10px;margin-top:22px;position:relative;z-index:1}
 .auth .pane .pts div{display:flex;gap:10px;align-items:center;color:rgba(255,255,255,.9);font-size:.92rem}
@@ -285,7 +285,8 @@ details summary{cursor:pointer;color:var(--ink);font-weight:600;margin:0}
 .auth .form{display:flex;align-items:center;justify-content:center;padding:28px 18px 60px}
 .auth .form .card{width:100%;max-width:400px;padding:26px;margin:0}
 .auth .form h2{font-family:var(--serif);font-weight:500;font-size:1.5rem;margin-bottom:4px}
-@media(min-width:900px){.auth{grid-template-columns:1.1fr 1fr}.auth .pane{padding:48px 56px}.auth .pane h1{font-size:2.8rem;margin-top:90px}.auth .form{padding:40px}}
+@media(max-width:899px){.auth .pane{padding:26px 22px 28px}.auth .pane .logo{width:150px}.auth .pane h1{font-size:1.55rem;margin:16px 0 6px;max-width:none}.auth .pane p{font-size:.9rem;margin-bottom:0}.auth .pane .pts{display:none}.auth .form{padding:22px 16px 48px}}
+@media(min-width:900px){.auth{grid-template-columns:1.1fr 1fr}.auth .pane{padding:48px 56px}.auth .pane .logo{width:260px}.auth .pane h1{font-size:2.8rem;margin-top:90px}.auth .form{padding:40px}}
 
 @media print{.top,.side,.bottom,.sheet,.fab,.noprint,.pubbar{display:none!important}.wrap{padding:0;max-width:none}body{background:#fff}.card,.tbl{box-shadow:none}}
 
