@@ -32,9 +32,12 @@ app/models.py          Settings, Project, ProjectImage, Room, Supplier, Supplier
 app/common.py          templates, auth helpers, number filters, render()/redirect()
 app/services.py        summary() for dashboards, next_code(), carton_positions(), container_for()
 app/storage.py         save_image/read_image/delete_image — backends: local | replit | s3
+app/webimage.py        fetch_image(url): picture bytes from a direct image link or a page (og:image / largest <img>);
+                       stdlib only, refuses private addresses, raises WebImageError with a message for the page
 app/routers/           projects, rooms, items, suppliers, payments, cartons, share (public /s/<token>, /c/<token>),
                        exports (PDF + xlsx), importer (Excel import),
-                       capture (/p/<id>/capture camera page → draft items; /p/<id>/drafts complete or discard)
+                       capture (/p/<id>/capture camera page → draft items; /p/<id>/drafts complete or discard),
+                       clip (/clip: "Save to HBA" bookmarklet + save-from-web form → draft item or mood-board image)
 app/pdf/common.py      styles, table style, image flowable, footer
 app/pdf/schedule.py    client schedule PDF (cover, contents, floor plan, mood board, table per category, summary by room)
 app/pdf/packing.py     packing list, 6-per-page labels, room checklist, purchase order
@@ -116,6 +119,10 @@ ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;   -- quick ca
 
 - **Photo-first capture** (was backlog 1): `/p/<id>/capture` opens the camera, saves each photo as a draft,
   shows a per-session counter; `/p/<id>/drafts` completes or discards. Buttons on Overview and Items.
+
+- **Save from web.** Any website is an image source: `photo_url` on the item form, `/p/<id>/items/<id>/photo-url`,
+  `/p/<id>/images/url` on the Mood board, and the `/clip` bookmarklet. All go through `webimage.fetch_image` and
+  then `storage.save_image`. Pinterest's API was ruled out (gated access, terms forbid copying pin images).
 
 ## Backlog (in priority order)
 

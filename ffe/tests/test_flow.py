@@ -74,6 +74,37 @@ with TestClient(app) as c:
     r=c.post("/settings", data={"studio_name":"Harmony Designs Studio","studio_phone":"+255 7xx","default_rate":"7.2"}, follow_redirects=False)
     r=c.get("/settings"); assert "Harmony" in r.text
     r=c.get(f"/p/{pid}/items?q=pendant"); assert "Island pendant" in r.text
+    # ---- save from web: pasted links + bookmarklet /clip (network replaced by a fake) ----
+    import app.webimage as wi
+    PAGE=b'<html><head><meta property="og:image" content="/pics/sofa.jpg"></head><body><img src="small.png" width="10" height="10"></body></html>'
+    def fake_get(url, accept):
+        if url.endswith("/product/sofa"): return ("text/html; charset=utf-8".split(";")[0], PAGE, url)
+        if url.endswith("/pics/sofa.jpg"): return ("image/jpeg", img("teal"), url)
+        if url.endswith("/nope.jpg"): raise wi.WebImageError("Could not reach that site.")
+        return ("text/html", b"<html><body>no pictures</body></html>", url)
+    wi._http_get=fake_get
+    assert wi.find_page_image(PAGE.decode(), "https://shop.example/product/sofa")=="https://shop.example/pics/sofa.jpg"
+    n_before=len(c.get(f"/p/{pid}/items/{iid}").text.split("/media/"))
+    r=c.post(f"/p/{pid}/items/{iid}/photo-url", data={"url":"https://shop.example/product/sofa","caption":"from web"}, follow_redirects=False)
+    assert r.status_code==303 and "err=" not in r.headers["location"], r.headers
+    assert len(c.get(f"/p/{pid}/items/{iid}").text.split("/media/"))>n_before
+    r=c.post(f"/p/{pid}/items/{iid}/photo-url", data={"url":"https://shop.example/nope.jpg"}, follow_redirects=False)
+    assert "err=" in r.headers["location"]; r=c.get(r.headers["location"]); assert "Could not reach that site" in r.text
+    r=c.post(f"/p/{pid}/items/{iid}", data={"room_id":room.id,"category":"Lighting","name":"Island pendant","qty":"3","unit":"pcs","status":"Ordered","photo_url":"shop.example/pics/sofa.jpg"}, follow_redirects=False)
+    assert "err=" not in r.headers["location"]
+    r=c.post(f"/p/{pid}/images/url", data={"kind":"mood","caption":"Sofa","url":"https://shop.example/product/sofa"}, follow_redirects=False); assert r.status_code==303 and "err" not in r.headers["location"]
+    r=c.post(f"/p/{pid}/images/url", data={"kind":"mood","url":"https://shop.example/empty"}, follow_redirects=False); assert "err=" in r.headers["location"]
+    r=c.get(f"/p/{pid}/images"); assert "Sofa" in r.text and "Add from a web link" in r.text
+    r=c.get("/clip?url=https://shop.example/product/sofa&img=https://shop.example/pics/sofa.jpg"); assert "javascript:(function()" in r.text and "Save this picture" in r.text
+    r=c.post("/clip", data={"project_id":pid,"dest":"item","link":"https://shop.example/pics/sofa.jpg","page":"https://shop.example/product/sofa"}, follow_redirects=False)
+    assert r.headers["location"]==f"/p/{pid}/drafts", r.headers
+    db=SessionLocal(); d=db.query(Item).filter(Item.project_id==int(pid), Item.draft==True).order_by(Item.id.desc()).first(); assert d and d.photos and "shop.example/product/sofa" in d.notes
+    for ph in d.photos: db.delete(ph)
+    db.delete(d); db.commit(); db.close()  # keep the drafts count at zero for the capture test below
+    r=c.post("/clip", data={"project_id":pid,"dest":"cover","link":"","page":"https://shop.example/product/sofa"}, follow_redirects=False); assert r.headers["location"]==f"/p/{pid}/images"
+    r=TestClient(app).get("/clip", follow_redirects=False); assert r.status_code==303  # login required
+    print("web images ok")
+
     # ---- quick capture: photo-first drafts ----
     from app.services import summary as _summary
     from app.models import Project as _P

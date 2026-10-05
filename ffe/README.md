@@ -12,6 +12,7 @@ same data, entered once.
 | Rooms | Room codes (GF-KIT …) used on every item, box and label. Optional floor/wall areas. |
 | Items | Room, category (= schedule page), name, must-have spec, brand, size, finish, qty, unit price (CNY), supplier, lead time, status (To buy → Quoted → Ordered → Paid → Shipped → Received), photos from the phone camera. |
 | Quick capture | Photo-first entry for showrooms: the camera opens, every photo is saved at once as a **draft** item (room/category optional), keep shooting. Drafts are completed later on the Drafts page (name, room, category, qty, price → item code generated) or discarded. Drafts do not count in totals, PDFs, Excel or share links until they have a name. |
+| Save from web | Pictures from any website (supplier catalogue, Pinterest pin, Taobao, 1688): paste a picture or page link on the item form or the Mood board page, or use the **Save to HBA** bookmarklet from `/clip` to clip the page's main picture into a project as a draft item or a mood-board image. Pictures are downloaded server-side, shrunk and stored like uploads. |
 | Suppliers | Contacts, WeChat, payment terms, what they supply; per-project ordered / paid / balance. |
 | Payments | Deposit / balance per supplier with receipt photo. |
 | Packing | One line per box with room code, "Box n of N", CBM, weight, received tick. Container size calculated. Suppliers can list their own boxes through a **packing link** (no login). |
@@ -79,7 +80,8 @@ Pushing new commits to GitHub and re-deploying updates the app. The database and
 app/main.py           app start, login, settings, media
 app/models.py         tables: projects, rooms, items, photos, suppliers, supplier_links, payments, cartons, settings
 app/routers/          projects, rooms, items, suppliers, payments, cartons, share (public links), exports, importer,
-                      capture (quick capture + drafts)
+                      capture (quick capture + drafts), clip (Save from web bookmarklet + /clip page)
+app/webimage.py       fetch a picture from a web link (direct image or a page's og:image / largest <img>)
 app/pdf/              schedule.py (client FF&E PDF), packing.py (packing list, labels, PO, room checklist)
 app/templates/        Jinja2 pages        app/static/        app.css, app.js
 ```

@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
 from fastapi.responses import JSONResponse
+from urllib.parse import quote
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Project, Item, ItemPhoto, Supplier, Room
 from ..common import render, redirect, require_login, get_project, ffloat, fint
 from ..services import next_code
-from .. import storage, config
+from .. import storage, config, webimage
 
 router = APIRouter(dependencies=[Depends(require_login)])
 
@@ -76,6 +77,18 @@ def apply_form(item: Item, db: Session, p: Project, form: dict):
         item.code = next_code(db, p, room)
 
 
+def _photo_from_url(item: Item, db: Session, p: Project, url: str, caption: str = "") -> str:
+    """Fetch a picture from a web link and attach it. Returns "" or an error message for the page."""
+    if not (url or "").strip():
+        return ""
+    try:
+        data = webimage.fetch_image(url)
+    except webimage.WebImageError as e:
+        return str(e)
+    db.add(ItemPhoto(item_id=item.id, file_key=storage.save_image(data, f"p{p.id}"), caption=caption))
+    return ""
+
+
 @router.post("/p/{project_id}/items/new")
 async def create_item(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db)):
     form = await request.form()
@@ -89,19 +102,22 @@ async def create_item(request: Request, p: Project = Depends(get_project), db: S
             data = await f.read()
             if data:
                 db.add(ItemPhoto(item_id=item.id, file_key=storage.save_image(data, f"p{p.id}")))
+    err = _photo_from_url(item, db, p, form.get("photo_url", ""))
     db.commit()
+    if err:
+        return redirect(f"/p/{p.id}/items/{item.id}?err={quote(err)}")
     if form.get("add_another") == "1":
         return redirect(f"/p/{p.id}/items/new?room={item.room_id or ''}&category={item.category}")
     return redirect(f"/p/{p.id}/items/{item.id}")
 
 
 @router.get("/p/{project_id}/items/{item_id}")
-def item_detail(request: Request, item_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+def item_detail(request: Request, item_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), err: str = ""):
     item = db.get(Item, item_id)
     if not item or item.project_id != p.id:
         return redirect(f"/p/{p.id}/items")
     suppliers = db.query(Supplier).order_by(Supplier.name).all()
-    return render(request, "items/form.html", p=p, item=item, suppliers=suppliers, pre_room=None, pre_cat="")
+    return render(request, "items/form.html", p=p, item=item, suppliers=suppliers, pre_room=None, pre_cat="", err=err[:200])
 
 
 @router.post("/p/{project_id}/items/{item_id}")
@@ -119,7 +135,10 @@ async def update_item(request: Request, item_id: int, p: Project = Depends(get_p
             data = await f.read()
             if data:
                 db.add(ItemPhoto(item_id=item.id, file_key=storage.save_image(data, f"p{p.id}")))
+    err = _photo_from_url(item, db, p, form.get("photo_url", ""))
     db.commit()
+    if err:
+        return redirect(f"/p/{p.id}/items/{item.id}?err={quote(err)}")
     nxt = form.get("next") or f"/p/{p.id}/items/{item.id}"
     return redirect(nxt)
 
@@ -147,6 +166,18 @@ async def add_photo(item_id: int, p: Project = Depends(get_project), db: Session
                 db.add(ItemPhoto(item_id=item.id, file_key=storage.save_image(data, f"p{p.id}"), caption=caption))
         db.commit()
     return redirect(f"/p/{p.id}/items/{item_id}")
+
+
+@router.post("/p/{project_id}/items/{item_id}/photo-url")
+def add_photo_url(item_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db),
+                  url: str = Form(""), caption: str = Form("")):
+    """Attach a picture from any web link (direct image or a product page) to an existing item."""
+    item = db.get(Item, item_id)
+    if not item or item.project_id != p.id:
+        return redirect(f"/p/{p.id}/items")
+    err = _photo_from_url(item, db, p, url, caption)
+    db.commit()
+    return redirect(f"/p/{p.id}/items/{item_id}" + (f"?err={quote(err)}" if err else ""))
 
 
 @router.post("/p/{project_id}/items/{item_id}/photo/{photo_id}/delete")

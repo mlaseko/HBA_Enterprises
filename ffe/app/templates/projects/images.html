@@ -11,6 +11,7 @@
   <div class="actions"><a class="btn sec sm" href="/p/{{ p.id }}/export/schedule.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Preview schedule PDF</a></div>
 </div>
 
+{% if err %}<div class="alert err">{{ err }}</div>{% endif %}
 <form method="post" enctype="multipart/form-data" class="card">
   <h2><svg class="ic"><use href="#i-upload"/></svg> Add images</h2>
   <div class="grid g3 stack">
@@ -21,6 +22,19 @@
   <div class="form-actions">
     <button class="btn"><svg class="ic"><use href="#i-upload"/></svg>Upload</button>
     <span class="small muted">Large photos are shrunk on your phone before upload.</span>
+  </div>
+</form>
+
+<form method="post" action="/p/{{ p.id }}/images/url" class="card">
+  <h2><svg class="ic"><use href="#i-link"/></svg> Add from a web link</h2>
+  <div class="grid g3 stack">
+    <div><label for="iu-kind">Type</label><select id="iu-kind" name="kind" class="in"><option value="mood">Mood board</option><option value="floorplan">Floor plan</option><option value="cover">Cover image</option></select></div>
+    <div><label for="iu-cap">Caption (optional)</label><input id="iu-cap" class="in" type="text" name="caption" placeholder="e.g. Brass &amp; travertine"></div>
+    <div><label for="iu-url">Picture or page link</label><input id="iu-url" class="in" type="url" name="url" inputmode="url" required placeholder="https://… (Pinterest pin, supplier page, image)" autocomplete="off"></div>
+  </div>
+  <div class="form-actions">
+    <button class="btn sec"><svg class="ic"><use href="#i-link"/></svg>Fetch &amp; add</button>
+    <span class="small muted">Works with a direct image link or a page; the page's main picture is used. <a href="/clip">One-click button for your browser</a>.</span>
   </div>
 </form>
 
