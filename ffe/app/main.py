@@ -27,6 +27,8 @@ def startup():
 
 @app.exception_handler(LoginRequired)
 async def login_required_handler(request: Request, exc: LoginRequired):
+    if request.url.path == "/":
+        return render(request, "login.html", next="/", error=None)
     return RedirectResponse(f"/login?next={request.url.path}", status_code=303)
 
 

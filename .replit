@@ -37,3 +37,12 @@ externalPort = 80
 
 [objectStorage]
 defaultBucketID = "replit-objstore-780d78ce-ed63-4f14-9ddb-aef93eca704c"
+
+[deployment]
+deploymentTarget = "cloudrun"
+
+[deployment.run]
+args = ["sh", "-c", "/nix/store/mnjsfz2lyr84m1d51pygk55i4wa1lbc3-python3-wrapper/bin/python3 $file"]
+
+[deployment.run.env]
+file = "main.py"

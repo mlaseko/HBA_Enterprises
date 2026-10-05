@@ -13,7 +13,7 @@ def img(color):
     b=io.BytesIO(); Image.new("RGB",(900,700),color).save(b,"JPEG"); return b.getvalue()
 
 with TestClient(app) as c:
-    r=c.get("/", follow_redirects=False); assert r.status_code==303 and "/login" in r.headers["location"], r.headers
+    r=c.get("/", follow_redirects=False); assert r.status_code==200 and "Enter the app password" in r.text
     r=c.post("/login", data={"password":"wrong","next":"/"}); assert "Wrong password" in r.text
     r=c.post("/login", data={"password":"test123","next":"/"}, follow_redirects=False); assert r.status_code==303
     r=c.get("/"); assert "Projects" in r.text
