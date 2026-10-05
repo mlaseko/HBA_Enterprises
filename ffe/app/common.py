@@ -6,8 +6,8 @@ from fastapi.templating import Jinja2Templates
 from itsdangerous import URLSafeSerializer, BadSignature
 from sqlalchemy.orm import Session
 from . import config
-from .db import get_db
-from .models import Project, Settings
+from .db import get_db, SessionLocal
+from .models import Project, Settings, Item
 
 templates = Jinja2Templates(directory="app/templates")
 signer = URLSafeSerializer(config.SECRET_KEY, salt="session")
@@ -97,8 +97,25 @@ templates.env.globals.update(APP_NAME=config.APP_NAME, CATEGORIES=config.CATEGOR
                              PAYMENT_KINDS=config.PAYMENT_KINDS)
 
 
+PUBLIC_TEMPLATES = {"login.html"}  # plus everything under share/: pages without the app shell
+
+
+def nav_context(p: Project | None) -> dict:
+    """Data for the app shell (sidebar, project switcher, drafts badge). Plain dicts: safe after the session closes."""
+    with SessionLocal() as db:
+        projects = db.query(Project).order_by(Project.created_at.desc()).all()
+        studio = get_settings(db)
+        drafts = db.query(Item).filter(Item.project_id == p.id, Item.draft == True).count() if p else 0  # noqa: E712
+        return {"projects": [{"id": x.id, "name": x.name, "client_name": x.client_name, "status": x.status} for x in projects],
+                "studio": {"name": studio.studio_name, "logo_key": studio.logo_key}, "drafts": drafts}
+
+
 def render(request: Request, name: str, **ctx):
     ctx.setdefault("request", request)
+    public = name in PUBLIC_TEMPLATES or name.startswith("share/")
+    ctx.setdefault("public", public)
+    if not ctx["public"] and "nav" not in ctx:
+        ctx["nav"] = nav_context(ctx.get("p"))
     return templates.TemplateResponse(request, name, ctx)
 
 

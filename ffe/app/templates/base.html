@@ -5,35 +5,148 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{% block title %}{{ APP_NAME }}{% endblock %}</title>
 <link rel="stylesheet" href="/static/app.css">
-<meta name="theme-color" content="#1F3A5F">
+<meta name="theme-color" content="#F6F3EE">
+<link rel="icon" type="image/png" href="/static/brand/favicon.png">
+<link rel="apple-touch-icon" href="/static/brand/touch-icon.png">
 </head>
-<body>
-{% block top %}
-<div class="top">
-  <a href="/" class="brand">{{ APP_NAME }}</a>
-  {% if p %}<span class="proj">· {{ p.client_name }} — {{ p.name }}</span>{% endif %}
-  <span class="sp"></span>
-  <a href="/suppliers" class="small">Suppliers</a>
-  <a href="/settings" class="small">Settings</a>
-  <a href="/logout" class="small">Log out</a>
-</div>
-{% if p %}
+<body class="{{ 'public' if public else 'app' }}">
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M17.5 14a6 6 0 0 1 4 6"/></symbol>
+  <symbol id="i-card" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5-9 9"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v12"/><path d="M7 11l5 5 5-5"/><path d="M4 20h16"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 6h8"/><path d="M18 6h2"/><circle cx="15" cy="6" r="2"/><path d="M4 12h2"/><path d="M10 12h10"/><circle cx="7" cy="12" r="2"/><path d="M4 18h8"/><path d="M18 18h2"/><circle cx="15" cy="18" r="2"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h6"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></symbol>
+  <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></symbol>
+  <symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4l10-10-4-4L4 16z"/><path d="M13 7l4 4"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.2"/></symbol>
+  <symbol id="i-truck" viewBox="0 0 24 24"><path d="M3 6h11v10H3z"/><path d="M14 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></symbol>
+  <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 17l.7 1.8 1.8.7-1.8.7L19 22l-.7-1.8-1.8-.7 1.8-.7z"/></symbol>
+</svg>
 {% set path = request.url.path %}
-<nav class="tabs">
-  <a href="/p/{{ p.id }}" class="{{ 'on' if path == '/p/' ~ p.id else '' }}">Overview</a>
-  <a href="/p/{{ p.id }}/items" class="{{ 'on' if '/items' in path else '' }}">Items</a>
-  <a href="/p/{{ p.id }}/rooms" class="{{ 'on' if '/rooms' in path else '' }}">Rooms</a>
-  <a href="/p/{{ p.id }}/suppliers" class="{{ 'on' if '/suppliers' in path else '' }}">Suppliers</a>
-  <a href="/p/{{ p.id }}/payments" class="{{ 'on' if '/payments' in path else '' }}">Payments</a>
-  <a href="/p/{{ p.id }}/cartons" class="{{ 'on' if '/cartons' in path else '' }}">Packing</a>
-  <a href="/p/{{ p.id }}/images" class="{{ 'on' if '/images' in path else '' }}">Mood board</a>
-  <a href="/p/{{ p.id }}/import" class="{{ 'on' if '/import' in path else '' }}">Import</a>
-</nav>
+{% macro ic(name, cls='ic') %}<svg class="{{ cls }}"><use href="#i-{{ name }}"/></svg>{% endmacro %}
+{% macro project_links(p, path, nav) %}
+  <a href="/p/{{ p.id }}" class="{{ 'on' if path == '/p/' ~ p.id }}">{{ ic('home') }}Overview</a>
+  <a href="/p/{{ p.id }}/items" class="{{ 'on' if '/items' in path }}">{{ ic('grid') }}Items</a>
+  <a href="/p/{{ p.id }}/drafts" class="{{ 'on' if '/drafts' in path or '/capture' in path }}">{{ ic('clock') }}Drafts{% if nav.drafts %}<span class="count">{{ nav.drafts }}</span>{% endif %}</a>
+  <a href="/p/{{ p.id }}/rooms" class="{{ 'on' if '/rooms' in path }}">{{ ic('layout') }}Rooms</a>
+  <a href="/p/{{ p.id }}/suppliers" class="{{ 'on' if '/suppliers' in path }}">{{ ic('users') }}Suppliers</a>
+  <a href="/p/{{ p.id }}/payments" class="{{ 'on' if '/payments' in path }}">{{ ic('card') }}Payments</a>
+  <a href="/p/{{ p.id }}/cartons" class="{{ 'on' if '/cartons' in path }}">{{ ic('box') }}Packing</a>
+  <a href="/p/{{ p.id }}/images" class="{{ 'on' if '/images' in path }}">{{ ic('image') }}Mood board</a>
+  <a href="/p/{{ p.id }}#documents">{{ ic('file') }}Documents</a>
+  <a href="/p/{{ p.id }}/import" class="{{ 'on' if '/import' in path }}">{{ ic('upload') }}Import</a>
+  <a href="/p/{{ p.id }}/edit" class="{{ 'on' if path == '/p/' ~ p.id ~ '/edit' }}">{{ ic('edit') }}Project settings</a>
+{% endmacro %}
+{% macro studio_links(path, p) %}
+  <a href="/" class="{{ 'on' if path == '/' }}">{{ ic('folder') }}All projects</a>
+  <a href="/suppliers" class="{{ 'on' if not p and path.startswith('/suppliers') }}">{{ ic('users') }}Suppliers</a>
+  <a href="/settings" class="{{ 'on' if path == '/settings' }}">{{ ic('settings') }}Studio settings</a>
+  <a href="/projects/new" class="{{ 'on' if path == '/projects/new' }}">{{ ic('plus') }}New project</a>
+{% endmacro %}
+{% macro brand(nav) %}
+  <a class="brand" href="/">
+    <span class="mark">{% if nav and nav.studio and nav.studio.logo_key %}<img src="/media/{{ nav.studio.logo_key }}" alt="">{% else %}<img class="glyph" src="/static/brand-mark.png" alt="">{% endif %}</span>
+    <span class="name">{{ nav.studio.name if nav and nav.studio and nav.studio.name else APP_NAME }}</span>
+  </a>
+{% endmacro %}
+{% if public %}
+<header class="pubbar">{% block pubbar %}
+  <div class="in-bar">
+    <span class="brand"><span class="mark">{% if studio is defined and studio.logo_key %}<img src="/media/{{ studio.logo_key }}" alt="">{% else %}<img class="glyph" src="/static/brand-mark.png" alt="">{% endif %}</span><span class="name">{{ studio.studio_name if studio is defined and studio.studio_name else APP_NAME }}</span></span>
+    <span class="ctx">{% block pubctx %}{% endblock %}</span>
+    <span class="sp"></span>
+    {% block pubactions %}{% endblock %}
+  </div>
+{% endblock %}</header>
+{% else %}
+<div class="shell">
+<aside class="side">
+  {{ brand(nav) }}
+  {% if p %}
+  <div class="eyebrow sec">{{ p.client_name }}</div>
+  <nav class="nav">{{ project_links(p, path, nav) }}</nav>
+  <a class="cta" href="/p/{{ p.id }}/capture">{{ ic('camera') }}Quick capture</a>
+  {% endif %}
+  <div class="eyebrow sec">Studio</div>
+  <nav class="nav">{{ studio_links(path, p) }}</nav>
+  {% if not p and nav.projects %}
+  <div class="eyebrow sec">Projects</div>
+  <nav class="nav">{% for pr in nav.projects[:6] %}<a href="/p/{{ pr.id }}">{{ ic('home') }}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ pr.name }}</span></a>{% endfor %}</nav>
+  {% endif %}
+  <div class="foot"><a href="/logout">{{ ic('logout') }}Log out</a></div>
+</aside>
+<div class="main">
+<header class="top">
+  {{ brand(nav) }}
+  <div class="switcher">
+    <select aria-label="Switch project" onchange="if(this.value)location.href=this.value">
+      <option value="/" {{ 'selected' if not p }}>All projects</option>
+      {% for pr in nav.projects %}<option value="/p/{{ pr.id }}" {{ 'selected' if p and p.id == pr.id }}>{{ pr.name }} · {{ pr.client_name }}</option>{% endfor %}
+    </select>{{ ic('chevron-down') }}
+  </div>
+  <div class="tools">
+    <a class="iconbtn hide-m" href="/projects/new">{{ ic('plus') }}New project</a>
+    <a class="iconbtn" href="/settings" title="Studio settings">{{ ic('settings') }}</a>
+    <a class="iconbtn hide-m" href="/logout" title="Log out">{{ ic('logout') }}</a>
+  </div>
+</header>
 {% endif %}
-{% endblock %}
-<main class="wrap">
+<main class="{% block mainclass %}wrap{% endblock %}">
 {% block content %}{% endblock %}
 </main>
+{% if not public %}
+</div></div>
+<nav class="bottom">
+  {% if p %}
+  <a href="/p/{{ p.id }}" class="{{ 'on' if path == '/p/' ~ p.id }}">{{ ic('home') }}<span>Overview</span></a>
+  <a href="/p/{{ p.id }}/items" class="{{ 'on' if '/items' in path or '/drafts' in path }}">{{ ic('grid') }}<span>Items</span>{% if nav.drafts %}<span class="dot">{{ nav.drafts }}</span>{% endif %}</a>
+  <a href="/p/{{ p.id }}/capture" class="capture"><span class="ring">{{ ic('camera') }}</span><span>Capture</span></a>
+  <a href="/p/{{ p.id }}/cartons" class="{{ 'on' if '/cartons' in path }}">{{ ic('box') }}<span>Packing</span></a>
+  {% else %}
+  <a href="/" class="{{ 'on' if path == '/' }}">{{ ic('folder') }}<span>Projects</span></a>
+  <a href="/suppliers" class="{{ 'on' if path.startswith('/suppliers') }}">{{ ic('users') }}<span>Suppliers</span></a>
+  <a href="/projects/new" class="capture"><span class="ring">{{ ic('plus') }}</span><span>New</span></a>
+  <a href="/settings" class="{{ 'on' if path == '/settings' }}">{{ ic('settings') }}<span>Settings</span></a>
+  {% endif %}
+  <button type="button" onclick="toggleMore()">{{ ic('more') }}<span>More</span></button>
+</nav>
+<div class="sheet" id="more" aria-hidden="true">
+  <div class="back" onclick="toggleMore(false)"></div>
+  <div class="panel">
+    <div class="grab"></div>
+    {% if p %}
+    <div class="eyebrow sec">{{ p.name }}</div>
+    <nav class="nav">{{ project_links(p, path, nav) }}</nav>
+    {% endif %}
+    <div class="eyebrow sec">Studio</div>
+    <nav class="nav">{{ studio_links(path, p) }}<a href="/logout">{{ ic('logout') }}Log out</a></nav>
+    {% if nav.projects|length > 1 or not p %}
+    <div class="eyebrow sec">Switch project</div>
+    <nav class="nav">{% for pr in nav.projects %}<a href="/p/{{ pr.id }}" class="{{ 'on' if p and p.id == pr.id }}">{{ ic('home') }}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ pr.name }}</span></a>{% endfor %}</nav>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
 <script src="/static/app.js"></script>
 </body>
 </html>

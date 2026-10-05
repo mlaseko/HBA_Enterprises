@@ -1,15 +1,32 @@
 {% extends "base.html" %}
-{% block top %}{% endblock %}
+{% block title %}Log in · {{ APP_NAME }}{% endblock %}
+{% block pubbar %}{% endblock %}
+{% block mainclass %}auth-wrap{% endblock %}
 {% block content %}
-<div class="login card">
-  <h1>{{ APP_NAME }}</h1>
-  <p class="muted small">Enter the app password.</p>
-  {% if error %}<div class="alert err">{{ error }}</div>{% endif %}
-  <form method="post" action="/login">
-    <input type="hidden" name="next" value="{{ next }}">
-    <label>Password</label>
-    <input type="password" name="password" autofocus autocomplete="current-password">
-    <div style="margin-top:12px"><button class="btn block">Log in</button></div>
-  </form>
+<div class="auth">
+  <section class="pane">
+    <img class="logo" src="/static/logo.png" alt="{{ APP_NAME }}">
+    <h1>Every item, every room, one beautiful schedule.</h1>
+    <p>Capture samples in the showroom, keep suppliers and payments in order, pack by room, and hand your client a schedule they will love.</p>
+    <div class="pts">
+      <div><svg class="ic"><use href="#i-check"/></svg>Photo-first capture on your phone</div>
+      <div><svg class="ic"><use href="#i-check"/></svg>Suppliers, payments and balances in one place</div>
+      <div><svg class="ic"><use href="#i-check"/></svg>Boxes labelled by room, documents generated for you</div>
+    </div>
+  </section>
+  <section class="form">
+    <div class="card">
+      <h2>Welcome back</h2>
+      <p class="muted small">Enter the app password to continue.</p>
+      {% if error %}<div class="alert err">{{ error }}</div>{% endif %}
+      <form method="post" action="/login">
+        <input type="hidden" name="next" value="{{ next }}">
+        <label>Password</label>
+        <input type="password" name="password" autofocus autocomplete="current-password" placeholder="••••••••">
+        <div class="mt"><button class="btn block lg">Log in</button></div>
+      </form>
+      <p class="xs muted mt" style="margin-bottom:0">Clients and suppliers don't log in. They use the links you send them.</p>
+    </div>
+  </section>
 </div>
 {% endblock %}

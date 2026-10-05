@@ -48,6 +48,17 @@
       .catch(function () { sel.style.background = '#FEE2E2'; });
   });
 
+  // mobile "More" sheet in the app shell
+  window.toggleMore = function (open) {
+    var s = document.getElementById('more');
+    if (!s) return;
+    var now = open === undefined ? !s.classList.contains('open') : !!open;
+    s.classList.toggle('open', now);
+    s.setAttribute('aria-hidden', now ? 'false' : 'true');
+    document.body.style.overflow = now ? 'hidden' : '';
+  };
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') window.toggleMore(false); });
+
   window.copyText = function (txt, btn) {
     navigator.clipboard.writeText(txt).then(function () { if (btn) { var o = btn.textContent; btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = o; }, 1200); } });
   };

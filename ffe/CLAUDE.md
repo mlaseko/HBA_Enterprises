@@ -38,11 +38,37 @@ app/routers/           projects, rooms, items, suppliers, payments, cartons, sha
 app/pdf/common.py      styles, table style, image flowable, footer
 app/pdf/schedule.py    client schedule PDF (cover, contents, floor plan, mood board, table per category, summary by room)
 app/pdf/packing.py     packing list, 6-per-page labels, room checklist, purchase order
-app/templates/         base.html + pages (capture.html, drafts.html for quick capture);
-                       app/static/app.css, app.js (photo compression — also exposed as window.compressPhoto —, quick status, copy link)
+app/templates/         base.html = app shell (desktop sidebar, top bar + project switcher, phone bottom tab bar,
+                       "More" sheet, inline SVG icon sprite, public bar for share pages) + pages
+                       (capture.html, drafts.html for quick capture); render() in common.py injects `nav`
+                       (projects, studio, drafts count) and `public` (login + share/* render without the shell)
+app/static/app.css     the design system (tokens, shell, cards, KPI tiles, buttons, forms, tables, badges, item cards)
+app/static/app.js      photo compression (also exposed as window.compressPhoto), quick status, copy link, toggleMore()
 tests/test_flow.py     end-to-end test with TestClient + SQLite (login, import, items, photos, links, PDFs)
 samples/               Kinondoni procurement Excel used by the import test
 ```
+
+## Look and feel (keep it consistent)
+
+Warm, editorial, interior-design studio: linen background, white cards, terracotta/gold accents, serif page
+titles (system serif stack), sans body. Everything lives in `app/static/app.css`; no external fonts or assets.
+- Every designer page starts with `.page-head`: `.crumbs` (Projects › project › section), `h1` (+ `.h-note`
+  for counts), optional `p.sub`, and `.actions` (buttons). Public share pages use `{% block pubctx %}` and
+  `{% block pubactions %}` instead.
+- Components: `.card` (+ `.tight .soft .accent .sage`), `.kpi` (`.v` value, `.l` label, variants
+  `.accent .sage .gold .ink`), `.btn` (`.sec .ghost .accent/.gold .soft .danger .sm .lg .block .icon`),
+  `.tbl > table` (`th/td.num` right-aligned), `.badge` with `style="--c:…"` for statuses, `.pill` for labels,
+  `.item` rows and `.cards > .item-card` grids, `.group-title`, `.docs > .doc`, `.empty`, `.alert`.
+- Brand: the HBA Interiors logo (PNG at the repo root) is served as `app/static/logo.png` (white, for dark
+  panes), `app/static/brand-mark.png` (house glyph for the brand tile), `app/static/brand/logo-ink.png` (dark,
+  for light backgrounds, e.g. share-page footers) and `app/static/brand/favicon.png` / `touch-icon.png`.
+  The shell shows the glyph unless a studio logo is uploaded in Settings.
+- Icons: inline `<svg class="ic"><use href="#i-NAME"/></svg>` from the sprite in base.html. Add new symbols
+  there, never an icon font or CDN.
+- Yellow (`class="in"`) still means "the user types here". Use `.grid .g2/.g3/.g4` + `.span2…` instead of
+  inline `grid-column`. The reusable `.fab` sits above the bottom tab bar (phone only: add `hide-d`).
+- Navigation: sidebar/bottom bar/sheet are generated in base.html from the URL path; when you add a section,
+  add it to the `project_links` or `studio_links` macro once and it appears everywhere.
 
 ## Conventions (keep them)
 

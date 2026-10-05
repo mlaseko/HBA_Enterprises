@@ -1,20 +1,48 @@
 {% extends "base.html" %}
+{% block title %}Projects · {{ APP_NAME }}{% endblock %}
 {% block content %}
-<div class="row between"><h1>Projects</h1><a href="/projects/new" class="btn">+ New project</a></div>
-{% if not cards %}<div class="card">No projects yet. Create the first one, then add rooms and items (or import the Excel list).</div>{% endif %}
-<div class="grid g2">
+<div class="page-head">
+  <div>
+    <div class="eyebrow">{{ nav.studio.name or APP_NAME }}</div>
+    <h1>Projects{% if cards %} <span class="h-note">{{ cards|length }} {{ 'project' if cards|length == 1 else 'projects' }}</span>{% endif %}</h1>
+    <p class="sub">Every home you are furnishing, at a glance. Open a project to capture items, follow orders and payments, and build the client schedule.</p>
+  </div>
+  <div class="actions"><a class="btn" href="/projects/new"><svg class="ic"><use href="#i-plus"/></svg>New project</a></div>
+</div>
+
+{% if not cards %}
+<div class="card empty">
+  <div class="ring"><svg class="ic"><use href="#i-folder"/></svg></div>
+  <h3>No projects yet</h3>
+  <p>Create the first one, then add rooms and items — or import the Excel list you already have.</p>
+  <a class="btn" href="/projects/new"><svg class="ic"><use href="#i-plus"/></svg>Create a project</a>
+</div>
+{% else %}
+<div class="grid g2 stack">
 {% for p, s in cards %}
-  <a href="/p/{{ p.id }}" class="card" style="color:inherit;text-decoration:none">
-    <div class="row between"><div><div class="b">{{ p.name }}</div><div class="muted small">{{ p.client_name }} {% if p.address %}· {{ p.address }}{% endif %}</div></div>
-      <span class="pill">{{ p.status }}</span></div>
-    <div class="row" style="margin-top:8px;gap:16px">
-      <div><div class="b">{{ s['items'] }}</div><div class="muted small">items</div></div>
-      <div><div class="b">${{ s.total_usd|money }}</div><div class="muted small">total</div></div>
-      <div><div class="b">{{ s.received }}</div><div class="muted small">received</div></div>
-      <div><div class="b">{{ s.cartons }}</div><div class="muted small">boxes</div></div>
+  {% set covers = p.images|selectattr('kind', 'equalto', 'cover')|list %}
+  {% set moods = p.images|selectattr('kind', 'equalto', 'mood')|list %}
+  {% set cover = covers[0] if covers else (moods[0] if moods else none) %}
+  {% set pct = (100 * s.received / s['items'])|int if s['items'] else 0 %}
+  <a href="/p/{{ p.id }}" class="card proj">
+    <div class="cover{% if not cover %} blank{% endif %}">
+      {% if cover %}<img src="/media/{{ cover.file_key }}" alt="">{% else %}<span class="init">{{ p.name[:1] }}</span>{% endif %}
+      <span class="pill {{ 'green' if p.status == 'Active' else ('gold' if p.status == 'On hold' else 'sage') }}">{{ p.status }}</span>
     </div>
-    <div class="bar" style="margin-top:8px"><i style="width:{{ (100*s.received/s['items'])|int if s['items'] else 0 }}%"></i></div>
+    <div class="body">
+      <div class="t">{{ p.name }}</div>
+      <div class="m">{{ p.client_name }}{% if p.address %} · {{ p.address }}{% endif %}</div>
+      <div class="stats">
+        <div><div class="v">{{ s['items'] }}</div><div class="l">items</div></div>
+        <div><div class="v">${{ s.total_usd|money }}</div><div class="l">total</div></div>
+        <div><div class="v">{{ s.received }}</div><div class="l">received</div></div>
+        <div><div class="v">{{ s.cartons }}</div><div class="l">boxes</div></div>
+      </div>
+      <div class="prog"><span>{{ s.received }} of {{ s['items'] }} items received</span><span>{{ pct }}%</span></div>
+      <div class="bar"><i style="width:{{ pct }}%"></i></div>
+    </div>
   </a>
 {% endfor %}
 </div>
+{% endif %}
 {% endblock %}

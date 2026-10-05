@@ -1,47 +1,139 @@
 {% extends "base.html" %}
+{% block title %}{{ s.name }} · {{ APP_NAME }}{% endblock %}
 {% block content %}
-<div class="row between"><h1>{{ s.name }}</h1>{% if p %}<a class="btn sm" href="/p/{{ p.id }}/export/po/{{ s.id }}.pdf" target="_blank">Purchase order PDF</a>{% endif %}</div>
-<form method="post" action="/suppliers/{{ s.id }}" class="card grid g3">
-  <input type="hidden" name="back" value="{{ request.url.path }}{% if p %}?project={{ p.id }}{% endif %}">
-  <div><label>Name</label><input class="in" type="text" name="name" value="{{ s.name }}" required></div>
-  <div><label>City / market</label><input class="in" type="text" name="city" value="{{ s.city }}"></div>
-  <div><label>What they supply</label><input class="in" type="text" name="category" value="{{ s.category }}"></div>
-  <div><label>Contact person</label><input class="in" type="text" name="contact" value="{{ s.contact }}"></div>
-  <div><label>Phone</label><input class="in" type="text" name="phone" value="{{ s.phone }}"></div>
-  <div><label>WeChat</label><input class="in" type="text" name="wechat" value="{{ s.wechat }}"></div>
-  <div><label>Email</label><input class="in" type="text" name="email" value="{{ s.email }}"></div>
-  <div><label>Payment terms</label><input class="in" type="text" name="payment_terms" value="{{ s.payment_terms }}"></div>
-  <div><label>Notes</label><input class="in" type="text" name="notes" value="{{ s.notes }}"></div>
-  <div class="row" style="grid-column:span 3"><button class="btn sm">Save</button>
-    <button class="btn sm danger" formaction="/suppliers/{{ s.id }}/delete" onclick="return confirm('Delete supplier? Items keep their data but lose the supplier.')">Delete</button></div>
-</form>
-{% if p %}
-<div class="grid g2">
-  <div class="card"><h2>Money</h2>
-    <div class="grid g3"><div class="kpi"><div class="v">¥{{ total|money }}</div><div class="l">ordered</div></div><div class="kpi"><div class="v">¥{{ paid|money }}</div><div class="l">paid</div></div><div class="kpi"><div class="v">¥{{ (total-paid)|money }}</div><div class="l">balance</div></div></div>
-    <p class="small"><a href="/p/{{ p.id }}/payments">Record a payment →</a></p>
-    {% for pay in payments %}<div class="small">{{ pay.paid_on }} · {{ pay.kind }} · ¥{{ pay.amount|money }} {{ pay.reference }}</div>{% endfor %}
+{% set meta = [s.category, s.city, s.contact, s.phone, ('WeChat ' ~ s.wechat) if s.wechat else '']|select|list %}
+<div class="page-head">
+  <div>
+    <div class="crumbs">
+      {% if p %}<a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/suppliers">Suppliers</a>
+      {% else %}<a href="/suppliers">Suppliers</a>{% endif %}
+    </div>
+    <h1>{{ s.name }}</h1>
+    {% if meta %}<p class="sub">{{ meta|join(' · ') }}</p>{% endif %}
   </div>
-  <div class="card"><h2>Packing link for this supplier</h2>
-    <p class="small muted">Send this link on WeChat. The supplier sees only their items, lists each carton with its size, and can print the box labels. No login needed.</p>
+  {% if p %}
+  <div class="actions">
+    <a class="btn" href="/p/{{ p.id }}/export/po/{{ s.id }}.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Purchase order PDF</a>
+  </div>
+  {% endif %}
+</div>
+
+<form method="post" action="/suppliers/{{ s.id }}" class="card">
+  <input type="hidden" name="back" value="{{ request.url.path }}{% if p %}?project={{ p.id }}{% endif %}">
+  <h2>Supplier details</h2>
+  <div class="grid g3">
+    <div><label>Name</label><input class="in" type="text" name="name" value="{{ s.name }}" required></div>
+    <div><label>City / market</label><input class="in" type="text" name="city" value="{{ s.city }}"></div>
+    <div><label>What they supply</label><input class="in" type="text" name="category" value="{{ s.category }}"></div>
+    <div><label>Contact person</label><input class="in" type="text" name="contact" value="{{ s.contact }}"></div>
+    <div><label>Phone</label><input class="in" type="text" name="phone" value="{{ s.phone }}"></div>
+    <div><label>WeChat</label><input class="in" type="text" name="wechat" value="{{ s.wechat }}"></div>
+    <div><label>Email</label><input class="in" type="text" name="email" value="{{ s.email }}"></div>
+    <div><label>Payment terms</label><input class="in" type="text" name="payment_terms" value="{{ s.payment_terms }}"></div>
+    <div><label>Notes</label><input class="in" type="text" name="notes" value="{{ s.notes }}"></div>
+  </div>
+  <div class="form-actions">
+    <button class="btn"><svg class="ic"><use href="#i-check"/></svg>Save</button>
+    <span class="sp"></span>
+    <button class="btn sm danger" formaction="/suppliers/{{ s.id }}/delete" onclick="return confirm('Delete supplier? Items keep their data but lose the supplier.')"><svg class="ic"><use href="#i-trash"/></svg>Delete</button>
+  </div>
+</form>
+
+{% if p %}
+<div class="grid g2 stack">
+  <div class="card">
+    <div class="row between">
+      <h2 class="mb-0">Money</h2>
+      <a class="btn sec sm" href="/p/{{ p.id }}/payments"><svg class="ic"><use href="#i-card"/></svg>Record a payment</a>
+    </div>
+    <div class="grid g3 mt">
+      <div class="kpi"><div class="v">¥{{ total|money }}</div><div class="l">ordered</div></div>
+      <div class="kpi"><div class="v">¥{{ paid|money }}</div><div class="l">paid</div></div>
+      <div class="kpi accent"><div class="v">¥{{ (total-paid)|money }}</div><div class="l">balance</div></div>
+    </div>
+    {% if payments %}
+    <div class="eyebrow mt">Payments on this project</div>
+    <dl class="kv mt">
+      {% for pay in payments %}<dt>{{ pay.paid_on }}</dt><dd>{{ pay.kind }} · <b>¥{{ pay.amount|money }}</b>{% if pay.reference %} <span class="muted">{{ pay.reference }}</span>{% endif %}</dd>{% endfor %}
+    </dl>
+    {% else %}
+    <p class="small muted mt">No payments to this supplier on this project yet.</p>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h2>Packing link</h2>
+    <p class="small muted">Send this link on WeChat. The supplier sees only their items, lists each carton with its size and weight, and can print the box labels. No login needed.</p>
     {% if link %}
       <div class="copy" id="slink">{{ request.url.scheme }}://{{ request.url.netloc }}/s/{{ link.token }}</div>
-      <div class="row" style="margin-top:8px"><button type="button" class="btn sm sec" onclick="copyText(document.getElementById('slink').textContent,this)">Copy link</button>
-        <form method="post" action="/p/{{ p.id }}/suppliers/{{ s.id }}/link"><input type="hidden" name="action" value="revoke"><button class="btn sm danger">Disable link</button></form></div>
+      <div class="row mt">
+        <button type="button" class="btn sm sec" onclick="copyText(document.getElementById('slink').textContent,this)">Copy link</button>
+        <a class="btn sm ghost" href="/s/{{ link.token }}" target="_blank">Preview</a>
+        <span class="sp"></span>
+        <form method="post" action="/p/{{ p.id }}/suppliers/{{ s.id }}/link"><input type="hidden" name="action" value="revoke"><button class="btn sm danger">Disable link</button></form>
+      </div>
     {% else %}
-      <form method="post" action="/p/{{ p.id }}/suppliers/{{ s.id }}/link"><input type="hidden" name="action" value="create"><button class="btn sm">Create packing link</button></form>
+      <form method="post" action="/p/{{ p.id }}/suppliers/{{ s.id }}/link"><input type="hidden" name="action" value="create"><button class="btn"><svg class="ic"><use href="#i-link"/></svg>Create packing link</button></form>
     {% endif %}
   </div>
 </div>
-<div class="card"><h2>Items from this supplier ({{ items|length }})</h2>
-{% for i in items %}
-  <div class="item"><a href="/p/{{ p.id }}/items/{{ i.id }}">{% if i.cover %}<img class="thumb" src="/media/{{ i.cover.file_key }}">{% else %}<div class="ph">no photo</div>{% endif %}</a>
-    <div class="body"><div class="t"><a href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a></div>
+
+<div class="card">
+  <div class="row between">
+    <h2 class="mb-0">Items from this supplier</h2>
+    <span class="pill">{{ items|length }} item{{ '' if items|length == 1 else 's' }}</span>
+  </div>
+  <div class="mt">
+  {% for i in items %}
+  <div class="item">
+    <a href="/p/{{ p.id }}/items/{{ i.id }}">{% if i.cover %}<img class="thumb" src="/media/{{ i.cover.file_key }}" alt="">{% else %}<div class="ph">no photo</div>{% endif %}</a>
+    <div class="body">
+      <div class="t"><a href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a></div>
       <div class="m">{{ i.code }} · {{ i.room.name if i.room else 'Whole house' }} · {{ i.qty|num }} {{ i.unit }}{% if i.unit_price %} · ¥{{ i.total|money }}{% endif %}</div>
-      <span class="badge" style="background:{{ STATUS_COLORS[i.status] }}">{{ i.status }}</span></div></div>
-{% else %}<p class="muted small">No items assigned yet. Set the supplier on each item.</p>{% endfor %}
+      <div class="status-row"><span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status }}</span></div>
+    </div>
+  </div>
+  {% else %}
+  <div class="empty">
+    <div class="ring"><svg class="ic"><use href="#i-grid"/></svg></div>
+    <h3>No items assigned yet</h3>
+    <p>Set the supplier on each item and it will show up here, on the purchase order and on the packing link.</p>
+    <a class="btn sec" href="/p/{{ p.id }}/items"><svg class="ic"><use href="#i-grid"/></svg>Go to items</a>
+  </div>
+  {% endfor %}
+  </div>
 </div>
+
 {% else %}
-<div class="card"><h2>Items across projects</h2>{% for i in items %}<div class="small">{{ i.project.name }} · {{ i.code }} · {{ i.name }}</div>{% else %}<span class="muted small">none</span>{% endfor %}</div>
+<div class="card soft">
+  <h2 class="mb-0">Open in a project</h2>
+  <div class="small muted">Money, the packing link and the purchase order live inside each project.</div>
+  {% if nav and nav.projects %}
+  <div class="row mt">{% for pr in nav.projects %}<a class="btn sec sm" href="/suppliers/{{ s.id }}?project={{ pr.id }}"><svg class="ic"><use href="#i-home"/></svg>{{ pr.name }}</a>{% endfor %}</div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="row between">
+    <h2 class="mb-0">Items across projects</h2>
+    <span class="pill">{{ items|length }} item{{ '' if items|length == 1 else 's' }}</span>
+  </div>
+  {% if items %}
+  <div class="tbl mt"><table>
+    <thead><tr><th>Project</th><th>Code</th><th>Item</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for i in items %}
+    <tr>
+      <td><a href="/p/{{ i.project_id }}">{{ i.project.name }}</a></td>
+      <td class="small muted">{{ i.code }}</td>
+      <td><a href="/p/{{ i.project_id }}/items/{{ i.id }}">{{ i.name }}</a></td>
+      <td><span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status }}</span></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  <p class="small muted mt">No items from this supplier yet.</p>
+  {% endif %}
+</div>
 {% endif %}
 {% endblock %}

@@ -1,36 +1,80 @@
 {% extends "base.html" %}
+{% block title %}Packing · {{ p.name }} · {{ APP_NAME }}{% endblock %}
 {% block content %}
-<h1>Packing <span class="muted small">{{ s.cartons }} boxes · {{ '%.2f'|format(s.cbm) }} CBM · {{ s.kg|num }} kg → {{ s.container }}</span></h1>
-<p class="muted small">One line per box. Each box gets a room code and "Box n of N". Suppliers can enter their own boxes through their packing link (Suppliers tab), or you enter them here.</p>
-<div class="row" style="margin-bottom:10px">
-  <a class="btn sm" href="/p/{{ p.id }}/export/labels.pdf{% if f.supplier %}?supplier={{ f.supplier }}{% endif %}" target="_blank">Print box labels</a>
-  <a class="btn sm sec" href="/p/{{ p.id }}/export/packing.pdf{% if f.supplier %}?supplier={{ f.supplier }}{% endif %}" target="_blank">Packing list PDF</a>
+{% set q = ('?supplier=' ~ f.supplier) if f.supplier else '' %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
+    <h1>Packing <span class="h-note">{{ s.cartons }} boxes · {{ '%.2f'|format(s.cbm) }} CBM · {{ s.kg|num }} kg → {{ s.container }}</span></h1>
+    <p class="sub">One line per box. Each box gets a room code and "Box n of N" so it lands in the right room. Suppliers can add their own boxes through their packing link, or you enter them here.</p>
+  </div>
+  <div class="actions">
+    <a class="btn sec" href="/p/{{ p.id }}/export/packing.pdf{{ q }}" target="_blank"><svg class="ic"><use href="#i-download"/></svg>Packing list PDF</a>
+    <a class="btn" href="/p/{{ p.id }}/export/labels.pdf{{ q }}" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Print box labels</a>
+  </div>
 </div>
-<form method="post" class="card grid g4">
-  <div><label>Supplier</label><select name="supplier_id" class="in"><option value="">—</option>{% for sp in suppliers %}<option value="{{ sp.id }}">{{ sp.name }}</option>{% endfor %}</select></div>
-  <div><label>Room (where it will be installed)</label><select name="room_id" class="in" required>{% for r in p.rooms %}<option value="{{ r.id }}">{{ r.label }}</option>{% endfor %}</select></div>
-  <div style="grid-column:span 2"><label>What is inside</label><input class="in" type="text" name="contents" placeholder="Floor slab 1200x2400, 2 pieces" required></div>
-  <div><label>Item codes</label><input class="in" type="text" name="item_codes" placeholder="GF-KIT-01"></div>
-  <div><label>Qty inside</label><input class="in" type="number" step="0.01" name="qty" value="1"></div>
-  <div><label>L × W × H (cm)</label><div class="row" style="flex-wrap:nowrap"><input class="in" type="number" step="0.1" name="length_cm" placeholder="L"><input class="in" type="number" step="0.1" name="width_cm" placeholder="W"><input class="in" type="number" step="0.1" name="height_cm" placeholder="H"></div></div>
-  <div><label>Weight kg</label><input class="in" type="number" step="0.1" name="weight_kg"></div>
-  <div style="grid-column:span 3"><label>Notes</label><input class="in" type="text" name="notes"></div>
-  <div style="display:flex;align-items:end"><button class="btn">+ Add box</button></div>
+
+<div class="grid g4 mb">
+  <div class="kpi"><div class="v">{{ s.cartons }}</div><div class="l">boxes</div><svg class="ic"><use href="#i-box"/></svg></div>
+  <div class="kpi sage"><div class="v">{{ s.cartons_received }}</div><div class="l">received{% if s.cartons %} of {{ s.cartons }}{% endif %}</div><svg class="ic"><use href="#i-check"/></svg></div>
+  <div class="kpi"><div class="v">{{ '%.2f'|format(s.cbm) }}</div><div class="l">CBM · {{ s.kg|num }} kg</div><svg class="ic"><use href="#i-layout"/></svg></div>
+  <div class="kpi"><div class="v">{{ s.container if s.container != '-' else '—' }}</div><div class="l">container</div><svg class="ic"><use href="#i-truck"/></svg></div>
+</div>
+
+<form method="post" class="card">
+  <h2>Add a box</h2>
+  <div class="grid g4">
+    <div><label>Supplier</label><select name="supplier_id" class="in"><option value="">—</option>{% for sp in suppliers %}<option value="{{ sp.id }}">{{ sp.name }}</option>{% endfor %}</select></div>
+    <div><label>Install in room</label><select name="room_id" class="in" required>{% for r in p.rooms %}<option value="{{ r.id }}">{{ r.label }}</option>{% endfor %}</select></div>
+    <div class="span2"><label>What is inside</label><input class="in" type="text" name="contents" placeholder="Floor slab 1200x2400, 2 pieces" required></div>
+    <div><label>Item codes</label><input class="in" type="text" name="item_codes" placeholder="GF-KIT-01"></div>
+    <div><label>Qty inside</label><input class="in" type="number" step="0.01" name="qty" value="1"></div>
+    <div class="span2"><label>L × W × H (cm)</label><div class="field-row"><input class="in" type="number" step="0.1" name="length_cm" placeholder="L"><input class="in" type="number" step="0.1" name="width_cm" placeholder="W"><input class="in" type="number" step="0.1" name="height_cm" placeholder="H"></div></div>
+    <div class="span2"><label>Notes</label><input class="in" type="text" name="notes" placeholder="Fragile, keep upright, pallet no."></div>
+    <div><label>Weight kg</label><input class="in" type="number" step="0.1" name="weight_kg" placeholder="0"></div>
+    <div class="btn-cell"><button class="btn"><svg class="ic"><use href="#i-plus"/></svg>Add box</button></div>
+  </div>
 </form>
+
 <form method="get" class="card filters">
-  <select name="supplier" class="in"><option value="">All suppliers</option>{% for sp in suppliers %}<option value="{{ sp.id }}" {{ 'selected' if f.supplier == sp.id|string }}>{{ sp.name }}</option>{% endfor %}</select>
-  <select name="room" class="in"><option value="">All rooms</option>{% for r in p.rooms %}<option value="{{ r.id }}" {{ 'selected' if f.room == r.id|string }}>{{ r.label }}</option>{% endfor %}</select>
+  <select name="supplier" class="in" aria-label="Supplier"><option value="">All suppliers</option>{% for sp in suppliers %}<option value="{{ sp.id }}" {{ 'selected' if f.supplier == sp.id|string }}>{{ sp.name }}</option>{% endfor %}</select>
+  <select name="room" class="in" aria-label="Room"><option value="">All rooms</option>{% for r in p.rooms %}<option value="{{ r.id }}" {{ 'selected' if f.room == r.id|string }}>{{ r.label }}</option>{% endfor %}</select>
   <button class="btn sm">Filter</button>
+  {% if f.supplier or f.room %}<a class="btn ghost sm" href="/p/{{ p.id }}/cartons">Clear</a>{% endif %}
+  <span class="sp"></span>
+  <span class="small muted">{{ rows|length }} of {{ s.cartons }} boxes</span>
 </form>
+
 <div class="tbl"><table>
-<tr><th>#</th><th>Write on the box</th><th>Supplier</th><th>Contents</th><th>Items</th><th class="right">Qty</th><th class="right">CBM</th><th class="right">kg</th><th>By</th><th>Received</th><th></th></tr>
-{% for c in rows %}{% set bn, bt = pos.get(c.id, (1,1)) %}
-<tr><td class="small">{{ c.id }}</td><td><b>{{ c.room.label if c.room else 'ALL - Whole house' }}</b><br><span class="small">BOX {{ bn }} OF {{ bt }}</span></td>
-<td class="small">{{ c.supplier.name if c.supplier else '' }}</td><td>{{ c.contents }}{% if c.notes %}<div class="small muted">{{ c.notes }}</div>{% endif %}</td><td class="small">{{ c.item_codes }}</td>
-<td class="right">{{ c.qty|num }}</td><td class="right">{{ '%.3f'|format(c.cbm) if c.cbm else '' }}</td><td class="right">{{ c.weight_kg|num if c.weight_kg else '' }}</td><td class="small">{{ c.entered_by }}</td>
-<td>{% if c.received %}<span class="badge" style="background:#16A34A">Yes</span><form method="post" action="/p/{{ p.id }}/cartons/{{ c.id }}/received"><input type="hidden" name="received" value="0"><button class="btn sm sec">undo</button></form>
- {% else %}<form method="post" action="/p/{{ p.id }}/cartons/{{ c.id }}/received"><input type="hidden" name="received" value="1"><button class="btn sm">Received</button></form>{% endif %}</td>
-<td><form method="post" action="/p/{{ p.id }}/cartons/{{ c.id }}/delete" onsubmit="return confirmSubmit(this,'Delete box?')"><button class="btn sm danger">×</button></form></td></tr>
-{% else %}<tr><td colspan="11" class="muted">No boxes yet.</td></tr>{% endfor %}
+  <thead><tr><th>Write on the box</th><th>Supplier</th><th>Contents</th><th class="num">Qty</th><th class="num">CBM</th><th class="num">kg</th><th>By</th><th>Received</th><th></th></tr></thead>
+  <tbody>
+  {% for c in rows %}{% set bn, bt = pos.get(c.id, (1,1)) %}
+  <tr>
+    <td>
+      <div class="b">{{ c.room.label if c.room else 'ALL - Whole house' }}</div>
+      <div class="row"><span class="pill accent">BOX {{ bn }} OF {{ bt }}</span><span class="xs muted">#{{ c.id }}</span></div>
+    </td>
+    <td>{{ c.supplier.name if c.supplier else '—' }}</td>
+    <td>{{ c.contents }}{% if c.item_codes %}<div class="small muted">{{ c.item_codes }}</div>{% endif %}{% if c.notes %}<div class="small muted">{{ c.notes }}</div>{% endif %}</td>
+    <td class="num">{{ c.qty|num }}</td>
+    <td class="num">{% if c.cbm %}{{ '%.3f'|format(c.cbm) }}<div class="xs muted">{{ '%g'|format(c.length_cm) }}×{{ '%g'|format(c.width_cm) }}×{{ '%g'|format(c.height_cm) }}</div>{% else %}<span class="muted">—</span>{% endif %}</td>
+    <td class="num">{% if c.weight_kg %}{{ c.weight_kg|num }}{% else %}<span class="muted">—</span>{% endif %}</td>
+    <td><span class="pill{{ ' gold' if c.entered_by == 'supplier' }}">{{ c.entered_by }}</span></td>
+    <td>
+      {% if c.received %}
+      <div class="row nowrap">
+        <span class="pill green"><svg class="ic sm"><use href="#i-check"/></svg>Received</span>
+        <form method="post" action="/p/{{ p.id }}/cartons/{{ c.id }}/received"><input type="hidden" name="received" value="0"><button class="btn ghost sm">Undo</button></form>
+      </div>
+      {% else %}
+      <form method="post" action="/p/{{ p.id }}/cartons/{{ c.id }}/received"><input type="hidden" name="received" value="1"><button class="btn sm"><svg class="ic"><use href="#i-check"/></svg>Received</button></form>
+      {% endif %}
+    </td>
+    <td><form method="post" action="/p/{{ p.id }}/cartons/{{ c.id }}/delete" onsubmit="return confirmSubmit(this,'Delete box?')"><button class="btn icon danger" title="Delete box" aria-label="Delete box"><svg class="ic"><use href="#i-trash"/></svg></button></form></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="9" class="muted center">{% if f.supplier or f.room %}No boxes match this filter.{% else %}No boxes yet. Add the first one above, or send the supplier their packing link from the Suppliers tab.{% endif %}</td></tr>
+  {% endfor %}
+  </tbody>
 </table></div>
 {% endblock %}

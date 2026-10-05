@@ -1,33 +1,49 @@
 {% extends "base.html" %}
 {% block title %}Drafts · {{ p.name }}{% endblock %}
 {% block content %}
-<div class="row between"><h1>Drafts <span class="muted small">{{ drafts|length }} to complete</span></h1>
-  <a href="/p/{{ p.id }}/capture" class="btn sm gold">📷 Quick capture</a></div>
-{% if saved %}<div class="alert">Saved as <b>{{ saved }}</b>. It now appears in Items and in the documents.</div>{% endif %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/items">Items</a></div>
+    <h1>Drafts <span class="h-note">{{ drafts|length }} to complete</span></h1>
+    <p class="sub">Photos from Quick capture waiting for a name. Name one and save: it gets a code and joins the schedule.</p>
+  </div>
+  <div class="actions"><a href="/p/{{ p.id }}/capture" class="btn accent"><svg class="ic"><use href="#i-camera"/></svg>Quick capture</a></div>
+</div>
+
+{% if saved %}<div class="alert"><svg class="ic sm"><use href="#i-check"/></svg> Saved as <b>{{ saved }}</b>. It now appears in Items and in the documents.</div>{% endif %}
+
 {% for d in drafts %}
 <div class="card draft" id="d{{ d.id }}">
-  <div class="row" style="align-items:flex-start">
-    {% if d.cover %}<a href="/media/{{ d.cover.file_key }}" target="_blank"><img class="thumb lg" src="/media/{{ d.cover.file_key }}" alt=""></a>{% else %}<div class="ph">no photo</div>{% endif %}
-    <form method="post" action="/p/{{ p.id }}/drafts/{{ d.id }}" style="flex:1;min-width:220px">
+  <div class="row between mb">
+    <span class="pill gold"><svg class="ic sm"><use href="#i-clock"/></svg>{{ d.created_at.strftime('%d %b %H:%M') }}</span>
+    <form method="post" action="/p/{{ p.id }}/drafts/{{ d.id }}/discard" onsubmit="return confirmSubmit(this,'Discard this draft and delete its photo?')"><button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Discard</button></form>
+  </div>
+  <div class="row top">
+    {% if d.cover %}<a class="shot" href="/media/{{ d.cover.file_key }}" target="_blank"><img class="thumb lg" src="/media/{{ d.cover.file_key }}" alt=""></a>{% else %}<div class="shot"><div class="ph lg">no photo</div></div>{% endif %}
+    <form class="fields" method="post" action="/p/{{ p.id }}/drafts/{{ d.id }}">
       {% if err == d.id %}<div class="alert err">Give it a name to save it as an item.</div>{% endif %}
-      <label>Item / product name</label><input class="in" type="text" name="name" value="{{ d.name }}" required placeholder="e.g. Brass basin mixer, matt black">
+      <label>Item / product name</label><input class="in" type="text" name="name" value="{{ d.name }}" required placeholder="e.g. Brass basin mixer, matt black"{% if err == d.id %} autofocus{% endif %}>
       <div class="grid g2">
-        <div><label>Room</label><select name="room_id" class="in"><option value="">Whole house / not room-specific</option>
-          {% for r in p.rooms %}<option value="{{ r.id }}" {{ 'selected' if d.room_id == r.id }}>{{ r.label }}</option>{% endfor %}</select></div>
+        <div><label>Room</label><select name="room_id" class="in"><option value="">Whole house / not room-specific</option>{% for r in p.rooms %}<option value="{{ r.id }}" {{ 'selected' if d.room_id == r.id }}>{{ r.label }}</option>{% endfor %}</select></div>
         <div><label>Category</label><select name="category" class="in">{% for c in CATEGORIES %}<option {{ 'selected' if d.category == c }}>{{ c }}</option>{% endfor %}</select></div>
         <div><label>Qty</label><input class="in" type="number" step="0.01" name="qty" value="{{ d.qty|num }}"></div>
         <div><label>Unit price (CNY)</label><input class="in" type="number" step="0.01" name="unit_price" value="{{ d.unit_price if d.unit_price else '' }}"></div>
       </div>
-      <div class="row" style="margin-top:10px">
-        <button class="btn">Save as item</button>
-        <a class="btn sm sec" href="/p/{{ p.id }}/items/{{ d.id }}">All fields…</a>
-        <span class="muted small">{{ d.created_at.strftime('%d %b %H:%M') }}</span>
+      <div class="form-actions">
+        <button class="btn"><svg class="ic"><use href="#i-check"/></svg>Save as item</button>
+        <a class="btn sec sm" href="/p/{{ p.id }}/items/{{ d.id }}">All fields…</a>
+        <span class="muted small">Saving gives it a code and adds it to the totals.</span>
       </div>
     </form>
   </div>
-  <form method="post" action="/p/{{ p.id }}/drafts/{{ d.id }}/discard" onsubmit="return confirmSubmit(this,'Discard this draft and delete its photo?')" style="margin-top:8px"><button class="btn sm danger">Discard</button></form>
 </div>
 {% else %}
-<div class="card muted">No drafts waiting. <a href="/p/{{ p.id }}/capture">Open the camera</a> to capture some, or go to <a href="/p/{{ p.id }}/items">Items</a>.</div>
+<div class="card empty">
+  <div class="ring"><svg class="ic"><use href="#i-camera"/></svg></div>
+  <h3>No drafts waiting</h3>
+  <p>Open the camera to capture samples in the showroom, or go back to the items list.</p>
+  <a class="btn accent" href="/p/{{ p.id }}/capture"><svg class="ic"><use href="#i-camera"/></svg>Quick capture</a>
+  <a class="btn sec" href="/p/{{ p.id }}/items"><svg class="ic"><use href="#i-grid"/></svg>Items</a>
+</div>
 {% endfor %}
 {% endblock %}

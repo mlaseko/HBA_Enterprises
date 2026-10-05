@@ -1,34 +1,96 @@
 {% extends "base.html" %}
 {% block title %}Packing list — {{ link.supplier.name }}{% endblock %}
-{% block top %}
-<div class="top"><span class="brand">{{ studio.studio_name }}</span><span class="proj">· Packing list for {{ link.supplier.name }}</span></div>
-{% endblock %}
+{% block pubctx %}Packing list for {{ link.supplier.name }}{% endblock %}
+{% block pubactions %}<span class="row nowrap hide-m"><a class="btn sm" href="/s/{{ link.token }}/labels.pdf" target="_blank"><svg class="ic"><use href="#i-tag"/></svg>Print box labels</a><a class="btn sec sm" href="/s/{{ link.token }}/packing.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Packing list PDF</a></span>{% endblock %}
 {% block content %}
-<h1>{{ p.name }} <span class="muted small">deliver to: {{ p.address or p.client_name }}</span></h1>
-<div class="card">
-  <p class="small">Please list <b>every carton</b> below before loading. Write the text shown in the "Write on the box" column on each carton with a marker, or print the labels. Each carton must carry the room code.</p>
-  <div class="row"><a class="btn sm" href="/s/{{ link.token }}/labels.pdf" target="_blank">Print box labels</a><a class="btn sm sec" href="/s/{{ link.token }}/packing.pdf" target="_blank">Packing list PDF</a></div>
+<div class="page-head">
+  <div>
+    <div class="eyebrow">{{ p.client_name }}</div>
+    <h1>{{ p.name }}</h1>
+    <p class="sub">Deliver to: {{ p.address or p.client_name }}</p>
+  </div>
+  <div class="actions"><span class="pill accent"><svg class="ic sm"><use href="#i-truck"/></svg>{{ link.supplier.name }}</span></div>
 </div>
-<h2>Your items ({{ items|length }})</h2>
-<div class="tbl"><table><tr><th></th><th>Code</th><th>Item</th><th>Spec</th><th>Size / finish</th><th>Room</th><th class="right">Qty</th></tr>
-{% for i in items %}<tr><td>{% if i.cover %}<img class="thumb" style="width:40px;height:40px" src="/media/{{ i.cover.file_key }}">{% endif %}</td><td class="small">{{ i.code }}</td><td class="b">{{ i.name }}</td><td class="small">{{ i.spec }}</td><td class="small">{{ i.size }} {{ i.finish }}</td><td class="small">{{ i.room.label if i.room else 'ALL' }}</td><td class="right">{{ i.qty|num }} {{ i.unit }}</td></tr>{% endfor %}
-</table></div>
-<h2 id="cartons">Cartons ({{ rows|length }}) · {{ '%.2f'|format(total_cbm) }} CBM</h2>
-<form method="post" action="/s/{{ link.token }}/cartons" class="card grid g4">
-  <div><label>Room (from the item list)</label><select name="room_id" class="in" required>{% for r in rooms %}<option value="{{ r.id }}">{{ r.label }}</option>{% endfor %}</select></div>
-  <div style="grid-column:span 2"><label>What is inside</label><input class="in" type="text" name="contents" required placeholder="Floor slab 1200x2400, 2 pieces"></div>
-  <div><label>Item codes</label><input class="in" type="text" name="item_codes" placeholder="GF-KIT-01"></div>
-  <div><label>Qty inside</label><input class="in" type="number" step="0.01" name="qty" value="1"></div>
-  <div><label>L × W × H (cm)</label><div class="row" style="flex-wrap:nowrap"><input class="in" type="number" step="0.1" name="length_cm" placeholder="L" required><input class="in" type="number" step="0.1" name="width_cm" placeholder="W" required><input class="in" type="number" step="0.1" name="height_cm" placeholder="H" required></div></div>
-  <div><label>Gross weight kg</label><input class="in" type="number" step="0.1" name="weight_kg"></div>
-  <div style="display:flex;align-items:end"><button class="btn">+ Add carton</button></div>
+
+<div class="card accent">
+  <h2>Before you load</h2>
+  <ol class="small mb-0">
+    <li>List <b>every carton</b> below before loading.</li>
+    <li>Write the text shown in the "Write on the box" column on each carton with a marker, or print the labels.</li>
+    <li>Each carton must carry the room code.</li>
+  </ol>
+  <div class="row mt hide-d">
+    <a class="btn" href="/s/{{ link.token }}/labels.pdf" target="_blank"><svg class="ic"><use href="#i-tag"/></svg>Print box labels</a>
+    <a class="btn sec" href="/s/{{ link.token }}/packing.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Packing list PDF</a>
+  </div>
+</div>
+
+<div class="group-title"><h2>Your items ({{ items|length }})</h2></div>
+<div class="tbl"><table>
+<thead><tr><th></th><th>Code</th><th>Item</th><th>Spec</th><th>Size / finish</th><th>Room</th><th class="num">Qty</th></tr></thead>
+<tbody>
+{% for i in items %}<tr>
+<td>{% if i.cover %}<img class="thumb sm" src="/media/{{ i.cover.file_key }}" alt="">{% endif %}</td>
+<td class="small muted">{{ i.code }}</td>
+<td class="b">{{ i.name }}</td>
+<td class="small">{{ i.spec }}</td>
+<td class="small">{{ i.size }} {{ i.finish }}</td>
+<td><span class="pill">{{ i.room.label if i.room else 'ALL' }}</span></td>
+<td class="num b">{{ i.qty|num }} {{ i.unit }}</td>
+</tr>{% else %}<tr><td colspan="7" class="muted center">No items assigned to you yet.</td></tr>{% endfor %}
+</tbody></table></div>
+
+<div class="group-title"><h2 id="cartons">Cartons ({{ rows|length }})</h2><span class="n">{{ '%.2f'|format(total_cbm) }} CBM</span></div>
+<form method="post" action="/s/{{ link.token }}/cartons" class="card">
+  <h2>Add a carton</h2>
+  <div class="grid g4 stack">
+    <div>
+      <label>Room (from the item list)</label>
+      <select name="room_id" class="in" required>{% for r in rooms %}<option value="{{ r.id }}">{{ r.label }}</option>{% endfor %}</select>
+    </div>
+    <div class="span2">
+      <label>What is inside</label>
+      <input class="in" type="text" name="contents" required placeholder="Floor slab 1200x2400, 2 pieces">
+    </div>
+    <div>
+      <label>Item codes</label>
+      <input class="in" type="text" name="item_codes" placeholder="GF-KIT-01">
+    </div>
+    <div>
+      <label>Qty inside</label>
+      <input class="in" type="number" step="0.01" name="qty" value="1">
+    </div>
+    <div>
+      <label>L × W × H (cm)</label>
+      <div class="field-row"><input class="in" type="number" step="0.1" name="length_cm" placeholder="L" required><input class="in" type="number" step="0.1" name="width_cm" placeholder="W" required><input class="in" type="number" step="0.1" name="height_cm" placeholder="H" required></div>
+    </div>
+    <div>
+      <label>Gross weight kg</label>
+      <input class="in" type="number" step="0.1" name="weight_kg">
+    </div>
+  </div>
+  <div class="form-actions"><button class="btn"><svg class="ic"><use href="#i-plus"/></svg>Add carton</button></div>
 </form>
-<div class="tbl"><table><tr><th>#</th><th>Write on the box</th><th>Contents</th><th>Items</th><th class="right">Qty</th><th>L×W×H</th><th class="right">CBM</th><th class="right">kg</th><th></th></tr>
+
+<div class="tbl"><table>
+<thead><tr><th>#</th><th>Write on the box</th><th>Contents</th><th>Items</th><th class="num">Qty</th><th>L×W×H cm</th><th class="num">CBM</th><th class="num">kg</th><th></th></tr></thead>
+<tbody>
 {% for c in rows %}{% set bn, bt = pos.get(c.id, (1,1)) %}
-<tr><td class="small">{{ c.id }}</td><td><b>{{ c.room.label if c.room else 'ALL' }}</b><br><span class="small">BOX {{ bn }} OF {{ bt }}</span></td><td>{{ c.contents }}</td><td class="small">{{ c.item_codes }}</td><td class="right">{{ c.qty|num }}</td>
-<td class="small">{{ c.length_cm|num }}×{{ c.width_cm|num }}×{{ c.height_cm|num }}</td><td class="right">{{ '%.3f'|format(c.cbm) }}</td><td class="right">{{ c.weight_kg|num }}</td>
-<td>{% if not c.received %}<form method="post" action="/s/{{ link.token }}/cartons/{{ c.id }}/delete" onsubmit="return confirmSubmit(this,'Delete carton?')"><button class="btn sm danger">×</button></form>{% else %}<span class="pill">received</span>{% endif %}</td></tr>
-{% else %}<tr><td colspan="9" class="muted">No cartons listed yet.</td></tr>{% endfor %}
-</table></div>
-<p class="muted small" style="margin-top:14px">Questions: {{ studio.studio_name }} · {{ studio.studio_phone }} · {{ studio.studio_email }}</p>
+<tr>
+<td class="small muted">{{ c.id }}</td>
+<td><div class="b">{{ c.room.label if c.room else 'ALL' }}</div><span class="pill">BOX {{ bn }} OF {{ bt }}</span></td>
+<td>{{ c.contents }}</td>
+<td class="small muted">{{ c.item_codes }}</td>
+<td class="num">{{ c.qty|num }}</td>
+<td class="small">{{ c.length_cm|num }}×{{ c.width_cm|num }}×{{ c.height_cm|num }}</td>
+<td class="num">{{ '%.3f'|format(c.cbm) }}</td>
+<td class="num">{{ c.weight_kg|num }}</td>
+<td class="right">{% if not c.received %}<form method="post" action="/s/{{ link.token }}/cartons/{{ c.id }}/delete" onsubmit="return confirmSubmit(this,'Delete carton?')"><button class="btn icon danger" aria-label="Delete carton" title="Delete carton"><svg class="ic"><use href="#i-trash"/></svg></button></form>{% else %}<span class="pill green"><svg class="ic sm"><use href="#i-check"/></svg>received</span>{% endif %}</td>
+</tr>
+{% else %}<tr><td colspan="9" class="muted center">No cartons listed yet. Add the first one above.</td></tr>{% endfor %}
+</tbody></table></div>
+
+<div class="divider mt-l"></div>
+<div class="pub-foot"><img class="foot-logo" src="/static/brand/logo-ink.png" alt=""></div>
+<p class="muted small">Questions: {{ studio.studio_name or APP_NAME }}{% if studio.studio_phone %} · {{ studio.studio_phone }}{% endif %}{% if studio.studio_email %} · {{ studio.studio_email }}{% endif %}</p>
 {% endblock %}

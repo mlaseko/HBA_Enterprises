@@ -1,24 +1,47 @@
 {% extends "base.html" %}
+{% block title %}Mood board · {{ p.name }} · {{ APP_NAME }}{% endblock %}
 {% block content %}
-<h1>Mood board, floor plan &amp; cover</h1>
-<p class="muted small">These images go into the client schedule PDF: one cover image, floor plan pages, and mood board pages (6 images per page).</p>
-<form method="post" enctype="multipart/form-data" class="card">
-  <div class="grid g3">
-    <div><label>Type</label><select name="kind" class="in"><option value="mood">Mood board</option><option value="floorplan">Floor plan</option><option value="cover">Cover image</option></select></div>
-    <div><label>Caption (optional)</label><input class="in" type="text" name="caption"></div>
-    <div><label>Photos</label><input type="file" name="files" accept="image/*" multiple required><div class="filehint small muted"></div></div>
+{% set total = p.images|length %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
+    <h1>Mood board{% if total %} <span class="h-note">{{ total }} {{ 'image' if total == 1 else 'images' }}</span>{% endif %}</h1>
+    <p class="sub">Cover, floor plans and mood board for the client schedule PDF: one cover image, floor plan pages, then mood board pages with six images each.</p>
   </div>
-  <div style="margin-top:10px"><button class="btn">Upload</button></div>
+  <div class="actions"><a class="btn sec sm" href="/p/{{ p.id }}/export/schedule.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Preview schedule PDF</a></div>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="card">
+  <h2><svg class="ic"><use href="#i-upload"/></svg> Add images</h2>
+  <div class="grid g3 stack">
+    <div><label for="im-kind">Type</label><select id="im-kind" name="kind" class="in"><option value="mood">Mood board</option><option value="floorplan">Floor plan</option><option value="cover">Cover image</option></select></div>
+    <div><label for="im-cap">Caption (optional)</label><input id="im-cap" class="in" type="text" name="caption" placeholder="e.g. Warm wood &amp; linen"></div>
+    <div><label for="im-files">Photos</label><input id="im-files" type="file" name="files" accept="image/*" multiple required><div class="filehint help"></div></div>
+  </div>
+  <div class="form-actions">
+    <button class="btn"><svg class="ic"><use href="#i-upload"/></svg>Upload</button>
+    <span class="small muted">Large photos are shrunk on your phone before upload.</span>
+  </div>
 </form>
-{% for kind, title in [('cover','Cover'),('floorplan','Floor plan'),('mood','Mood board')] %}
-<div class="card"><h2>{{ title }}</h2>
-  <div class="gallery">
-  {% for im in p.images if im.kind == kind %}
-    <div class="g"><img src="/media/{{ im.file_key }}" alt="">
-      <form method="post" action="/p/{{ p.id }}/images/{{ im.id }}/delete" onsubmit="return confirmSubmit(this,'Delete image?')"><button class="btn sm danger">×</button></form>
-      {% if im.caption %}<div class="small muted">{{ im.caption }}</div>{% endif %}</div>
-  {% else %}<span class="muted small">none yet</span>{% endfor %}
+
+<div class="moodboard">
+{% for kind, title, hint in [('cover', 'Cover', 'The first page of the client schedule.'), ('floorplan', 'Floor plan', 'Each plan gets its own page.'), ('mood', 'Mood board', 'Six images per page, with captions.')] %}
+{% set imgs = p.images|selectattr('kind', 'equalto', kind)|list %}
+<div class="card">
+  <div class="row between top">
+    <div><h2 class="mb-0">{{ title }}</h2><div class="small muted">{{ hint }}</div></div>
+    <span class="pill">{{ imgs|length }}</span>
+  </div>
+  <div class="gallery mt">
+  {% for im in imgs %}
+    <div class="g"><img src="/media/{{ im.file_key }}" alt="{{ im.caption }}">
+      <form method="post" action="/p/{{ p.id }}/images/{{ im.id }}/delete" onsubmit="return confirmSubmit(this,'Delete image?')"><button class="btn sm icon danger" title="Delete image" aria-label="Delete image"><svg class="ic"><use href="#i-x"/></svg></button></form>
+      {% if im.caption %}<div class="cap">{{ im.caption }}</div>{% endif %}</div>
+  {% else %}
+    <div class="ph lg">No {{ title|lower }} yet</div>
+  {% endfor %}
   </div>
 </div>
 {% endfor %}
+</div>
 {% endblock %}

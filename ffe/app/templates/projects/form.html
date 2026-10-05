@@ -1,33 +1,54 @@
 {% extends "base.html" %}
+{% block title %}{{ 'Edit project' if p else 'New project' }} · {{ APP_NAME }}{% endblock %}
 {% block content %}
-<h1>{{ 'Edit project' if p else 'New project' }}</h1>
-<form method="post" class="card">
-  <div class="grid g2">
-    <div><label>Client name</label><input class="in" type="text" name="client_name" value="{{ p.client_name if p else '' }}" required></div>
-    <div><label>Project name</label><input class="in" type="text" name="name" value="{{ p.name if p else '' }}" placeholder="e.g. Kinondoni House" required></div>
-    <div><label>Delivery address (printed on labels)</label><input class="in" type="text" name="address" value="{{ p.address if p else '' }}"></div>
-    <div><label>USD/CNY rate (CNY per 1 USD)</label><input class="in" type="number" step="0.0001" name="rate" value="{{ p.rate if p else s.default_rate }}"></div>
-    <div><label>Budget (USD, optional)</label><input class="in" type="number" step="1" name="budget_usd" value="{{ p.budget_usd if p else 0 }}"></div>
-    {% if p %}<div><label>Status</label><select name="status" class="in">{% for st in ['Active','On hold','Completed'] %}<option {{ 'selected' if p.status==st }}>{{ st }}</option>{% endfor %}</select></div>{% endif %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a>{% if p %}<svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a>{% endif %}</div>
+    <h1>{{ 'Edit project' if p else 'New project' }}</h1>
+    <p class="sub">{% if p %}Client details, exchange rate and budget. Changes apply to every schedule and label you print.{% else %}Start with the client and the home. You can add rooms and import the item list right after.{% endif %}</p>
   </div>
-  <label>Description (shown on the client schedule contents page)</label>
-  <textarea class="in" name="description">{{ p.description if p else '' }}</textarea>
-  <div style="margin-top:12px" class="row"><button class="btn">Save</button> <a href="{{ '/p/' ~ p.id if p else '/' }}" class="btn sec">Cancel</a></div>
+  {% if p %}
+  <div class="actions">
+    <a class="btn sec sm" href="/p/{{ p.id }}/images"><svg class="ic"><use href="#i-image"/></svg>Mood board</a>
+    <a class="btn ghost sm" href="/p/{{ p.id }}"><svg class="ic"><use href="#i-arrow-left"/></svg>Back to overview</a>
+  </div>
+  {% endif %}
+</div>
+
+<form method="post" class="card">
+  <div class="grid g2 stack">
+    <div><label for="f-client">Client name</label><input id="f-client" class="in" type="text" name="client_name" value="{{ p.client_name if p else '' }}" placeholder="e.g. The Laseko family" required></div>
+    <div><label for="f-name">Project name</label><input id="f-name" class="in" type="text" name="name" value="{{ p.name if p else '' }}" placeholder="e.g. Kinondoni House" required></div>
+    <div class="span2"><label for="f-address">Delivery address</label><input id="f-address" class="in" type="text" name="address" value="{{ p.address if p else '' }}" placeholder="Plot, street, city"><div class="help">Printed on the box labels and the schedule cover.</div></div>
+    <div><label for="f-rate">Exchange rate</label><input id="f-rate" class="in" type="number" step="0.0001" name="rate" value="{{ p.rate if p else s.default_rate }}"><div class="help">CNY per 1 USD. Every USD total uses this rate.</div></div>
+    <div><label for="f-budget">Budget (USD)</label><input id="f-budget" class="in" type="number" step="1" name="budget_usd" value="{{ p.budget_usd if p else 0 }}"><div class="help">Optional. Leave 0 to hide the budget bar.</div></div>
+    {% if p %}<div><label for="f-status">Status</label><select id="f-status" name="status" class="in">{% for st in ['Active','On hold','Completed'] %}<option {{ 'selected' if p.status==st }}>{{ st }}</option>{% endfor %}</select></div>{% endif %}
+    <div class="span2"><label for="f-desc">Description</label><textarea id="f-desc" class="in" name="description" placeholder="A few lines about the home and the brief">{{ p.description if p else '' }}</textarea><div class="help">Shown on the contents page of the client schedule.</div></div>
+  </div>
+  <div class="form-actions">
+    <button class="btn"><svg class="ic"><use href="#i-check"/></svg>{{ 'Save changes' if p else 'Create project' }}</button>
+    <a href="{{ '/p/' ~ p.id if p else '/' }}" class="btn ghost">Cancel</a>
+  </div>
 </form>
+
 {% if p %}
 <div class="card">
-  <h2>Client link (read-only schedule)</h2>
-  <p class="small muted">Send this to the client. They see the schedule with photos and prices, and can download the PDF. No login needed.</p>
+  <h2><svg class="ic"><use href="#i-link"/></svg> Client link</h2>
+  <p class="small muted">A read-only schedule with photos, prices and the PDF download. No login needed — send it over WhatsApp or email.</p>
   <div class="copy" id="clink">{{ request.url.scheme }}://{{ request.url.netloc }}/c/{{ p.client_token }}</div>
-  <div class="row" style="margin-top:8px">
-    <button type="button" class="btn sm sec" onclick="copyText(document.getElementById('clink').textContent,this)">Copy link</button>
-    <form method="post" action="/p/{{ p.id }}/client-link/reset" onsubmit="return confirmSubmit(this,'Old link will stop working. Continue?')"><button class="btn sm sec">Reset link</button></form>
+  <div class="row mt">
+    <button type="button" class="btn sm" onclick="copyText(document.getElementById('clink').textContent,this)">Copy link</button>
+    <a class="btn sm sec" href="/c/{{ p.client_token }}" target="_blank"><svg class="ic"><use href="#i-users"/></svg>Preview as client</a>
+    <form method="post" action="/p/{{ p.id }}/client-link/reset" onsubmit="return confirmSubmit(this,'Old link will stop working. Continue?')"><button class="btn sm ghost">Reset link</button></form>
   </div>
 </div>
-<div class="card">
-  <h2>Danger zone</h2>
+
+<div class="card danger-zone">
+  <h2><svg class="ic"><use href="#i-trash"/></svg> Danger zone</h2>
+  <p class="small muted">Deleting removes the rooms, items, photos, payments and cartons of this project, and the client link stops working. This cannot be undone.</p>
   <form method="post" action="/p/{{ p.id }}/delete" class="row">
-    <input type="text" name="confirm" placeholder="type delete" style="width:140px"> <button class="btn danger sm">Delete project and everything in it</button>
+    <input type="text" name="confirm" class="confirm" placeholder="type delete to confirm" autocomplete="off">
+    <button class="btn danger"><svg class="ic"><use href="#i-trash"/></svg>Delete project and everything in it</button>
   </form>
 </div>
 {% endif %}

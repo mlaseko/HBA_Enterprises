@@ -1,26 +1,34 @@
 {% extends "base.html" %}
 {% block title %}Quick capture · {{ p.name }}{% endblock %}
 {% block content %}
-<div class="row between"><h1>Quick capture</h1><a href="/p/{{ p.id }}/drafts" class="btn sm sec">Drafts (<span id="drafts">{{ drafts }}</span>)</a></div>
-<p class="muted small" style="margin-top:0">Shoot first, fill in later. Every photo is saved as a draft item straight away; drafts don't count in totals or documents until you give them a name.</p>
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/drafts">Drafts</a></div>
+    <h1>Quick capture</h1>
+    <p class="sub">Shoot first, fill in later. Every photo is saved as a draft item straight away; drafts don't count in totals or documents until you give them a name.</p>
+  </div>
+  <div class="actions"><a href="/p/{{ p.id }}/drafts" class="btn sec"><svg class="ic"><use href="#i-clock"/></svg><span>Drafts (<span id="drafts">{{ drafts }}</span>)</span></a></div>
+</div>
+
 <form method="post" action="/p/{{ p.id }}/capture" enctype="multipart/form-data" class="card" id="capform">
+  <div class="eyebrow">Tag the next photos (optional)</div>
   <div class="grid g2">
-    <div><label>Room (optional, applies to the next photos)</label><select name="room_id" class="in" id="cap-room">
-      <option value="">Not decided yet</option>
-      {% for r in p.rooms %}<option value="{{ r.id }}" {{ 'selected' if pre_room == r.id }}>{{ r.label }}</option>{% endfor %}</select></div>
-    <div><label>Category (optional)</label><select name="category" class="in" id="cap-cat">
-      <option value="">Not decided yet</option>
-      {% for c in CATEGORIES %}<option {{ 'selected' if pre_cat == c }}>{{ c }}</option>{% endfor %}</select></div>
+    <div><label>Room</label><select name="room_id" class="in" id="cap-room"><option value="">Not decided yet</option>{% for r in p.rooms %}<option value="{{ r.id }}" {{ 'selected' if pre_room == r.id }}>{{ r.label }}</option>{% endfor %}</select></div>
+    <div><label>Category</label><select name="category" class="in" id="cap-cat"><option value="">Not decided yet</option>{% for c in CATEGORIES %}<option {{ 'selected' if pre_cat == c }}>{{ c }}</option>{% endfor %}</select></div>
   </div>
   <input type="hidden" name="n" value="{{ n }}">
   <input type="file" id="cam" accept="image/*" capture="environment" style="display:none">
-  <noscript><label>Photo</label><input type="file" name="photo" accept="image/*" capture="environment" required><div style="margin-top:8px"><button class="btn">Save photo</button></div></noscript>
-  <button type="button" class="btn block capture-btn" id="shoot">📷 Take photo</button>
-  <div class="capture-status muted small" id="status">Camera opens when you tap the button.</div>
+  <noscript><label>Photo</label><input type="file" name="photo" accept="image/*" capture="environment" required><div class="mt"><button class="btn block">Save photo</button></div></noscript>
+  <button type="button" class="btn accent block capture-btn" id="shoot"><svg class="ic"><use href="#i-camera"/></svg>Take photo</button>
+  <div class="capture-status muted small center" id="status">Camera opens when you tap the button.</div>
 </form>
+
 <div class="card">
-  <div class="row between"><b>Captured this session: <span id="n">{{ n }}</span></b><a class="small" href="/p/{{ p.id }}/drafts">complete the drafts →</a></div>
-  <div class="gallery" id="strip" style="margin-top:8px"></div>
+  <div class="row between">
+    <h2 class="mb-0">Captured this session: <span id="n">{{ n }}</span></h2>
+    <a class="btn ghost sm" href="/p/{{ p.id }}/drafts">Complete the drafts<svg class="ic"><use href="#i-chevron-right"/></svg></a>
+  </div>
+  <div class="strip mt" id="strip"></div>
 </div>
 <script>
 (function () {

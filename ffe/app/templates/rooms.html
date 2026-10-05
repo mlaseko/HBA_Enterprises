@@ -1,36 +1,66 @@
 {% extends "base.html" %}
+{% block title %}Rooms · {{ p.name }} · {{ APP_NAME }}{% endblock %}
 {% block content %}
-<h1>Rooms</h1>
-<p class="muted small">Every item and every box is tagged with a room code, so boxes go straight to the room where they will be installed. Areas are optional (useful for tiles).</p>
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
+    <h1>Rooms <span class="h-note">{{ p.rooms|length }} room{{ '' if p.rooms|length == 1 else 's' }}</span></h1>
+    <p class="sub">Every item and every box carries a room code, so deliveries go straight to the room where they will be installed. Areas are optional and help with tile quantities.</p>
+  </div>
+</div>
+
 <form method="post" class="card">
-  <div class="grid g4">
+  <div class="row between">
+    <h2 class="mb-0">Add a room</h2>
+    <span class="small muted">Codes become UPPER-CASE; spaces turn into dashes</span>
+  </div>
+  <div class="grid g4 mt">
     <div><label>Code</label><input class="in" type="text" name="code" placeholder="GF-KIT" required></div>
     <div><label>Name</label><input class="in" type="text" name="name" placeholder="Kitchen" required></div>
+    <div><label>Floor area m²</label><input class="in" type="number" step="0.1" name="floor_area" placeholder="0"></div>
+    <div><label>Wall tile m²</label><input class="in" type="number" step="0.1" name="wall_area" placeholder="0"></div>
+    <div class="span2"><label>Notes</label><input class="in" type="text" name="notes" placeholder="Finish level, access, anything the installers should know"></div>
     <div><label>Floor</label><input class="in" type="text" name="floor" placeholder="Ground"></div>
-    <div><label>Floor area m²</label><input class="in" type="number" step="0.1" name="floor_area"></div>
-    <div><label>Wall tile m²</label><input class="in" type="number" step="0.1" name="wall_area"></div>
-    <div style="grid-column:span 2"><label>Notes</label><input class="in" type="text" name="notes"></div>
-    <div style="display:flex;align-items:end"><button class="btn">+ Add room</button></div>
+    <div class="btn-cell"><button class="btn"><svg class="ic"><use href="#i-plus"/></svg>Add room</button></div>
   </div>
 </form>
+
 {% for r in p.rooms %}
-<details class="card" style="padding:10px 14px">
-  <summary><span class="b">{{ r.code }}</span> — {{ r.name }} <span class="muted small">{{ r.floor }}</span>
-    {% set st = stats.get(r.id) %}<span class="pill" style="float:right">{{ st.count if st else 0 }} items · ¥{{ (st.total if st else 0)|money }}{% if st and st.received %} · {{ st.received }} recv{% endif %}</span></summary>
-  <form method="post" action="/p/{{ p.id }}/rooms/{{ r.id }}" class="grid g4" style="margin-top:8px">
-    <div><label>Code</label><input class="in" type="text" name="code" value="{{ r.code }}"></div>
-    <div><label>Name</label><input class="in" type="text" name="name" value="{{ r.name }}"></div>
-    <div><label>Floor</label><input class="in" type="text" name="floor" value="{{ r.floor }}"></div>
-    <div><label>Order</label><input class="in" type="number" name="sort" value="{{ r.sort }}"></div>
-    <div><label>Floor area m²</label><input class="in" type="number" step="0.1" name="floor_area" value="{{ r.floor_area }}"></div>
-    <div><label>Wall tile m²</label><input class="in" type="number" step="0.1" name="wall_area" value="{{ r.wall_area }}"></div>
-    <div style="grid-column:span 2"><label>Notes</label><input class="in" type="text" name="notes" value="{{ r.notes }}"></div>
-    <div class="row" style="grid-column:span 4"><button class="btn sm">Save</button>
-      <a class="btn sm sec" href="/p/{{ p.id }}/items?room={{ r.id }}">Items</a>
-      <a class="btn sm sec" href="/p/{{ p.id }}/export/room/{{ r.id }}.pdf" target="_blank">Room checklist PDF</a>
-      <a class="btn sm sec" href="/p/{{ p.id }}/export/labels.pdf?room={{ r.id }}" target="_blank">Labels</a></div>
+{% set st = stats.get(r.id) %}
+<details class="card tight">
+  <summary>
+    <span class="pill accent">{{ r.code }}</span>
+    <span class="b">{{ r.name }}</span>{% if r.floor %}<span class="muted small">{{ r.floor }}</span>{% endif %}
+    <span class="sp"></span>
+    <span class="pill">{{ st.count if st else 0 }} items<span class="hide-m">· ¥{{ (st.total if st else 0)|money }}{% if st and st.received %} · {{ st.received }} recv{% endif %}</span></span>
+  </summary>
+  <div class="small muted hide-d mt">¥{{ (st.total if st else 0)|money }} ordered{% if st and st.received %} · {{ st.received }} received{% endif %}</div>
+  <form method="post" action="/p/{{ p.id }}/rooms/{{ r.id }}" class="mt">
+    <div class="grid g4">
+      <div><label>Code</label><input class="in" type="text" name="code" value="{{ r.code }}"></div>
+      <div><label>Name</label><input class="in" type="text" name="name" value="{{ r.name }}"></div>
+      <div><label>Floor</label><input class="in" type="text" name="floor" value="{{ r.floor }}"></div>
+      <div><label>Order</label><input class="in" type="number" name="sort" value="{{ r.sort }}"></div>
+      <div><label>Floor area m²</label><input class="in" type="number" step="0.1" name="floor_area" value="{{ r.floor_area }}"></div>
+      <div><label>Wall tile m²</label><input class="in" type="number" step="0.1" name="wall_area" value="{{ r.wall_area }}"></div>
+      <div class="span2"><label>Notes</label><input class="in" type="text" name="notes" value="{{ r.notes }}"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn sm"><svg class="ic"><use href="#i-check"/></svg>Save</button>
+      <a class="btn sec sm" href="/p/{{ p.id }}/items?room={{ r.id }}"><svg class="ic"><use href="#i-grid"/></svg>Items</a>
+      <a class="btn sec sm" href="/p/{{ p.id }}/export/room/{{ r.id }}.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Room checklist PDF</a>
+      <a class="btn sec sm" href="/p/{{ p.id }}/export/labels.pdf?room={{ r.id }}" target="_blank"><svg class="ic"><use href="#i-tag"/></svg>Labels</a>
+    </div>
   </form>
-  <form method="post" action="/p/{{ p.id }}/rooms/{{ r.id }}/delete" onsubmit="return confirmSubmit(this,'Delete room? Items stay but lose their room.')" style="margin-top:6px"><button class="btn sm danger">Delete room</button></form>
+  <form method="post" action="/p/{{ p.id }}/rooms/{{ r.id }}/delete" onsubmit="return confirmSubmit(this,'Delete room? Items stay but lose their room.')" class="mt">
+    <button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete room</button>
+  </form>
 </details>
+{% else %}
+<div class="card empty">
+  <div class="ring"><svg class="ic"><use href="#i-layout"/></svg></div>
+  <h3>No rooms yet</h3>
+  <p>Add the rooms of the house above. Each one gets a short code that goes on every item and every box.</p>
+</div>
 {% endfor %}
 {% endblock %}
