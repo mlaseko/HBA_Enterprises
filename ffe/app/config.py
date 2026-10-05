@@ -1,8 +1,10 @@
 import os
 
 APP_NAME = os.getenv("APP_NAME", "FF&E Studio")
-SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-replit-secrets")
-APP_PASSWORD = os.getenv("APP_PASSWORD", "changeme")
+SECRET_KEY = os.getenv("SECRET_KEY") or os.getenv("SESSION_SECRET")
+APP_PASSWORD = os.getenv("APP_PASSWORD")
+if not SECRET_KEY or not APP_PASSWORD:
+    raise RuntimeError("Set APP_PASSWORD and SECRET_KEY (or SESSION_SECRET) in Replit Secrets before starting the app.")
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/app.db")
 STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "local")  # local | replit | s3
 LOCAL_UPLOAD_DIR = os.getenv("LOCAL_UPLOAD_DIR", "./data/uploads")
