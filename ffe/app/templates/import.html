@@ -1,15 +1,30 @@
 {% extends "base.html" %}
+{% block title %}Import · {{ p.name }}{% endblock %}
 {% block content %}
-<h1>Import from Excel</h1>
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a>{{ ic('chevron-right') }}<a href="/p/{{ p.id }}">{{ p.name }}</a>{{ ic('chevron-right') }}<span>Import</span></div>
+    <h1>Import from Excel</h1>
+    <p class="sub">Load a whole project from the procurement spreadsheet in one go. Rooms and suppliers that don't exist yet are created.</p>
+  </div>
+  <div class="actions"><a class="btn sec" href="/p/{{ p.id }}/export/items.xlsx">{{ ic('download') }}Export current items</a></div>
+</div>
 {% if result %}
   {% if result.error %}<div class="alert err">{{ result.error }}</div>{% else %}
-  <div class="alert">Imported {{ result["items"] }} items, {{ result.rooms }} new rooms, {{ result.suppliers }} new suppliers. Skipped {{ result.skipped }} empty rows. <a href="/p/{{ p.id }}/items">Open items →</a></div>{% endif %}
+  <div class="alert">{{ ic('check', 'ic sm') }} Imported <b>{{ result["items"] }}</b> items, {{ result.rooms }} new rooms, {{ result.suppliers }} new suppliers. Skipped {{ result.skipped }} empty rows. <a href="/p/{{ p.id }}/items">Open items {{ ic('chevron-right', 'ic sm') }}</a></div>{% endif %}
 {% endif %}
-<form method="post" enctype="multipart/form-data" class="card">
-  <p class="small">Upload the procurement Excel (the Kinondoni list format: sheets <b>Shopping List</b> and <b>Rooms</b>) or a file exported from this app. Columns are matched by their header names: Room, Category, Item, Must-have spec, Size / Finish, Qty, Unit, Price (CNY), Supplier, Status, Notes.</p>
+<div class="grid g3 stack form-layout">
+<form method="post" enctype="multipart/form-data" class="card span2">
+  <h2>Upload</h2>
+  <p class="small muted">Upload the procurement Excel (the Kinondoni list format: sheets <b>Shopping List</b> and <b>Rooms</b>) or a file exported from this app.</p>
   <label>Excel file (.xlsx)</label><input type="file" name="file" accept=".xlsx" required>
-  <label style="display:flex;gap:8px;align-items:center;color:var(--text);margin-top:10px"><input type="checkbox" name="replace" value="1"> Delete all existing items in this project first</label>
-  <div style="margin-top:12px"><button class="btn">Import</button></div>
+  <label class="check"><input type="checkbox" name="replace" value="1"> Delete all existing items in this project first</label>
+  <div class="form-actions"><button class="btn accent">{{ ic('upload') }}Import</button></div>
 </form>
-<div class="card small muted">Tip: photos are not in Excel. After importing, open each item and add the sample photo from your phone.</div>
+<div>
+  <div class="card soft"><h2>Columns matched by header</h2>
+    <div class="strip">{% for col in ['Room','Category','Item','Must-have spec','Size / Finish','Qty','Unit','Price (CNY)','Supplier','Status','Notes'] %}<span class="pill">{{ col }}</span>{% endfor %}</div></div>
+  <div class="card soft small muted">{{ ic('camera', 'ic sm') }} Photos are not in Excel. After importing, open each item and add the sample photo from your phone, or use Quick capture.</div>
+</div>
+</div>
 {% endblock %}

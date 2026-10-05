@@ -1,23 +1,33 @@
 {% extends "base.html" %}
+{% block title %}Mood board · {{ p.name }}{% endblock %}
 {% block content %}
-<h1>Mood board, floor plan &amp; cover</h1>
-<p class="muted small">These images go into the client schedule PDF: one cover image, floor plan pages, and mood board pages (6 images per page).</p>
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a>{{ ic('chevron-right') }}<a href="/p/{{ p.id }}">{{ p.name }}</a>{{ ic('chevron-right') }}<span>Mood board</span></div>
+    <h1>Mood board, floor plan &amp; cover<span class="h-note">{{ p.images|length }}</span></h1>
+    <p class="sub">These images go into the client schedule PDF: one cover image, floor plan pages, and mood board pages with six images per page.</p>
+  </div>
+  <div class="actions"><a class="btn sec" href="/p/{{ p.id }}/export/schedule.pdf" target="_blank">{{ ic('file') }}Preview schedule</a></div>
+</div>
 <form method="post" enctype="multipart/form-data" class="card">
-  <div class="grid g3">
+  <h2>Upload images</h2>
+  <div class="grid g3 stack">
     <div><label>Type</label><select name="kind" class="in"><option value="mood">Mood board</option><option value="floorplan">Floor plan</option><option value="cover">Cover image</option></select></div>
     <div><label>Caption (optional)</label><input class="in" type="text" name="caption"></div>
-    <div><label>Photos</label><input type="file" name="files" accept="image/*" multiple required><div class="filehint small muted"></div></div>
+    <div><label>Photos</label><input type="file" name="files" accept="image/*" multiple required><div class="filehint help"></div></div>
   </div>
-  <div style="margin-top:10px"><button class="btn">Upload</button></div>
+  <div class="form-actions"><button class="btn accent">{{ ic('upload') }}Upload</button></div>
 </form>
-{% for kind, title in [('cover','Cover'),('floorplan','Floor plan'),('mood','Mood board')] %}
-<div class="card"><h2>{{ title }}</h2>
+{% for kind, title, hint in [('cover','Cover','First page of the client PDF'),('floorplan','Floor plan','One page per image'),('mood','Mood board','Six images per page')] %}
+{% set ims = p.images|selectattr('kind','equalto',kind)|list %}
+<div class="group-title"><h2>{{ title }}</h2><span class="n">{{ ims|length }} · {{ hint }}</span></div>
+<div class="card">
   <div class="gallery">
-  {% for im in p.images if im.kind == kind %}
+  {% for im in ims %}
     <div class="g"><img src="/media/{{ im.file_key }}" alt="">
-      <form method="post" action="/p/{{ p.id }}/images/{{ im.id }}/delete" onsubmit="return confirmSubmit(this,'Delete image?')"><button class="btn sm danger">×</button></form>
-      {% if im.caption %}<div class="small muted">{{ im.caption }}</div>{% endif %}</div>
-  {% else %}<span class="muted small">none yet</span>{% endfor %}
+      <form method="post" action="/p/{{ p.id }}/images/{{ im.id }}/delete" onsubmit="return confirmSubmit(this,'Delete image?')"><button class="btn sm danger icon" title="Delete">{{ ic('x') }}</button></form>
+      {% if im.caption %}<div class="cap">{{ im.caption }}</div>{% endif %}</div>
+  {% else %}<span class="muted small">None yet. Upload above and choose “{{ title }}”.</span>{% endfor %}
   </div>
 </div>
 {% endfor %}

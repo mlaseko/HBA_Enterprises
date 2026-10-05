@@ -1,26 +1,39 @@
 {% extends "base.html" %}
+{% block title %}Payments · {{ p.name }}{% endblock %}
 {% block content %}
-<h1>Payments</h1>
-<div class="grid g3">
-  <div class="kpi"><div class="v">¥{{ s.total|money }}</div><div class="l">ordered (all items)</div></div>
-  <div class="kpi"><div class="v">¥{{ s.paid|money }}</div><div class="l">paid · ${{ s.paid_usd|money }}</div></div>
-  <div class="kpi"><div class="v">¥{{ s.balance|money }}</div><div class="l">balance</div></div>
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a>{{ ic('chevron-right') }}<a href="/p/{{ p.id }}">{{ p.name }}</a>{{ ic('chevron-right') }}<span>Payments</span></div>
+    <h1>Payments<span class="h-note">{{ pays|length }}</span></h1>
+    <p class="sub">Deposits and balances per supplier, with the receipt photo. Balances are ordered items minus payments.</p>
+  </div>
 </div>
-<form method="post" enctype="multipart/form-data" class="card grid g3" style="margin-top:12px">
-  <div><label>Supplier</label><select name="supplier_id" class="in"><option value="">—</option>{% for sp in suppliers %}<option value="{{ sp.id }}">{{ sp.name }}</option>{% endfor %}</select></div>
-  <div><label>Date</label><input class="in" type="date" name="paid_on" value="{{ today }}"></div>
-  <div><label>Amount (CNY)</label><input class="in" type="number" step="0.01" name="amount" required></div>
-  <div><label>Type</label><select name="kind" class="in">{% for k in PAYMENT_KINDS %}<option>{{ k }}</option>{% endfor %}</select></div>
-  <div><label>Reference (receipt no., bank ref)</label><input class="in" type="text" name="reference"></div>
-  <div><label>Receipt photo</label><input type="file" name="receipt" accept="image/*" capture="environment"><div class="filehint small muted"></div></div>
-  <div style="grid-column:span 2"><label>Note</label><input class="in" type="text" name="note"></div>
-  <div style="display:flex;align-items:end"><button class="btn">Record payment</button></div>
+<div class="grid g3">
+  <div class="kpi">{{ ic('tag') }}<div class="v">¥{{ s.total|money }}</div><div class="l">ordered (all items)</div></div>
+  <div class="kpi sage">{{ ic('card') }}<div class="v">¥{{ s.paid|money }}</div><div class="l">paid · ${{ s.paid_usd|money }}</div></div>
+  <div class="kpi {{ 'accent' if s.balance > 0 else '' }}"><div class="v">¥{{ s.balance|money }}</div><div class="l">balance</div></div>
+</div>
+<form method="post" enctype="multipart/form-data" class="card mt">
+  <h2>Record a payment</h2>
+  <div class="grid g3 stack">
+    <div><label>Supplier</label><select name="supplier_id" class="in"><option value="">—</option>{% for sp in suppliers %}<option value="{{ sp.id }}">{{ sp.name }}</option>{% endfor %}</select></div>
+    <div><label>Date</label><input class="in" type="date" name="paid_on" value="{{ today }}"></div>
+    <div><label>Amount (CNY)</label><input class="in" type="number" step="0.01" name="amount" required></div>
+    <div><label>Type</label><select name="kind" class="in">{% for k in PAYMENT_KINDS %}<option>{{ k }}</option>{% endfor %}</select></div>
+    <div><label>Reference (receipt no., bank ref)</label><input class="in" type="text" name="reference"></div>
+    <div><label>Receipt photo</label><input type="file" name="receipt" accept="image/*" capture="environment"><div class="filehint help"></div></div>
+    <div class="span3"><label>Note</label><input class="in" type="text" name="note"></div>
+  </div>
+  <div class="form-actions"><button class="btn accent">{{ ic('check') }}Record payment</button></div>
 </form>
-<div class="card"><h2>By supplier</h2><div class="tbl"><table><tr><th>Supplier</th><th class="right">Ordered</th><th class="right">Paid</th><th class="right">Balance</th></tr>
-{% for r in s.by_sup %}<tr><td>{{ r.label }}</td><td class="right">{{ r.total|money }}</td><td class="right">{{ r.paid|money }}</td><td class="right b">{{ r.balance|money }}</td></tr>{% endfor %}</table></div></div>
-<div class="card"><h2>All payments</h2><div class="tbl"><table><tr><th>Date</th><th>Supplier</th><th>Type</th><th class="right">CNY</th><th>Ref</th><th>Note</th><th>Receipt</th><th></th></tr>
-{% for pay in pays %}<tr><td>{{ pay.paid_on }}</td><td>{{ pay.supplier.name if pay.supplier else '—' }}</td><td>{{ pay.kind }}</td><td class="right">{{ pay.amount|money(2) }}</td><td>{{ pay.reference }}</td><td class="small">{{ pay.note }}</td>
-<td>{% if pay.receipt_key %}<a href="/media/{{ pay.receipt_key }}" target="_blank"><img class="thumb" style="width:36px;height:36px" src="/media/{{ pay.receipt_key }}"></a>{% endif %}</td>
-<td><form method="post" action="/p/{{ p.id }}/payments/{{ pay.id }}/delete" onsubmit="return confirmSubmit(this,'Delete payment?')"><button class="btn sm danger">×</button></form></td></tr>
-{% else %}<tr><td colspan="8" class="muted">No payments recorded.</td></tr>{% endfor %}</table></div></div>
+<div class="grid g2 stack">
+<div class="card"><h2>By supplier</h2><div class="tbl"><table><tr><th>Supplier</th><th class="num">Ordered</th><th class="num">Paid</th><th class="num">Balance</th></tr>
+{% for r in s.by_sup %}<tr><td>{% if r.key %}<a href="/suppliers/{{ r.key }}?project={{ p.id }}">{{ r.label }}</a>{% else %}{{ r.label }}{% endif %}</td><td class="num">{{ r.total|money }}</td><td class="num">{{ r.paid|money }}</td><td class="num b">{{ r.balance|money }}</td></tr>
+{% else %}<tr><td colspan="4" class="muted">No suppliers assigned yet.</td></tr>{% endfor %}</table></div></div>
+<div class="card"><h2>All payments</h2><div class="tbl"><table><tr><th>Date</th><th>Supplier</th><th>Type</th><th class="num">CNY</th><th>Ref</th><th></th></tr>
+{% for pay in pays %}<tr><td class="small">{{ pay.paid_on }}</td><td>{{ pay.supplier.name if pay.supplier else '—' }}</td><td><span class="pill">{{ pay.kind }}</span></td><td class="num b">{{ pay.amount|money(2) }}</td><td class="small muted">{{ pay.reference }}{% if pay.note %}<div>{{ pay.note }}</div>{% endif %}</td>
+<td class="right"><div class="row nowrap" style="justify-content:flex-end">{% if pay.receipt_key %}<a href="/media/{{ pay.receipt_key }}" target="_blank" title="Receipt"><img class="thumb sm" src="/media/{{ pay.receipt_key }}" alt="receipt"></a>{% endif %}
+<form method="post" action="/p/{{ p.id }}/payments/{{ pay.id }}/delete" onsubmit="return confirmSubmit(this,'Delete payment?')"><button class="btn sm ghost icon" title="Delete">{{ ic('x') }}</button></form></div></td></tr>
+{% else %}<tr><td colspan="6" class="muted">No payments recorded.</td></tr>{% endfor %}</table></div></div>
+</div>
 {% endblock %}

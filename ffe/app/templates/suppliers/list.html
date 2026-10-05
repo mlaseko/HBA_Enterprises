@@ -1,9 +1,17 @@
 {% extends "base.html" %}
+{% block title %}Suppliers{% if p %} · {{ p.name }}{% endif %}{% endblock %}
 {% block content %}
-<h1>Suppliers {% if p %}<span class="muted small">for {{ p.name }}</span>{% endif %}</h1>
-<details class="card" {{ 'open' if not sups }}>
-  <summary>+ Add supplier</summary>
-  <form method="post" action="/suppliers/new" class="grid g3" style="margin-top:8px">
+<div class="page-head">
+  <div>
+    <div class="crumbs">{% if p %}<a href="/">Projects</a>{{ ic('chevron-right') }}<a href="/p/{{ p.id }}">{{ p.name }}</a>{% else %}<span>Studio</span>{% endif %}{{ ic('chevron-right') }}<span>Suppliers</span></div>
+    <h1>Suppliers<span class="h-note">{{ sups|length }}{% if p %} · for {{ p.name }}{% endif %}</span></h1>
+    <p class="sub">Factories and markets you buy from. Suppliers are shared across projects; per-project totals and packing links live here too.</p>
+  </div>
+  <div class="actions"><a class="btn accent" href="#add" onclick="document.getElementById('add').open=true">{{ ic('plus') }}Add supplier</a></div>
+</div>
+<details class="card" id="add" {{ 'open' if not sups }}>
+  <summary>{{ ic('plus') }}Add supplier</summary>
+  <form method="post" action="/suppliers/new" class="grid g3 stack mt">
     <input type="hidden" name="back" value="{{ request.url.path }}">
     <div><label>Name</label><input class="in" type="text" name="name" required></div>
     <div><label>City / market</label><input class="in" type="text" name="city" placeholder="Foshan - Nanzhuang"></div>
@@ -14,16 +22,30 @@
     <div><label>Email</label><input class="in" type="text" name="email"></div>
     <div><label>Payment terms</label><input class="in" type="text" name="payment_terms" placeholder="30% deposit, 70% before loading"></div>
     <div><label>Notes</label><input class="in" type="text" name="notes"></div>
-    <div style="display:flex;align-items:end"><button class="btn">Save supplier</button></div>
+    <div class="span3 form-actions"><button class="btn accent">{{ ic('check') }}Save supplier</button></div>
   </form>
 </details>
+<div class="grid g2 stack">
 {% for s in sups %}
 {% set st = stats.get(s.id) if p else None %}
-<div class="card row between">
-  <div><a href="/suppliers/{{ s.id }}{% if p %}?project={{ p.id }}{% endif %}" class="b">{{ s.name }}</a>
-    <div class="small muted">{{ s.category }} {% if s.city %}· {{ s.city }}{% endif %} {% if s.contact %}· {{ s.contact }}{% endif %} {% if s.wechat %}· WeChat {{ s.wechat }}{% endif %}</div></div>
-  {% if p %}<div class="right small">{% if st %}{{ st.count }} items · ordered ¥{{ st.total|money }} · paid ¥{{ st.paid|money }} · <b>balance ¥{{ st.balance|money }}</b>{% else %}<span class="muted">no items in this project</span>{% endif %}
-    {% if links.get(s.id) %}<div><span class="pill">packing link active</span></div>{% endif %}</div>{% endif %}
-</div>
+<a href="/suppliers/{{ s.id }}{% if p %}?project={{ p.id }}{% endif %}" class="card supplier">
+  <div class="row between top">
+    <div class="min0"><div class="row" style="gap:10px"><span class="avatar">{{ s.name[:1] }}</span><div class="min0"><div class="b">{{ s.name }}</div>
+      <div class="small muted">{{ s.category }}{% if s.city %} · {{ s.city }}{% endif %}</div></div></div></div>
+    {% if p and links.get(s.id) %}<span class="pill sage">{{ ic('link', 'ic sm') }}packing link</span>{% endif %}
+  </div>
+  {% set contact = [s.contact, ('WeChat ' ~ s.wechat) if s.wechat else '', s.phone]|select|list %}{% if contact %}<div class="small muted mt">{{ contact|join(' · ') }}</div>{% endif %}
+  {% if p %}
+  <div class="stats">
+    <div><div class="v">{{ st.count if st else 0 }}</div><div class="l">items</div></div>
+    <div><div class="v">¥{{ (st.total if st else 0)|money }}</div><div class="l">ordered</div></div>
+    <div><div class="v">¥{{ (st.paid if st else 0)|money }}</div><div class="l">paid</div></div>
+    <div><div class="v {{ 'red' if st and st.balance > 0 else '' }}">¥{{ (st.balance if st else 0)|money }}</div><div class="l">balance</div></div>
+  </div>
+  {% endif %}
+</a>
+{% else %}
+<div class="card empty span2"><div class="ring">{{ ic('users') }}</div><h3>No suppliers yet</h3><p>Add the first supplier above. You can then set it on each item and record payments against it.</p></div>
 {% endfor %}
+</div>
 {% endblock %}

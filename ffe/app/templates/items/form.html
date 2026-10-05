@@ -1,53 +1,72 @@
 {% extends "base.html" %}
-{% block content %}
 {% set it = item %}
-<div class="row between"><h1>{{ (it.name or 'Draft item') if it else 'New item' }} {% if it %}<span class="muted small">{{ it.code }}</span>{% endif %}</h1>
- {% if it %}<span class="badge" style="background:{{ STATUS_COLORS[it.status] }}">{{ it.status }}</span>{% endif %}</div>
-{% if it and it.draft %}<div class="alert">This is a quick-capture draft. Give it a name and save: it gets a code and starts counting in totals and documents. <a href="/p/{{ p.id }}/drafts">Back to drafts</a></div>{% endif %}
-<form method="post" enctype="multipart/form-data" class="card" id="itemform">
-  <div class="grid g2">
+{% block title %}{{ (it.name or 'Draft item') if it else 'New item' }} · {{ p.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a>{{ ic('chevron-right') }}<a href="/p/{{ p.id }}">{{ p.name }}</a>{{ ic('chevron-right') }}<a href="/p/{{ p.id }}/items">Items</a>{{ ic('chevron-right') }}<span>{{ it.code if it and it.code else ('Draft' if it else 'New') }}</span></div>
+    <h1>{{ (it.name or 'Draft item') if it else 'New item' }}{% if it and it.code %}<span class="h-note">{{ it.code }}</span>{% endif %}</h1>
+    {% if it %}<p class="sub">{{ it.room.label if it.room else 'Whole house' }} · {{ it.category }}{% if it.supplier %} · {{ it.supplier.name }}{% endif %}</p>{% endif %}
+  </div>
+  <div class="actions">{% if it %}<span class="badge" style="--c:{{ STATUS_COLORS[it.status] }}">{{ it.status }}</span>{% endif %}
+    <a class="btn ghost" href="/p/{{ p.id }}/items{% if it and it.room_id %}?room={{ it.room_id }}{% endif %}">{{ ic('arrow-left') }}Back to items</a></div>
+</div>
+{% if it and it.draft %}<div class="alert info">{{ ic('sparkle', 'ic sm') }} This is a quick-capture draft. Give it a name and save: it gets a code and starts counting in totals and documents. <a href="/p/{{ p.id }}/drafts">Back to drafts</a></div>{% endif %}
+<div class="grid g3 stack form-layout">
+<form method="post" enctype="multipart/form-data" class="card span2" id="itemform">
+  <h2>Item</h2>
+  <div class="grid g2 stack">
     <div><label>Room</label><select name="room_id" class="in">
       <option value="">Whole house / not room-specific</option>
       {% for r in p.rooms %}<option value="{{ r.id }}" {{ 'selected' if (it and it.room_id == r.id) or (not it and pre_room == r.id) }}>{{ r.label }}</option>{% endfor %}</select></div>
-    <div><label>Category (schedule)</label><select name="category" class="in">{% for c in CATEGORIES %}<option {{ 'selected' if (it and it.category == c) or (not it and pre_cat == c) }}>{{ c }}</option>{% endfor %}</select></div>
-    <div style="grid-column:span 2"><label>Item / product name</label><input class="in" type="text" name="name" value="{{ it.name if it else '' }}" required placeholder="e.g. Wall-hung WC, rimless, soft-close seat"></div>
-    <div style="grid-column:span 2"><label>Must-have spec (what the supplier must deliver)</label><textarea class="in" name="spec">{{ it.spec if it else '' }}</textarea></div>
+    <div><label>Category (schedule page)</label><select name="category" class="in">{% for c in CATEGORIES %}<option {{ 'selected' if (it and it.category == c) or (not it and pre_cat == c) }}>{{ c }}</option>{% endfor %}</select></div>
+    <div class="span2"><label>Item / product name</label><input class="in" type="text" name="name" value="{{ it.name if it else '' }}" required placeholder="e.g. Wall-hung WC, rimless, soft-close seat"></div>
+    <div class="span2"><label>Must-have spec (what the supplier must deliver)</label><textarea class="in" name="spec">{{ it.spec if it else '' }}</textarea></div>
     <div><label>Brand / model</label><input class="in" type="text" name="brand" value="{{ it.brand if it else '' }}"></div>
     <div><label>Size</label><input class="in" type="text" name="size" value="{{ it.size if it else '' }}" placeholder="1200 x 2400 mm"></div>
     <div><label>Colour / finish</label><input class="in" type="text" name="finish" value="{{ it.finish if it else '' }}"></div>
     <div><label>Lead time</label><input class="in" type="text" name="lead_time" value="{{ it.lead_time if it else '' }}" placeholder="In stock / 3 weeks"></div>
+  </div>
+  <h2 class="mt-l">Quantity &amp; price</h2>
+  <div class="grid g2 stack">
     <div><label>Qty</label><input class="in" type="number" step="0.01" name="qty" value="{{ it.qty|num if it else 1 }}"></div>
     <div><label>Unit</label><select name="unit" class="in">{% for u in UNITS %}<option {{ 'selected' if it and it.unit == u }}>{{ u }}</option>{% endfor %}</select></div>
     <div><label>Unit price (CNY)</label><input class="in" type="number" step="0.01" name="unit_price" value="{{ it.unit_price if it and it.unit_price else '' }}"></div>
     <div><label>Supplier</label><select name="supplier_id" class="in"><option value="">— none yet —</option>{% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if it and it.supplier_id == s.id }}>{{ s.name }}</option>{% endfor %}</select>
-      <div class="small"><a href="/p/{{ p.id }}/suppliers">+ new supplier</a></div></div>
+      <div class="help"><a href="/p/{{ p.id }}/suppliers">+ new supplier</a></div></div>
     <div><label>Status</label><select name="status" class="in">{% for st in STATUSES %}<option {{ 'selected' if it and it.status == st }}>{{ st }}</option>{% endfor %}</select></div>
-    <div><label>&nbsp;</label><label style="display:flex;gap:8px;align-items:center;font-size:.9rem;color:var(--text)"><input type="checkbox" name="optional" {{ 'checked' if it and it.optional }}> Optional item (shown separately in totals)</label></div>
-    <div style="grid-column:span 2"><label>Notes</label><textarea class="in" name="notes">{{ it.notes if it else '' }}</textarea></div>
-    <div style="grid-column:span 2"><label>{{ 'Add photos' if it else 'Photos of sample' }} (camera or gallery, several at once)</label>
-      <input type="file" name="photos" accept="image/*" multiple capture="environment"><div class="filehint small muted"></div></div>
+    <div><label>&nbsp;</label><label class="check"><input type="checkbox" name="optional" {{ 'checked' if it and it.optional }}> Optional item (shown separately in totals)</label></div>
+    <div class="span2"><label>Notes</label><textarea class="in" name="notes">{{ it.notes if it else '' }}</textarea></div>
+    <div class="span2"><label>{{ 'Add photos' if it else 'Photos of the sample' }} (camera or gallery, several at once)</label>
+      <input type="file" name="photos" accept="image/*" multiple capture="environment"><div class="filehint help"></div></div>
   </div>
-  {% if it %}<div class="row" style="margin-top:8px"><span class="muted small">Total: <b>¥{{ it.total|money(2) }}</b> · ${{ (it.total/(p.rate or 1))|money(2) }}</span></div>{% endif %}
-  <div class="row" style="margin-top:12px">
-    <button class="btn">Save</button>
+  {% if it %}<div class="total-line mt">Total <b class="serif">¥{{ it.total|money(2) }}</b><span class="muted"> · ${{ (it.total/(p.rate or 1))|money(2) }}</span></div>{% endif %}
+  <div class="form-actions">
+    <button class="btn accent">{{ ic('check') }}Save</button>
     {% if not it %}<button class="btn sec" name="add_another" value="1">Save &amp; add another</button>{% endif %}
-    <a class="btn sec" href="/p/{{ p.id }}/items{% if it and it.room_id %}?room={{ it.room_id }}{% endif %}">Back to list</a>
+    <a class="btn ghost" href="/p/{{ p.id }}/items{% if it and it.room_id %}?room={{ it.room_id }}{% endif %}">Cancel</a>
   </div>
 </form>
 {% if it %}
+<div>
 <div class="card">
-  <h2>Photos</h2>
+  <h2>Photos<span class="h-note">{{ it.photos|length }}</span></h2>
   <div class="gallery">
   {% for ph in it.photos %}
     <div class="g"><a href="/media/{{ ph.file_key }}" target="_blank"><img src="/media/{{ ph.file_key }}" alt=""></a>
-      <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/photo/{{ ph.id }}/delete" onsubmit="return confirmSubmit(this,'Delete photo?')"><button class="btn sm danger">×</button></form>
-      {% if loop.index0 > 0 %}<form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/photo/{{ ph.id }}/cover" style="position:static;margin-top:3px"><button class="btn sm sec">Make cover</button></form>{% else %}<div class="small muted">cover</div>{% endif %}</div>
-  {% else %}<span class="muted small">No photos yet. Use the photo field above.</span>{% endfor %}
+      <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/photo/{{ ph.id }}/delete" onsubmit="return confirmSubmit(this,'Delete photo?')"><button class="btn sm danger icon" title="Delete photo">{{ ic('x') }}</button></form>
+      {% if loop.index0 > 0 %}<form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/photo/{{ ph.id }}/cover" style="position:static;margin-top:4px"><button class="btn sm ghost">Make cover</button></form>{% else %}<div class="cap"><span class="pill accent">cover</span></div>{% endif %}</div>
+  {% else %}<div class="empty" style="padding:18px 8px;width:100%"><div class="ring">{{ ic('camera') }}</div><h3>No photos yet</h3><p>Use the photo field in the form; the camera opens on the phone.</p></div>{% endfor %}
   </div>
 </div>
-<div class="card row">
-  <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/duplicate"><button class="btn sm sec">Duplicate item</button></form>
-  <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/delete" onsubmit="return confirmSubmit(this,'Delete this item and its photos?')"><button class="btn sm danger">Delete item</button></form>
+<div class="card">
+  <h2>Actions</h2>
+  <div class="row">
+    <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/duplicate"><button class="btn sm sec">{{ ic('copy') }}Duplicate item</button></form>
+    <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/delete" onsubmit="return confirmSubmit(this,'Delete this item and its photos?')"><button class="btn sm danger">{{ ic('trash') }}Delete item</button></form>
+  </div>
+</div>
 </div>
 {% endif %}
+</div>
 {% endblock %}

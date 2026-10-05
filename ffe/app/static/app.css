@@ -32,6 +32,7 @@ p{margin:.3rem 0 .8rem}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row.between{justify-content:space-between}.row.top{align-items:flex-start}.row.nowrap{flex-wrap:nowrap}
 .sp{flex:1}
 .grid{display:grid;gap:12px}.g2{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}
+.grid > *{min-width:0}
 .span2{grid-column:span 2}.span3{grid-column:span 3}.span4{grid-column:span 4}
 @media(max-width:700px){.g2,.g3,.g4{grid-template-columns:repeat(2,1fr)}.span3,.span4{grid-column:span 2}.hide-m{display:none!important}}
 @media(max-width:480px){.g3.stack,.g4.stack,.g2.stack{grid-template-columns:1fr}.stack .span2,.stack .span3,.stack .span4{grid-column:span 1}}
@@ -233,10 +234,11 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .item-card .price{font-family:var(--serif);font-size:1.05rem;color:var(--ink)}
 .item-card .foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;padding-top:6px}
 @media(min-width:701px){
-  .cards{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
-  .item-card{flex-direction:column;gap:10px;padding:10px 10px 12px}
-  .item-card .pic{width:100%;height:auto;aspect-ratio:4/3;border-radius:12px}
-  .item-card .body{padding:0 4px}
+  .cards{grid-template-columns:repeat(auto-fill,minmax(330px,1fr))}
+  .cards.photo{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+  .cards.photo .item-card{flex-direction:column;gap:10px;padding:10px 10px 12px}
+  .cards.photo .item-card .pic{width:100%;height:auto;aspect-ratio:4/3;border-radius:12px}
+  .cards.photo .item-card .body{padding:0 4px}
 }
 .group-title{display:flex;align-items:center;gap:10px;margin:22px 0 10px}
 .group-title h2{margin:0;font-family:var(--serif);font-weight:500;font-size:1.15rem}
@@ -284,5 +286,49 @@ details summary{cursor:pointer;color:var(--ink);font-weight:600;margin:0}
 .auth .form .card{width:100%;max-width:400px;padding:26px;margin:0}
 .auth .form h2{font-family:var(--serif);font-weight:500;font-size:1.5rem;margin-bottom:4px}
 @media(min-width:900px){.auth{grid-template-columns:1.1fr 1fr}.auth .pane{padding:48px 56px}.auth .pane h1{font-size:2.8rem;margin-top:90px}.auth .form{padding:40px}}
+
+/* ---------- page components added with the restyled templates ---------- */
+.min0{min-width:0}
+.stats{display:flex;gap:18px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--line-2)}
+.stats .v{font-family:var(--serif);font-size:1.15rem;color:var(--ink);line-height:1.1}.stats .v.red{color:var(--red)}
+.stats .l{font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-top:2px}
+.card.project .title{font-size:1.25rem;margin:2px 0 0;line-height:1.2}
+.card.project .bar{margin-top:6px}
+.kpi .v .of{font-size:.95rem;color:var(--muted);margin-left:1px}
+a.badge:hover{text-decoration:none;filter:brightness(.96)}
+.status-sel{border-left:4px solid var(--c,var(--line))}
+.form-layout > .card{margin-bottom:14px}
+@media(min-width:960px){.form-layout{grid-template-columns:2fr 1fr;align-items:start}.form-layout > .span2{grid-column:span 1}}
+@media(max-width:959px){.form-layout{grid-template-columns:1fr}.form-layout > .span2{grid-column:span 1}}
+.total-line{font-size:.95rem;padding:10px 14px;background:var(--surface-2);border-radius:var(--r-sm)}.total-line b{font-size:1.15rem;margin-left:6px}
+.danger-zone{border-color:#EAC7C1}
+.draft{position:relative;padding:14px}
+.draft-row{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+.draft-pic{flex:none;width:132px;height:132px;border-radius:14px;overflow:hidden;background:var(--surface-3);border:1px solid var(--line-2);display:block}
+.draft-pic img{width:100%;height:100%;object-fit:cover;display:block}
+.draft-pic.ph{display:flex;border-style:dashed}
+.draft-form{flex:1;min-width:240px}.draft-form > label:first-of-type{margin-top:0}
+.draft-discard{position:absolute;top:10px;right:10px}
+.room summary{gap:10px;flex-wrap:wrap}
+.room-code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.8rem;font-weight:700;background:var(--ink);color:#fff;border-radius:8px;padding:3px 8px;letter-spacing:.04em}
+.room-name{font-weight:600}
+.room summary .pill{margin-left:auto;margin-right:18px}
+.avatar{width:38px;height:38px;border-radius:12px;background:var(--accent-soft);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:600;font-size:1.05rem;flex:none}
+.card.supplier{margin-bottom:0}
+.box-label{display:inline-flex;flex-direction:column;gap:1px;padding:5px 10px;border:1.5px solid var(--ink);border-radius:8px;background:var(--surface);line-height:1.2}
+.box-label b{font-size:.84rem;letter-spacing:.02em}.box-label span{font-size:.68rem;font-weight:700;color:var(--muted);letter-spacing:.08em}
+.pay-line{padding:7px 0;border-bottom:1px solid var(--line-2)}.pay-line:last-child{border-bottom:0}
+.ph.sm{width:44px;height:44px;border-radius:10px}
+.logo-preview{display:flex;justify-content:center}.logo-preview img{width:84px;height:84px;object-fit:cover;border-radius:20px;border:1px solid var(--line)}
+.capture-btn .ic{color:#fff}
+.pub-hero{padding:34px 26px}.pub-hero.has-cover{min-height:260px;display:flex;flex-direction:column;justify-content:flex-end}
+.pub-hero .cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.55;z-index:0}
+.pub-hero.has-cover:before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(30,27,24,.1),rgba(30,27,24,.75));z-index:0}
+.pub-hero h1{font-size:2.1rem;margin:4px 0 6px}
+@media(min-width:900px){.pub-hero{padding:48px 44px}.pub-hero h1{font-size:2.8rem}.pub-hero.has-cover{min-height:340px}}
+.mood{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.mood img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:14px;border:1px solid var(--line);display:block}
+.pub-foot{margin-top:36px;padding-top:18px;border-top:1px solid var(--line);text-align:center}
+.cards > .card.empty{grid-column:1/-1}
 
 @media print{.top,.side,.bottom,.sheet,.fab,.noprint,.pubbar{display:none!important}.wrap{padding:0;max-width:none}body{background:#fff}.card,.tbl{box-shadow:none}}

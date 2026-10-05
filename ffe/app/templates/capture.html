@@ -1,10 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Quick capture · {{ p.name }}{% endblock %}
 {% block content %}
-<div class="row between"><h1>Quick capture</h1><a href="/p/{{ p.id }}/drafts" class="btn sm sec">Drafts (<span id="drafts">{{ drafts }}</span>)</a></div>
-<p class="muted small" style="margin-top:0">Shoot first, fill in later. Every photo is saved as a draft item straight away; drafts don't count in totals or documents until you give them a name.</p>
-<form method="post" action="/p/{{ p.id }}/capture" enctype="multipart/form-data" class="card" id="capform">
-  <div class="grid g2">
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a>{{ ic('chevron-right') }}<a href="/p/{{ p.id }}">{{ p.name }}</a>{{ ic('chevron-right') }}<span>Quick capture</span></div>
+    <h1>Quick capture</h1>
+    <p class="sub">Shoot first, fill in later. Every photo is saved as a draft item straight away; drafts don't count in totals or documents until you give them a name.</p>
+  </div>
+  <div class="actions"><a href="/p/{{ p.id }}/drafts" class="btn soft">{{ ic('clock') }}<span>Drafts (<span id="drafts">{{ drafts }}</span>)</span></a></div>
+</div>
+<div class="grid g3 stack form-layout">
+<form method="post" action="/p/{{ p.id }}/capture" enctype="multipart/form-data" class="card span2" id="capform">
+  <div class="grid g2 stack">
     <div><label>Room (optional, applies to the next photos)</label><select name="room_id" class="in" id="cap-room">
       <option value="">Not decided yet</option>
       {% for r in p.rooms %}<option value="{{ r.id }}" {{ 'selected' if pre_room == r.id }}>{{ r.label }}</option>{% endfor %}</select></div>
@@ -14,13 +21,15 @@
   </div>
   <input type="hidden" name="n" value="{{ n }}">
   <input type="file" id="cam" accept="image/*" capture="environment" style="display:none">
-  <noscript><label>Photo</label><input type="file" name="photo" accept="image/*" capture="environment" required><div style="margin-top:8px"><button class="btn">Save photo</button></div></noscript>
-  <button type="button" class="btn block capture-btn" id="shoot">📷 Take photo</button>
-  <div class="capture-status muted small" id="status">Camera opens when you tap the button.</div>
+  <noscript><label>Photo</label><input type="file" name="photo" accept="image/*" capture="environment" required><div class="mt"><button class="btn">Save photo</button></div></noscript>
+  <button type="button" class="btn accent block capture-btn" id="shoot">{{ ic('camera', 'ic lg') }}Take photo</button>
+  <div class="capture-status muted small center" id="status">Camera opens when you tap the button.</div>
 </form>
 <div class="card">
-  <div class="row between"><b>Captured this session: <span id="n">{{ n }}</span></b><a class="small" href="/p/{{ p.id }}/drafts">complete the drafts →</a></div>
-  <div class="gallery" id="strip" style="margin-top:8px"></div>
+  <div class="row between"><h2 style="margin:0">This session</h2><span class="pill accent"><span id="n">{{ n }}</span>&nbsp;captured</span></div>
+  <div class="gallery mt" id="strip"></div>
+  <p class="small mt"><a href="/p/{{ p.id }}/drafts">Complete the drafts {{ ic('chevron-right', 'ic sm') }}</a></p>
+</div>
 </div>
 <script>
 (function () {
@@ -45,7 +54,7 @@
       var j = await r.json();
       nEl.textContent = String(parseInt(nEl.textContent || '0', 10) + 1);
       draftsEl.textContent = j.drafts;
-      var im = document.createElement('img'); im.src = j.media; im.alt = ''; im.className = 'thumb';
+      var im = document.createElement('img'); im.src = j.media; im.alt = ''; im.className = 'thumb lg';
       strip.insertBefore(im, strip.firstChild);
       say('Saved. Tap the button for the next one.');
     } catch (err) {

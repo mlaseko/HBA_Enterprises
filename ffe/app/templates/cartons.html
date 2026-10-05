@@ -1,36 +1,53 @@
 {% extends "base.html" %}
+{% block title %}Packing · {{ p.name }}{% endblock %}
 {% block content %}
-<h1>Packing <span class="muted small">{{ s.cartons }} boxes · {{ '%.2f'|format(s.cbm) }} CBM · {{ s.kg|num }} kg → {{ s.container }}</span></h1>
-<p class="muted small">One line per box. Each box gets a room code and "Box n of N". Suppliers can enter their own boxes through their packing link (Suppliers tab), or you enter them here.</p>
-<div class="row" style="margin-bottom:10px">
-  <a class="btn sm" href="/p/{{ p.id }}/export/labels.pdf{% if f.supplier %}?supplier={{ f.supplier }}{% endif %}" target="_blank">Print box labels</a>
-  <a class="btn sm sec" href="/p/{{ p.id }}/export/packing.pdf{% if f.supplier %}?supplier={{ f.supplier }}{% endif %}" target="_blank">Packing list PDF</a>
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a>{{ ic('chevron-right') }}<a href="/p/{{ p.id }}">{{ p.name }}</a>{{ ic('chevron-right') }}<span>Packing</span></div>
+    <h1>Packing<span class="h-note">{{ s.cartons }} boxes · {{ '%.2f'|format(s.cbm) }} CBM · {{ s.kg|num }} kg</span></h1>
+    <p class="sub">One line per box. Each box gets a room code and "Box n of N". Suppliers can enter their own boxes through their packing link (Suppliers tab), or you enter them here.</p>
+  </div>
+  <div class="actions">
+    <a class="btn accent" href="/p/{{ p.id }}/export/labels.pdf{% if f.supplier %}?supplier={{ f.supplier }}{% endif %}" target="_blank">{{ ic('tag') }}Box labels</a>
+    <a class="btn sec" href="/p/{{ p.id }}/export/packing.pdf{% if f.supplier %}?supplier={{ f.supplier }}{% endif %}" target="_blank">{{ ic('file') }}Packing list PDF</a>
+  </div>
 </div>
-<form method="post" class="card grid g4">
-  <div><label>Supplier</label><select name="supplier_id" class="in"><option value="">—</option>{% for sp in suppliers %}<option value="{{ sp.id }}">{{ sp.name }}</option>{% endfor %}</select></div>
-  <div><label>Room (where it will be installed)</label><select name="room_id" class="in" required>{% for r in p.rooms %}<option value="{{ r.id }}">{{ r.label }}</option>{% endfor %}</select></div>
-  <div style="grid-column:span 2"><label>What is inside</label><input class="in" type="text" name="contents" placeholder="Floor slab 1200x2400, 2 pieces" required></div>
-  <div><label>Item codes</label><input class="in" type="text" name="item_codes" placeholder="GF-KIT-01"></div>
-  <div><label>Qty inside</label><input class="in" type="number" step="0.01" name="qty" value="1"></div>
-  <div><label>L × W × H (cm)</label><div class="row" style="flex-wrap:nowrap"><input class="in" type="number" step="0.1" name="length_cm" placeholder="L"><input class="in" type="number" step="0.1" name="width_cm" placeholder="W"><input class="in" type="number" step="0.1" name="height_cm" placeholder="H"></div></div>
-  <div><label>Weight kg</label><input class="in" type="number" step="0.1" name="weight_kg"></div>
-  <div style="grid-column:span 3"><label>Notes</label><input class="in" type="text" name="notes"></div>
-  <div style="display:flex;align-items:end"><button class="btn">+ Add box</button></div>
-</form>
-<form method="get" class="card filters">
+<div class="grid g4">
+  <div class="kpi">{{ ic('box') }}<div class="v">{{ s.cartons }}</div><div class="l">boxes</div></div>
+  <div class="kpi sage">{{ ic('check') }}<div class="v">{{ s.cartons_received }}<span class="of">/{{ s.cartons }}</span></div><div class="l">received</div></div>
+  <div class="kpi">{{ ic('truck') }}<div class="v">{{ '%.2f'|format(s.cbm) }}</div><div class="l">CBM · {{ s.kg|num }} kg</div></div>
+  <div class="kpi ink"><div class="v">{{ s.container }}</div><div class="l">container</div></div>
+</div>
+<details class="card mt" {{ 'open' if not rows and not f.supplier and not f.room }}>
+  <summary>{{ ic('plus') }}Add a box</summary>
+  <form method="post" class="grid g4 stack mt">
+    <div><label>Supplier</label><select name="supplier_id" class="in"><option value="">—</option>{% for sp in suppliers %}<option value="{{ sp.id }}">{{ sp.name }}</option>{% endfor %}</select></div>
+    <div><label>Room (where it will be installed)</label><select name="room_id" class="in" required>{% for r in p.rooms %}<option value="{{ r.id }}">{{ r.label }}</option>{% endfor %}</select></div>
+    <div class="span2"><label>What is inside</label><input class="in" type="text" name="contents" placeholder="Floor slab 1200x2400, 2 pieces" required></div>
+    <div><label>Item codes</label><input class="in" type="text" name="item_codes" placeholder="GF-KIT-01"></div>
+    <div><label>Qty inside</label><input class="in" type="number" step="0.01" name="qty" value="1"></div>
+    <div><label>L × W × H (cm)</label><div class="field-row"><input class="in" type="number" step="0.1" name="length_cm" placeholder="L"><input class="in" type="number" step="0.1" name="width_cm" placeholder="W"><input class="in" type="number" step="0.1" name="height_cm" placeholder="H"></div></div>
+    <div><label>Weight kg</label><input class="in" type="number" step="0.1" name="weight_kg"></div>
+    <div class="span4"><label>Notes</label><input class="in" type="text" name="notes"></div>
+    <div class="span4 form-actions"><button class="btn accent">{{ ic('plus') }}Add box</button></div>
+  </form>
+</details>
+<form method="get" class="card tight filters">
   <select name="supplier" class="in"><option value="">All suppliers</option>{% for sp in suppliers %}<option value="{{ sp.id }}" {{ 'selected' if f.supplier == sp.id|string }}>{{ sp.name }}</option>{% endfor %}</select>
   <select name="room" class="in"><option value="">All rooms</option>{% for r in p.rooms %}<option value="{{ r.id }}" {{ 'selected' if f.room == r.id|string }}>{{ r.label }}</option>{% endfor %}</select>
-  <button class="btn sm">Filter</button>
+  <button class="btn sm sec">Filter</button>
+  {% if f.supplier or f.room %}<a class="btn sm ghost" href="/p/{{ p.id }}/cartons">{{ ic('x') }}Clear</a>{% endif %}
+  <span class="sp"></span><span class="muted small">{{ rows|length }} shown</span>
 </form>
 <div class="tbl"><table>
-<tr><th>#</th><th>Write on the box</th><th>Supplier</th><th>Contents</th><th>Items</th><th class="right">Qty</th><th class="right">CBM</th><th class="right">kg</th><th>By</th><th>Received</th><th></th></tr>
+<tr><th>#</th><th>Write on the box</th><th>Supplier</th><th>Contents</th><th>Items</th><th class="num">Qty</th><th class="num">CBM</th><th class="num">kg</th><th>By</th><th>Received</th><th></th></tr>
 {% for c in rows %}{% set bn, bt = pos.get(c.id, (1,1)) %}
-<tr><td class="small">{{ c.id }}</td><td><b>{{ c.room.label if c.room else 'ALL - Whole house' }}</b><br><span class="small">BOX {{ bn }} OF {{ bt }}</span></td>
-<td class="small">{{ c.supplier.name if c.supplier else '' }}</td><td>{{ c.contents }}{% if c.notes %}<div class="small muted">{{ c.notes }}</div>{% endif %}</td><td class="small">{{ c.item_codes }}</td>
-<td class="right">{{ c.qty|num }}</td><td class="right">{{ '%.3f'|format(c.cbm) if c.cbm else '' }}</td><td class="right">{{ c.weight_kg|num if c.weight_kg else '' }}</td><td class="small">{{ c.entered_by }}</td>
-<td>{% if c.received %}<span class="badge" style="background:#16A34A">Yes</span><form method="post" action="/p/{{ p.id }}/cartons/{{ c.id }}/received"><input type="hidden" name="received" value="0"><button class="btn sm sec">undo</button></form>
- {% else %}<form method="post" action="/p/{{ p.id }}/cartons/{{ c.id }}/received"><input type="hidden" name="received" value="1"><button class="btn sm">Received</button></form>{% endif %}</td>
-<td><form method="post" action="/p/{{ p.id }}/cartons/{{ c.id }}/delete" onsubmit="return confirmSubmit(this,'Delete box?')"><button class="btn sm danger">×</button></form></td></tr>
-{% else %}<tr><td colspan="11" class="muted">No boxes yet.</td></tr>{% endfor %}
+<tr><td class="small muted">{{ c.id }}</td><td><div class="box-label"><b>{{ c.room.label if c.room else 'ALL - Whole house' }}</b><span>BOX {{ bn }} OF {{ bt }}</span></div></td>
+<td class="small">{{ c.supplier.name if c.supplier else '' }}</td><td>{{ c.contents }}{% if c.notes %}<div class="small muted">{{ c.notes }}</div>{% endif %}</td><td class="small muted">{{ c.item_codes }}</td>
+<td class="num">{{ c.qty|num }}</td><td class="num">{{ '%.3f'|format(c.cbm) if c.cbm else '' }}</td><td class="num">{{ c.weight_kg|num if c.weight_kg else '' }}</td><td><span class="pill {{ 'gold' if c.entered_by == 'supplier' else '' }}">{{ c.entered_by }}</span></td>
+<td>{% if c.received %}<div class="row nowrap"><span class="badge" style="--c:var(--green)">Received</span><form method="post" action="/p/{{ p.id }}/cartons/{{ c.id }}/received"><input type="hidden" name="received" value="0"><button class="btn sm ghost">undo</button></form></div>
+ {% else %}<form method="post" action="/p/{{ p.id }}/cartons/{{ c.id }}/received"><input type="hidden" name="received" value="1"><button class="btn sm sec">{{ ic('check') }}Received</button></form>{% endif %}</td>
+<td><form method="post" action="/p/{{ p.id }}/cartons/{{ c.id }}/delete" onsubmit="return confirmSubmit(this,'Delete box?')"><button class="btn sm ghost icon" title="Delete box">{{ ic('x') }}</button></form></td></tr>
+{% else %}<tr><td colspan="11"><div class="empty"><div class="ring">{{ ic('box') }}</div><h3>No boxes yet</h3><p>Add the first box above, or send suppliers their packing link so they list their own cartons.</p></div></td></tr>{% endfor %}
 </table></div>
 {% endblock %}

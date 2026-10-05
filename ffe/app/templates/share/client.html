@@ -1,28 +1,45 @@
 {% extends "base.html" %}
 {% block title %}{{ p.name }} — FF&E Schedule{% endblock %}
-{% block top %}
-<div class="top"><span class="brand">{{ studio.studio_name }}</span><span class="proj">· {{ p.name }}</span><span class="sp"></span><a class="small" href="/c/{{ token }}/schedule.pdf" target="_blank">Download PDF</a></div>
-{% endblock %}
+{% block pubctx %}{{ p.name }} · Furniture &amp; Fixture Schedule{% endblock %}
+{% block pubactions %}<a class="btn sm accent" href="/c/{{ token }}/schedule.pdf" target="_blank">{{ ic('download') }}<span class="hide-m">Download </span>PDF</a>{% endblock %}
 {% block content %}
-<h1>Furniture &amp; Fixture Schedule</h1>
-<p class="muted">Prepared for {{ p.client_name }}{% if p.address %} · {{ p.address }}{% endif %}</p>
+{% set cover = p.images|selectattr('kind','equalto','cover')|first %}
+<section class="hero pub-hero {{ 'has-cover' if cover }}">
+  {% if cover %}<img class="cover" src="/media/{{ cover.file_key }}" alt="">{% endif %}
+  <div class="eyebrow">Furniture &amp; Fixture Schedule</div>
+  <h1>{{ p.name }}</h1>
+  <p>Prepared for {{ p.client_name }}{% if p.address %} · {{ p.address }}{% endif %}</p>
+  {% if p.description %}<p class="small">{{ p.description }}</p>{% endif %}
+</section>
 <div class="grid g4">
   <div class="kpi"><div class="v">{{ s['items'] }}</div><div class="l">items</div></div>
-  <div class="kpi"><div class="v">${{ s.total_usd|money }}</div><div class="l">total (USD)</div></div>
-  <div class="kpi"><div class="v">{{ s.received }}</div><div class="l">received at site</div></div>
-  <div class="kpi"><div class="v">{{ s.cartons_received }}/{{ s.cartons }}</div><div class="l">boxes received</div></div>
+  <div class="kpi gold"><div class="v">${{ s.total_usd|money }}</div><div class="l">total (USD)</div></div>
+  <div class="kpi sage"><div class="v">{{ s.received }}<span class="of">/{{ s['items'] }}</span></div><div class="l">received at site</div></div>
+  <div class="kpi"><div class="v">{{ s.cartons_received }}<span class="of">/{{ s.cartons }}</span></div><div class="l">boxes received</div></div>
 </div>
 {% set moods = p.images|selectattr('kind','equalto','mood')|list %}
-{% if moods %}<div class="card"><h2>Mood board</h2><div class="gallery">{% for im in moods %}<img src="/media/{{ im.file_key }}" alt="{{ im.caption }}">{% endfor %}</div></div>{% endif %}
+{% if moods %}
+<div class="group-title"><h2>Mood board</h2></div>
+<div class="mood">{% for im in moods %}<img src="/media/{{ im.file_key }}" alt="{{ im.caption }}">{% endfor %}</div>
+{% endif %}
 {% for cat, items in groups.items() %}
-<h2>{{ cat }}</h2>
+<div class="group-title"><h2>{{ cat }}</h2><span class="n">{{ items|length }}</span></div>
+<div class="cards photo">
 {% for i in items %}
-<div class="item">{% if i.cover %}<img class="thumb" src="/media/{{ i.cover.file_key }}">{% else %}<div class="ph">no photo</div>{% endif %}
-  <div class="body"><div class="t">{{ i.name }}</div>
-    <div class="m">{{ i.room.name if i.room else 'Whole house' }} · {{ i.qty|num }} {{ i.unit }}{% if i.brand %} · {{ i.brand }}{% endif %}{% if i.size %} · {{ i.size }}{% endif %}{% if i.finish %} · {{ i.finish }}{% endif %}</div>
-    {% if i.unit_price %}<div class="m">${{ (i.total/(p.rate or 1))|money }}</div>{% endif %}
-    <span class="badge" style="background:{{ STATUS_COLORS[i.status] }}">{{ i.status }}</span></div></div>
+  <div class="item-card">
+    <span class="pic {{ '' if i.cover else 'empty' }}">{% if i.cover %}<img src="/media/{{ i.cover.file_key }}" alt="">{% else %}no photo{% endif %}</span>
+    <div class="body"><div class="t">{{ i.name }}</div>
+      <div class="m">{{ i.room.name if i.room else 'Whole house' }} · {{ i.qty|num }} {{ i.unit }}{% if i.brand %} · {{ i.brand }}{% endif %}</div>
+      {% if i.size or i.finish %}<div class="m">{{ i.size }}{% if i.size and i.finish %} · {% endif %}{{ i.finish }}</div>{% endif %}
+      <div class="foot">{% if i.unit_price %}<span class="price">${{ (i.total/(p.rate or 1))|money }}</span>{% else %}<span></span>{% endif %}<span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status }}</span></div></div>
+  </div>
 {% endfor %}
+</div>
+{% else %}
+<div class="card empty"><div class="ring">{{ ic('sparkle') }}</div><h3>The schedule is being prepared</h3><p>Items will appear here as they are selected.</p></div>
 {% endfor %}
-<p class="muted small" style="margin-top:14px">{{ studio.studio_name }} · {{ studio.studio_phone }} · {{ studio.studio_email }} · {{ studio.studio_website }}</p>
+<footer class="pub-foot">
+  <div class="b serif">{{ studio.studio_name }}</div>
+  <div class="small muted">{{ [studio.studio_phone, studio.studio_email, studio.studio_website]|select|join(' · ') }}</div>
+</footer>
 {% endblock %}

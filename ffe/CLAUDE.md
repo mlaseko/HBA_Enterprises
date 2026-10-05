@@ -58,7 +58,10 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
 - Components: `.card` (+ `.tight .soft .accent .sage`), `.kpi` (`.v` value, `.l` label, variants
   `.accent .sage .gold .ink`), `.btn` (`.sec .ghost .accent/.gold .soft .danger .sm .lg .block .icon`),
   `.tbl > table` (`th/td.num` right-aligned), `.badge` with `style="--c:…"` for statuses, `.pill` for labels,
-  `.item` rows and `.cards > .item-card` grids, `.group-title`, `.docs > .doc`, `.empty`, `.alert`.
+  `.item` rows and `.cards > .item-card` grids (compact rows; add `.photo` to `.cards` for image-led vertical
+  cards on client/supplier pages), `.group-title`, `.docs > .doc`, `.empty`, `.alert`, `.stats` (mini stat row
+  inside a card), `.form-layout` (form + side cards, 2:1 on desktop), `.box-label` ("write on the box" chip),
+  `.draft` cards on the Drafts page.
 - Icons: inline `<svg class="ic"><use href="#i-NAME"/></svg>` from the sprite in base.html. Add new symbols
   there, never an icon font or CDN.
 - Yellow (`class="in"`) still means "the user types here". Use `.grid .g2/.g3/.g4` + `.span2…` instead of

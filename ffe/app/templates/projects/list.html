@@ -1,19 +1,38 @@
 {% extends "base.html" %}
+{% block title %}Projects · {{ APP_NAME }}{% endblock %}
 {% block content %}
-<div class="row between"><h1>Projects</h1><a href="/projects/new" class="btn">+ New project</a></div>
-{% if not cards %}<div class="card">No projects yet. Create the first one, then add rooms and items (or import the Excel list).</div>{% endif %}
-<div class="grid g2">
+<div class="page-head">
+  <div>
+    <div class="crumbs"><span>Studio</span>{{ ic('chevron-right') }}<span>Projects</span></div>
+    <h1>Projects<span class="h-note">{{ cards|length }}</span></h1>
+    <p class="sub">One project per client house. Open a project to see its items, suppliers, payments and packing.</p>
+  </div>
+  <div class="actions"><a href="/projects/new" class="btn accent">{{ ic('plus') }}New project</a></div>
+</div>
+{% if not cards %}
+<div class="card empty">
+  <div class="ring">{{ ic('folder') }}</div>
+  <h3>No projects yet</h3>
+  <p>Create the first one, then add rooms and items by hand or import the procurement Excel.</p>
+  <a href="/projects/new" class="btn accent">{{ ic('plus') }}Create a project</a>
+</div>
+{% endif %}
+<div class="grid g2 stack">
 {% for p, s in cards %}
-  <a href="/p/{{ p.id }}" class="card" style="color:inherit;text-decoration:none">
-    <div class="row between"><div><div class="b">{{ p.name }}</div><div class="muted small">{{ p.client_name }} {% if p.address %}· {{ p.address }}{% endif %}</div></div>
-      <span class="pill">{{ p.status }}</span></div>
-    <div class="row" style="margin-top:8px;gap:16px">
-      <div><div class="b">{{ s['items'] }}</div><div class="muted small">items</div></div>
-      <div><div class="b">${{ s.total_usd|money }}</div><div class="muted small">total</div></div>
-      <div><div class="b">{{ s.received }}</div><div class="muted small">received</div></div>
-      <div><div class="b">{{ s.cartons }}</div><div class="muted small">boxes</div></div>
+  <a href="/p/{{ p.id }}" class="card project">
+    <div class="row between top">
+      <div class="min0"><div class="eyebrow">{{ p.client_name }}</div><h2 class="serif title">{{ p.name }}</h2>
+        {% if p.address %}<div class="muted small">{{ p.address }}</div>{% endif %}</div>
+      <span class="pill {{ 'sage' if p.status == 'Active' else ('gold' if p.status == 'On hold' else '') }}">{{ p.status }}</span>
     </div>
-    <div class="bar" style="margin-top:8px"><i style="width:{{ (100*s.received/s['items'])|int if s['items'] else 0 }}%"></i></div>
+    <div class="stats">
+      <div><div class="v">{{ s['items'] }}</div><div class="l">items</div></div>
+      <div><div class="v">${{ s.total_usd|money }}</div><div class="l">total</div></div>
+      <div><div class="v">{{ s.received }}</div><div class="l">received</div></div>
+      <div><div class="v">{{ s.cartons }}</div><div class="l">boxes</div></div>
+    </div>
+    <div class="row between small muted mt"><span>Received on site</span><span>{{ (100*s.received/s['items'])|int if s['items'] else 0 }}%</span></div>
+    <div class="bar"><i style="width:{{ (100*s.received/s['items'])|int if s['items'] else 0 }}%"></i></div>
   </a>
 {% endfor %}
 </div>
