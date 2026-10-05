@@ -4,7 +4,8 @@ from ..db import get_db
 from ..models import Project, ProjectImage, Room, Item
 from ..common import render, redirect, require_login, get_project, get_settings, ffloat, fint
 from ..services import summary
-from .. import storage
+from .. import storage, webimage
+from urllib.parse import quote
 from ..models import token as new_token
 
 router = APIRouter(dependencies=[Depends(require_login)])
@@ -78,8 +79,22 @@ def reset_client_link(p: Project = Depends(get_project), db: Session = Depends(g
 
 # ---- presentation images (cover / mood board / floor plan) ----
 @router.get("/p/{project_id}/images")
-def images(request: Request, p: Project = Depends(get_project)):
-    return render(request, "projects/images.html", p=p)
+def images(request: Request, p: Project = Depends(get_project), err: str = ""):
+    return render(request, "projects/images.html", p=p, err=err[:200])
+
+
+@router.post("/p/{project_id}/images/url")
+def add_image_url(p: Project = Depends(get_project), db: Session = Depends(get_db), kind: str = Form("mood"),
+                  caption: str = Form(""), url: str = Form("")):
+    """Add a mood-board / cover / floor-plan image from any web link (direct image or a page)."""
+    try:
+        data = webimage.fetch_image(url)
+    except webimage.WebImageError as e:
+        return redirect(f"/p/{p.id}/images?err={quote(str(e))}")
+    kind = kind if kind in ("mood", "floorplan", "cover") else "mood"
+    db.add(ProjectImage(project_id=p.id, kind=kind, caption=caption, file_key=storage.save_image(data, f"p{p.id}")))
+    db.commit()
+    return redirect(f"/p/{p.id}/images")
 
 
 @router.post("/p/{project_id}/images")

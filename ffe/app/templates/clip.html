@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Save from web · {{ APP_NAME }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a></div>
+    <h1>Save from web</h1>
+    <p class="sub">Bring pictures in from any website: a supplier catalogue, a Pinterest pin, Taobao, 1688. The picture is downloaded and stored with the project, so it works offline later and prints in the schedule PDF.</p>
+  </div>
+</div>
+
+{% if err %}<div class="alert err">{{ err }}</div>{% endif %}
+
+{% if url or img %}
+<form method="post" class="card">
+  <h2><svg class="ic"><use href="#i-link"/></svg> Save this picture</h2>
+  <div class="row top mt">
+    {% if img %}<img class="thumb lg" src="{{ img }}" alt="Preview" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ph lg',textContent:'No preview'}))">{% else %}<div class="ph lg">Page’s main picture</div>{% endif %}
+    <div class="sp">
+      <div class="small muted">From</div>
+      <div class="b small" style="word-break:break-all">{{ url or img }}</div>
+    </div>
+  </div>
+  <div class="grid g2 stack mt">
+    <div><label for="cl-project">Project</label><select id="cl-project" name="project_id" class="in" required>
+      <option value="">— choose —</option>{% for pr in projects %}<option value="{{ pr.id }}" {{ 'selected' if pre_project == pr.id or (not pre_project and loop.first) }}>{{ pr.name }} · {{ pr.client_name }}</option>{% endfor %}</select></div>
+    <div><label for="cl-dest">Save as</label><select id="cl-dest" name="dest" class="in">
+      <option value="item">New item (goes to Drafts to fill in)</option>
+      <option value="mood">Mood board image</option>
+      <option value="cover">Cover image</option>
+      <option value="floorplan">Floor plan</option></select></div>
+    <div class="span2"><label for="cl-link">Picture link (edit if the wrong picture was picked; a page link also works)</label>
+      <input id="cl-link" class="in" type="url" name="link" value="{{ img }}" placeholder="https://…" autocomplete="off"></div>
+    <div><label for="cl-cap">Caption (optional)</label><input id="cl-cap" class="in" type="text" name="caption"></div>
+    <input type="hidden" name="page" value="{{ url }}">
+  </div>
+  <div class="form-actions">
+    <button class="btn"><svg class="ic"><use href="#i-check"/></svg>Save to project</button>
+    <a class="btn ghost" href="/clip">Cancel</a>
+  </div>
+</form>
+{% endif %}
+
+<div class="grid g3 stack">
+  <div class="card span2">
+    <h2>The one-click button</h2>
+    <p class="small muted">Drag this link to your browser’s bookmarks bar. Then, on any website, click <b>Save to HBA</b>: it picks the page’s main picture and opens the form above.</p>
+    <p class="mt"><a class="btn accent lg" href="{{ bookmarklet }}" onclick="return false" title="Drag me to the bookmarks bar"><svg class="ic"><use href="#i-link"/></svg>Save to HBA</a></p>
+    <div class="divider"></div>
+    <div class="eyebrow">On iPhone or iPad (Safari)</div>
+    <ol class="small">
+      <li>Bookmark any page (Share → Add Bookmark) and call it <b>Save to HBA</b>.</li>
+      <li>Copy the code below, open Bookmarks → Edit the bookmark, paste it as the address.</li>
+      <li>On a product page, open Bookmarks and tap <b>Save to HBA</b>.</li>
+    </ol>
+    <div class="row mt">
+      <textarea class="in small" id="bm-code" readonly rows="3" style="flex:1;font-family:ui-monospace,monospace;font-size:.72rem">{{ bookmarklet }}</textarea>
+      <button type="button" class="btn sec sm" onclick="copyText(document.getElementById('bm-code').value,this)">Copy code</button>
+    </div>
+  </div>
+  <div class="card soft">
+    <div class="eyebrow">No button? Paste a link</div>
+    <p class="small muted mt">Every item form and the Mood board page also take a pasted link: a picture address or the product page itself.</p>
+    <div class="divider"></div>
+    <div class="eyebrow">Good to know</div>
+    <ul class="small muted">
+      <li>Pictures are shrunk to 1600 px and stored with the project like uploaded photos.</li>
+      <li>Some sites block downloads. If so, save the picture to your phone and upload it.</li>
+      <li>Pictures from other sites belong to their owners: fine for sample references and mood boards.</li>
+    </ul>
+  </div>
+</div>
+{% endblock %}
