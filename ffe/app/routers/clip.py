@@ -41,7 +41,7 @@ def clip_page(request: Request, db: Session = Depends(get_db), url: str = "", im
     if own_page:  # the button was tapped while on HBA itself, not on a supplier page
         url, img = "", ""
     return render(request, "clip.html", projects=projects, url=url[:2000], img=img[:2000], err=err[:200],
-                  pre_project=fint(project), bookmarklet=BOOKMARKLET % origin, own_page=own_page)
+                  pre_project=fint(project), bookmarklet=BOOKMARKLET % origin, bookmarklet_origin=origin, own_page=own_page)
 
 
 @router.post("/clip")
