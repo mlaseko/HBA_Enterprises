@@ -74,4 +74,57 @@ with TestClient(app) as c:
     r=c.post("/settings", data={"studio_name":"Harmony Designs Studio","studio_phone":"+255 7xx","default_rate":"7.2"}, follow_redirects=False)
     r=c.get("/settings"); assert "Harmony" in r.text
     r=c.get(f"/p/{pid}/items?q=pendant"); assert "Island pendant" in r.text
+    # ---- quick capture: photo-first drafts ----
+    from app.services import summary as _summary
+    from app.models import Project as _P
+    from app import storage as _st
+    from openpyxl import load_workbook
+    db=SessionLocal(); before=_summary(db, db.get(_P,int(pid))); db.close()
+    sched_len=len(c.get(f"/p/{pid}/export/schedule.pdf").content); room_len=len(c.get(f"/p/{pid}/export/room/{room.id}.pdf").content)
+    r=c.get(f"/p/{pid}/capture"); assert r.status_code==200 and 'capture="environment"' in r.text and "Quick capture" in r.text
+    r=c.post(f"/p/{pid}/capture", data={"room_id":room.id,"category":"Lighting"}, files={"photo":("d1.jpg",img("purple"),"image/jpeg")}, headers={"Accept":"application/json"})
+    j=r.json(); assert j["ok"] and j["drafts"]==1 and j["media"].startswith("/media/"), j; d1=j["id"]
+    r=c.post(f"/p/{pid}/capture", data={"n":"1"}, files={"photo":("d2.jpg",img("orange"),"image/jpeg")}, follow_redirects=False)
+    assert r.status_code==303 and "n=2" in r.headers["location"], r.headers
+    r=c.post(f"/p/{pid}/capture", data={}, headers={"Accept":"application/json"}); assert r.status_code==400  # no photo
+    db=SessionLocal(); d2=db.query(Item).filter(Item.draft==True, Item.id!=d1).one(); d2id=d2.id; d2key=d2.photos[0].file_key
+    assert d2.name=="" and d2.code=="" and d2.room_id is None and d2.category=="Other"; db.close()
+    r=c.get(f"/p/{pid}/drafts"); assert r.text.count('class="card draft"')==2 and d2key in r.text
+    r=c.get(f"/p/{pid}/capture"); assert "Drafts (<span id=\"drafts\">2</span>)" in r.text
+    # drafts are excluded everywhere until they have a name
+    db=SessionLocal(); s=_summary(db, db.get(_P,int(pid))); db.close()
+    assert s["items"]==before["items"] and s["total"]==before["total"] and s["drafts"]==2, (s["items"], before["items"], s["drafts"])
+    r=c.get(f"/p/{pid}"); assert "Drafts (2)" in r.text and f'/items/{d1}"' not in r.text and f'/items/{d2id}"' not in r.text
+    r=c.get(f"/p/{pid}/items"); assert "Drafts (2)" in r.text and f'/items/{d1}"' not in r.text and d2key not in r.text
+    r=c.get(f"/p/{pid}/items?view=table"); assert d2key not in r.text
+    r=c.get(f"/p/{pid}/export/items.xlsx"); assert load_workbook(io.BytesIO(r.content))["Shopping List"].max_row==before["items"]+1
+    r=c2.get(f"/c/{ctok}"); assert d2key not in r.text and f">{before['items']}<" in r.text
+    r=c.get(f"/p/{pid}/export/schedule.pdf"); assert r.status_code==200 and len(r.content)==sched_len, (len(r.content), sched_len)
+    r=c.get(f"/p/{pid}/export/room/{room.id}.pdf"); assert r.status_code==200 and len(r.content)==room_len
+    r=c2.get(f"/s/{tok}"); assert d2key not in r.text
+    # complete: no name keeps it a draft (but remembers the rest)
+    r=c.post(f"/p/{pid}/drafts/{d1}", data={"name":"  ","room_id":room.id,"category":"Lighting","qty":"2","unit_price":"120"}, follow_redirects=False)
+    assert r.status_code==303 and f"err={d1}" in r.headers["location"]
+    db=SessionLocal(); it=db.get(Item,d1); assert it.draft and it.code=="" and it.qty==2 and it.unit_price==120; db.close()
+    r=c.get(f"/p/{pid}/drafts?err={d1}"); assert "Give it a name" in r.text
+    r=c.post(f"/p/{pid}/drafts/{d1}", data={"name":"Wall sconce","room_id":room.id,"category":"Lighting","qty":"2","unit_price":"120"}, follow_redirects=False)
+    assert r.status_code==303 and "saved=GF-KIT-" in r.headers["location"]
+    db=SessionLocal(); it=db.get(Item,d1); assert not it.draft and it.code.startswith("GF-KIT-") and it.total==240 and it.status=="To buy"; code=it.code
+    assert sum(1 for i in db.get(_P,int(pid)).items if i.code==code)==1; db.close()  # code is unique
+    r=c.post(f"/p/{pid}/drafts/{d1}", data={"name":"again"}, follow_redirects=False); assert r.status_code==303  # not a draft any more: ignored
+    db=SessionLocal(); assert db.get(Item,d1).name=="Wall sconce"; db.close()
+    r=c.get(f"/p/{pid}/items?q=sconce"); assert "Wall sconce" in r.text and code in r.text and f'/items/{d1}"' in r.text
+    r=c.get(f"/p/{pid}/drafts?saved={code}"); assert r.text.count('class="card draft"')==1 and code in r.text
+    db=SessionLocal(); s=_summary(db, db.get(_P,int(pid))); db.close(); assert s["items"]==before["items"]+1 and s["drafts"]==1 and abs(s["total"]-before["total"]-240)<1e-6
+    # discard deletes the draft and its photo
+    assert _st.read_image(d2key) is not None
+    r=c.post(f"/p/{pid}/drafts/{d2id}/discard", follow_redirects=False); assert r.status_code==303
+    db=SessionLocal(); assert db.get(Item,d2id) is None; db.close(); assert _st.read_image(d2key) is None
+    r=c.get(f"/p/{pid}/drafts"); assert "No drafts waiting" in r.text
+    r=c.get(f"/p/{pid}"); assert "Drafts (" not in r.text
+    # a draft completed through the full item form also gets a code
+    r=c.post(f"/p/{pid}/capture", data={}, files={"photo":("d3.jpg",img("pink"),"image/jpeg")}, headers={"Accept":"application/json"}); d3=r.json()["id"]
+    r=c.get(f"/p/{pid}/items/{d3}"); assert "quick-capture draft" in r.text
+    r=c.post(f"/p/{pid}/items/{d3}", data={"room_id":room.id,"category":"Hardware","name":"Door stop","qty":"6","unit":"pcs","unit_price":"15","status":"To buy"}, follow_redirects=False); assert r.status_code==303
+    db=SessionLocal(); it=db.get(Item,d3); assert not it.draft and it.code.startswith("GF-KIT-") and it.code!=code; db.close()
     print("ALL OK")

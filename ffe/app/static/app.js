@@ -20,6 +20,8 @@
       img.src = url;
     });
   }
+  window.compressPhoto = compress;  // reused by the Quick capture page
+
   document.addEventListener('change', async function (e) {
     var input = e.target;
     if (!(input instanceof HTMLInputElement) || input.type !== 'file' || !input.files || !input.files.length) return;

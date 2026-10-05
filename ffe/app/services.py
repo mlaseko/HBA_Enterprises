@@ -28,7 +28,7 @@ def container_for(cbm: float) -> str:
 
 
 def summary(db: Session, p: Project) -> dict:
-    items = p.items
+    items = p.live_items
     rate = p.rate or 1
     total = sum(i.total for i in items)
     must = sum(i.total for i in items if not i.optional)
@@ -71,7 +71,7 @@ def summary(db: Session, p: Project) -> dict:
     cbm = sum(c.cbm for c in cartons)
     kg = sum(c.weight_kg or 0 for c in cartons)
     return {
-        "items": len(items), "priced": priced, "received": received, "total": total, "must": must,
+        "items": len(items), "drafts": len(p.items) - len(items), "priced": priced, "received": received, "total": total, "must": must,
         "total_usd": total / rate, "must_usd": must / rate, "paid": paid_total, "paid_usd": paid_total / rate,
         "balance": total - paid_total, "by_status": by_status, "by_room": by_room, "by_cat": by_cat,
         "by_sup": by_sup, "cartons": len(cartons), "cartons_received": sum(1 for c in cartons if c.received),

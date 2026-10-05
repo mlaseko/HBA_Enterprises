@@ -1,12 +1,17 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="row between"><h1>{{ p.name }}</h1><a href="/p/{{ p.id }}/edit" class="btn sm sec">Edit project</a></div>
+<div class="row between"><h1>{{ p.name }}</h1>
+  <div class="row">
+    <a href="/p/{{ p.id }}/capture" class="btn sm gold">📷 Quick capture</a>
+    {% if s.drafts %}<a href="/p/{{ p.id }}/drafts" class="btn sm sec">Drafts ({{ s.drafts }})</a>{% endif %}
+    <a href="/p/{{ p.id }}/edit" class="btn sm sec">Edit project</a>
+  </div></div>
 <div class="grid g4">
-  <div class="kpi"><div class="v">{{ s.items }}</div><div class="l">items · {{ s.priced }} priced</div></div>
+  <div class="kpi"><div class="v">{{ s['items'] }}</div><div class="l">items · {{ s.priced }} priced</div></div>
   <div class="kpi"><div class="v">¥{{ s.total|money }}</div><div class="l">total CNY {% if s.must != s.total %}· must-have ¥{{ s.must|money }}{% endif %}</div></div>
   <div class="kpi"><div class="v">${{ s.total_usd|money }}</div><div class="l">total USD @ {{ p.rate }}{% if s.budget_used is not none %} · {{ (s.budget_used*100)|int }}% of budget{% endif %}</div></div>
   <div class="kpi"><div class="v">¥{{ s.paid|money }}</div><div class="l">paid · balance ¥{{ s.balance|money }}</div></div>
-  <div class="kpi"><div class="v">{{ s.received }}/{{ s.items }}</div><div class="l">items received</div></div>
+  <div class="kpi"><div class="v">{{ s.received }}/{{ s['items'] }}</div><div class="l">items received</div></div>
   <div class="kpi"><div class="v">{{ s.cartons_received }}/{{ s.cartons }}</div><div class="l">boxes received</div></div>
   <div class="kpi"><div class="v">{{ '%.1f'|format(s.cbm) }}</div><div class="l">CBM packed → {{ s.container }}</div></div>
   <div class="kpi"><div class="v">{{ s.by_status['To buy'] }}</div><div class="l">still to buy</div></div>

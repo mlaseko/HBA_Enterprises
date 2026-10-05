@@ -1,6 +1,6 @@
 import secrets
 from datetime import datetime, date
-from sqlalchemy import String, Integer, Float, Boolean, Text, DateTime, Date, ForeignKey
+from sqlalchemy import String, Integer, Float, Boolean, Text, DateTime, Date, ForeignKey, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .db import Base
 
@@ -44,6 +44,15 @@ class Project(Base):
     payments: Mapped[list["Payment"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     cartons: Mapped[list["Carton"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     links: Mapped[list["SupplierLink"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+
+    @property
+    def live_items(self) -> list["Item"]:
+        """Items that count: everything except photo-first drafts (no name yet)."""
+        return [i for i in self.items if not i.draft]
+
+    @property
+    def drafts(self) -> list["Item"]:
+        return [i for i in self.items if i.draft]
 
 
 class ProjectImage(Base):
@@ -123,6 +132,8 @@ class Item(Base):
     lead_time: Mapped[str] = mapped_column(String(60), default="")
     status: Mapped[str] = mapped_column(String(20), default="To buy")
     optional: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Quick-capture draft: photo taken first, name/code not yet given. Excluded from totals, PDFs, exports and share links.
+    draft: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     notes: Mapped[str] = mapped_column(Text, default="")
     sort: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)

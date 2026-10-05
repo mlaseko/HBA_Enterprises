@@ -11,7 +11,7 @@ router = APIRouter(dependencies=[Depends(require_login)])
 
 
 def item_query(db: Session, p: Project, room: str = "", category: str = "", status: str = "", supplier: str = "", q: str = ""):
-    qs = db.query(Item).filter(Item.project_id == p.id)
+    qs = db.query(Item).filter(Item.project_id == p.id, Item.draft == False)  # noqa: E712  drafts live on /drafts
     if room:
         qs = qs.filter(Item.room_id == int(room)) if room != "none" else qs.filter(Item.room_id.is_(None))
     if category:
@@ -38,7 +38,8 @@ def list_items(request: Request, p: Project = Depends(get_project), db: Session 
     items = sort_items(item_query(db, p, room, category, status, supplier, q).all(), p)
     suppliers = db.query(Supplier).order_by(Supplier.name).all()
     total = sum(i.total for i in items)
-    return render(request, "items/list.html", p=p, items=items, suppliers=suppliers, total=total,
+    drafts = db.query(Item).filter(Item.project_id == p.id, Item.draft == True).count()  # noqa: E712
+    return render(request, "items/list.html", p=p, items=items, suppliers=suppliers, total=total, drafts=drafts,
                   f=dict(room=room, category=category, status=status, supplier=supplier, q=q, view=view))
 
 
@@ -69,7 +70,9 @@ def apply_form(item: Item, db: Session, p: Project, form: dict):
     item.notes = (form.get("notes") or "").strip()
     sup = fint(form.get("supplier_id"))
     item.supplier_id = sup if sup else None
-    if not item.code or (form.get("regen_code") == "1"):
+    if item.draft and item.name:
+        item.draft = False  # a quick-capture draft becomes a real item once it has a name
+    if not item.draft and (not item.code or form.get("regen_code") == "1"):
         item.code = next_code(db, p, room)
 
 
@@ -107,9 +110,9 @@ async def update_item(request: Request, item_id: int, p: Project = Depends(get_p
     if not item or item.project_id != p.id:
         return redirect(f"/p/{p.id}/items")
     form = await request.form()
-    old_room = item.room_id
+    old_room, was_draft = item.room_id, item.draft
     apply_form(item, db, p, form)
-    if item.room_id != old_room:
+    if item.room_id != old_room and not was_draft and not item.draft:
         item.code = next_code(db, p, item.room)
     for f in form.getlist("photos"):
         if hasattr(f, "read"):

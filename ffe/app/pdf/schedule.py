@@ -13,6 +13,7 @@ def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=T
     doc = make_doc(buf, f"FF&E Schedule - {p.name}")
     W = doc.width
     rate = p.rate or 1.0
+    all_items = p.live_items
     story = []
 
     # ---- cover ----
@@ -28,8 +29,8 @@ def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=T
     story.append(PageBreak())
 
     # ---- contents ----
-    cats = [c for c in CATEGORIES if any(i.category == c for i in p.items)]
-    extra = sorted({i.category for i in p.items} - set(CATEGORIES))
+    cats = [c for c in CATEGORIES if any(i.category == c for i in all_items)]
+    extra = sorted({i.category for i in all_items} - set(CATEGORIES))
     cats += extra
     story.append(Paragraph("TABLE OF CONTENTS", S["h1"]))
     n = 1
@@ -82,7 +83,7 @@ def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=T
     # ---- schedules ----
     sym = "$" if currency == "USD" else "CNY "
     for c in cats:
-        items = [i for i in p.items if i.category == c]
+        items = [i for i in all_items if i.category == c]
         room_order = {r.id: r.sort for r in p.rooms}
         items.sort(key=lambda i: (room_order.get(i.room_id, 9999), i.code))
         story.append(Paragraph(f"{c.upper()} SCHEDULE", S["h1"]))
@@ -127,18 +128,18 @@ def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=T
     rows = [[Paragraph(f"<font color='white'>{h}</font>", S["cellb"]) for h in ["Room", "Items", f"Total ({currency})"]]]
     grand = 0.0
     for r in sorted(p.rooms, key=lambda r: r.sort):
-        its = [i for i in p.items if i.room_id == r.id]
+        its = [i for i in all_items if i.room_id == r.id]
         if not its:
             continue
         tot = sum(i.total for i in its) / (rate if currency == "USD" else 1)
         grand += tot
         rows.append([P(r.label), P(len(its)), P(money(tot, 2 if currency == "USD" else 0))])
-    un = [i for i in p.items if i.room_id is None]
+    un = [i for i in all_items if i.room_id is None]
     if un:
         tot = sum(i.total for i in un) / (rate if currency == "USD" else 1)
         grand += tot
         rows.append([P("Unassigned"), P(len(un)), P(money(tot, 2 if currency == "USD" else 0))])
-    rows.append([P("<b>Grand total</b>"), P(len(p.items)), P(f"<b>{money(grand, 2 if currency == 'USD' else 0)}</b>")])
+    rows.append([P("<b>Grand total</b>"), P(len(all_items)), P(f"<b>{money(grand, 2 if currency == 'USD' else 0)}</b>")])
     t = Table(rows, colWidths=[W * 0.5, W * 0.15, W * 0.25], repeatRows=1)
     t.setStyle(base_table_style())
     story.append(t)

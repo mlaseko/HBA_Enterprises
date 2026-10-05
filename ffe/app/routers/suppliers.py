@@ -53,7 +53,7 @@ def supplier_detail(request: Request, supplier_id: int, db: Session = Depends(ge
     if not s:
         return redirect("/suppliers")
     p = db.get(Project, project) if project else None
-    items = [i for i in s.items if (not p or i.project_id == p.id)]
+    items = [i for i in s.items if not i.draft and (not p or i.project_id == p.id)]
     payments = db.query(Payment).filter(Payment.supplier_id == s.id)
     if p:
         payments = payments.filter(Payment.project_id == p.id)

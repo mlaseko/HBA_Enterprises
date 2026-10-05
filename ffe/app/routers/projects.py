@@ -41,7 +41,7 @@ def create_project(request: Request, db: Session = Depends(get_db), client_name:
 @router.get("/p/{project_id}")
 def dashboard(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db)):
     s = summary(db, p)
-    recent = db.query(Item).filter(Item.project_id == p.id).order_by(Item.updated_at.desc()).limit(6).all()
+    recent = db.query(Item).filter(Item.project_id == p.id, Item.draft == False).order_by(Item.updated_at.desc()).limit(6).all()  # noqa: E712
     return render(request, "projects/dashboard.html", p=p, s=s, recent=recent)
 
 
