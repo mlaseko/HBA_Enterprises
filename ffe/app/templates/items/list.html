@@ -1,7 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="row between"><h1>Items <span class="muted small">{{ items|length }} · ¥{{ total|money }} · ${{ (total/(p.rate or 1))|money }}</span></h1>
-  <a href="/p/{{ p.id }}/items/new?room={{ f.room if f.room not in ('', 'none') else '' }}&category={{ f.category }}" class="btn">+ Add item</a></div>
+  <div class="row">
+    <a href="/p/{{ p.id }}/capture?room={{ f.room if f.room not in ('', 'none') else '' }}&category={{ f.category }}" class="btn gold">📷 Quick capture</a>
+    {% if drafts %}<a href="/p/{{ p.id }}/drafts" class="btn sec">Drafts ({{ drafts }})</a>{% endif %}
+    <a href="/p/{{ p.id }}/items/new?room={{ f.room if f.room not in ('', 'none') else '' }}&category={{ f.category }}" class="btn">+ Add item</a>
+  </div></div>
 <form method="get" class="card filters">
   <select name="room" class="in"><option value="">All rooms</option>{% for r in p.rooms %}<option value="{{ r.id }}" {{ 'selected' if f.room == r.id|string }}>{{ r.label }}</option>{% endfor %}<option value="none" {{ 'selected' if f.room == 'none' }}>Unassigned</option></select>
   <select name="category" class="in"><option value="">All categories</option>{% for c in CATEGORIES %}<option {{ 'selected' if f.category == c }}>{{ c }}</option>{% endfor %}</select>

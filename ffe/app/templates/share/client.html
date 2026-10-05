@@ -7,7 +7,7 @@
 <h1>Furniture &amp; Fixture Schedule</h1>
 <p class="muted">Prepared for {{ p.client_name }}{% if p.address %} · {{ p.address }}{% endif %}</p>
 <div class="grid g4">
-  <div class="kpi"><div class="v">{{ s.items }}</div><div class="l">items</div></div>
+  <div class="kpi"><div class="v">{{ s['items'] }}</div><div class="l">items</div></div>
   <div class="kpi"><div class="v">${{ s.total_usd|money }}</div><div class="l">total (USD)</div></div>
   <div class="kpi"><div class="v">{{ s.received }}</div><div class="l">received at site</div></div>
   <div class="kpi"><div class="v">{{ s.cartons_received }}/{{ s.cartons }}</div><div class="l">boxes received</div></div>

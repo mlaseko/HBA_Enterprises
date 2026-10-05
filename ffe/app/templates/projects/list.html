@@ -8,12 +8,12 @@
     <div class="row between"><div><div class="b">{{ p.name }}</div><div class="muted small">{{ p.client_name }} {% if p.address %}· {{ p.address }}{% endif %}</div></div>
       <span class="pill">{{ p.status }}</span></div>
     <div class="row" style="margin-top:8px;gap:16px">
-      <div><div class="b">{{ s.items }}</div><div class="muted small">items</div></div>
+      <div><div class="b">{{ s['items'] }}</div><div class="muted small">items</div></div>
       <div><div class="b">${{ s.total_usd|money }}</div><div class="muted small">total</div></div>
       <div><div class="b">{{ s.received }}</div><div class="muted small">received</div></div>
       <div><div class="b">{{ s.cartons }}</div><div class="muted small">boxes</div></div>
     </div>
-    <div class="bar" style="margin-top:8px"><i style="width:{{ (100*s.received/s.items)|int if s.items else 0 }}%"></i></div>
+    <div class="bar" style="margin-top:8px"><i style="width:{{ (100*s.received/s['items'])|int if s['items'] else 0 }}%"></i></div>
   </a>
 {% endfor %}
 </div>

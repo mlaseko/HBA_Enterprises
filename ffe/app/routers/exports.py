@@ -76,7 +76,7 @@ def po_pdf(supplier_id: int, p: Project = Depends(get_project), db: Session = De
     s = db.get(Supplier, supplier_id)
     if not s:
         raise HTTPException(404)
-    items = sort_items([i for i in p.items if i.supplier_id == s.id], p)
+    items = sort_items([i for i in p.live_items if i.supplier_id == s.id], p)
     pays = [x for x in p.payments if x.supplier_id == s.id]
     return pdf(purchase_order(p, get_settings(db), s, items, pays), f"PO-{s.name}.pdf")
 
@@ -91,7 +91,7 @@ def items_xlsx(p: Project = Depends(get_project), db: Session = Depends(get_db))
     ws.append(heads)
     for c in ws[1]:
         c.font = Font(bold=True, color="FFFFFF"); c.fill = PatternFill("solid", fgColor="1F3A5F")
-    for i in sort_items(p.items, p):
+    for i in sort_items(p.live_items, p):
         ws.append([i.code, i.room.label if i.room else "", i.category, i.name, i.brand, i.spec, i.size, i.finish, i.qty, i.unit,
                    i.unit_price, i.total, round(i.total / (p.rate or 1), 2), i.supplier.name if i.supplier else "", i.lead_time,
                    i.status, "Yes" if i.optional else "", i.notes])

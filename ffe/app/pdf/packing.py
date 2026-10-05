@@ -90,7 +90,7 @@ def room_checklist(p, studio, room) -> bytes:
     buf = io.BytesIO()
     doc = make_doc(buf, f"Room checklist - {room.label if room else p.name}")
     W = doc.width
-    items = [i for i in p.items if (i.room_id == (room.id if room else None))]
+    items = [i for i in p.live_items if (i.room_id == (room.id if room else None))]
     story = [Paragraph(f"ROOM CHECKLIST &mdash; {room.label if room else 'Whole house'}", S["h1"]),
              Paragraph(f"{p.name} &nbsp; {p.client_name} &nbsp; {today()}", S["grey"]), Spacer(1, 3 * mm)]
     cols = ["Photo", "Code", "Item", "Spec", "Size / Finish", "Qty", "Supplier", "Status", "Packed", "Received", "Installed"]

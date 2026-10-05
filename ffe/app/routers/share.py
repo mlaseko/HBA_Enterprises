@@ -22,7 +22,7 @@ def _link(db: Session, token: str) -> SupplierLink:
 def supplier_page(request: Request, token: str, db: Session = Depends(get_db)):
     l = _link(db, token)
     p = l.project
-    items = sort_items([i for i in p.items if i.supplier_id == l.supplier_id], p)
+    items = sort_items([i for i in p.live_items if i.supplier_id == l.supplier_id], p)
     rows = sorted([c for c in p.cartons if c.supplier_id == l.supplier_id], key=lambda c: c.id)
     pos = carton_positions(p.cartons)
     rooms = [r for r in p.rooms if r.code != "ALL" or True]
@@ -58,7 +58,7 @@ def client_page(request: Request, token: str, db: Session = Depends(get_db)):
     if not p:
         raise HTTPException(404, "Link not valid")
     s = summary(db, p)
-    items = sort_items(p.items, p)
+    items = sort_items(p.live_items, p)
     groups = {}
     for i in items:
         groups.setdefault(i.category, []).append(i)

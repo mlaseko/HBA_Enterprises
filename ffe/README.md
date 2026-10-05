@@ -11,6 +11,7 @@ same data, entered once.
 | Projects | One per client project. USD/CNY rate, budget, delivery address, status. |
 | Rooms | Room codes (GF-KIT …) used on every item, box and label. Optional floor/wall areas. |
 | Items | Room, category (= schedule page), name, must-have spec, brand, size, finish, qty, unit price (CNY), supplier, lead time, status (To buy → Quoted → Ordered → Paid → Shipped → Received), photos from the phone camera. |
+| Quick capture | Photo-first entry for showrooms: the camera opens, every photo is saved at once as a **draft** item (room/category optional), keep shooting. Drafts are completed later on the Drafts page (name, room, category, qty, price → item code generated) or discarded. Drafts do not count in totals, PDFs, Excel or share links until they have a name. |
 | Suppliers | Contacts, WeChat, payment terms, what they supply; per-project ordered / paid / balance. |
 | Payments | Deposit / balance per supplier with receipt photo. |
 | Packing | One line per box with room code, "Box n of N", CBM, weight, received tick. Container size calculated. Suppliers can list their own boxes through a **packing link** (no login). |
@@ -70,7 +71,8 @@ Pushing new commits to GitHub and re-deploying updates the app. The database and
 ```
 app/main.py           app start, login, settings, media
 app/models.py         tables: projects, rooms, items, photos, suppliers, supplier_links, payments, cartons, settings
-app/routers/          projects, rooms, items, suppliers, payments, cartons, share (public links), exports, importer
+app/routers/          projects, rooms, items, suppliers, payments, cartons, share (public links), exports, importer,
+                      capture (quick capture + drafts)
 app/pdf/              schedule.py (client FF&E PDF), packing.py (packing list, labels, PO, room checklist)
 app/templates/        Jinja2 pages        app/static/        app.css, app.js
 ```
@@ -79,3 +81,10 @@ app/templates/        Jinja2 pages        app/static/        app.css, app.js
 
 Tables are created with `create_all` on startup. When you add a column to an existing table, add it in
 `models.py` and run an `ALTER TABLE … ADD COLUMN …` on Neon (or drop and recreate while the data is small).
+
+Columns added after the first deployment — run these on Neon once, in order:
+
+```sql
+-- Quick capture drafts (items.draft)
+ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;
+```
