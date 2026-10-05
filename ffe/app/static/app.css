@@ -31,7 +31,7 @@ p{margin:.3rem 0 .8rem}
 .eyebrow{font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row.between{justify-content:space-between}.row.top{align-items:flex-start}.row.nowrap{flex-wrap:nowrap}
 .sp{flex:1}
-.grid{display:grid;gap:12px}.g2{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}
+.grid{display:grid;gap:12px}.grid>*,.dash-grid>*,.cards>*{min-width:0}.g2{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}
 .span2{grid-column:span 2}.span3{grid-column:span 3}.span4{grid-column:span 4}
 @media(max-width:700px){.g2,.g3,.g4{grid-template-columns:repeat(2,1fr)}.span3,.span4{grid-column:span 2}.hide-m{display:none!important}}
 @media(max-width:480px){.g3.stack,.g4.stack,.g2.stack{grid-template-columns:1fr}.stack .span2,.stack .span3,.stack .span4{grid-column:span 1}}
@@ -57,6 +57,7 @@ p{margin:.3rem 0 .8rem}
 .switcher select{width:100%;appearance:none;-webkit-appearance:none;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:8px 36px 8px 14px;font-size:.9rem;font-weight:600;color:var(--ink);font-family:inherit;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
 .switcher .ic{position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted)}
 .top .tools{display:flex;align-items:center;gap:6px;margin-left:auto}
+@media(max-width:959px){.top .brand .name{display:none}.switcher{max-width:none}.switcher select{font-size:.88rem}}
 .iconbtn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;min-width:38px;padding:0 10px;border-radius:999px;border:1px solid transparent;color:var(--ink-2);background:transparent;font:inherit;font-size:.86rem;font-weight:600;cursor:pointer}
 .iconbtn:hover{background:var(--surface);border-color:var(--line);text-decoration:none;color:var(--ink)}
 
@@ -100,8 +101,9 @@ p{margin:.3rem 0 .8rem}
 @keyframes up{from{transform:translateY(30px);opacity:.6}to{transform:none;opacity:1}}
 .sheet .grab{width:42px;height:4px;border-radius:999px;background:var(--line);margin:4px auto 10px}
 .sheet .sec{margin:12px 4px 6px}
-.sheet .nav{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
-.sheet .nav a{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:12px;background:var(--surface-2);color:var(--ink-2);font-weight:500;font-size:.9rem}
+.sheet .nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.sheet .nav a{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:12px;background:var(--surface-2);color:var(--ink-2);font-weight:500;font-size:.9rem;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sheet .nav a:hover{text-decoration:none;background:var(--surface-3)}
 .sheet .nav a .ic{color:var(--muted)}
 .sheet .nav a.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}.sheet .nav a.on .ic{color:var(--accent)}
 .sheet .nav a .count{margin-left:auto;background:var(--accent);color:#fff;font-size:.7rem;font-weight:700;border-radius:999px;padding:1px 7px}
@@ -286,3 +288,72 @@ details summary{cursor:pointer;color:var(--ink);font-weight:600;margin:0}
 @media(min-width:900px){.auth{grid-template-columns:1.1fr 1fr}.auth .pane{padding:48px 56px}.auth .pane h1{font-size:2.8rem;margin-top:90px}.auth .form{padding:40px}}
 
 @media print{.top,.side,.bottom,.sheet,.fab,.noprint,.pubbar{display:none!important}.wrap{padding:0;max-width:none}body{background:#fff}.card,.tbl{box-shadow:none}}
+
+
+/* ---------- page-specific additions (from the template pass) ---------- */
+/* projects/list.html — project cards with cover strip, mini stats and progress */
+.proj{display:flex;flex-direction:column;padding:0;margin-bottom:0;overflow:hidden}
+.proj .cover{position:relative;aspect-ratio:21/9;background:linear-gradient(135deg,var(--accent-soft) 0%,var(--gold-soft) 100%);overflow:hidden}
+.proj .cover img{width:100%;height:100%;object-fit:cover;display:block}
+.proj .cover.blank:after{content:"";position:absolute;right:-40px;top:-60px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(185,89,58,.22),rgba(185,89,58,0) 70%)}
+.proj .cover .init{position:absolute;left:18px;bottom:10px;font-family:var(--serif);font-size:2.6rem;line-height:1;color:var(--accent-ink);opacity:.85}
+.proj .cover .pill{position:absolute;top:12px;right:12px;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.proj .body{padding:14px 18px 16px;display:flex;flex-direction:column;flex:1}
+.proj .t{font-family:var(--serif);font-weight:500;font-size:1.2rem;line-height:1.2;color:var(--ink)}
+.proj .m{font-size:.82rem;color:var(--muted);margin-top:3px}
+.proj .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line-2)}
+.proj .stats .v{font-family:var(--serif);font-size:1.1rem;color:var(--ink);line-height:1.15;font-variant-numeric:tabular-nums;white-space:nowrap}
+.proj .stats .l{font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-top:2px}
+.proj .prog{display:flex;justify-content:space-between;gap:8px;font-size:.76rem;color:var(--muted);margin:12px 0 6px}
+@media(max-width:480px){.proj .stats{grid-template-columns:repeat(2,1fr)}}
+
+/* projects/dashboard.html — KPI detail line, clickable status badges, two-column lower grid, recent list */
+.kpis .kpi .v{padding-right:26px}
+.kpis .kpi .v .of{font-size:.95rem;color:var(--muted);margin-left:1px}
+.kpis .kpi.ink .v .of{color:rgba(255,255,255,.6)}
+.kpis .kpi .d{font-size:.76rem;color:var(--muted);margin-top:6px;line-height:1.3}
+.kpis .kpi.ink .d{color:rgba(255,255,255,.65)}
+.kpis .kpi .bar{height:5px;margin-top:8px}
+.status-row a.badge{padding:6px 12px;font-size:.78rem}
+.status-row a.badge:hover{text-decoration:none;filter:brightness(.96)}
+#documents{scroll-margin-top:calc(var(--top-h) + 12px)}
+.dash-grid{display:grid;gap:14px;grid-template-columns:1fr;align-items:start;margin-bottom:14px}
+.dash-grid > .card{margin-bottom:0}
+@media(min-width:900px){.dash-grid{grid-template-columns:1fr 1fr}}
+.recent .item .foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px}
+.recent .item:last-child{margin-bottom:0}
+.empty .row{justify-content:center}
+
+/* projects/form.html — danger zone card */
+.danger-zone{border-color:#EAC7C1;background:linear-gradient(180deg,#FFF6F4 0%,var(--surface) 100%)}
+.danger-zone h2{color:var(--red)}
+.danger-zone .confirm{width:230px;max-width:100%}
+
+/* projects/images.html — larger mood board thumbnails, two-up on phones */
+.moodboard .gallery img{width:150px;height:150px}
+.moodboard .gallery .g .cap{max-width:150px}
+@media(max-width:480px){.moodboard .gallery img{width:calc(50vw - 40px);height:calc(50vw - 40px)}.moodboard .gallery .g .cap{max-width:calc(50vw - 40px)}}
+
+/* items/list.html: the quick-status select shows its status colour on the left edge (style="--c:…" set inline from STATUS_COLORS; falls back to the normal border) */
+.status-sel{border-left:4px solid var(--c,var(--line))}
+/* items/form.html: the "Make cover" form sits under the photo instead of floating over it like the delete button */
+.gallery .g form.cover{position:static;margin-top:4px}
+/* capture.html: larger camera icon in the big shoot button; a quiet hint while the session strip is still empty */
+.capture-btn .ic{width:26px;height:26px}
+.strip:empty::after{content:"Your photos will appear here as you shoot.";color:var(--muted-2);font-size:.83rem}
+/* drafts.html: photo beside the quick form on wide screens, full-width banner on phones */
+.draft .shot{display:block;flex:none}
+.draft .fields{flex:1;min-width:230px}
+@media(max-width:480px){.draft .shot{width:100%}.draft .shot .thumb.lg,.draft .shot .ph.lg{width:100%;height:200px}}
+
+/* share/client.html — presentation-size hero title and larger mood-board tiles (optional: page falls back to the standard .hero/.gallery look without these) */
+.hero.client h1{font-size:2rem}
+@media(min-width:701px){.hero.client{padding:40px 36px}.hero.client h1{font-size:2.6rem}}
+.gallery.wide img{width:160px;height:160px}
+.gallery.wide .g .cap{max-width:160px}
+/* share/supplier.html — keep the #cartons anchor (redirect target after adding/deleting a carton) clear of the sticky public bar */
+#cartons{scroll-margin-top:calc(var(--top-h) + 12px)}
+
+/* rooms.html, cartons.html, payments.html: grid cell that bottom-aligns the submit button with the inputs beside it (label + input stack) */
+.btn-cell{display:flex;align-items:flex-end}
+.btn-cell .btn{min-height:44px}

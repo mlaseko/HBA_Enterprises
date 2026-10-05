@@ -1,15 +1,48 @@
 {% extends "base.html" %}
+{% block title %}Import — {{ p.name }}{% endblock %}
 {% block content %}
-<h1>Import from Excel</h1>
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
+    <h1>Import from Excel</h1>
+    <p class="sub">Load the whole procurement list in one go. Rooms, items and suppliers are matched by their column headers.</p>
+  </div>
+  <div class="actions"><a class="btn sec sm" href="/p/{{ p.id }}/items"><svg class="ic"><use href="#i-grid"/></svg>Items</a></div>
+</div>
+
 {% if result %}
   {% if result.error %}<div class="alert err">{{ result.error }}</div>{% else %}
-  <div class="alert">Imported {{ result["items"] }} items, {{ result.rooms }} new rooms, {{ result.suppliers }} new suppliers. Skipped {{ result.skipped }} empty rows. <a href="/p/{{ p.id }}/items">Open items →</a></div>{% endif %}
+  <div class="alert">Imported {{ result['items'] }} items, {{ result.rooms }} new rooms, {{ result.suppliers }} new suppliers. Skipped {{ result.skipped }} empty rows. <a href="/p/{{ p.id }}/items">Open items →</a></div>{% endif %}
 {% endif %}
+
 <form method="post" enctype="multipart/form-data" class="card">
-  <p class="small">Upload the procurement Excel (the Kinondoni list format: sheets <b>Shopping List</b> and <b>Rooms</b>) or a file exported from this app. Columns are matched by their header names: Room, Category, Item, Must-have spec, Size / Finish, Qty, Unit, Price (CNY), Supplier, Status, Notes.</p>
-  <label>Excel file (.xlsx)</label><input type="file" name="file" accept=".xlsx" required>
-  <label style="display:flex;gap:8px;align-items:center;color:var(--text);margin-top:10px"><input type="checkbox" name="replace" value="1"> Delete all existing items in this project first</label>
-  <div style="margin-top:12px"><button class="btn">Import</button></div>
+  <div class="grid g2 stack">
+    <div>
+      <h2>Upload the procurement Excel</h2>
+      <p class="small muted">Use the Kinondoni list format (sheets <b>Shopping List</b> and <b>Rooms</b>) or a file exported from this app. Columns are matched by their header names, so extra columns are simply ignored.</p>
+      <div class="eyebrow">Recognised columns</div>
+      <div class="row mt">
+        <span class="pill">Room</span><span class="pill">Category</span><span class="pill">Item</span><span class="pill">Must-have spec</span><span class="pill">Size / Finish</span><span class="pill">Qty</span><span class="pill">Unit</span><span class="pill">Price (CNY)</span><span class="pill">Supplier</span><span class="pill">Status</span><span class="pill">Notes</span>
+      </div>
+    </div>
+    <div>
+      <label>Excel file (.xlsx)</label>
+      <input type="file" name="file" accept=".xlsx" required>
+      <div class="help">Rooms are created or updated first, then items. Existing rooms are matched by their code.</div>
+      <label class="check"><input type="checkbox" name="replace" value="1"> Delete all existing items in this project first</label>
+      <div class="help">Only tick this when re-importing a corrected file. Photos on deleted items are lost.</div>
+    </div>
+  </div>
+  <div class="form-actions"><button class="btn"><svg class="ic"><use href="#i-upload"/></svg>Import</button></div>
 </form>
-<div class="card small muted">Tip: photos are not in Excel. After importing, open each item and add the sample photo from your phone.</div>
+
+<div class="card soft">
+  <div class="row top nowrap">
+    <svg class="ic"><use href="#i-camera"/></svg>
+    <div>
+      <div class="b">Tip: photos are not in Excel.</div>
+      <div class="muted small">After importing, open each item and add the sample photo from your phone.</div>
+    </div>
+  </div>
+</div>
 {% endblock %}

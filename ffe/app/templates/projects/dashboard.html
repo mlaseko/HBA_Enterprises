@@ -1,68 +1,161 @@
 {% extends "base.html" %}
+{% block title %}{{ p.name }} · {{ APP_NAME }}{% endblock %}
 {% block content %}
-<div class="row between"><h1>{{ p.name }}</h1>
-  <div class="row">
-    <a href="/p/{{ p.id }}/capture" class="btn sm gold">📷 Quick capture</a>
-    {% if s.drafts %}<a href="/p/{{ p.id }}/drafts" class="btn sm sec">Drafts ({{ s.drafts }})</a>{% endif %}
-    <a href="/p/{{ p.id }}/edit" class="btn sm sec">Edit project</a>
-  </div></div>
-<div class="grid g4">
-  <div class="kpi"><div class="v">{{ s['items'] }}</div><div class="l">items · {{ s.priced }} priced</div></div>
-  <div class="kpi"><div class="v">¥{{ s.total|money }}</div><div class="l">total CNY {% if s.must != s.total %}· must-have ¥{{ s.must|money }}{% endif %}</div></div>
-  <div class="kpi"><div class="v">${{ s.total_usd|money }}</div><div class="l">total USD @ {{ p.rate }}{% if s.budget_used is not none %} · {{ (s.budget_used*100)|int }}% of budget{% endif %}</div></div>
-  <div class="kpi"><div class="v">¥{{ s.paid|money }}</div><div class="l">paid · balance ¥{{ s.balance|money }}</div></div>
-  <div class="kpi"><div class="v">{{ s.received }}/{{ s['items'] }}</div><div class="l">items received</div></div>
-  <div class="kpi"><div class="v">{{ s.cartons_received }}/{{ s.cartons }}</div><div class="l">boxes received</div></div>
-  <div class="kpi"><div class="v">{{ '%.1f'|format(s.cbm) }}</div><div class="l">CBM packed → {{ s.container }}</div></div>
-  <div class="kpi"><div class="v">{{ s.by_status['To buy'] }}</div><div class="l">still to buy</div></div>
-</div>
-
-<div class="card" style="margin-top:12px">
-  <div class="row" style="gap:6px">
-    {% for st, n in s.by_status.items() %}<span class="badge" style="background:{{ STATUS_COLORS[st] }}">{{ st }}: {{ n }}</span>{% endfor %}
+{% set pct = (100 * s.received / s['items'])|int if s['items'] else 0 %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
+    <h1>{{ p.name }}</h1>
+    <p class="sub">{{ p.client_name }}{% if p.address %} · {{ p.address }}{% endif %} <span class="pill {{ 'green' if p.status == 'Active' else ('gold' if p.status == 'On hold' else 'sage') }}">{{ p.status }}</span></p>
+  </div>
+  <div class="actions">
+    <a class="btn ghost" href="/p/{{ p.id }}/edit"><svg class="ic"><use href="#i-edit"/></svg>Edit project</a>
+    {% if s.drafts %}<a class="btn sec" href="/p/{{ p.id }}/drafts">Drafts ({{ s.drafts }})</a>{% endif %}
+    <a class="btn accent" href="/p/{{ p.id }}/capture"><svg class="ic"><use href="#i-camera"/></svg>Quick capture</a>
   </div>
 </div>
 
-<div class="card">
-  <h2>Documents</h2>
-  <div class="row">
-    <a class="btn sm" href="/p/{{ p.id }}/export/schedule.pdf" target="_blank">Client schedule PDF (USD)</a>
-    <a class="btn sm sec" href="/p/{{ p.id }}/export/schedule.pdf?currency=CNY" target="_blank">Schedule CNY</a>
-    <a class="btn sm sec" href="/p/{{ p.id }}/export/schedule.pdf?prices=0" target="_blank">Schedule without prices</a>
-    <a class="btn sm sec" href="/p/{{ p.id }}/export/packing.pdf" target="_blank">Packing list</a>
-    <a class="btn sm sec" href="/p/{{ p.id }}/export/labels.pdf" target="_blank">Box labels</a>
-    <a class="btn sm sec" href="/p/{{ p.id }}/export/items.xlsx">Excel export</a>
+<div class="grid g4 kpis">
+  <div class="kpi">
+    <div class="v">{{ s['items'] }}</div><div class="l">Items</div>
+    <div class="d">{{ s.priced }} priced{% if s.drafts %} · {{ s.drafts }} in drafts{% endif %}</div>
+    <svg class="ic"><use href="#i-grid"/></svg>
+  </div>
+  <div class="kpi ink">
+    <div class="v">¥{{ s.total|money }}</div><div class="l">Total CNY</div>
+    <div class="d">{% if s.must != s.total %}Must-have ¥{{ s.must|money }}{% else %}No optional items{% endif %}</div>
+    <svg class="ic"><use href="#i-tag"/></svg>
+  </div>
+  <div class="kpi">
+    <div class="v">${{ s.total_usd|money }}</div><div class="l">Total USD</div>
+    {% if s.budget_used is not none %}
+    <div class="d">{{ (s.budget_used * 100)|int }}% of ${{ p.budget_usd|money }} budget</div>
+    <div class="bar"><i style="width:{{ [100, (s.budget_used * 100)|int]|min }}%"></i></div>
+    {% else %}<div class="d">at {{ p.rate }} CNY per USD</div>{% endif %}
+    <svg class="ic"><use href="#i-card"/></svg>
+  </div>
+  <div class="kpi">
+    <div class="v">¥{{ s.paid|money }}</div><div class="l">Paid</div>
+    <div class="d">Balance ¥{{ s.balance|money }}</div>
+    <svg class="ic"><use href="#i-check"/></svg>
+  </div>
+  <div class="kpi sage">
+    <div class="v">{{ s.received }}<span class="of">/{{ s['items'] }}</span></div><div class="l">Items received</div>
+    <div class="d">{{ pct }}% delivered</div>
+    <svg class="ic"><use href="#i-home"/></svg>
+  </div>
+  <div class="kpi">
+    <div class="v">{{ s.cartons_received }}<span class="of">/{{ s.cartons }}</span></div><div class="l">Boxes received</div>
+    <div class="d">{{ s.kg|num }} kg packed</div>
+    <svg class="ic"><use href="#i-box"/></svg>
+  </div>
+  <div class="kpi">
+    <div class="v">{{ '%.1f'|format(s.cbm) }}</div><div class="l">CBM packed</div>
+    <div class="d">{% if s.container != '-' %}Fits {{ s.container }} container{% else %}No cartons measured yet{% endif %}</div>
+    <svg class="ic"><use href="#i-truck"/></svg>
+  </div>
+  <div class="kpi">
+    <div class="v">{{ s.by_status['To buy'] }}</div><div class="l">Still to buy</div>
+    <div class="d">{{ s.by_status['Quoted'] }} quoted · {{ s.by_status['Ordered'] }} ordered</div>
+    <svg class="ic"><use href="#i-clock"/></svg>
   </div>
 </div>
 
-<div class="grid g2">
+<div class="card tight mt">
+  <div class="row between">
+    <span class="eyebrow">Item status</span>
+    <a class="small" href="/p/{{ p.id }}/items">All items</a>
+  </div>
+  <div class="status-row mt">
+    {% for st, n in s.by_status.items() %}<a class="badge" style="--c:{{ STATUS_COLORS[st] }}" href="/p/{{ p.id }}/items?status={{ st|urlencode }}">{{ st }} · {{ n }}</a>{% endfor %}
+  </div>
+</div>
+
+<div class="card" id="documents">
+  <div class="row between top">
+    <div><h2 class="mb-0">Documents</h2><div class="small muted">Generated live from the current items, rooms and cartons.</div></div>
+    <a class="small" href="/p/{{ p.id }}/images">Mood board &amp; cover</a>
+  </div>
+  <div class="docs mt">
+    <a class="doc" href="/p/{{ p.id }}/export/schedule.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg><div><div class="t">Client schedule</div><div class="m">PDF · USD prices</div></div></a>
+    <a class="doc" href="/p/{{ p.id }}/export/schedule.pdf?currency=CNY" target="_blank"><svg class="ic"><use href="#i-file"/></svg><div><div class="t">Client schedule</div><div class="m">PDF · CNY prices</div></div></a>
+    <a class="doc" href="/p/{{ p.id }}/export/schedule.pdf?prices=0" target="_blank"><svg class="ic"><use href="#i-file"/></svg><div><div class="t">Schedule without prices</div><div class="m">PDF · for site &amp; suppliers</div></div></a>
+    <a class="doc" href="/p/{{ p.id }}/export/packing.pdf" target="_blank"><svg class="ic"><use href="#i-box"/></svg><div><div class="t">Packing list</div><div class="m">PDF · {{ s.cartons }} {{ 'box' if s.cartons == 1 else 'boxes' }}</div></div></a>
+    <a class="doc" href="/p/{{ p.id }}/export/labels.pdf" target="_blank"><svg class="ic"><use href="#i-tag"/></svg><div><div class="t">Box labels</div><div class="m">PDF · one per carton</div></div></a>
+    <a class="doc" href="/p/{{ p.id }}/export/items.xlsx"><svg class="ic"><use href="#i-download"/></svg><div><div class="t">Excel export</div><div class="m">XLSX · all items</div></div></a>
+  </div>
+</div>
+
+<div class="dash-grid">
   <div class="card">
-    <h2>By room</h2>
-    <div class="tbl"><table><tr><th>Room</th><th class="right">Items</th><th class="right">CNY</th><th class="right">Recv</th><th></th></tr>
-    {% for r in s.by_room %}<tr><td>{{ r.label }}</td><td class="right">{{ r.count }}</td><td class="right">{{ r.total|money }}</td><td class="right">{{ r.received }}</td>
-      <td><a class="small" href="/p/{{ p.id }}/items?room={{ r.key or 'none' }}">open</a> · <a class="small" href="/p/{{ p.id }}/export/room/{{ r.key }}.pdf" target="_blank">pdf</a></td></tr>{% endfor %}
+    <div class="row between"><h2 class="mb-0">By room</h2><a class="small" href="/p/{{ p.id }}/rooms">Manage rooms</a></div>
+    <div class="tbl mt"><table>
+      <thead><tr><th>Room</th><th class="num">Items</th><th class="num">CNY</th><th class="num">Recv</th><th></th></tr></thead>
+      <tbody>
+      {% for r in s.by_room %}
+      <tr>
+        <td><a href="/p/{{ p.id }}/items?room={{ r.key or 'none' }}">{{ r.label }}</a></td>
+        <td class="num">{{ r.count }}</td><td class="num">{{ r.total|money }}</td><td class="num">{{ r.received }}</td>
+        <td class="right"><a class="btn ghost sm" href="/p/{{ p.id }}/export/room/{{ r.key }}.pdf" target="_blank" title="Room schedule PDF"><svg class="ic"><use href="#i-file"/></svg>PDF</a></td>
+      </tr>
+      {% else %}<tr><td colspan="5" class="muted center">No items yet.</td></tr>{% endfor %}
+      </tbody>
     </table></div>
   </div>
+
   <div class="card">
-    <h2>By category</h2>
-    <div class="tbl"><table><tr><th>Category</th><th class="right">Items</th><th class="right">CNY</th><th class="right">USD</th></tr>
-    {% for r in s.by_cat %}<tr><td><a href="/p/{{ p.id }}/items?category={{ r.label }}">{{ r.label }}</a></td><td class="right">{{ r.count }}</td><td class="right">{{ r.total|money }}</td><td class="right">{{ r.usd|money }}</td></tr>{% endfor %}
+    <div class="row between"><h2 class="mb-0">By category</h2><a class="small" href="/p/{{ p.id }}/items">All items</a></div>
+    <div class="tbl mt"><table>
+      <thead><tr><th>Category</th><th class="num">Items</th><th class="num">CNY</th><th class="num">USD</th></tr></thead>
+      <tbody>
+      {% for r in s.by_cat %}
+      <tr><td><a href="/p/{{ p.id }}/items?category={{ r.label|urlencode }}">{{ r.label }}</a></td><td class="num">{{ r.count }}</td><td class="num">{{ r.total|money }}</td><td class="num">{{ r.usd|money }}</td></tr>
+      {% else %}<tr><td colspan="4" class="muted center">No items yet.</td></tr>{% endfor %}
+      </tbody>
     </table></div>
   </div>
+
   <div class="card">
-    <h2>By supplier</h2>
-    <div class="tbl"><table><tr><th>Supplier</th><th class="right">Items</th><th class="right">Ordered</th><th class="right">Paid</th><th class="right">Balance</th></tr>
-    {% for r in s.by_sup %}<tr><td>{% if r.key %}<a href="/suppliers/{{ r.key }}?project={{ p.id }}">{{ r.label }}</a>{% else %}{{ r.label }}{% endif %}</td><td class="right">{{ r.count }}</td><td class="right">{{ r.total|money }}</td><td class="right">{{ r.paid|money }}</td><td class="right">{{ r.balance|money }}</td></tr>{% endfor %}
+    <div class="row between"><h2 class="mb-0">By supplier</h2><a class="small" href="/p/{{ p.id }}/payments">Payments</a></div>
+    <div class="tbl mt"><table>
+      <thead><tr><th>Supplier</th><th class="num">Items</th><th class="num">Ordered</th><th class="num">Paid</th><th class="num">Balance</th></tr></thead>
+      <tbody>
+      {% for r in s.by_sup %}
+      <tr>
+        <td>{% if r.key %}<a href="/suppliers/{{ r.key }}?project={{ p.id }}">{{ r.label }}</a>{% else %}<span class="muted">{{ r.label }}</span>{% endif %}</td>
+        <td class="num">{{ r.count }}</td><td class="num">{{ r.total|money }}</td><td class="num">{{ r.paid|money }}</td><td class="num{% if r.balance > 0 %} b{% endif %}">{{ r.balance|money }}</td>
+      </tr>
+      {% else %}<tr><td colspan="5" class="muted center">No items yet.</td></tr>{% endfor %}
+      </tbody>
     </table></div>
   </div>
-  <div class="card">
-    <h2>Recently updated</h2>
+
+  <div class="card recent">
+    <div class="row between"><h2 class="mb-0">Recently updated</h2><a class="small" href="/p/{{ p.id }}/items">All items</a></div>
+    <div class="mt">
     {% for i in recent %}
-    <div class="item"><a href="/p/{{ p.id }}/items/{{ i.id }}">{% if i.cover %}<img class="thumb" src="/media/{{ i.cover.file_key }}">{% else %}<div class="ph">no photo</div>{% endif %}</a>
-      <div class="body"><div class="t"><a href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a></div><div class="m">{{ i.code }} · {{ i.room.name if i.room else 'Whole house' }} · {{ i.category }}</div>
-      <span class="badge" style="background:{{ STATUS_COLORS[i.status] }}">{{ i.status }}</span></div></div>
-    {% else %}<p class="muted small">No items yet. <a href="/p/{{ p.id }}/import">Import the Excel</a> or <a href="/p/{{ p.id }}/items/new">add an item</a>.</p>{% endfor %}
+    <div class="item">
+      <a href="/p/{{ p.id }}/items/{{ i.id }}">{% if i.cover %}<img class="thumb" src="/media/{{ i.cover.file_key }}" alt="">{% else %}<div class="ph">no photo</div>{% endif %}</a>
+      <div class="body">
+        <div class="t"><a href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a></div>
+        <div class="m">{{ i.code }} · {{ i.room.name if i.room else 'Whole house' }} · {{ i.category }}</div>
+        <div class="foot"><span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status }}</span>{% if i.total %}<span class="small b">¥{{ i.total|money }}</span>{% endif %}</div>
+      </div>
+    </div>
+    {% else %}
+    <div class="empty">
+      <div class="ring"><svg class="ic"><use href="#i-camera"/></svg></div>
+      <h3>No items yet</h3>
+      <p>Snap the first one with Quick capture, add it by hand, or import your Excel list.</p>
+      <div class="row">
+        <a class="btn accent" href="/p/{{ p.id }}/capture"><svg class="ic"><use href="#i-camera"/></svg>Quick capture</a>
+        <a class="btn sec" href="/p/{{ p.id }}/items/new"><svg class="ic"><use href="#i-plus"/></svg>Add an item</a>
+        <a class="btn ghost" href="/p/{{ p.id }}/import"><svg class="ic"><use href="#i-upload"/></svg>Import Excel</a>
+      </div>
+    </div>
+    {% endfor %}
+    </div>
   </div>
 </div>
-<a href="/p/{{ p.id }}/items/new" class="btn fab">+ Item</a>
+<a href="/p/{{ p.id }}/items/new" class="btn fab hide-d"><svg class="ic"><use href="#i-plus"/></svg>Item</a>
 {% endblock %}
