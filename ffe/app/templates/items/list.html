@@ -45,14 +45,14 @@
   {% for i in items %}
   <tr>
     <td>{% if i.cover %}<a href="/p/{{ p.id }}/items/{{ i.id }}"><img class="thumb sm" src="/media/{{ i.cover.file_key }}" alt=""></a>{% endif %}</td>
-    <td class="small muted">{{ i.code }}</td>
+    <td class="small muted nowrap">{{ i.code }}</td>
     <td><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a>{% if i.optional %} <span class="pill">optional</span>{% endif %}{% if i.size or i.finish %}<div class="small muted">{{ i.size }}{% if i.size and i.finish %} · {% endif %}{{ i.finish }}</div>{% endif %}</td>
     <td class="small">{{ i.room.name if i.room else '—' }}</td>
     <td class="small">{{ i.category }}</td>
     <td class="num">{{ i.qty|num }} {{ i.unit }}</td>
     <td class="num">{{ i.unit_price|money(2) if i.unit_price else '' }}</td>
     <td class="num">{{ i.total|money if i.unit_price else '' }}</td>
-    <td class="small">{{ i.supplier.name if i.supplier else '' }}</td>
+    <td class="small nowrap">{{ i.supplier.name if i.supplier else '' }}</td>
     <td><select class="status-sel" data-url="/p/{{ p.id }}/items/{{ i.id }}/status" style="--c:{{ STATUS_COLORS[i.status] }}" aria-label="Status">{% for st in STATUSES %}<option {{ 'selected' if i.status == st }}>{{ st }}</option>{% endfor %}</select></td>
   </tr>
   {% endfor %}

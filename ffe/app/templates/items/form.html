@@ -26,7 +26,7 @@
 
   <div class="divider"></div>
   <div class="eyebrow">Specification</div>
-  <div class="grid g2">
+  <div class="grid stack g2">
     <div><label>Brand / model</label><input class="in" type="text" name="brand" value="{{ it.brand if it else '' }}"></div>
     <div><label>Size</label><input class="in" type="text" name="size" value="{{ it.size if it else '' }}" placeholder="1200 x 2400 mm"></div>
     <div><label>Colour / finish</label><input class="in" type="text" name="finish" value="{{ it.finish if it else '' }}"></div>
@@ -35,7 +35,7 @@
 
   <div class="divider"></div>
   <div class="eyebrow">Quantity &amp; price</div>
-  <div class="grid g2">
+  <div class="grid stack g2">
     <div><label>Qty</label><input class="in" type="number" step="0.01" name="qty" value="{{ it.qty|num if it else 1 }}"></div>
     <div><label>Unit</label><select name="unit" class="in">{% for u in UNITS %}<option {{ 'selected' if it and it.unit == u }}>{{ u }}</option>{% endfor %}</select></div>
     <div><label>Unit price (CNY)</label><input class="in" type="number" step="0.01" name="unit_price" value="{{ it.unit_price if it and it.unit_price else '' }}"></div>

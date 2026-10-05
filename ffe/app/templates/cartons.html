@@ -23,7 +23,7 @@
 
 <form method="post" class="card">
   <h2>Add a box</h2>
-  <div class="grid g4">
+  <div class="grid stack g4">
     <div><label>Supplier</label><select name="supplier_id" class="in"><option value="">—</option>{% for sp in suppliers %}<option value="{{ sp.id }}">{{ sp.name }}</option>{% endfor %}</select></div>
     <div><label>Install in room</label><select name="room_id" class="in" required>{% for r in p.rooms %}<option value="{{ r.id }}">{{ r.label }}</option>{% endfor %}</select></div>
     <div class="span2"><label>What is inside</label><input class="in" type="text" name="contents" placeholder="Floor slab 1200x2400, 2 pieces" required></div>

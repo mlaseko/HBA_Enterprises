@@ -21,7 +21,7 @@
 <form method="post" action="/suppliers/{{ s.id }}" class="card">
   <input type="hidden" name="back" value="{{ request.url.path }}{% if p %}?project={{ p.id }}{% endif %}">
   <h2>Supplier details</h2>
-  <div class="grid g3">
+  <div class="grid stack g3">
     <div><label>Name</label><input class="in" type="text" name="name" value="{{ s.name }}" required></div>
     <div><label>City / market</label><input class="in" type="text" name="city" value="{{ s.city }}"></div>
     <div><label>What they supply</label><input class="in" type="text" name="category" value="{{ s.category }}"></div>

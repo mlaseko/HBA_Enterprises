@@ -128,7 +128,8 @@
   <a href="/projects/new" class="capture"><span class="ring">{{ ic('plus') }}</span><span>New</span></a>
   <a href="/settings" class="{{ 'on' if path == '/settings' }}">{{ ic('settings') }}<span>Settings</span></a>
   {% endif %}
-  <button type="button" onclick="toggleMore()">{{ ic('more') }}<span>More</span></button>
+  {% if p %}{% set on_tab = path == '/p/' ~ p.id or '/items' in path or '/drafts' in path or '/capture' in path or '/cartons' in path %}{% else %}{% set on_tab = path == '/' or path.startswith('/suppliers') or path == '/projects/new' or path == '/settings' %}{% endif %}
+  <button type="button" class="{{ 'on' if not on_tab }}" onclick="toggleMore()">{{ ic('more') }}<span>More</span></button>
 </nav>
 <div class="sheet" id="more" aria-hidden="true">
   <div class="back" onclick="toggleMore(false)"></div>
