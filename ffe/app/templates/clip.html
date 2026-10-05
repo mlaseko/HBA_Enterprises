@@ -10,6 +10,7 @@
 </div>
 
 {% if err %}<div class="alert err">{{ err }}</div>{% endif %}
+{% if own_page %}<div class="alert info">The button was tapped while you were on HBA itself, so there is no picture to save. Open the supplier page or Pinterest pin first, then tap <b>Save to HBA</b> from your bookmarks.</div>{% endif %}
 
 {% if url or img %}
 <form method="post" class="card">
