@@ -47,7 +47,7 @@ p{margin:.3rem 0 .8rem}
 .main{flex:1;min-width:0;display:flex;flex-direction:column}
 .wrap{width:100%;max-width:1180px;margin:0 auto;padding:18px 16px calc(var(--bottom-h) + 40px)}
 .side{display:none}
-.top{height:var(--top-h);display:flex;align-items:center;gap:12px;padding:0 16px;background:rgba(246,243,238,.86);backdrop-filter:saturate(140%) blur(10px);-webkit-backdrop-filter:saturate(140%) blur(10px);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30}
+header.top{height:var(--top-h);display:flex;align-items:center;gap:12px;padding:0 16px;background:rgba(246,243,238,.86);backdrop-filter:saturate(140%) blur(10px);-webkit-backdrop-filter:saturate(140%) blur(10px);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30}
 .brand{display:flex;align-items:center;gap:10px;color:var(--ink);font-weight:600;letter-spacing:-.01em;white-space:nowrap}
 .brand:hover{text-decoration:none}
 .mark{width:34px;height:34px;border-radius:10px;background:var(--grad);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:600;font-size:1.05rem;box-shadow:0 6px 16px -8px rgba(185,89,58,.7);overflow:hidden;flex:none}
@@ -56,8 +56,8 @@ p{margin:.3rem 0 .8rem}
 .switcher{position:relative;min-width:0;flex:1;max-width:360px}
 .switcher select{width:100%;appearance:none;-webkit-appearance:none;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:8px 36px 8px 14px;font-size:.9rem;font-weight:600;color:var(--ink);font-family:inherit;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
 .switcher .ic{position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted)}
-.top .tools{display:flex;align-items:center;gap:6px;margin-left:auto}
-@media(max-width:959px){.top .brand .name{display:none}.switcher{max-width:none}.switcher select{font-size:.88rem}}
+header.top .tools{display:flex;align-items:center;gap:6px;margin-left:auto}
+@media(max-width:959px){header.top .brand .name{display:none}.switcher{max-width:none}.switcher select{font-size:.88rem}}
 .iconbtn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;min-width:38px;padding:0 10px;border-radius:999px;border:1px solid transparent;color:var(--ink-2);background:transparent;font:inherit;font-size:.86rem;font-weight:600;cursor:pointer}
 .iconbtn:hover{background:var(--surface);border-color:var(--line);text-decoration:none;color:var(--ink)}
 
@@ -76,12 +76,12 @@ p{margin:.3rem 0 .8rem}
   .side .cta:hover{text-decoration:none;filter:brightness(1.04)}
   .side .foot{margin-top:auto;padding:12px 10px 0;border-top:1px solid var(--line-2)}
   .side .foot a{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:.86rem;padding:6px 0}
-  .top .brand{display:none}
+  header.top .brand{display:none}
   .bottom,.sheet{display:none!important}
   .wrap{padding:26px 32px 60px}
-  .top{padding:0 32px}
+  header.top{padding:0 32px}
 }
-@media(min-width:1280px){.wrap{padding:30px 40px 60px}.top{padding:0 40px}}
+@media(min-width:1280px){.wrap{padding:30px 40px 60px}header.top{padding:0 40px}}
 
 /* bottom tab bar (phone / tablet) */
 .bottom{position:fixed;left:0;right:0;bottom:0;z-index:40;height:calc(var(--bottom-h) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);background:rgba(255,255,255,.94);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line);display:flex;align-items:stretch;justify-content:space-around}
@@ -288,7 +288,7 @@ details summary{cursor:pointer;color:var(--ink);font-weight:600;margin:0}
 @media(max-width:899px){.auth .pane{padding:26px 22px 28px}.auth .pane .logo{width:150px}.auth .pane h1{font-size:1.55rem;margin:16px 0 6px;max-width:none}.auth .pane p{font-size:.9rem;margin-bottom:0}.auth .pane .pts{display:none}.auth .form{padding:22px 16px 48px}}
 @media(min-width:900px){.auth{grid-template-columns:1.1fr 1fr}.auth .pane{padding:48px 56px}.auth .pane .logo{width:260px}.auth .pane h1{font-size:2.8rem;margin-top:90px}.auth .form{padding:40px}}
 
-@media print{.top,.side,.bottom,.sheet,.fab,.noprint,.pubbar{display:none!important}.wrap{padding:0;max-width:none}body{background:#fff}.card,.tbl{box-shadow:none}}
+@media print{header.top,.side,.bottom,.sheet,.fab,.noprint,.pubbar{display:none!important}.wrap{padding:0;max-width:none}body{background:#fff}.card,.tbl{box-shadow:none}}
 
 
 /* ---------- page-specific additions (from the template pass) ---------- */
