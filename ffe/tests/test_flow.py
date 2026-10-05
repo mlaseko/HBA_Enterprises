@@ -76,7 +76,7 @@ with TestClient(app) as c:
     r=c.get(f"/p/{pid}/items?q=pendant"); assert "Island pendant" in r.text
     # ---- save from web: pasted links + bookmarklet /clip (network replaced by a fake) ----
     import app.webimage as wi
-    PAGE=b'<html><head><meta property="og:image" content="/pics/sofa.jpg"></head><body><img src="small.png" width="10" height="10"></body></html>'
+    PAGE='<html><head><title>Kivik 3-seat sofa</title><meta property="og:image" content="/pics/sofa.jpg"><meta name="description" content="Linen, 228 cm wide"></head><body><script>var x=1</script><h1>Kivik sofa</h1><p>Price: ¥3,999</p><img src="small.png" width="10" height="10"></body></html>'.encode()
     def fake_get(url, accept):
         if url.endswith("/product/sofa"): return ("text/html; charset=utf-8".split(";")[0], PAGE, url)
         if url.endswith("/pics/sofa.jpg"): return ("image/jpeg", img("teal"), url)
@@ -84,6 +84,7 @@ with TestClient(app) as c:
         return ("text/html", b"<html><body>no pictures</body></html>", url)
     wi._http_get=fake_get
     assert wi.find_page_image(PAGE.decode(), "https://shop.example/product/sofa")=="https://shop.example/pics/sofa.jpg"
+    pt=wi.page_text(PAGE.decode()); assert pt.startswith("Title: Kivik 3-seat sofa") and "¥3,999" in pt and "var x" not in pt, pt
     n_before=len(c.get(f"/p/{pid}/items/{iid}").text.split("/media/"))
     r=c.post(f"/p/{pid}/items/{iid}/photo-url", data={"url":"https://shop.example/product/sofa","caption":"from web"}, follow_redirects=False)
     assert r.status_code==303 and "err=" not in r.headers["location"], r.headers
@@ -102,6 +103,31 @@ with TestClient(app) as c:
     for ph in d.photos: db.delete(ph)
     db.delete(d); db.commit(); db.close()  # keep the drafts count at zero for the capture test below
     r=c.post("/clip", data={"project_id":pid,"dest":"cover","link":"","page":"https://shop.example/product/sofa"}, follow_redirects=False); assert r.headers["location"]==f"/p/{pid}/images"
+    # ---- Claude auto-fill (API replaced by a fake; off without the key) ----
+    import app.ai as ai
+    assert ai.suggest_item(img("red"), "text", "u", []) is None  # no key: feature off
+    os.environ["ANTHROPIC_API_KEY"]="test-key"
+    calls=[]
+    def fake_call(content):
+        calls.append(content)
+        return {"name":"Kivik 3-seat sofa","brand":"IKEA Kivik","category":"Furniture","spec":"Linen cover, removable","size":"2280 x 950 mm","finish":"Beige","unit":"pcs","unit_price_cny":3999,"room":room.label,"confidence":"high"}
+    ai._call=fake_call
+    r=c.post("/clip", data={"project_id":pid,"dest":"item","link":"https://shop.example/pics/sofa.jpg","page":"https://shop.example/product/sofa"}, follow_redirects=False)
+    assert r.headers["location"].startswith(f"/p/{pid}/drafts?filled="), r.headers
+    assert calls and any(b.get("type")=="image" for b in calls[-1]) and "Kivik" in [b for b in calls[-1] if b.get("type")=="text"][0]["text"]
+    db=SessionLocal(); d=db.query(Item).filter(Item.project_id==int(pid), Item.draft==True).order_by(Item.id.desc()).first()
+    assert d.name=="Kivik 3-seat sofa" and d.unit_price==3999 and d.room_id==room.id and d.category=="Furniture" and "Filled in by Claude" in d.notes, (d.name, d.notes)
+    r=c.get(f"/p/{pid}/drafts?filled={d.id}"); assert "Claude filled this in" in r.text
+    for ph in d.photos: db.delete(ph)
+    db.delete(d); db.commit(); db.close()
+    r=c.get(f"/p/{pid}/items/{iid}"); assert "Fill in with Claude" in r.text
+    calls.clear(); r=c.post(f"/p/{pid}/items/{iid}/suggest", follow_redirects=False); assert "filled=" in r.headers["location"], r.headers
+    db=SessionLocal(); it=db.get(Item, int(iid)); assert it.name=="Island pendant" and it.category=="Lighting" and it.brand=="IKEA Kivik" and it.spec=="Linen cover, removable", (it.name, it.category, it.brand, it.spec); db.close()  # existing name/category kept, empty brand/spec filled
+    ai._call=lambda content: (_ for _ in ()).throw(RuntimeError("down"))
+    r=c.post(f"/p/{pid}/items/{iid}/suggest", follow_redirects=False); assert "err=" in r.headers["location"]
+    del os.environ["ANTHROPIC_API_KEY"]
+    r=c.get(f"/p/{pid}/items/{iid}"); assert "Fill in with Claude" not in r.text
+    print("claude auto-fill ok")
     r=c.get("/clip?url=http://testserver/p/1/items&img=http://testserver/static/brand-mark.png"); assert "tapped while you were on HBA itself" in r.text and "Save this picture" not in r.text and 'id="cl-paste"' in r.text
     r=c.post("/clip", data={"project_id":pid,"dest":"mood","link":"https://shop.example/product/sofa","page":""}, follow_redirects=False); assert r.headers["location"]==f"/p/{pid}/images"  # pasted page link, no bookmarklet
     r=TestClient(app).get("/clip", follow_redirects=False); assert r.status_code==303  # login required

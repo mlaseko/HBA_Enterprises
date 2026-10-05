@@ -34,6 +34,8 @@ app/services.py        summary() for dashboards, next_code(), carton_positions()
 app/storage.py         save_image/read_image/delete_image — backends: local | replit | s3
 app/webimage.py        fetch_image(url): picture bytes from a direct image link or a page (og:image / largest <img>);
                        stdlib only, refuses private addresses, raises WebImageError with a message for the page
+app/ai.py              Claude auto-fill (off without ANTHROPIC_API_KEY): suggest_item(image, page_text, url, rooms) → dict via
+                       structured output, apply_suggestion(item, s, rooms, only_empty) fills fields; all failures → None
 app/routers/           projects, rooms, items, suppliers, payments, cartons, share (public /s/<token>, /c/<token>),
                        exports (PDF + xlsx), importer (Excel import),
                        capture (/p/<id>/capture camera page → draft items; /p/<id>/drafts complete or discard),
@@ -106,7 +108,7 @@ python tests/test_flow.py                         # must print ALL OK
 
 Run `python tests/test_flow.py` before every commit. Extend it when you add a feature.
 Deploy = push to GitHub, then in Replit pull the repo and redeploy. Secrets (Replit → Tools → Secrets):
-`APP_PASSWORD`, `SECRET_KEY`, `DATABASE_URL` (Neon), `STORAGE_BACKEND=replit` (+ Object Storage bucket) or
+`APP_PASSWORD`, `SECRET_KEY`, `DATABASE_URL` (Neon), `ANTHROPIC_API_KEY` (optional), `STORAGE_BACKEND=replit` (+ Object Storage bucket) or
 `s3` with `S3_*`.
 
 ## Schema changes so far (run on Neon once each)
@@ -123,6 +125,10 @@ ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;   -- quick ca
 - **Save from web.** Any website is an image source: `photo_url` on the item form, `/p/<id>/items/<id>/photo-url`,
   `/p/<id>/images/url` on the Mood board, and the `/clip` bookmarklet. All go through `webimage.fetch_image` and
   then `storage.save_image`. Pinterest's API was ruled out (gated access, terms forbid copying pin images).
+
+- **Claude auto-fill.** `/clip` → "New item" fills the draft from the page text + picture (`ai.suggest_item`), and the
+  item form has "Fill in with Claude" (`POST /p/<id>/items/<id>/suggest`, empty fields only). Model `claude-opus-5-5`
+  (override `CLAUDE_MODEL`), effort low, JSON-schema output, server-side refusal fallback. Secrets: `ANTHROPIC_API_KEY`.
 
 ## Backlog (in priority order)
 

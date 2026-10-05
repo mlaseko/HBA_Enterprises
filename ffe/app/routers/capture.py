@@ -61,8 +61,8 @@ async def capture_save(request: Request, p: Project = Depends(get_project), db: 
 
 
 @router.get("/p/{project_id}/drafts")
-def drafts_page(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), saved: str = "", err: str = ""):
-    return render(request, "drafts.html", p=p, drafts=_drafts(db, p), saved=saved, err=fint(err))
+def drafts_page(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), saved: str = "", err: str = "", filled: str = ""):
+    return render(request, "drafts.html", p=p, drafts=_drafts(db, p), saved=saved, err=fint(err), filled=fint(filled))
 
 
 @router.post("/p/{project_id}/drafts/{item_id}")

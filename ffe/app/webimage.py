@@ -115,6 +115,59 @@ def find_page_image(html: str, page_url: str) -> str | None:
     return None
 
 
+class _TextExtractor(HTMLParser):
+    """Visible text of a page (title, meta description, body text) for the Claude auto-fill."""
+    SKIP = {"script", "style", "noscript", "svg", "head", "nav", "footer", "iframe", "template"}
+
+    def __init__(self):
+        super().__init__()
+        self.parts: list[str] = []
+        self.skip = 0
+        self.title = ""
+        self.in_title = False
+        self.meta: list[str] = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag in self.SKIP:
+            self.skip += 1
+        if tag == "title":
+            self.in_title = True
+        if tag == "meta":
+            a = dict(attrs)
+            key = (a.get("property") or a.get("name") or "").lower()
+            if key in ("description", "og:description", "og:title", "product:price:amount", "product:price:currency") and a.get("content"):
+                self.meta.append(f"{key}: {a['content'].strip()}")
+        if tag in ("br", "p", "div", "li", "tr", "h1", "h2", "h3", "h4", "td", "th", "dt", "dd"):
+            self.parts.append("\n")
+
+    def handle_endtag(self, tag):
+        if tag in self.SKIP and self.skip:
+            self.skip -= 1
+        if tag == "title":
+            self.in_title = False
+
+    def handle_data(self, data):
+        if self.in_title:
+            self.title += data
+        elif not self.skip:
+            self.parts.append(data)
+
+    def text(self, limit: int = 12000) -> str:
+        body = re.sub(r"[ \t\r\f\v]+", " ", "".join(self.parts))
+        body = re.sub(r"\n\s*\n+", "\n", body).strip()
+        head = (f"Title: {self.title.strip()}\n" if self.title.strip() else "") + "\n".join(self.meta)
+        return (head + "\n\n" + body).strip()[:limit]
+
+
+def page_text(html: str) -> str:
+    t = _TextExtractor()
+    try:
+        t.feed(html)
+    except Exception:
+        pass
+    return t.text()
+
+
 def _looks_like_image(ctype: str, body: bytes) -> bool:
     if ctype.startswith("image/"):
         return True
@@ -123,20 +176,26 @@ def _looks_like_image(ctype: str, body: bytes) -> bool:
 
 def fetch_image(url: str) -> bytes:
     """Return raw image bytes for a direct image link or a page link. Raises WebImageError with a reason."""
+    return fetch_image_and_text(url)[0]
+
+
+def fetch_image_and_text(url: str) -> tuple[bytes, str]:
+    """Like fetch_image, plus the page's visible text ("" for a direct image link)."""
     url = normalize_url(url)
     ctype, body, final = _http_get(url, "image/*,text/html;q=0.9,*/*;q=0.8")
     if len(body) > MAX_BYTES:
         raise WebImageError("That picture is too large (over 15 MB).")
     if _looks_like_image(ctype, body):
-        return body
+        return body, ""
     if ctype.startswith("text/html") or body[:200].lstrip().lower().startswith((b"<!doctype", b"<html")):
-        img_url = find_page_image(body.decode("utf-8", "replace"), final or url)
+        html = body.decode("utf-8", "replace")
+        img_url = find_page_image(html, final or url)
         if not img_url:
             raise WebImageError("No picture found on that page. Open the picture itself and paste its link.")
         ctype2, body2, _ = _http_get(img_url, "image/*,*/*;q=0.8")
         if len(body2) > MAX_BYTES:
             raise WebImageError("That picture is too large (over 15 MB).")
         if _looks_like_image(ctype2, body2):
-            return body2
+            return body2, page_text(html)
         raise WebImageError("The page's main picture could not be downloaded.")
     raise WebImageError("That link is not a picture or a web page.")

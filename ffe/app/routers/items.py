@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
 from fastapi.responses import JSONResponse
 from urllib.parse import quote
+import re
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Project, Item, ItemPhoto, Supplier, Room
 from ..common import render, redirect, require_login, get_project, ffloat, fint
 from ..services import next_code
-from .. import storage, config, webimage
+from .. import storage, config, webimage, ai
 
 router = APIRouter(dependencies=[Depends(require_login)])
 
@@ -112,12 +113,12 @@ async def create_item(request: Request, p: Project = Depends(get_project), db: S
 
 
 @router.get("/p/{project_id}/items/{item_id}")
-def item_detail(request: Request, item_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), err: str = ""):
+def item_detail(request: Request, item_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), err: str = "", filled: str = ""):
     item = db.get(Item, item_id)
     if not item or item.project_id != p.id:
         return redirect(f"/p/{p.id}/items")
     suppliers = db.query(Supplier).order_by(Supplier.name).all()
-    return render(request, "items/form.html", p=p, item=item, suppliers=suppliers, pre_room=None, pre_cat="", err=err[:200])
+    return render(request, "items/form.html", p=p, item=item, suppliers=suppliers, pre_room=None, pre_cat="", err=err[:200], filled=filled[:200])
 
 
 @router.post("/p/{project_id}/items/{item_id}")
@@ -166,6 +167,29 @@ async def add_photo(item_id: int, p: Project = Depends(get_project), db: Session
                 db.add(ItemPhoto(item_id=item.id, file_key=storage.save_image(data, f"p{p.id}"), caption=caption))
         db.commit()
     return redirect(f"/p/{p.id}/items/{item_id}")
+
+
+@router.post("/p/{project_id}/items/{item_id}/suggest")
+def suggest_fields(item_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """Fill the empty fields of an item from its cover photo (and the source page in its notes) with Claude."""
+    item = db.get(Item, item_id)
+    if not item or item.project_id != p.id:
+        return redirect(f"/p/{p.id}/items")
+    photo = storage.read_image(item.photos[0].file_key) if item.photos else None
+    text, url = "", ""
+    m = re.search(r"https?://\S+", item.notes or "")
+    if m:
+        url = m.group(0)
+        try:
+            text = webimage.fetch_image_and_text(url)[1]
+        except webimage.WebImageError:
+            text = ""
+    s = ai.suggest_item(photo, text, url, [r.label for r in p.rooms])
+    if not s:
+        return redirect(f"/p/{p.id}/items/{item_id}?err=" + quote("Claude could not fill this in. Add a photo or a source link in the notes and try again."))
+    filled = ai.apply_suggestion(item, s, p.rooms)
+    db.commit()
+    return redirect(f"/p/{p.id}/items/{item_id}?filled=" + quote(", ".join(filled) if filled else "nothing new"))
 
 
 @router.post("/p/{project_id}/items/{item_id}/photo-url")

@@ -13,6 +13,7 @@ same data, entered once.
 | Items | Room, category (= schedule page), name, must-have spec, brand, size, finish, qty, unit price (CNY), supplier, lead time, status (To buy → Quoted → Ordered → Paid → Shipped → Received), photos from the phone camera. |
 | Quick capture | Photo-first entry for showrooms: the camera opens, every photo is saved at once as a **draft** item (room/category optional), keep shooting. Drafts are completed later on the Drafts page (name, room, category, qty, price → item code generated) or discarded. Drafts do not count in totals, PDFs, Excel or share links until they have a name. |
 | Save from web | Pictures from any website (supplier catalogue, Pinterest pin, Taobao, 1688): paste a picture or page link on the item form or the Mood board page, or use the **Save to HBA** button from `/clip` (iOS Share-sheet Shortcut or Safari bookmarklet; the page also has a Paste button and remembers the last project) to clip the page's main picture into a project as a draft item or a mood-board image. Pictures are downloaded server-side, shrunk and stored like uploads. |
+| Claude auto-fill | Optional. With `ANTHROPIC_API_KEY` set, a clipped product page becomes a draft with name, brand, size, finish, spec, category, room and CNY price already filled in (flagged "check it, then save"); the item form gets a **Fill in with Claude** button that fills empty fields from the cover photo and the source link in the notes. Without the key the app behaves as before. |
 | Suppliers | Contacts, WeChat, payment terms, what they supply; per-project ordered / paid / balance. |
 | Payments | Deposit / balance per supplier with receipt photo. |
 | Packing | One line per box with room code, "Box n of N", CBM, weight, received tick. Container size calculated. Suppliers can list their own boxes through a **packing link** (no login). |
@@ -56,6 +57,7 @@ Open http://localhost:8080 — SQLite database and photos are created under `./d
    - `SECRET_KEY` – any long random string (signs the session cookie)
    - `DATABASE_URL` – a Neon Postgres connection string (`postgresql://…?sslmode=require`). Create a new
      Neon database for this app; tables are created automatically on first start.
+   - `ANTHROPIC_API_KEY` – optional, turns on the Claude auto-fill (Console → API keys); `CLAUDE_MODEL` overrides the model
    - `STORAGE_BACKEND` – `replit` (then **Tools → Object Storage → create a bucket**), or `s3` with
      `S3_BUCKET`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` for Cloudflare R2.
      Do **not** use `local` on Replit deployments — the disk is not persistent.
@@ -81,7 +83,8 @@ app/main.py           app start, login, settings, media
 app/models.py         tables: projects, rooms, items, photos, suppliers, supplier_links, payments, cartons, settings
 app/routers/          projects, rooms, items, suppliers, payments, cartons, share (public links), exports, importer,
                       capture (quick capture + drafts), clip (Save from web bookmarklet + /clip page)
-app/webimage.py       fetch a picture from a web link (direct image or a page's og:image / largest <img>)
+app/webimage.py       fetch a picture (+ page text) from a web link (direct image or a page's og:image / largest <img>)
+app/ai.py             Claude auto-fill: suggest_item() from page text + picture, apply_suggestion() onto an Item
 app/pdf/              schedule.py (client FF&E PDF), packing.py (packing list, labels, PO, room checklist)
 app/templates/        Jinja2 pages        app/static/        app.css, app.js
 ```
