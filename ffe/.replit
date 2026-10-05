@@ -1,0 +1,12 @@
+modules = ["python-3.11"]
+run = "sh -c 'pip install -q -r requirements.txt && uvicorn app.main:app --host 0.0.0.0 --port 8080'"
+entrypoint = "app/main.py"
+
+[deployment]
+build = ["sh", "-c", "pip install -r requirements.txt"]
+run = ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port 8080"]
+deploymentTarget = "autoscale"
+
+[[ports]]
+localPort = 8080
+externalPort = 80

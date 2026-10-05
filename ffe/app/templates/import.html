@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Import from Excel</h1>
+{% if result %}
+  {% if result.error %}<div class="alert err">{{ result.error }}</div>{% else %}
+  <div class="alert">Imported {{ result["items"] }} items, {{ result.rooms }} new rooms, {{ result.suppliers }} new suppliers. Skipped {{ result.skipped }} empty rows. <a href="/p/{{ p.id }}/items">Open items →</a></div>{% endif %}
+{% endif %}
+<form method="post" enctype="multipart/form-data" class="card">
+  <p class="small">Upload the procurement Excel (the Kinondoni list format: sheets <b>Shopping List</b> and <b>Rooms</b>) or a file exported from this app. Columns are matched by their header names: Room, Category, Item, Must-have spec, Size / Finish, Qty, Unit, Price (CNY), Supplier, Status, Notes.</p>
+  <label>Excel file (.xlsx)</label><input type="file" name="file" accept=".xlsx" required>
+  <label style="display:flex;gap:8px;align-items:center;color:var(--text);margin-top:10px"><input type="checkbox" name="replace" value="1"> Delete all existing items in this project first</label>
+  <div style="margin-top:12px"><button class="btn">Import</button></div>
+</form>
+<div class="card small muted">Tip: photos are not in Excel. After importing, open each item and add the sample photo from your phone.</div>
+{% endblock %}

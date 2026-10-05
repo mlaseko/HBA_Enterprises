@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block top %}{% endblock %}
+{% block content %}
+<div class="login card">
+  <h1>{{ APP_NAME }}</h1>
+  <p class="muted small">Enter the app password.</p>
+  {% if error %}<div class="alert err">{{ error }}</div>{% endif %}
+  <form method="post" action="/login">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label>Password</label>
+    <input type="password" name="password" autofocus autocomplete="current-password">
+    <div style="margin-top:12px"><button class="btn block">Log in</button></div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ 'Edit project' if p else 'New project' }}</h1>
+<form method="post" class="card">
+  <div class="grid g2">
+    <div><label>Client name</label><input class="in" type="text" name="client_name" value="{{ p.client_name if p else '' }}" required></div>
+    <div><label>Project name</label><input class="in" type="text" name="name" value="{{ p.name if p else '' }}" placeholder="e.g. Kinondoni House" required></div>
+    <div><label>Delivery address (printed on labels)</label><input class="in" type="text" name="address" value="{{ p.address if p else '' }}"></div>
+    <div><label>USD/CNY rate (CNY per 1 USD)</label><input class="in" type="number" step="0.0001" name="rate" value="{{ p.rate if p else s.default_rate }}"></div>
+    <div><label>Budget (USD, optional)</label><input class="in" type="number" step="1" name="budget_usd" value="{{ p.budget_usd if p else 0 }}"></div>
+    {% if p %}<div><label>Status</label><select name="status" class="in">{% for st in ['Active','On hold','Completed'] %}<option {{ 'selected' if p.status==st }}>{{ st }}</option>{% endfor %}</select></div>{% endif %}
+  </div>
+  <label>Description (shown on the client schedule contents page)</label>
+  <textarea class="in" name="description">{{ p.description if p else '' }}</textarea>
+  <div style="margin-top:12px" class="row"><button class="btn">Save</button> <a href="{{ '/p/' ~ p.id if p else '/' }}" class="btn sec">Cancel</a></div>
+</form>
+{% if p %}
+<div class="card">
+  <h2>Client link (read-only schedule)</h2>
+  <p class="small muted">Send this to the client. They see the schedule with photos and prices, and can download the PDF. No login needed.</p>
+  <div class="copy" id="clink">{{ request.url.scheme }}://{{ request.url.netloc }}/c/{{ p.client_token }}</div>
+  <div class="row" style="margin-top:8px">
+    <button type="button" class="btn sm sec" onclick="copyText(document.getElementById('clink').textContent,this)">Copy link</button>
+    <form method="post" action="/p/{{ p.id }}/client-link/reset" onsubmit="return confirmSubmit(this,'Old link will stop working. Continue?')"><button class="btn sm sec">Reset link</button></form>
+  </div>
+</div>
+<div class="card">
+  <h2>Danger zone</h2>
+  <form method="post" action="/p/{{ p.id }}/delete" class="row">
+    <input type="text" name="confirm" placeholder="type delete" style="width:140px"> <button class="btn danger sm">Delete project and everything in it</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

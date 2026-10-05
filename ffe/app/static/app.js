@@ -1,0 +1,53 @@
+// Shrinks photos on the phone before upload (max 1600px, JPEG 0.82) so uploads work on slow Wi-Fi.
+(function () {
+  function compress(file, max) {
+    return new Promise(function (resolve) {
+      if (!file.type.startsWith('image/') || file.size < 400 * 1024) return resolve(file);
+      var img = new Image();
+      var url = URL.createObjectURL(file);
+      img.onload = function () {
+        var w = img.width, h = img.height, s = Math.min(1, max / Math.max(w, h));
+        var c = document.createElement('canvas');
+        c.width = Math.round(w * s); c.height = Math.round(h * s);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        c.toBlob(function (blob) {
+          URL.revokeObjectURL(url);
+          if (!blob) return resolve(file);
+          resolve(new File([blob], (file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }));
+        }, 'image/jpeg', 0.82);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); resolve(file); };
+      img.src = url;
+    });
+  }
+  document.addEventListener('change', async function (e) {
+    var input = e.target;
+    if (!(input instanceof HTMLInputElement) || input.type !== 'file' || !input.files || !input.files.length) return;
+    if (input.dataset.compressed === '1') { input.dataset.compressed = ''; return; }
+    var out = new DataTransfer(), changed = false;
+    for (var i = 0; i < input.files.length; i++) {
+      var f = input.files[i];
+      var g = await compress(f, 1600);
+      if (g !== f) changed = true;
+      out.items.add(g);
+    }
+    if (changed) { input.dataset.compressed = '1'; input.files = out.files; input.dispatchEvent(new Event('change', { bubbles: true })); }
+    var hint = input.parentElement && input.parentElement.querySelector('.filehint');
+    if (hint) hint.textContent = input.files.length + ' photo(s) ready';
+  });
+
+  // quick status change without leaving the list
+  document.addEventListener('change', function (e) {
+    var sel = e.target;
+    if (!(sel instanceof HTMLSelectElement) || !sel.classList.contains('status-sel')) return;
+    var fd = new FormData(); fd.append('status', sel.value);
+    fetch(sel.dataset.url, { method: 'POST', body: fd, headers: { 'Accept': 'application/json' } })
+      .then(function (r) { if (!r.ok) throw new Error(); sel.style.background = '#DCFCE7'; setTimeout(function () { sel.style.background = ''; }, 800); })
+      .catch(function () { sel.style.background = '#FEE2E2'; });
+  });
+
+  window.copyText = function (txt, btn) {
+    navigator.clipboard.writeText(txt).then(function () { if (btn) { var o = btn.textContent; btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = o; }, 1200); } });
+  };
+  window.confirmSubmit = function (form, msg) { return confirm(msg || 'Are you sure?'); };
+})();

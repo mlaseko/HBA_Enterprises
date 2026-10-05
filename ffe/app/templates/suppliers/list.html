@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Suppliers {% if p %}<span class="muted small">for {{ p.name }}</span>{% endif %}</h1>
+<details class="card" {{ 'open' if not sups }}>
+  <summary>+ Add supplier</summary>
+  <form method="post" action="/suppliers/new" class="grid g3" style="margin-top:8px">
+    <input type="hidden" name="back" value="{{ request.url.path }}">
+    <div><label>Name</label><input class="in" type="text" name="name" required></div>
+    <div><label>City / market</label><input class="in" type="text" name="city" placeholder="Foshan - Nanzhuang"></div>
+    <div><label>What they supply</label><input class="in" type="text" name="category" placeholder="Tiles"></div>
+    <div><label>Contact person</label><input class="in" type="text" name="contact"></div>
+    <div><label>Phone</label><input class="in" type="text" name="phone"></div>
+    <div><label>WeChat</label><input class="in" type="text" name="wechat"></div>
+    <div><label>Email</label><input class="in" type="text" name="email"></div>
+    <div><label>Payment terms</label><input class="in" type="text" name="payment_terms" placeholder="30% deposit, 70% before loading"></div>
+    <div><label>Notes</label><input class="in" type="text" name="notes"></div>
+    <div style="display:flex;align-items:end"><button class="btn">Save supplier</button></div>
+  </form>
+</details>
+{% for s in sups %}
+{% set st = stats.get(s.id) if p else None %}
+<div class="card row between">
+  <div><a href="/suppliers/{{ s.id }}{% if p %}?project={{ p.id }}{% endif %}" class="b">{{ s.name }}</a>
+    <div class="small muted">{{ s.category }} {% if s.city %}· {{ s.city }}{% endif %} {% if s.contact %}· {{ s.contact }}{% endif %} {% if s.wechat %}· WeChat {{ s.wechat }}{% endif %}</div></div>
+  {% if p %}<div class="right small">{% if st %}{{ st.count }} items · ordered ¥{{ st.total|money }} · paid ¥{{ st.paid|money }} · <b>balance ¥{{ st.balance|money }}</b>{% else %}<span class="muted">no items in this project</span>{% endif %}
+    {% if links.get(s.id) %}<div><span class="pill">packing link active</span></div>{% endif %}</div>{% endif %}
+</div>
+{% endfor %}
+{% endblock %}

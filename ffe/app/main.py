@@ -1,0 +1,92 @@
+from fastapi import FastAPI, Request, Depends, Form, UploadFile, File
+from fastapi.responses import RedirectResponse, Response, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session
+from sqlalchemy import text, inspect
+
+from . import config, storage
+from .db import engine, Base, get_db
+from .models import Project, Settings
+from .common import (render, redirect, require_login, LoginRequired, make_session_cookie, check_password, COOKIE,
+                     get_settings, is_logged_in, ffloat)
+from .routers import projects, rooms, items, suppliers, payments, cartons, share, exports, importer
+
+app = FastAPI(title=config.APP_NAME)
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+
+@app.on_event("startup")
+def startup():
+    Base.metadata.create_all(bind=engine)
+    with engine.begin() as conn:
+        s = conn.execute(text("SELECT id FROM settings WHERE id=1")).first()
+        if not s:
+            conn.execute(text("INSERT INTO settings (id, studio_name, studio_email, studio_phone, studio_website, default_rate, logo_key) "
+                              "VALUES (1, 'My Design Studio', '', '', '', 7.10, '')"))
+
+
+@app.exception_handler(LoginRequired)
+async def login_required_handler(request: Request, exc: LoginRequired):
+    return RedirectResponse(f"/login?next={request.url.path}", status_code=303)
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request, next: str = "/"):
+    if is_logged_in(request):
+        return redirect("/")
+    return render(request, "login.html", next=next, error=None)
+
+
+@app.post("/login")
+def login(request: Request, password: str = Form(""), next: str = Form("/")):
+    if not check_password(password):
+        return render(request, "login.html", next=next, error="Wrong password")
+    resp = redirect(next or "/")
+    resp.set_cookie(COOKIE, make_session_cookie(), httponly=True, samesite="lax", max_age=60 * 60 * 24 * 90)
+    return resp
+
+
+@app.get("/logout")
+def logout():
+    resp = redirect("/login")
+    resp.delete_cookie(COOKIE)
+    return resp
+
+
+@app.get("/media/{key:path}")
+def media(key: str):
+    data = storage.read_image(key)
+    if data is None:
+        return Response(status_code=404)
+    return Response(content=data, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=604800"})
+
+
+@app.get("/settings", dependencies=[Depends(require_login)])
+def settings_page(request: Request, db: Session = Depends(get_db)):
+    return render(request, "settings.html", s=get_settings(db))
+
+
+@app.post("/settings", dependencies=[Depends(require_login)])
+async def settings_save(request: Request, db: Session = Depends(get_db), studio_name: str = Form(""),
+                        studio_email: str = Form(""), studio_phone: str = Form(""), studio_website: str = Form(""),
+                        default_rate: str = Form("7.1"), logo: UploadFile | None = File(None)):
+    s = get_settings(db)
+    s.studio_name, s.studio_email, s.studio_phone, s.studio_website = studio_name, studio_email, studio_phone, studio_website
+    s.default_rate = ffloat(default_rate, 7.1)
+    if logo and logo.filename:
+        data = await logo.read()
+        if data:
+            s.logo_key = storage.save_image(data, "logo")
+    db.commit()
+    return redirect("/settings")
+
+
+app.include_router(projects.router)
+app.include_router(rooms.router)
+app.include_router(items.router)
+app.include_router(suppliers.router)
+app.include_router(payments.router)
+app.include_router(cartons.router)
+app.include_router(share.router)
+app.include_router(exports.router)
+app.include_router(importer.router)

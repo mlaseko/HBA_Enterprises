@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Mood board, floor plan &amp; cover</h1>
+<p class="muted small">These images go into the client schedule PDF: one cover image, floor plan pages, and mood board pages (6 images per page).</p>
+<form method="post" enctype="multipart/form-data" class="card">
+  <div class="grid g3">
+    <div><label>Type</label><select name="kind" class="in"><option value="mood">Mood board</option><option value="floorplan">Floor plan</option><option value="cover">Cover image</option></select></div>
+    <div><label>Caption (optional)</label><input class="in" type="text" name="caption"></div>
+    <div><label>Photos</label><input type="file" name="files" accept="image/*" multiple required><div class="filehint small muted"></div></div>
+  </div>
+  <div style="margin-top:10px"><button class="btn">Upload</button></div>
+</form>
+{% for kind, title in [('cover','Cover'),('floorplan','Floor plan'),('mood','Mood board')] %}
+<div class="card"><h2>{{ title }}</h2>
+  <div class="gallery">
+  {% for im in p.images if im.kind == kind %}
+    <div class="g"><img src="/media/{{ im.file_key }}" alt="">
+      <form method="post" action="/p/{{ p.id }}/images/{{ im.id }}/delete" onsubmit="return confirmSubmit(this,'Delete image?')"><button class="btn sm danger">×</button></form>
+      {% if im.caption %}<div class="small muted">{{ im.caption }}</div>{% endif %}</div>
+  {% else %}<span class="muted small">none yet</span>{% endfor %}
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

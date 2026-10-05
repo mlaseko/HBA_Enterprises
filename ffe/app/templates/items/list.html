@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row between"><h1>Items <span class="muted small">{{ items|length }} · ¥{{ total|money }} · ${{ (total/(p.rate or 1))|money }}</span></h1>
+  <a href="/p/{{ p.id }}/items/new?room={{ f.room if f.room not in ('', 'none') else '' }}&category={{ f.category }}" class="btn">+ Add item</a></div>
+<form method="get" class="card filters">
+  <select name="room" class="in"><option value="">All rooms</option>{% for r in p.rooms %}<option value="{{ r.id }}" {{ 'selected' if f.room == r.id|string }}>{{ r.label }}</option>{% endfor %}<option value="none" {{ 'selected' if f.room == 'none' }}>Unassigned</option></select>
+  <select name="category" class="in"><option value="">All categories</option>{% for c in CATEGORIES %}<option {{ 'selected' if f.category == c }}>{{ c }}</option>{% endfor %}</select>
+  <select name="status" class="in"><option value="">Any status</option>{% for st in STATUSES %}<option {{ 'selected' if f.status == st }}>{{ st }}</option>{% endfor %}</select>
+  <select name="supplier" class="in"><option value="">Any supplier</option>{% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if f.supplier == s.id|string }}>{{ s.name }}</option>{% endfor %}</select>
+  <input class="in" type="text" name="q" value="{{ f.q }}" placeholder="search">
+  <button class="btn sm">Filter</button> <a href="/p/{{ p.id }}/items" class="small">clear</a>
+  <span class="sp" style="flex:1"></span>
+  <a class="small" href="/p/{{ p.id }}/items?{{ request.url.query|replace('view=table','')|replace('view=cards','') }}&view={{ 'cards' if f.view == 'table' else 'table' }}">{{ 'Card view' if f.view == 'table' else 'Table view' }}</a>
+</form>
+{% if f.view == 'table' %}
+<div class="tbl"><table>
+<tr><th></th><th>Code</th><th>Item</th><th>Room</th><th>Category</th><th class="right">Qty</th><th class="right">Unit CNY</th><th class="right">Total CNY</th><th>Supplier</th><th>Status</th></tr>
+{% for i in items %}
+<tr><td>{% if i.cover %}<img class="thumb" style="width:40px;height:40px" src="/media/{{ i.cover.file_key }}">{% endif %}</td>
+<td class="small">{{ i.code }}</td><td><a href="/p/{{ p.id }}/items/{{ i.id }}" class="b">{{ i.name }}</a>{% if i.optional %} <span class="pill">optional</span>{% endif %}<div class="small muted">{{ i.size }}{% if i.finish %} · {{ i.finish }}{% endif %}</div></td>
+<td class="small">{{ i.room.name if i.room else '—' }}</td><td class="small">{{ i.category }}</td><td class="right">{{ i.qty|num }} {{ i.unit }}</td>
+<td class="right">{{ i.unit_price|money(2) if i.unit_price else '' }}</td><td class="right">{{ i.total|money if i.unit_price else '' }}</td>
+<td class="small">{{ i.supplier.name if i.supplier else '' }}</td>
+<td><select class="status-sel" data-url="/p/{{ p.id }}/items/{{ i.id }}/status" style="border-left:5px solid {{ STATUS_COLORS[i.status] }}">{% for st in STATUSES %}<option {{ 'selected' if i.status == st }}>{{ st }}</option>{% endfor %}</select></td></tr>
+{% endfor %}
+</table></div>
+{% else %}
+{% set ns = namespace(last='') %}
+{% for i in items %}
+  {% set grp = i.category ~ ' · ' ~ (i.room.name if i.room else 'Whole house') %}
+  {% if grp != ns.last %}<h2>{{ grp }}</h2>{% set ns.last = grp %}{% endif %}
+  <div class="item">
+    <a href="/p/{{ p.id }}/items/{{ i.id }}">{% if i.cover %}<img class="thumb" src="/media/{{ i.cover.file_key }}">{% else %}<div class="ph">no photo</div>{% endif %}</a>
+    <div class="body">
+      <div class="t"><a href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a>{% if i.optional %} <span class="pill">optional</span>{% endif %}</div>
+      <div class="m">{{ i.code }} · {{ i.qty|num }} {{ i.unit }}{% if i.unit_price %} × ¥{{ i.unit_price|money(2) }} = <b>¥{{ i.total|money }}</b>{% endif %}{% if i.supplier %} · {{ i.supplier.name }}{% endif %}</div>
+      <div class="m">{{ i.size }}{% if i.finish %} · {{ i.finish }}{% endif %}</div>
+      <div class="row" style="margin-top:4px"><select class="status-sel" data-url="/p/{{ p.id }}/items/{{ i.id }}/status" style="border-left:5px solid {{ STATUS_COLORS[i.status] }}">{% for st in STATUSES %}<option {{ 'selected' if i.status == st }}>{{ st }}</option>{% endfor %}</select></div>
+    </div>
+  </div>
+{% else %}<div class="card muted">No items match. <a href="/p/{{ p.id }}/items/new">Add one</a> or <a href="/p/{{ p.id }}/import">import the Excel</a>.</div>{% endfor %}
+{% endif %}
+<a href="/p/{{ p.id }}/items/new" class="btn fab hide-d">+ Item</a>
+{% endblock %}

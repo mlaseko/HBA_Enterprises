@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Studio settings</h1>
+<form method="post" enctype="multipart/form-data" class="card">
+  <div class="grid g2">
+    <div><label>Studio name (on PDFs and labels)</label><input class="in" type="text" name="studio_name" value="{{ s.studio_name }}"></div>
+    <div><label>Default USD/CNY rate for new projects</label><input class="in" type="number" step="0.0001" name="default_rate" value="{{ s.default_rate }}"></div>
+    <div><label>Phone / WeChat</label><input class="in" type="text" name="studio_phone" value="{{ s.studio_phone }}"></div>
+    <div><label>Email</label><input class="in" type="text" name="studio_email" value="{{ s.studio_email }}"></div>
+    <div><label>Website</label><input class="in" type="text" name="studio_website" value="{{ s.studio_website }}"></div>
+    <div><label>Logo (optional)</label><input type="file" name="logo" accept="image/*">
+      {% if s.logo_key %}<div style="margin-top:6px"><img src="/media/{{ s.logo_key }}" class="thumb"></div>{% endif %}</div>
+  </div>
+  <div style="margin-top:12px"><button class="btn">Save</button></div>
+</form>
+<div class="card small muted">
+  The app password, database and photo storage are set in Replit Secrets (see README). Nothing else to configure.
+</div>
+{% endblock %}

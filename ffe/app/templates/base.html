@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{% block title %}{{ APP_NAME }}{% endblock %}</title>
+<link rel="stylesheet" href="/static/app.css">
+<meta name="theme-color" content="#1F3A5F">
+</head>
+<body>
+{% block top %}
+<div class="top">
+  <a href="/" class="brand">{{ APP_NAME }}</a>
+  {% if p %}<span class="proj">· {{ p.client_name }} — {{ p.name }}</span>{% endif %}
+  <span class="sp"></span>
+  <a href="/suppliers" class="small">Suppliers</a>
+  <a href="/settings" class="small">Settings</a>
+  <a href="/logout" class="small">Log out</a>
+</div>
+{% if p %}
+{% set path = request.url.path %}
+<nav class="tabs">
+  <a href="/p/{{ p.id }}" class="{{ 'on' if path == '/p/' ~ p.id else '' }}">Overview</a>
+  <a href="/p/{{ p.id }}/items" class="{{ 'on' if '/items' in path else '' }}">Items</a>
+  <a href="/p/{{ p.id }}/rooms" class="{{ 'on' if '/rooms' in path else '' }}">Rooms</a>
+  <a href="/p/{{ p.id }}/suppliers" class="{{ 'on' if '/suppliers' in path else '' }}">Suppliers</a>
+  <a href="/p/{{ p.id }}/payments" class="{{ 'on' if '/payments' in path else '' }}">Payments</a>
+  <a href="/p/{{ p.id }}/cartons" class="{{ 'on' if '/cartons' in path else '' }}">Packing</a>
+  <a href="/p/{{ p.id }}/images" class="{{ 'on' if '/images' in path else '' }}">Mood board</a>
+  <a href="/p/{{ p.id }}/import" class="{{ 'on' if '/import' in path else '' }}">Import</a>
+</nav>
+{% endif %}
+{% endblock %}
+<main class="wrap">
+{% block content %}{% endblock %}
+</main>
+<script src="/static/app.js"></script>
+</body>
+</html>
