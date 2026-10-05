@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Project, ProjectImage, Item, ItemPhoto
 from ..common import render, redirect, require_login, fint
-from .. import storage, webimage
+from .. import storage, webimage, ai
 
 router = APIRouter(dependencies=[Depends(require_login)])
 
@@ -51,7 +51,12 @@ def clip_save(request: Request, db: Session = Depends(get_db), project_id: str =
     if not p:
         return redirect(f"/clip?err=Pick+a+project&url={page}&img={link}")
     try:
-        data = webimage.fetch_image(link or page)
+        data, text = webimage.fetch_image_and_text(link or page)
+        if page and not text and link and page != link:  # picture link given: read the page too for the auto-fill
+            try:
+                text = webimage.fetch_image_and_text(page)[1]
+            except webimage.WebImageError:
+                text = ""
     except webimage.WebImageError as e:
         from urllib.parse import quote
         return redirect(f"/clip?err={quote(str(e))}&url={quote(page)}&img={quote(link)}&project={p.id}")
@@ -61,8 +66,14 @@ def clip_save(request: Request, db: Session = Depends(get_db), project_id: str =
         db.add(item)
         db.flush()
         db.add(ItemPhoto(item_id=item.id, file_key=key, caption=caption))
+        filled = []
+        suggestion = ai.suggest_item(storage.read_image(key), text, page or link, [r.label for r in p.rooms])
+        if suggestion:
+            filled = ai.apply_suggestion(item, suggestion, p.rooms)
+            if filled:
+                item.notes = (item.notes + "\n" if item.notes else "") + "Filled in by Claude from the page; please check."
         db.commit()
-        return redirect(f"/p/{p.id}/drafts")
+        return redirect(f"/p/{p.id}/drafts" + ("?filled=" + str(item.id) if filled else ""))
     kind = dest if dest in ("mood", "floorplan", "cover") else "mood"
     db.add(ProjectImage(project_id=p.id, kind=kind, caption=caption, file_key=key))
     db.commit()

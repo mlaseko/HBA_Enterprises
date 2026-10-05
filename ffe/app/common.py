@@ -92,7 +92,7 @@ def fint(v, default=None):
 
 templates.env.filters["money"] = fmt_money
 templates.env.filters["num"] = fnum
-templates.env.globals.update(APP_NAME=config.APP_NAME, CATEGORIES=config.CATEGORIES, UNITS=config.UNITS,
+templates.env.globals.update(AI_ENABLED=lambda: bool(__import__('os').getenv('ANTHROPIC_API_KEY')), APP_NAME=config.APP_NAME, CATEGORIES=config.CATEGORIES, UNITS=config.UNITS,
                              STATUSES=config.STATUSES, STATUS_COLORS=config.STATUS_COLORS,
                              PAYMENT_KINDS=config.PAYMENT_KINDS)
 

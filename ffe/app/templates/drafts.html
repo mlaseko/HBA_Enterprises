@@ -22,6 +22,7 @@
     {% if d.cover %}<a class="shot" href="/media/{{ d.cover.file_key }}" target="_blank"><img class="thumb lg" src="/media/{{ d.cover.file_key }}" alt=""></a>{% else %}<div class="shot"><div class="ph lg">no photo</div></div>{% endif %}
     <form class="fields" method="post" action="/p/{{ p.id }}/drafts/{{ d.id }}">
       {% if err == d.id %}<div class="alert err">Give it a name to save it as an item.</div>{% endif %}
+      {% if filled == d.id %}<div class="alert"><svg class="ic sm"><use href="#i-sparkle"/></svg> Claude filled this in from the page. Check it, then save.</div>{% endif %}
       <label>Item / product name</label><input class="in" type="text" name="name" value="{{ d.name }}" required placeholder="e.g. Brass basin mixer, matt black"{% if err == d.id %} autofocus{% endif %}>
       <div class="grid stack g2">
         <div><label>Room</label><select name="room_id" class="in"><option value="">Whole house / not room-specific</option>{% for r in p.rooms %}<option value="{{ r.id }}" {{ 'selected' if d.room_id == r.id }}>{{ r.label }}</option>{% endfor %}</select></div>
