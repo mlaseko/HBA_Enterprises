@@ -30,15 +30,30 @@ Then set studio details under Settings and create or import a project.
 
 ## Photo storage and publishing
 
-Photo storage currently defaults to local files under `ffe/data/uploads`.
-This is suitable for workspace development only. Before publishing, configure
-the existing `replit` or `s3` storage backend with durable storage and ensure
-the published app has its database connection and required secrets.
+Photo storage is selected by `STORAGE_BACKEND`. Without that setting, it defaults
+to local files under `ffe/data/uploads`, suitable for workspace development only.
+For publishing, use the existing `replit` or `s3` backend with durable storage and
+ensure the published app has its database connection and required secrets.
 Do not rely on a published server's local disk for photos or SQLite.
+
+Publishing uses the root `.replit`, not `ffe/.replit`. Its build command installs
+`ffe/requirements.txt`, and its run command starts Uvicorn from `ffe/` on port
+5000, exactly as the workspace workflow does. Do not use the root `main.py` as
+the publishing entrypoint: it is a generated scaffold that prints a message and
+exits, not the app server.
+
+Publishing startup checks require an unauthenticated `GET /` to return HTTP 200.
+The root therefore renders the existing login page directly for unauthenticated
+visitors; other protected pages still redirect to login. Preserve authentication
+when changing this behavior.
+
+Configuration changes take effect only when the user republishes.
 
 ## Setup verification
 
 The server starts successfully, initializes its database, and serves the login
-page and static files in Preview. The login page was visually checked.
+page and static files in Preview. The root returns HTTP 200 without a redirect,
+and protected settings still redirect unauthenticated requests to login.
+The login page was visually checked.
 The signed-in UI has not been visually verified; authentication remains in
 place.

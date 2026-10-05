@@ -39,10 +39,6 @@ externalPort = 80
 defaultBucketID = "replit-objstore-780d78ce-ed63-4f14-9ddb-aef93eca704c"
 
 [deployment]
-deploymentTarget = "cloudrun"
-
-[deployment.run]
-args = ["sh", "-c", "/nix/store/mnjsfz2lyr84m1d51pygk55i4wa1lbc3-python3-wrapper/bin/python3 $file"]
-
-[deployment.run.env]
-file = "main.py"
+deploymentTarget = "autoscale"
+run = ["sh", "-c", "cd ffe && python -m uvicorn app.main:app --host 0.0.0.0 --port 5000"]
+build = ["sh", "-c", "python -m pip install -r ffe/requirements.txt"]
