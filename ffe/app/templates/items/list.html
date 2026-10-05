@@ -45,14 +45,14 @@
   {% for i in items %}
   <tr>
     <td>{% if i.cover %}<a href="/p/{{ p.id }}/items/{{ i.id }}"><img class="thumb sm" src="/media/{{ i.cover.file_key }}" alt=""></a>{% endif %}</td>
-    <td class="small muted">{{ i.code }}</td>
+    <td class="small muted nowrap">{{ i.code }}</td>
     <td><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a>{% if i.optional %} <span class="pill">optional</span>{% endif %}{% if i.size or i.finish %}<div class="small muted">{{ i.size }}{% if i.size and i.finish %} · {% endif %}{{ i.finish }}</div>{% endif %}</td>
     <td class="small">{{ i.room.name if i.room else '—' }}</td>
     <td class="small">{{ i.category }}</td>
     <td class="num">{{ i.qty|num }} {{ i.unit }}</td>
     <td class="num">{{ i.unit_price|money(2) if i.unit_price else '' }}</td>
     <td class="num">{{ i.total|money if i.unit_price else '' }}</td>
-    <td class="small">{{ i.supplier.name if i.supplier else '' }}</td>
+    <td class="small nowrap">{{ i.supplier.name if i.supplier else '' }}</td>
     <td><select class="status-sel" data-url="/p/{{ p.id }}/items/{{ i.id }}/status" style="--c:{{ STATUS_COLORS[i.status] }}" aria-label="Status">{% for st in STATUSES %}<option {{ 'selected' if i.status == st }}>{{ st }}</option>{% endfor %}</select></td>
   </tr>
   {% endfor %}
@@ -61,10 +61,10 @@
 
 {% else %}
 {% set counts = {} %}
-{% for i in items %}{% set grp = i.category ~ ' · ' ~ (i.room.name if i.room else 'Whole house') %}{% set _ = counts.update({grp: counts.get(grp, 0) + 1}) %}{% endfor %}
+{% for i in items %}{% set _ = counts.update({i.category: counts.get(i.category, 0) + 1}) %}{% endfor %}
 {% set ns = namespace(last='', open=false) %}
 {% for i in items %}
-  {% set grp = i.category ~ ' · ' ~ (i.room.name if i.room else 'Whole house') %}
+  {% set grp = i.category %}
   {% if grp != ns.last %}
     {% if ns.open %}</div>{% endif %}
     <div class="group-title"><h2>{{ grp }}</h2><span class="n">{{ counts[grp] }} item{{ 's' if counts[grp] != 1 }}</span></div>
@@ -75,7 +75,7 @@
     {% if i.cover %}<a class="pic" href="/p/{{ p.id }}/items/{{ i.id }}"><img src="/media/{{ i.cover.file_key }}" alt=""></a>{% else %}<a class="pic empty" href="/p/{{ p.id }}/items/{{ i.id }}">no photo</a>{% endif %}
     <div class="body">
       <div class="t"><a href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a></div>
-      <div class="m">{{ i.code }} · {{ i.qty|num }} {{ i.unit }}{% if i.unit_price %} · ¥{{ i.unit_price|money(2) }}/{{ i.unit }}{% endif %}</div>
+      <div class="m"><span class="pill">{{ i.room.name if i.room else 'Whole house' }}</span> {{ i.code }} · {{ i.qty|num }} {{ i.unit }}{% if i.unit_price %} · ¥{{ i.unit_price|money(2) }}/{{ i.unit }}{% endif %}</div>
       {% if i.unit_price %}<div class="price">¥{{ i.total|money }}</div>{% endif %}
       {% if i.supplier %}<div class="m"><svg class="ic sm"><use href="#i-truck"/></svg> {{ i.supplier.name }}</div>{% endif %}
       {% if i.size or i.finish %}<div class="m">{{ i.size }}{% if i.size and i.finish %} · {% endif %}{{ i.finish }}</div>{% endif %}

@@ -19,7 +19,7 @@
   <summary><svg class="ic"><use href="#i-plus"/></svg>Add supplier</summary>
   <form method="post" action="/suppliers/new" class="mt">
     <input type="hidden" name="back" value="{{ request.url.path }}">
-    <div class="grid g3">
+    <div class="grid stack g3">
       <div><label>Name</label><input class="in" type="text" name="name" placeholder="Foshan Tile Co." required></div>
       <div><label>City / market</label><input class="in" type="text" name="city" placeholder="Foshan - Nanzhuang"></div>
       <div><label>What they supply</label><input class="in" type="text" name="category" placeholder="Tiles"></div>

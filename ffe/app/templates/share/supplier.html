@@ -26,7 +26,15 @@
 </div>
 
 <div class="group-title"><h2>Your items ({{ items|length }})</h2></div>
-<div class="tbl"><table>
+<div class="hide-d">
+{% for i in items %}
+<div class="item">{% if i.cover %}<img class="thumb" src="/media/{{ i.cover.file_key }}" alt="">{% else %}<div class="ph">no photo</div>{% endif %}
+  <div class="body"><div class="t">{{ i.name }}</div>
+    <div class="m">{{ i.code }}{% if i.spec %} · {{ i.spec }}{% endif %}{% if i.size or i.finish %} · {{ i.size }} {{ i.finish }}{% endif %}</div>
+    <div class="row mt" style="margin-top:6px"><span class="pill">{{ i.room.label if i.room else 'ALL' }}</span><span class="sp"></span><b>{{ i.qty|num }} {{ i.unit }}</b></div></div></div>
+{% else %}<div class="card muted small">No items assigned to you yet.</div>{% endfor %}
+</div>
+<div class="tbl hide-m"><table>
 <thead><tr><th></th><th>Code</th><th>Item</th><th>Spec</th><th>Size / finish</th><th>Room</th><th class="num">Qty</th></tr></thead>
 <tbody>
 {% for i in items %}<tr>

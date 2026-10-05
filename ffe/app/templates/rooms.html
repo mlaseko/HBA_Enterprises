@@ -32,11 +32,11 @@
     <span class="pill accent">{{ r.code }}</span>
     <span class="b">{{ r.name }}</span>{% if r.floor %}<span class="muted small">{{ r.floor }}</span>{% endif %}
     <span class="sp"></span>
-    <span class="pill">{{ st.count if st else 0 }} items<span class="hide-m">· ¥{{ (st.total if st else 0)|money }}{% if st and st.received %} · {{ st.received }} recv{% endif %}</span></span>
+    {% set n = st.count if st else 0 %}<span class="pill">{{ n }} item{{ 's' if n != 1 }}<span class="hide-m">· ¥{{ (st.total if st else 0)|money }}{% if st and st.received %} · {{ st.received }} recv{% endif %}</span></span>
   </summary>
   <div class="small muted hide-d mt">¥{{ (st.total if st else 0)|money }} ordered{% if st and st.received %} · {{ st.received }} received{% endif %}</div>
   <form method="post" action="/p/{{ p.id }}/rooms/{{ r.id }}" class="mt">
-    <div class="grid g4">
+    <div class="grid stack g4">
       <div><label>Code</label><input class="in" type="text" name="code" value="{{ r.code }}"></div>
       <div><label>Name</label><input class="in" type="text" name="name" value="{{ r.name }}"></div>
       <div><label>Floor</label><input class="in" type="text" name="floor" value="{{ r.floor }}"></div>
