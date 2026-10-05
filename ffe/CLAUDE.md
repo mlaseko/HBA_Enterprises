@@ -59,6 +59,10 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
   `.accent .sage .gold .ink`), `.btn` (`.sec .ghost .accent/.gold .soft .danger .sm .lg .block .icon`),
   `.tbl > table` (`th/td.num` right-aligned), `.badge` with `style="--c:…"` for statuses, `.pill` for labels,
   `.item` rows and `.cards > .item-card` grids, `.group-title`, `.docs > .doc`, `.empty`, `.alert`.
+- Brand: the HBA Interiors logo (PNG at the repo root) is served as `app/static/logo.png` (white, for dark
+  panes), `app/static/brand-mark.png` (house glyph for the brand tile), `app/static/brand/logo-ink.png` (dark,
+  for light backgrounds, e.g. share-page footers) and `app/static/brand/favicon.png` / `touch-icon.png`.
+  The shell shows the glyph unless a studio logo is uploaded in Settings.
 - Icons: inline `<svg class="ic"><use href="#i-NAME"/></svg>` from the sprite in base.html. Add new symbols
   there, never an icon font or CDN.
 - Yellow (`class="in"`) still means "the user types here". Use `.grid .g2/.g3/.g4` + `.span2…` instead of

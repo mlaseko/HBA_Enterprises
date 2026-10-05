@@ -349,6 +349,8 @@ details summary{cursor:pointer;color:var(--ink);font-weight:600;margin:0}
 
 /* share/client.html — presentation-size hero title and larger mood-board tiles (optional: page falls back to the standard .hero/.gallery look without these) */
 .hero.client h1{font-size:2rem}
+.hero.client .hero-logo{height:52px;width:auto;display:block;position:relative;z-index:1;margin-bottom:16px}
+.pub-foot{text-align:center;margin:0 0 10px}.pub-foot .foot-logo{height:46px;width:auto;opacity:.8}
 @media(min-width:701px){.hero.client{padding:40px 36px}.hero.client h1{font-size:2.6rem}}
 .gallery.wide img{width:160px;height:160px}
 .gallery.wide .g .cap{max-width:160px}

@@ -53,7 +53,7 @@
   <div class="card soft">
     <div class="eyebrow">How clients and suppliers see you</div>
     <div class="row mt">
-      <span class="mark">{% if s.logo_key %}<img src="/media/{{ s.logo_key }}" alt="">{% else %}{{ (s.studio_name or APP_NAME)[:1] }}{% endif %}</span>
+      <span class="mark">{% if s.logo_key %}<img src="/media/{{ s.logo_key }}" alt="">{% else %}<img class="glyph" src="/static/brand-mark.png" alt="">{% endif %}</span>
       <div>
         <div class="b">{{ s.studio_name or APP_NAME }}</div>
         <div class="muted small">Header of every share page and PDF</div>

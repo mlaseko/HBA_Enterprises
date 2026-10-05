@@ -90,5 +90,7 @@
 {% else %}<tr><td colspan="9" class="muted center">No cartons listed yet. Add the first one above.</td></tr>{% endfor %}
 </tbody></table></div>
 
-<p class="muted small mt-l">Questions: {{ studio.studio_name or APP_NAME }}{% if studio.studio_phone %} · {{ studio.studio_phone }}{% endif %}{% if studio.studio_email %} · {{ studio.studio_email }}{% endif %}</p>
+<div class="divider mt-l"></div>
+<div class="pub-foot"><img class="foot-logo" src="/static/brand/logo-ink.png" alt=""></div>
+<p class="muted small">Questions: {{ studio.studio_name or APP_NAME }}{% if studio.studio_phone %} · {{ studio.studio_phone }}{% endif %}{% if studio.studio_email %} · {{ studio.studio_email }}{% endif %}</p>
 {% endblock %}
