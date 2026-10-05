@@ -10,10 +10,11 @@
 </div>
 
 {% if err %}<div class="alert err">{{ err }}</div>{% endif %}
+{% if own_page %}<div class="alert info">The button was tapped while you were on HBA itself, so there is no picture to save. Open the supplier page or Pinterest pin first, then tap <b>Save to HBA</b> from your bookmarks.</div>{% endif %}
 
-{% if url or img %}
-<form method="post" class="card">
-  <h2><svg class="ic"><use href="#i-link"/></svg> Save this picture</h2>
+<form method="post" class="card" id="clipform">
+  <h2><svg class="ic"><use href="#i-link"/></svg> {{ 'Save this picture' if (url or img) else 'Save a picture from a link' }}</h2>
+  {% if url or img %}
   <div class="row top mt">
     {% if img %}<img class="thumb lg" src="{{ img }}" alt="Preview" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ph lg',textContent:'No preview'}))">{% else %}<div class="ph lg">Page’s main picture</div>{% endif %}
     <div class="sp">
@@ -21,7 +22,14 @@
       <div class="b small" style="word-break:break-all">{{ url or img }}</div>
     </div>
   </div>
+  {% endif %}
   <div class="grid g2 stack mt">
+    <div class="span2"><label for="cl-link">{{ 'Picture link (edit if the wrong picture was picked; a page link also works)' if (url or img) else 'Link to the pin, product page or picture' }}</label>
+      <div class="row nowrap">
+        <input id="cl-link" class="in sp" type="url" name="link" value="{{ img }}" placeholder="https://…" autocomplete="off" inputmode="url" {{ 'required' if not (url or img) }}>
+        <button type="button" class="btn sec" id="cl-paste" title="Paste from clipboard"><svg class="ic"><use href="#i-copy"/></svg>Paste</button>
+      </div>
+      {% if not (url or img) %}<div class="help">On the pin or product page tap Share → Copy link, come back here and tap Paste.</div>{% endif %}</div>
     <div><label for="cl-project">Project</label><select id="cl-project" name="project_id" class="in" required>
       <option value="">— choose —</option>{% for pr in projects %}<option value="{{ pr.id }}" {{ 'selected' if pre_project == pr.id or (not pre_project and loop.first) }}>{{ pr.name }} · {{ pr.client_name }}</option>{% endfor %}</select></div>
     <div><label for="cl-dest">Save as</label><select id="cl-dest" name="dest" class="in">
@@ -29,17 +37,26 @@
       <option value="mood">Mood board image</option>
       <option value="cover">Cover image</option>
       <option value="floorplan">Floor plan</option></select></div>
-    <div class="span2"><label for="cl-link">Picture link (edit if the wrong picture was picked; a page link also works)</label>
-      <input id="cl-link" class="in" type="url" name="link" value="{{ img }}" placeholder="https://…" autocomplete="off"></div>
-    <div><label for="cl-cap">Caption (optional)</label><input id="cl-cap" class="in" type="text" name="caption"></div>
+    <div class="span2"><label for="cl-cap">Caption (optional)</label><input id="cl-cap" class="in" type="text" name="caption"></div>
     <input type="hidden" name="page" value="{{ url }}">
   </div>
   <div class="form-actions">
     <button class="btn"><svg class="ic"><use href="#i-check"/></svg>Save to project</button>
-    <a class="btn ghost" href="/clip">Cancel</a>
+    {% if url or img %}<a class="btn ghost" href="/clip">Cancel</a>{% endif %}
   </div>
 </form>
-{% endif %}
+<script>
+(function(){
+  var f=document.getElementById('clipform'), pr=document.getElementById('cl-project'), de=document.getElementById('cl-dest'), ln=document.getElementById('cl-link');
+  try{ var m=JSON.parse(localStorage.getItem('clip.last')||'{}');
+    if(!{{ 'true' if pre_project else 'false' }} && m.project && pr.querySelector('option[value="'+m.project+'"]')) pr.value=m.project;
+    if(m.dest) de.value=m.dest; }catch(e){}
+  f.addEventListener('submit',function(){ try{ localStorage.setItem('clip.last',JSON.stringify({project:pr.value,dest:de.value})); }catch(e){} });
+  document.getElementById('cl-paste').addEventListener('click',function(){
+    if(navigator.clipboard&&navigator.clipboard.readText){ navigator.clipboard.readText().then(function(t){ if(t){ ln.value=t.trim(); ln.focus(); } }).catch(function(){ ln.focus(); }); } else { ln.focus(); }
+  });
+})();
+</script>
 
 <div class="grid g3 stack">
   <div class="card span2">
@@ -47,7 +64,17 @@
     <p class="small muted">Drag this link to your browser’s bookmarks bar. Then, on any website, click <b>Save to HBA</b>: it picks the page’s main picture and opens the form above.</p>
     <p class="mt"><a class="btn accent lg" href="{{ bookmarklet }}" onclick="return false" title="Drag me to the bookmarks bar"><svg class="ic"><use href="#i-link"/></svg>Save to HBA</a></p>
     <div class="divider"></div>
-    <div class="eyebrow">On iPhone or iPad (Safari)</div>
+    <div class="eyebrow">iPhone: Share → Save to HBA (one-time setup, about a minute)</div>
+    <ol class="small">
+      <li>Open the <b>Shortcuts</b> app, tap <b>+</b>, name it <b>Save to HBA</b>.</li>
+      <li>Tap the <b>ⓘ</b> info button, turn on <b>Show in Share Sheet</b>, and under “Receive” keep <b>URLs</b> and <b>Safari web pages</b> ticked.</li>
+      <li>Add the action <b>URL</b> and type this address, then tap <b>Shortcut Input</b> from the suggestions bar right after the <code>=</code>:
+        <div class="row mt"><input class="in small sp" id="sc-url" readonly value="{{ bookmarklet_origin }}/clip?url=" style="font-family:ui-monospace,monospace;font-size:.78rem"><button type="button" class="btn sec sm" onclick="copyText(document.getElementById('sc-url').value,this)">Copy</button></div></li>
+      <li>Add the action <b>Open URLs</b>. Done.</li>
+    </ol>
+    <p class="small muted">From then on, in Safari, Pinterest or the Taobao app: tap <b>Share</b> → <b>Save to HBA</b>. The page opens here with the picture ready to save.</p>
+    <div class="divider"></div>
+    <div class="eyebrow">Safari bookmark instead (same button, no Shortcut)</div>
     <ol class="small">
       <li>Bookmark any page (Share → Add Bookmark) and call it <b>Save to HBA</b>.</li>
       <li>Copy the code below, open Bookmarks → Edit the bookmark, paste it as the address.</li>
@@ -60,7 +87,7 @@
   </div>
   <div class="card soft">
     <div class="eyebrow">No button? Paste a link</div>
-    <p class="small muted mt">Every item form and the Mood board page also take a pasted link: a picture address or the product page itself.</p>
+    <p class="small muted mt">Tap Share → Copy link on the pin or product page, then use the Paste button above. Every item form and the Mood board page take a pasted link too.</p>
     <div class="divider"></div>
     <div class="eyebrow">Good to know</div>
     <ul class="small muted">
