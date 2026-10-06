@@ -6,7 +6,9 @@ APP_PASSWORD = os.getenv("APP_PASSWORD")
 if not SECRET_KEY or not APP_PASSWORD:
     raise RuntimeError("Set APP_PASSWORD and SECRET_KEY (or SESSION_SECRET) in Replit Secrets before starting the app.")
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/app.db")
-STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "local")  # local | replit | s3
+# local | replit | s3. On Replit the default is Object Storage: the local disk is not shared between the workspace
+# and the published app (or between autoscale instances), so photos saved there vanish on other computers.
+STORAGE_BACKEND = os.getenv("STORAGE_BACKEND") or ("replit" if os.getenv("REPL_ID") else "local")
 LOCAL_UPLOAD_DIR = os.getenv("LOCAL_UPLOAD_DIR", "./data/uploads")
 S3_BUCKET = os.getenv("S3_BUCKET", "")
 S3_ENDPOINT = os.getenv("S3_ENDPOINT", "")

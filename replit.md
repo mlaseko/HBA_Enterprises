@@ -31,7 +31,11 @@ Then set studio details under Settings and create or import a project.
 ## Photo storage and publishing
 
 Photo storage is selected by `STORAGE_BACKEND`. Without that setting, it defaults
-to local files under `ffe/data/uploads`, suitable for workspace development only.
+to Replit Object Storage when running on Replit (the bucket in `.replit`), and to
+local files under `ffe/data/uploads` elsewhere. Local files are not shared between
+the workspace and the published app, so photos saved there do not show on other
+computers. A photo still found on the server's disk is copied into the bucket the
+first time it is viewed.
 For publishing, use the existing `replit` or `s3` backend with durable storage and
 ensure the published app has its database connection and required secrets.
 Do not rely on a published server's local disk for photos or SQLite.

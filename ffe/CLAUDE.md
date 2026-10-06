@@ -31,7 +31,8 @@ app/models.py          Settings, Project, ProjectImage, Room, Supplier, Supplier
                        Item.draft = quick-capture draft (no name/code yet); Project.live_items / Project.drafts split them
 app/common.py          templates, auth helpers, number filters, render()/redirect()
 app/services.py        summary() for dashboards, next_code(), carton_positions(), container_for()
-app/storage.py         save_image/read_image/delete_image — backends: local | replit | s3
+app/storage.py         save_image/read_image/delete_image — backends: local | replit | s3 (replit is the default when
+                       REPL_ID is set; read_image copies a photo found only on local disk into the bucket)
 app/webimage.py        fetch_image(url): picture bytes from a direct image link or a page (og:image / largest <img>);
                        stdlib only, refuses private addresses, raises WebImageError with a message for the page
 app/ai.py              Claude auto-fill (off without ANTHROPIC_API_KEY): suggest_item(image, page_text, url, rooms) → dict via
