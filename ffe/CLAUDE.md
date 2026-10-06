@@ -131,6 +131,11 @@ ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;   -- quick ca
   item form has "Fill in with Claude" (`POST /p/<id>/items/<id>/suggest`, empty fields only). Model `claude-opus-5-5`
   (override `CLAUDE_MODEL`), effort low, JSON-schema output, server-side refusal fallback. Secrets: `ANTHROPIC_API_KEY`.
 
+- **Items in several rooms.** No schema change: the same product in several rooms stays one `Item` row per room (own
+  code, qty, status, cartons) and rows are grouped by name (`items.same_item_elsewhere`, case/space-insensitive).
+  New item form posts `room_ids` (checklist, one row per room, photos copied per row); the edit form has
+  `apply_all` (copies `SHARED_FIELDS` to the other rooms' rows) and `add_room_ids` (copies this item into more rooms).
+
 ## Backlog (in priority order)
 
 1. **Receiving on the phone.** Per-room checklist page with tap-to-tick for packed / received / installed per

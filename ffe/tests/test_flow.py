@@ -186,6 +186,33 @@ with TestClient(app) as c:
     r=c.get(f"/p/{pid}/items/{d3}"); assert "quick-capture draft" in r.text
     r=c.post(f"/p/{pid}/items/{d3}", data={"room_id":room.id,"category":"Hardware","name":"Door stop","qty":"6","unit":"pcs","unit_price":"15","status":"To buy"}, follow_redirects=False); assert r.status_code==303
     db=SessionLocal(); it=db.get(Item,d3); assert not it.draft and it.code.startswith("GF-KIT-") and it.code!=code; db.close()
+    # one item added to several rooms at once: one row per room, each with its own code and photo copy
+    db=SessionLocal(); rms=db.query(Room).filter(Room.project_id==int(pid)).order_by(Room.sort).limit(3).all(); rids=[x.id for x in rms]; rcodes=[x.code for x in rms]; db.close()
+    r=c.get(f"/p/{pid}/items/new"); assert 'name="room_ids"' in r.text
+    r=c.post(f"/p/{pid}/items/new", data={"room_ids":[str(x) for x in rids],"category":"Electrical","name":"Air conditioner 12000 BTU","spec":"Inverter split","qty":"1","unit":"pcs","unit_price":"2100","status":"To buy"},
+             files=[("photos",("ac.jpg",img("white"),"image/jpeg"))], follow_redirects=False)
+    assert "/items?q=" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); acs=db.query(Item).filter(Item.project_id==int(pid), Item.name=="Air conditioner 12000 BTU").all()
+    assert sorted(a.room_id for a in acs)==sorted(rids) and all(len(a.photos)==1 for a in acs)
+    assert len({a.photos[0].file_key for a in acs})==3 and all(a.code.split("-")[:-1]==a.room.code.split("-") for a in acs)
+    ac_ids=[a.id for a in acs]; db.close()
+    # edit specs once, applied to every room using the item; per-room qty/status stay
+    db=SessionLocal(); slabs=db.query(Item).filter(Item.project_id==int(pid), Item.name=="Floor - big porcelain slab (+ extra % for cuts)").all()
+    assert len(slabs)>3; s0=slabs[0]; qtys={x.id:x.qty for x in slabs}; s1=slabs[1]; s1.status="Ordered"; db.commit(); s0id, s1id=s0.id, s1.id; room0=s0.room_id; db.close()
+    r=c.get(f"/p/{pid}/items/{s0id}"); assert 'name="apply_all"' in r.text and f"{len(slabs)-1} other rooms" in r.text
+    r=c.post(f"/p/{pid}/items/{s0id}", data={"room_id":room0,"category":"Tiles","name":"Floor - big porcelain slab (+ extra % for cuts)","spec":"Calacatta look, 9 mm","size":"1600 x 3200 mm","qty":"5","unit":"sqm","unit_price":"88","status":"Quoted","apply_all":"1"}, follow_redirects=False)
+    db=SessionLocal(); slabs=db.query(Item).filter(Item.project_id==int(pid), Item.name=="Floor - big porcelain slab (+ extra % for cuts)").all()
+    assert all(x.spec=="Calacatta look, 9 mm" and x.size=="1600 x 3200 mm" and x.unit_price==88 for x in slabs)
+    assert all(x.qty==qtys[x.id] for x in slabs if x.id!=s0id) and db.get(Item,s1id).status=="Ordered"; db.close()
+    # without the tick only this room changes
+    r=c.post(f"/p/{pid}/items/{s0id}", data={"room_id":room0,"category":"Tiles","name":"Floor - big porcelain slab (+ extra % for cuts)","spec":"Only here","qty":"5","unit":"sqm","status":"Quoted"}, follow_redirects=False)
+    db=SessionLocal(); assert db.get(Item,s0id).spec=="Only here" and db.get(Item,s1id).spec=="Calacatta look, 9 mm"; db.close()
+    # add an existing item to more rooms from its page
+    db=SessionLocal(); extra=[x for x in db.query(Room).filter(Room.project_id==int(pid)).all() if x.id not in rids][:2]; extra_ids=[x.id for x in extra]; db.close()
+    r=c.post(f"/p/{pid}/items/{ac_ids[0]}", data={"room_id":rids[0],"category":"Electrical","name":"Air conditioner 12000 BTU","spec":"Inverter split","qty":"1","unit":"pcs","unit_price":"2100","status":"Ordered","add_room_ids":[str(x) for x in extra_ids]}, follow_redirects=False)
+    db=SessionLocal(); acs=db.query(Item).filter(Item.project_id==int(pid), Item.name=="Air conditioner 12000 BTU").all()
+    assert len(acs)==5 and {a.room_id for a in acs}==set(rids+extra_ids)
+    new=[a for a in acs if a.room_id in extra_ids]; assert all(a.status=="To buy" and len(a.photos)==1 and a.code for a in new); db.close()
     # shared storage: a photo still on this server's disk is served and copied into the bucket
     class _Fake:
         def __init__(self): self.b={}

@@ -20,7 +20,13 @@
 
 <form method="post" enctype="multipart/form-data" class="card" id="itemform">
   <div class="grid g2 stack">
-    <div><label>Room</label><select name="room_id" class="in"><option value="">Whole house / not room-specific</option>{% for r in p.rooms %}<option value="{{ r.id }}" {{ 'selected' if (it and it.room_id == r.id) or (not it and pre_room == r.id) }}>{{ r.label }}</option>{% endfor %}</select></div>
+    {% if it %}
+    <div><label>Room</label><select name="room_id" class="in"><option value="">Whole house / not room-specific</option>{% for r in p.rooms %}<option value="{{ r.id }}" {{ 'selected' if it.room_id == r.id }}>{{ r.label }}</option>{% endfor %}</select></div>
+    {% else %}
+    <div class="span2"><label>Rooms <span class="muted small">(tick every room that gets this item; none = whole house)</span></label>
+      <div class="room-picks">{% for r in p.rooms %}<label class="check"><input type="checkbox" name="room_ids" value="{{ r.id }}" {{ 'checked' if pre_room == r.id }}> {{ r.label }}</label>{% endfor %}</div>
+      <div class="help">Each ticked room gets its own line with its own code, status and quantity. Qty below is per room; adjust any room afterwards.</div></div>
+    {% endif %}
     <div><label>Category (schedule)</label><select name="category" class="in">{% for c in CATEGORIES %}<option {{ 'selected' if (it and it.category == c) or (not it and pre_cat == c) }}>{{ c }}</option>{% endfor %}</select></div>
     <div class="span2"><label>Item / product name</label><input class="in" type="text" name="name" value="{{ it.name if it else '' }}" required placeholder="e.g. Wall-hung WC, rimless, soft-close seat"{% if it and it.draft %} autofocus{% endif %}></div>
     <div class="span2"><label>Must-have spec (what the supplier must deliver)</label><textarea class="in" name="spec">{{ it.spec if it else '' }}</textarea></div>
@@ -58,6 +64,21 @@
       <input class="in" type="url" name="photo_url" inputmode="url" placeholder="https://…" autocomplete="off">
       <div class="help">The picture is downloaded and stored with the item when you save. <a href="/clip">Set up the one-click “Save from web” button</a>.</div></div>
   </div>
+
+  {% if it and not it.draft %}
+  <div class="divider"></div>
+  <div class="eyebrow">Other rooms</div>
+  {% if others %}
+  <label class="check"><input type="checkbox" name="apply_all" value="1" checked> Apply name, category, spec, size, finish, brand, price, unit, lead time and supplier changes to the {{ others|length }} other room{{ 's' if others|length > 1 }} using this item</label>
+  <div class="help">Also in: {% for o in others %}<a href="/p/{{ p.id }}/items/{{ o.id }}">{{ o.code }}</a>{{ ', ' if not loop.last }}{% endfor %}. Their quantity, status, notes and photos stay as they are.</div>
+  {% else %}<p class="muted small">This item is only used in this room.</p>{% endif %}
+  {% if free_rooms %}
+  <details class="mt"><summary>Add this item to more rooms</summary>
+    <div class="room-picks">{% for r in free_rooms %}<label class="check"><input type="checkbox" name="add_room_ids" value="{{ r.id }}"> {{ r.label }}</label>{% endfor %}</div>
+    <div class="help">Each ticked room gets a copy (same spec, qty and photos, status “To buy”) with its own code.</div>
+  </details>
+  {% endif %}
+  {% endif %}
 
   <div class="form-actions">
     <button class="btn"><svg class="ic"><use href="#i-check"/></svg>Save</button>
