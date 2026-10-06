@@ -99,7 +99,7 @@ def room_checklist(p, studio, room) -> bytes:
         story += [Paragraph(f"FLOOR PLAN &mdash; {escape(room.label)}", S["h1"]),
                   Paragraph(escape(f"Find {room.label} on: {drawings.plan_caption(plan) or 'floor plan'}"), S["grey"]),
                   img_flowable(plan.best_key, W, doc.height - 26 * mm), PageBreak()]
-    story += [Paragraph(f"ROOM CHECKLIST &mdash; {escape(room.label if room else 'Whole house')}", S["h1"]),
+    story += [Paragraph(f"{'AREA' if room is not None and room.is_area else 'ROOM'} CHECKLIST &mdash; {escape(room.label if room else 'Whole house')}", S["h1"]),
               Paragraph(f"{escape(p.name)} &nbsp; {escape(p.client_name)} &nbsp; {today()}", S["grey"]), Spacer(1, 3 * mm)]
     cols = ["Photo", "Code", "Item", "Spec", "Size / Finish", "Qty", "Supplier", "Status", "Packed", "Received", "Installed"]
     widths = [18, 16, 46, 60, 36, 12, 30, 16, 14, 14, 14]

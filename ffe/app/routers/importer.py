@@ -6,7 +6,7 @@ from openpyxl import load_workbook
 from ..db import get_db
 from ..models import Project, Room, Item, Supplier
 from ..common import render, redirect, require_login, get_project, ffloat
-from ..services import next_code
+from ..services import next_code, guess_kind
 from .. import config
 
 router = APIRouter(dependencies=[Depends(require_login)])
@@ -82,12 +82,18 @@ async def do_import(request: Request, p: Project = Depends(get_project), db: Ses
                     code, name = label[:12].upper().replace(" ", "-"), label
                 code = code.strip().upper()
                 r = rooms_by_code.get(code.lower())
+                new_room = r is None
                 if not r:
                     sort += 1
                     r = Room(project_id=p.id, code=code, name=name.strip(), sort=sort)
                     db.add(r)
                     result["rooms"] += 1
                 r.floor = str(col(h, row, "floor") or r.floor or "")
+                kind = str(col(h, row, "kind", "type") or "").strip().lower()
+                if kind in ("room", "area"):
+                    r.kind = kind
+                elif new_room:
+                    r.kind = guess_kind(r.name, r.floor)  # entrance, corridors, stairs, balconies... = area
                 r.floor_area = ffloat(col(h, row, "floor area m²", "floor area", "floor area m2"), r.floor_area)
                 r.wall_area = ffloat(col(h, row, "wall tile m²", "wall tile m2", "wall area"), r.wall_area)
                 r.notes = str(col(h, row, "notes") or r.notes or "")

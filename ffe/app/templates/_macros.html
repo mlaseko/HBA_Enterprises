@@ -1,0 +1,10 @@
+{# Shared pieces. room_options: <option>s for a room select, rooms first, then areas (both groups only when there are areas). #}
+{% macro room_options(rooms, selected) %}
+{% set sel = selected|string %}
+{% set areas = rooms|selectattr('is_area')|list %}
+{% set proper = rooms|rejectattr('is_area')|list %}
+{% if areas %}<optgroup label="Rooms">{% endif %}
+{% for r in proper %}<option value="{{ r.id }}" {{ 'selected' if r.id|string == sel }}>{{ r.label }}</option>{% endfor %}
+{% if areas %}</optgroup><optgroup label="Areas">{% for r in areas %}<option value="{{ r.id }}" {{ 'selected' if r.id|string == sel }}>{{ r.label }}</option>{% endfor %}</optgroup>{% endif %}
+{% endmacro %}
+{% macro room_pill(r) %}<span class="pill {{ 'area' if r.is_area else 'accent' }}" title="{{ r.kind_title }}">{{ r.code }}</span>{% endmacro %}

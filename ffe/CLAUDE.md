@@ -26,18 +26,20 @@ openpyxl. Hosted on Replit (autoscale deployment, imports from GitHub).
 ```
 app/main.py            app, login/logout, /settings, /help (user guide = templates/help.html), /media/<key>
 app/config.py          env vars + constant lists (CATEGORIES, STATUSES, UNITS …)
-app/db.py              engine/session; create_all on startup (no migrations yet)
-app/models.py          Settings, Project, ProjectImage, PlanTag, RoomPin, ItemPin, DrawingSet, Room, Supplier, SupplierLink, Item, ItemPhoto,
+app/db.py              engine/session; create_all on startup + migrate(): COLUMN_MIGRATIONS adds columns to existing tables
+app/models.py          Settings, Project, ProjectImage, PlanTag, RoomPin, ItemPin, DrawingSet, DrawingPage (title block per page),
+                       Room (kind = room | area; is_area), Supplier, SupplierLink, Item, ItemPhoto,
                        ItemPrice (the typed USD price; Item.price_currency / price_amount), Payment, Carton
                        Item.draft = quick-capture draft (no name/code yet); Project.live_items / Project.drafts split them
 app/common.py          templates, auth helpers, number filters, render()/redirect()
-app/services.py        summary() for dashboards, next_code(), set_price()/copy_price() (CNY storage, USD entry), carton_positions(),
-                       container_for()
+app/services.py        summary() for dashboards (by_room rows carry kind), next_code(), guess_kind() (room | area from the name),
+                       set_price()/copy_price() (CNY storage, USD entry), carton_positions(), container_for()
 app/storage.py         save_image(max_px=)/save_blob/read_image/delete_image — backends: local | replit | s3 (replit is the
                        default when REPL_ID is set; read_image copies a photo found only on local disk into the bucket)
 app/drawings.py        floor plans: render_page()/page_count() via pypdfium2 (optional import), floor_key()/floor_title()
                        matching plans to Room.floor, rooms_by_floor(), plan_for_room(), client_plans();
-                       interactive plan: rooms_for_plan(), pins_by_room(), plan_with_room(), default_plan(), clamp_box(), clamp_point()
+                       interactive plan: rooms_for_plan(), pins_by_room(), plan_with_room(), default_plan(), clamp_box(), clamp_point();
+                       rooms vs areas: split_kinds(), count_label(); PDF title blocks: page_text(), read_title_block()
 app/webimage.py        fetch_image(url): picture bytes from a direct image link or a page (og:image / largest <img>);
                        stdlib only, refuses private addresses, raises WebImageError with a message for the page
 app/ai.py              Claude auto-fill (off without ANTHROPIC_API_KEY): suggest_item(image, page_text, url, rooms) → dict via
@@ -114,11 +116,18 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
   `routers/share.py` and the `/s/… /c/…` PDF routes in `exports.py`. Never expose other routes without login.
 - Photos: compressed in the browser (`app.js`) and again server-side (`storage.process_image`, max 1600 px JPEG).
   Always go through `storage.py`; never write files directly.
-- Schema changes: edit `models.py` **and** add the `ALTER TABLE` to README "Schema changes" (production is Neon;
-  `create_all` only creates missing tables, it does not add columns). Prefer a new table over a new column on an
-  existing table (a new table needs no ALTER, e.g. `plan_tags`). Adding Alembic is a welcome backlog item.
+- Schema changes: a new table needs only `models.py` (`create_all`). A new column on an existing table needs
+  `models.py` **and** a line in `db.COLUMN_MIGRATIONS` (table, column, SQL type/default); `migrate()` adds it at startup
+  on SQLite and Neon, so nothing is run by hand. Still prefer a new table when the data is optional (e.g. `plan_tags`).
+  Adding Alembic is a welcome backlog item.
+- Rooms vs areas: `Room.kind` is `room` or `area`. Both carry codes, items, boxes and pins identically; the difference is
+  wording, grouping and counting: list rooms first, then areas under a sub-title (`drawings.rooms_by_floor` gives
+  `rooms` / `areas` / `all`; `summary()['by_room']` rows carry `kind`; the `_macros.html` `room_options` macro groups
+  selects). Never hide areas or their items. `services.guess_kind` classifies by name (config.AREA_WORDS); the designer
+  can override on the Rooms page.
 - Drawings are a reference only. Nothing may create rooms or items from a floor plan; the designer chooses the scope.
-  Room boxes on the Plan page are drawn by the designer (`RoomPin`); never place them automatically.
+  Room boxes on the Plan page are drawn by the designer (`RoomPin`); never place them automatically. What the page
+  picker reads from a PDF's title blocks (`DrawingPage`) only prefills the form; the designer still ticks and saves.
 - Keep the README current in the same change — if you change behaviour, env vars, routes or deploy steps,
   update README.md before you finish.
 
@@ -196,6 +205,12 @@ ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;   -- quick ca
 - **Prices in USD or CNY.** `price_currency` select next to the unit price (item form, Drafts quick form), live
   conversion in `app.js` (`.price-row`), last choice remembered in localStorage for new items. Storage unchanged (CNY);
   `ItemPrice` (table `item_prices`) remembers a USD entry. Help page `/help` added to the Studio menu.
+
+- **Rooms and areas.** `Room.kind` (column via `db.COLUMN_MIGRATIONS`), `services.guess_kind`, Kind select on the Rooms
+  page (Auto / Room / Area) and `POST /p/<id>/rooms/guess-kinds` to classify every entry at once; the importer honours a
+  "Kind" column and guesses for new rooms. Rooms page, plan mark list, room selects, Overview and PDF summaries list
+  rooms first, then areas. **PDF title blocks.** `DrawingPage` rows are read at upload (`drawings.read_title_block`); the
+  page picker pre-ticks plan pages and prefills floor, sheet and caption (`caption_<k>` is now posted with the pick).
 
 ## Backlog (in priority order)
 

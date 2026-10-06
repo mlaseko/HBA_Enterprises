@@ -139,19 +139,39 @@ def plan_for_room(p, room):
     return fl[0] if fl else None
 
 
+def split_kinds(rooms) -> tuple[list, list]:
+    """(rooms, areas) in the given order."""
+    return [r for r in rooms if not r.is_area], [r for r in rooms if r.is_area]
+
+
 def rooms_by_floor(p) -> list[dict]:
-    """[{key, title, floor, rooms, plans}] in floor order, then one 'whole' group for pseudo-floor rooms and plans."""
+    """[{key, title, floor, all, rooms, areas, plans}] in floor order, then one 'whole' group for pseudo-floor rooms and
+    plans. `rooms` are the proper rooms, `areas` the zones (entrance, corridors, stairs...), `all` both in project order."""
     by = plans_by_floor(p)
     groups = []
+
+    def group(key, title, floor, entries, plans):
+        rooms, areas = split_kinds(entries)
+        return {"key": key, "title": title, "floor": floor, "all": entries, "rooms": rooms, "areas": areas, "plans": plans}
+
     for f in floor_order(p):
         k = floor_key(f)
-        groups.append({"key": k, "title": floor_title(f), "floor": f,
-                       "rooms": [r for r in p.rooms if floor_key(r.floor) == k], "plans": by.get(k, [])})
+        groups.append(group(k, floor_title(f), f, [r for r in p.rooms if floor_key(r.floor) == k], by.get(k, [])))
     whole_rooms = [r for r in p.rooms if is_pseudo(r.floor)]
     whole_plans = [im for k, v in by.items() if k and k in PSEUDO for im in v]
     if whole_rooms or whole_plans:
-        groups.append({"key": "whole", "title": "Whole house / other", "floor": "", "rooms": whole_rooms, "plans": whole_plans})
+        groups.append(group("whole", "Whole house / other", "", whole_rooms, whole_plans))
     return groups
+
+
+def count_label(rooms, areas) -> str:
+    """'10 rooms · 5 areas', '1 room', '3 areas'."""
+    parts = []
+    if rooms or not areas:
+        parts.append(f"{len(rooms)} room{'' if len(rooms) == 1 else 's'}")
+    if areas:
+        parts.append(f"{len(areas)} area{'' if len(areas) == 1 else 's'}")
+    return " · ".join(parts)
 
 
 def client_plans(p) -> list:
@@ -227,3 +247,81 @@ def clamp_point(x, y) -> tuple[float, float] | None:
     if x != x or y != y:  # NaN
         return None
     return round(min(max(x, 0.0), 1.0), 5), round(min(max(y, 0.0), 1.0), 5)
+
+
+# ---- drawing sets: what the title block of a page says -------------------------------------------------------------
+import re as _re
+
+_PLAN_RE = _re.compile(r"\b(FLOOR\s+PLAN|ROOF\s+PLAN|SITE\s+(?:LAYOUT\s+)?PLAN|SITE\s+LAYOUT|FURNITURE\s+(?:LAYOUT|PLAN)|LAYOUT\s+PLAN)\b")
+# Other disciplines' plans are not floor plans. "Detail" and "section" are not in this list on purpose: architects title plan
+# sheets "Ground Floor Plan (Dimension Details)"; a sheet that is only details or sections never matches _PLAN_RE anyway.
+_NOT_PLAN_RE = _re.compile(r"ELECTRIC|PLUMB|DRAIN|SANIT|SEWER|STRUCT|FOUNDATION|FOOTING|BEAM|SLAB|COLUMN|CEILING|REFLECTED|FRAMING|TRUSS|"
+                           r"LIGHTING\s+LAYOUT|POWER\s+LAYOUT|HVAC|MECHANICAL|FIRE")
+_FLOORS = [("GROUND", "Ground"), ("FIRST", "First"), ("SECOND", "Second"), ("THIRD", "Third"), ("FOURTH", "Fourth"),
+           ("BASEMENT", "Basement"), ("MEZZANINE", "Mezzanine"), ("ROOF", "Roof"), ("SITE", "Site"), ("PENTHOUSE", "Penthouse")]
+_SHEET_RE = _re.compile(r"\b([A-Z]{1,3}[- ]?\d{2,4}(?:[-/][A-Z0-9]{1,3})?)\b")
+_SHEET_LABEL_RE = _re.compile(r"(DRAWING|DWG|SHEET)\s*(NO|NUMBER|#|REF)?\s*[:.]?\s*([A-Z]{1,3}[- ]?\d{2,4}(?:[-/][A-Z0-9]{1,3})?)")
+
+
+def page_text(data: bytes, n: int) -> str:
+    """The text layer of page n (1-based), '' for scanned pages or on any error."""
+    if pdfium is None:
+        return ""
+    try:
+        doc = pdfium.PdfDocument(data)
+    except Exception:
+        return ""
+    try:
+        page = doc[n - 1]
+        tp = page.get_textpage()
+        try:
+            return tp.get_text_range() or ""
+        finally:
+            tp.close()
+            page.close()
+    except Exception:
+        return ""
+    finally:
+        doc.close()
+
+
+def _tidy_title(line: str) -> str:
+    t = " ".join(line.split()).title()
+    for w in ("Wc", "Hvac", "Ac", "Pdf", "Ii", "Iii"):
+        t = _re.sub(rf"\b{w}\b", w.upper(), t)
+    return t[:120]
+
+
+def read_title_block(text: str) -> dict:
+    """{title, sheet, floor, is_plan} guessed from a page's text. Everything is a suggestion for the page picker."""
+    lines = [" ".join(l.split()) for l in (text or "").splitlines()]
+    lines = [l for l in lines if l]
+    up = [l.upper() for l in lines]
+    title, is_plan = "", False
+    for idx, (raw, l) in enumerate(zip(lines, up)):
+        if _PLAN_RE.search(l) and not _NOT_PLAN_RE.search(l):
+            if raw.count("(") > raw.count(")") and idx + 1 < len(lines) and ")" in lines[idx + 1]:
+                raw = raw + " " + lines[idx + 1]  # a title wrapped onto a second line in the title block
+            title, is_plan = _tidy_title(raw), True
+            break
+    if not title:  # a page that names a floor without "plan" (an elevation, a layout): keep the line, do not pre-tick
+        for raw, l in zip(lines, up):
+            if any(f"{w} FLOOR" in l for w, _ in _FLOORS) or "ROOF PLAN" in l:
+                title = _tidy_title(raw)
+                break
+    floor = ""
+    source = title.upper() if title else " ".join(up)
+    for word, name in _FLOORS:
+        if _re.search(rf"\b{word}\b", source):
+            floor = name
+            break
+    sheet = ""
+    joined = " ".join(up)
+    m = _SHEET_LABEL_RE.search(joined)
+    if m:
+        sheet = m.group(3)
+    else:
+        found = [c for c in _SHEET_RE.findall(joined) if not _re.fullmatch(r"[A-Z]{1,3}\d{2}", c)]  # A4, D12: paper sizes, door marks
+        if found:
+            sheet = found[-1]  # title blocks sit bottom-right, so their text comes last
+    return {"title": title, "sheet": sheet.replace(" ", "-")[:60], "floor": floor, "is_plan": is_plan}

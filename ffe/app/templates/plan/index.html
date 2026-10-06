@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import room_pill %}
 {% block title %}Plan · {{ p.name }} · {{ APP_NAME }}{% endblock %}
 {% block mainclass %}wrap plan-wrap{% endblock %}
 {% block content %}
@@ -39,22 +40,28 @@
   <aside class="plan-panel{{ ' open' if room and not marking }}" id="plan-panel" aria-live="polite">
     {% if marking %}
     <div class="card tight plan-rooms" id="plan-rooms">
-      <div class="row between"><h2 class="mb-0">{{ (plan.floor|floor_title) if plan.floor else 'Rooms' }}</h2><span class="small muted">{{ floor_rooms|length }} room{{ 's' if floor_rooms|length != 1 }}</span></div>
+      {% set f_rooms = floor_rooms|rejectattr('is_area')|list %}{% set f_areas = floor_rooms|selectattr('is_area')|list %}
+      <div class="row between"><h2 class="mb-0">{{ (plan.floor|floor_title) if plan.floor else 'Rooms' }}</h2><span class="small muted">{{ count_label(f_rooms, f_areas) }}</span></div>
       {% if not floor_rooms %}<p class="small muted mt">No room is tagged with this plan's floor{% if plan.floor %} ("{{ plan.floor }}"){% endif %}. Pick from the other floors below, or set the floor on the <a href="/p/{{ p.id }}/rooms">Rooms page</a>.</p>{% endif %}
-      <div class="rlist floor">
-        {% for r in floor_rooms %}{% set pin = pin_of.get(r.id) %}
+      <div class="floor">
+      {% for kind_rooms, kind_title in [(f_rooms, 'Rooms'), (f_areas, 'Areas')] if kind_rooms %}
+      {% if f_areas %}<div class="sub-title mt"><span>{{ kind_title }}</span></div>{% endif %}
+      <div class="rlist">
+        {% for r in kind_rooms %}{% set pin = pin_of.get(r.id) %}
         <div class="r{{ ' placed' if pin }}" data-room="{{ r.id }}" data-pin="{{ pin.id if pin else '' }}" data-code="{{ r.code }}" data-name="{{ r.name }}">
-          <button type="button" class="pick"><span class="pill accent">{{ r.code }}</span><span class="nm">{{ r.name }}</span><span class="state">{{ 'Placed' if pin else 'Not placed' }}</span></button>
+          <button type="button" class="pick">{{ room_pill(r) }}<span class="nm">{{ r.name }}</span><span class="state">{{ 'Placed' if pin else 'Not placed' }}</span></button>
           <button type="button" class="btn ghost sm icon del" aria-label="Remove {{ r.code }} from this plan" title="Remove from this plan"><svg class="ic"><use href="#i-x"/></svg></button>
         </div>
         {% endfor %}
+      </div>
+      {% endfor %}
       </div>
       {% if other_rooms %}
       <details class="mt other"><summary>Rooms on other floors <span class="muted small">({{ other_rooms|length }})</span></summary>
         <div class="rlist">
           {% for r in other_rooms %}
           <div class="r" data-room="{{ r.id }}" data-pin="" data-code="{{ r.code }}" data-name="{{ r.name }}">
-            <button type="button" class="pick"><span class="pill">{{ r.code }}</span><span class="nm">{{ r.name }}{% if r.floor %} <span class="muted small">· {{ r.floor }}</span>{% endif %}</span><span class="state">Not placed</span></button>
+            <button type="button" class="pick">{{ room_pill(r) }}<span class="nm">{{ r.name }}{% if r.floor %} <span class="muted small">· {{ r.floor }}</span>{% endif %}{% if r.is_area %} <span class="muted small">· area</span>{% endif %}</span><span class="state">Not placed</span></button>
             <button type="button" class="btn ghost sm icon del" aria-label="Remove {{ r.code }} from this plan" title="Remove from this plan"><svg class="ic"><use href="#i-x"/></svg></button>
           </div>
           {% endfor %}
@@ -62,7 +69,7 @@
       </details>
       {% endif %}
       {% if not p.rooms %}<div class="empty small"><p>No rooms yet. <a href="/p/{{ p.id }}/rooms">Add the rooms</a> first, then mark them here.</p></div>{% endif %}
-      <div class="small muted mt noscript-note">Marking rooms needs JavaScript.</div>
+      <div class="small muted mt noscript-note">Marking rooms and areas needs JavaScript.</div>
     </div>
     {% elif room %}
     {% include "plan/_room.html" %}

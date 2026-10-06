@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import room_options %}
 {% block title %}Items · {{ p.name }}{% endblock %}
 {% block content %}
 {% set qroom = f.room if f.room not in ('', 'none') else '' %}
@@ -18,7 +19,7 @@
 </div>
 
 <form method="get" class="card filters">
-  <select name="room" class="in" aria-label="Room"><option value="">All rooms</option>{% for r in p.rooms %}<option value="{{ r.id }}" {{ 'selected' if f.room == r.id|string }}>{{ r.label }}</option>{% endfor %}<option value="none" {{ 'selected' if f.room == 'none' }}>Unassigned</option></select>
+  <select name="room" class="in" aria-label="Room"><option value="">All rooms &amp; areas</option>{{ room_options(p.rooms, f.room) }}<option value="none" {{ 'selected' if f.room == 'none' }}>Unassigned</option></select>
   <select name="category" class="in" aria-label="Category"><option value="">All categories</option>{% for c in CATEGORIES %}<option {{ 'selected' if f.category == c }}>{{ c }}</option>{% endfor %}</select>
   <select name="status" class="in" aria-label="Status"><option value="">Any status</option>{% for st in STATUSES %}<option {{ 'selected' if f.status == st }}>{{ st }}</option>{% endfor %}</select>
   <select name="supplier" class="in" aria-label="Supplier"><option value="">Any supplier</option>{% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if f.supplier == s.id|string }}>{{ s.name }}</option>{% endfor %}</select>

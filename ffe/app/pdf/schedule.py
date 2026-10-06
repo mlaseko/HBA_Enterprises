@@ -96,15 +96,26 @@ def _summary(story, p, all_items, W, currency, rate, show_prices, studio, by_flo
     dec = 2 if currency == "USD" else 0
     rate_div = rate if currency == "USD" else 1
 
+    def has_items(r):
+        return any(i.room_id == r.id for i in all_items)
+
     def room_rows(rooms):
+        """Rooms first, then the areas under a small 'Areas' row; entries without items are skipped."""
         n = 0
-        for r in rooms:
-            its = [i for i in all_items if i.room_id == r.id]
-            if not its:
+        proper, areas = drawings.split_kinds(rooms)
+        for group, label in ((proper, None), (areas, "Areas")):
+            group = [r for r in group if has_items(r)]
+            if not group:
                 continue
-            tot = sum(i.total for i in its) / rate_div
-            rows.append([P(r.label), P(len(its)), P(money(tot, dec))])
-            n += 1
+            if label and n:  # only when rooms precede the areas in this block
+                r0 = len(rows)
+                rows.append([Paragraph(label, S["grey"]), "", ""])
+                st.add("SPAN", (0, r0), (-1, r0))
+            for r in group:
+                its = [i for i in all_items if i.room_id == r.id]
+                tot = sum(i.total for i in its) / rate_div
+                rows.append([P(r.label), P(len(its)), P(money(tot, dec))])
+                n += 1
         return n
 
     def unassigned_row():
@@ -116,14 +127,14 @@ def _summary(story, p, all_items, W, currency, rate, show_prices, studio, by_flo
     if by_floor:
         whole_done = False
         for g in drawings.rooms_by_floor(p):
-            has = any(i.room_id == r.id for r in g["rooms"] for i in all_items) or (g["key"] == "whole" and any(i.room_id is None for i in all_items))
+            has = any(i.room_id == r.id for r in g["all"] for i in all_items) or (g["key"] == "whole" and any(i.room_id is None for i in all_items))
             if not has:
                 continue
             r0 = len(rows)
             rows.append([Paragraph(escape(g["title"]), S["cellb"]), "", ""])
             st.add("SPAN", (0, r0), (-1, r0))
             st.add("BACKGROUND", (0, r0), (-1, r0), LIGHT)
-            room_rows(g["rooms"])
+            room_rows(g["all"])
             if g["key"] == "whole":
                 unassigned_row()
                 whole_done = True
@@ -178,7 +189,7 @@ def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=T
             story.append(Paragraph(f"{n}. {escape(t)}", S["body"]))
         if p.description:
             story.append(Spacer(1, 6 * mm))
-            story.append(Paragraph(p.description, S["body"]))
+            story.append(Paragraph(escape(p.description), S["body"]))
         story.append(PageBreak())
 
     if layout == "floor":
@@ -190,7 +201,7 @@ def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=T
         floors = []  # (title, plans, [(room label, items)])
         for f in drawings.floor_order(p):
             k = drawings.floor_key(f)
-            rooms = [r for r in p.rooms if drawings.floor_key(r.floor) == k]
+            rooms = sorted([r for r in p.rooms if drawings.floor_key(r.floor) == k], key=lambda r: (r.is_area, r.sort))  # rooms, then areas
             groups = []
             for r in rooms:
                 its = sorted([i for i in all_items if i.room_id == r.id], key=lambda i: (cat_idx.get(i.category, 99), i.code))
@@ -200,7 +211,7 @@ def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=T
             if groups or fl_plans:
                 floors.append((drawings.floor_title(f), fl_plans, groups))
         whole_groups = []
-        for r in p.rooms:
+        for r in sorted(p.rooms, key=lambda r: (r.is_area, r.sort)):
             if r.id in whole_room_ids:
                 its = sorted([i for i in all_items if i.room_id == r.id], key=lambda i: (cat_idx.get(i.category, 99), i.code))
                 if its:

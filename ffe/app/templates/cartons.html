@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import room_options %}
 {% block title %}Packing · {{ p.name }} · {{ APP_NAME }}{% endblock %}
 {% block content %}
 {% set q = ('?supplier=' ~ f.supplier) if f.supplier else '' %}
@@ -25,7 +26,7 @@
   <h2>Add a box</h2>
   <div class="grid stack g4">
     <div><label>Supplier</label><select name="supplier_id" class="in"><option value="">—</option>{% for sp in suppliers %}<option value="{{ sp.id }}">{{ sp.name }}</option>{% endfor %}</select></div>
-    <div><label>Install in room</label><select name="room_id" class="in" required>{% for r in p.rooms %}<option value="{{ r.id }}">{{ r.label }}</option>{% endfor %}</select></div>
+    <div><label>Install in</label><select name="room_id" class="in" required>{{ room_options(p.rooms, none) }}</select></div>
     <div class="span2"><label>What is inside</label><input class="in" type="text" name="contents" placeholder="Floor slab 1200x2400, 2 pieces" required></div>
     <div><label>Item codes</label><input class="in" type="text" name="item_codes" placeholder="GF-KIT-01"></div>
     <div><label>Qty inside</label><input class="in" type="number" step="0.01" name="qty" value="1"></div>
@@ -38,7 +39,7 @@
 
 <form method="get" class="card filters">
   <select name="supplier" class="in" aria-label="Supplier"><option value="">All suppliers</option>{% for sp in suppliers %}<option value="{{ sp.id }}" {{ 'selected' if f.supplier == sp.id|string }}>{{ sp.name }}</option>{% endfor %}</select>
-  <select name="room" class="in" aria-label="Room"><option value="">All rooms</option>{% for r in p.rooms %}<option value="{{ r.id }}" {{ 'selected' if f.room == r.id|string }}>{{ r.label }}</option>{% endfor %}</select>
+  <select name="room" class="in" aria-label="Room"><option value="">All rooms &amp; areas</option>{{ room_options(p.rooms, f.room) }}</select>
   <button class="btn sm">Filter</button>
   {% if f.supplier or f.room %}<a class="btn ghost sm" href="/p/{{ p.id }}/cartons">Clear</a>{% endif %}
   <span class="sp"></span>

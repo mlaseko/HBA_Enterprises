@@ -553,3 +553,17 @@ body.public .plan-intro .empty{padding:22px 10px 14px}
 .help-body li::marker{color:var(--accent);font-weight:700}
 .help-body .ic.sm{color:var(--accent)}
 @media print{.help-body section{break-inside:avoid;border:0;box-shadow:none;padding:0 0 10px}.help-layout{display:block}}
+
+/* rooms vs areas: areas get a quiet pill and sit under a small sub-title after the rooms */
+.pill.area{background:var(--surface-3);color:var(--ink-2);border:1px dashed var(--line)}
+.sub-title{display:flex;align-items:baseline;gap:10px;margin:14px 0 6px;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.sub-title .small{letter-spacing:0;text-transform:none;font-weight:500}
+details.card.area summary .b{color:var(--ink-2)}
+.pin.is-area{border-style:dashed}
+.pin .lab.area b{color:var(--ink-2)}
+.room-picks .picks-sub{grid-column:1 / -1;font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:8px 0 0}
+.plan-rooms .sub-title{margin:10px 2px 2px}
+tr.sub td{background:var(--surface-2);color:var(--muted);font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;font-weight:700;padding:6px 12px}
+/* page picker: pages the title block says are floor plans */
+.pages .page.suggested{border-color:#F0D3C7;box-shadow:0 0 0 3px var(--accent-soft)}
+.pages .page .page-title{line-height:1.3}

@@ -539,6 +539,84 @@ with TestClient(app) as c:
     r=c.get(f"/p/{pid}/plan/room/{room.id}?plan={op.id}"); assert r.status_code==200 and op.file_key not in r.text and "data-placed" not in r.text  # unknown plan = no plan context
     assert c2.get(f"/c/{ctok}/plan/room/{room.id}?plan={op.id}").status_code==200
     print("review fixes ok")
+    # ---- rooms vs areas, the startup column migration, PDF title blocks in the page picker ----
+    from app.db import migrate as _migrate
+    from app.services import guess_kind as _gk
+    from app import drawings as _dr2
+    from sqlalchemy import create_engine as _ce, text as _text
+    # migrate(): adds items.draft and rooms.kind to an old database, once
+    _eng=_ce(f"sqlite:///{_tmp}/old.db")
+    with _eng.begin() as cn:
+        cn.execute(_text("CREATE TABLE rooms (id INTEGER PRIMARY KEY, code VARCHAR(20), name VARCHAR(120))"))
+        cn.execute(_text("CREATE TABLE items (id INTEGER PRIMARY KEY, name VARCHAR(200))"))
+        cn.execute(_text("INSERT INTO rooms (code, name) VALUES ('X', 'Old room')"))
+    assert _migrate(_eng)==["items.draft", "rooms.kind"] and _migrate(_eng)==[]
+    with _eng.connect() as cn: assert cn.execute(_text("SELECT kind FROM rooms")).scalar()=="room"
+    # the guess: zones are areas, everything else a room
+    for nm, fl, k in [("Entrance","Ground","area"),("Hall & Corridors","Ground","area"),("Living Room","Ground","room"),("Store Room","Ground","room"),
+                      ("Carport","Ground","area"),("Kitchen Verandah","Ground","area"),("Stairs Ground to First","Ground","area"),("Landing & Corridor","First","area"),
+                      ("Balconies (all 4)","First","area"),("Roof Lobby","Roof","area"),("Roof Terrace (Phase II)","Roof","area"),("Family Lounge","First","room"),
+                      ("Master Closet","First","room"),("Guest Bathroom","Ground","room"),("Whole house","All","area"),("All doors","All","area"),("RO plant","Outside","area"),("Gym","Roof","room")]:
+        assert _gk(nm, fl)==k, (nm, _gk(nm, fl))
+    # the import classified the Kinondoni list; the Rooms page counts rooms and areas separately and groups them
+    db=SessionLocal(); kinds={r.code: r.kind for r in db.query(Room).filter(Room.project_id==int(pid))}; db.close()
+    assert kinds["GF-ENT"]=="area" and kinds["GF-HAL"]=="area" and kinds["GF-KIT"]=="room" and kinds["GF-LIV"]=="room" and kinds["FF-BAL"]=="area" and kinds["RF-GYM"]=="room"
+    r=c.get(f"/p/{pid}/rooms"); assert r.status_code==200 and "Rooms &amp; areas" in r.text and 'name="kind"' in r.text and "Sort rooms &amp; areas by name" in r.text
+    gf=r.text.split("<h2>Ground floor</h2>")[1].split("<h2>First floor</h2>")[0]
+    assert re.search(r"\d+ rooms · \d+ areas", gf) and ">Areas</span>" in gf and 'class="pill area"' in gf and gf.index("GF-KIT") < gf.index(">Areas</span>") < gf.index("GF-ENT")
+    assert _dr2.count_label([1,2],[])=="2 rooms" and _dr2.count_label([1],[1,1])=="1 room · 2 areas" and _dr2.count_label([],[1])=="1 area" and _dr2.count_label([],[])=="0 rooms"
+    # kind by hand: edit, add with Auto, sort everything by name again
+    r=c.post(f"/p/{pid}/rooms/{room.id}", data={"code":"GF-KIT","name":"Kitchen","floor":"Ground","floor_area":"0","wall_area":"0","notes":"via plan","kind":"area"}, follow_redirects=False)
+    db=SessionLocal(); assert db.get(Room, room.id).is_area; db.close()
+    c.post(f"/p/{pid}/rooms", data={"code":"GF-PAS","name":"Side Passage","floor":"Ground","kind":"auto"}, follow_redirects=False)
+    db=SessionLocal(); pas=db.query(Room).filter(Room.project_id==int(pid), Room.code=="GF-PAS").first(); assert pas.is_area; db.close()
+    r=c.post(f"/p/{pid}/rooms/guess-kinds", follow_redirects=False); assert r.status_code==303
+    db=SessionLocal(); assert not db.get(Room, room.id).is_area and db.get(Room, pas.id).is_area; c.post(f"/p/{pid}/rooms/{pas.id}/delete", follow_redirects=False); db.close()
+    # everywhere rooms are listed: selects group areas after rooms; the Overview separates them; the plan's mark list too
+    r=c.get(f"/p/{pid}/items"); assert '<optgroup label="Rooms">' in r.text and '<optgroup label="Areas">' in r.text and r.text.index("GF-KIT - Kitchen") < r.text.index('<optgroup label="Areas">') < r.text.index("GF-ENT - Entrance")
+    r=c.get(f"/p/{pid}/items/new"); assert 'class="picks-sub">Areas<' in r.text
+    r=c.get(f"/p/{pid}/items/{iid}"); assert '<optgroup label="Areas">' in r.text
+    r=c.get(f"/p/{pid}"); assert "By room &amp; area" in r.text and '<tr class="sub"><td colspan="5">Areas</td></tr>' in r.text
+    r=c.get(f"/p/{pid}/plan?plan={gid}&mode=mark"); assert r.text.count('class="sub-title mt"')==2 and '<span>Rooms</span>' in r.text and '<span>Areas</span>' in r.text and "placed</span>" in r.text
+    pl=r.text.split('id="plan-rooms"')[1]; assert pl.index('<span>Rooms</span>') < pl.index("GF-KIT") < pl.index('<span>Areas</span>') < pl.index("GF-ENT")
+    r=c.get(f"/p/{pid}/plan?plan={gid}&room={r2.id}"); assert 'class="pill area"' in r.text or 'class="pill accent"' in r.text
+    # PDFs: the summary lists rooms, then an Areas row, then areas; the checklist of an area says so
+    tf=pdf_text(c.get(f"/p/{pid}/export/schedule.pdf?layout=floor").content); summ=tf.split("SUMMARY BY ROOM")[1]
+    assert summ.index("GF-KIT - Kitchen") < summ.index("Areas") < summ.index("GF-ENT - Entrance"), summ[:800]
+    db=SessionLocal(); ent=db.query(Room).filter(Room.project_id==int(pid), Room.code=="GF-ENT").first(); db.close()
+    assert "AREA CHECKLIST" in pdf_text(c.get(f"/p/{pid}/export/room/{ent.id}.pdf").content) and "ROOM CHECKLIST" in pdf_text(c.get(f"/p/{pid}/export/room/{room.id}.pdf").content)
+    # the title block reader
+    tb=_dr2.read_title_block("PROPOSED RESIDENTIAL HOUSE\nGROUND FLOOR PLAN (DIMENSION DETAILS)\nSCALE 1:100\nDRAWING NO: A-102\nREV A")
+    assert tb=={"title":"Ground Floor Plan (Dimension Details)","sheet":"A-102","floor":"Ground","is_plan":True}, tb
+    assert _dr2.read_title_block("GROUND FLOOR PLAN (FURNITURE\nLAYOUT)\nA-104")["title"]=="Ground Floor Plan (Furniture Layout)"  # wrapped title
+    assert _dr2.read_title_block("FRONT ELEVATION\n1:100\nA-201")=={"title":"","sheet":"A-201","floor":"","is_plan":False}
+    assert _dr2.read_title_block("ELECTRICAL LAYOUT PLAN - GROUND FLOOR\nE-01")["is_plan"] is False
+    assert _dr2.read_title_block("SITE LAYOUT PLAN\nA-100")=={"title":"Site Layout Plan","sheet":"A-100","floor":"Site","is_plan":True}
+    assert _dr2.read_title_block("ROOF PLAN\nSHEET A-104")["floor"]=="Roof" and _dr2.read_title_block("FIRST FLOOR PLAN (FURNITURE LAYOUT)\nA4\nA-103")["sheet"]=="A-103"
+    assert _dr2.read_title_block("")=={"title":"","sheet":"","floor":"","is_plan":False}
+    # a drawing set with title blocks: the picker arrives prefilled and pre-ticked; the pick keeps the caption
+    def pdf_titled(pages):
+        b=io.BytesIO(); k=_cv.Canvas(b, pagesize=_A4)
+        for title, sheet in pages:
+            k.setFont("Helvetica",18); k.drawString(60,780,title); k.rect(80,200,400,450); k.setFont("Helvetica",10); k.drawString(380,120,"DRAWING NO: "+sheet); k.showPage()
+        k.save(); return b.getvalue()
+    r=c.post(f"/p/{pid}/images/plans", data={}, files=[("files",("titled.pdf",pdf_titled([("GROUND FLOOR PLAN (FURNITURE LAYOUT)","A-105"),("FRONT ELEVATION","A-301"),("FIRST FLOOR PLAN","A-106")]),"application/pdf"))], follow_redirects=False)
+    tsid=int(r.headers["location"].split("/sets/")[1].split("?")[0])
+    r=c.get(f"/p/{pid}/images/sets/{tsid}"); assert r.status_code==200 and "2 pages look like floor plans" in r.text
+    assert 'name="page_1" checked' in r.text and 'name="page_2">' in r.text and 'name="page_3" checked' in r.text
+    assert 'name="floor_1" list="floors" value="Ground"' in r.text and 'name="sheet_1" value="A-105"' in r.text and 'name="caption_1" value="Ground Floor Plan (Furniture Layout)"' in r.text
+    assert 'name="sheet_2" value="A-301"' in r.text and 'name="floor_2" list="floors" value=""' in r.text and 'name="floor_3" list="floors" value="First"' in r.text
+    r=c.post(f"/p/{pid}/images/sets/{tsid}/pick", data={"page_1":"on","floor_1":"Ground","sheet_1":"A-105","caption_1":"Ground Floor Plan (Furniture Layout)"}, follow_redirects=False); assert r.status_code==303
+    db=SessionLocal(); newp=db.query(ProjectImage).filter(ProjectImage.project_id==int(pid), ProjectImage.kind=="floorplan").order_by(ProjectImage.id.desc()).first()
+    assert newp.caption=="Ground Floor Plan (Furniture Layout)" and newp.sheet=="A-105" and newp.floor=="Ground" and newp.tag.set_id==tsid; db.close()
+    r=c.get(f"/p/{pid}/images/sets/{tsid}"); assert "1 page looks like floor plans" in r.text  # page 3 still suggested, page 1 added
+    # a scanned set (no text layer) says so and prefills nothing
+    r=c.post(f"/p/{pid}/images/plans", data={}, files=[("files",("scan.pdf",pdf_pages([""]),"application/pdf"))], follow_redirects=False)
+    ssid=int(r.headers["location"].split("/sets/")[1].split("?")[0])
+    r=c.get(f"/p/{pid}/images/sets/{ssid}"); assert "no readable text" in r.text and "checked" not in r.text.split('<div class="pages">')[1]
+    c.post(f"/p/{pid}/images/sets/{ssid}/delete", follow_redirects=False); c.post(f"/p/{pid}/images/sets/{tsid}/delete", follow_redirects=False)
+    db=SessionLocal(); from app.models import DrawingPage as _DP; assert db.query(_DP).filter(_DP.set_id.in_([tsid, ssid])).count()==0; db.close()  # page meta goes with the set
+    print("rooms & areas + title blocks ok")
     # deleting a plan removes both files and the tag row
     r=c.post(f"/p/{pid}/images/{roof_id}/delete", follow_redirects=False); assert r.status_code==303
     assert _st.read_image(roof_keys[0]) is None and _st.read_image(roof_keys[1]) is None

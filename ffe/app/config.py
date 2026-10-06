@@ -31,4 +31,10 @@ STATUS_COLORS = {"To buy": "#9CA3AF", "Quoted": "#F59E0B", "Ordered": "#3B82F6",
                  "Shipped": "#06B6D4", "Received": "#16A34A"}
 PAYMENT_KINDS = ["Deposit", "Balance", "Full payment", "Other"]
 PRICE_CURRENCIES = ["CNY", "USD"]  # a unit price can be typed in either; it is stored in CNY at the project's rate
+# Rooms vs areas. Both carry a code and hold items and boxes; an area is a zone (entrance, corridors, stairs, balconies,
+# carport, whole house) rather than a room. Areas are listed after rooms everywhere and counted separately.
+ROOM_KINDS = ["room", "area"]
+AREA_WORDS = ["entrance", "entry", "foyer", "lobby", "hall", "corridor", "passage", "landing", "stair", "balcon", "verandah",
+              "veranda", "terrace", "patio", "porch", "deck", "carport", "driveway", "parking", "garden", "yard", "outside",
+              "exterior", "external", "site", "whole house", "doors", "plant", "pool", "compound", "fence", "gate"]
 CONTAINERS = [("20ft", 28.0), ("40ft", 58.0), ("40ft HC", 68.0)]

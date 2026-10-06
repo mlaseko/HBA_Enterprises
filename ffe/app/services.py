@@ -1,7 +1,8 @@
 from collections import defaultdict
 from sqlalchemy.orm import Session
 from .models import Project, Item, Room, Carton, Payment, Supplier, ItemPrice
-from .config import CONTAINERS, STATUSES, PRICE_CURRENCIES
+from .config import CONTAINERS, STATUSES, PRICE_CURRENCIES, AREA_WORDS
+from . import drawings
 
 
 def next_code(db: Session, project: Project, room: Room | None) -> str:
@@ -14,6 +15,15 @@ def next_code(db: Session, project: Project, room: Room | None) -> str:
         except ValueError:
             pass
     return f"{prefix}-{n + 1:02d}"
+
+
+def guess_kind(name: str, floor: str = "") -> str:
+    """'area' for zones (entrance, corridors, stairs, balconies, carport, whole house, outside), else 'room'.
+    A suggestion the designer can change on the Rooms page."""
+    n = f" {(name or '').lower()} "
+    if drawings.is_pseudo(floor) and (floor or "").strip():
+        return "area"  # "All", "Outside", "Site": not a room on any floor
+    return "area" if any(w in n for w in AREA_WORDS) else "room"
 
 
 def set_price(item: Item, amount, currency, rate) -> None:
@@ -84,7 +94,10 @@ def summary(db: Session, p: Project) -> dict:
 
     by_room = agg(lambda i: i.room_id or 0, lambda i: i.room.label if i.room else "Whole house / unassigned")
     room_order = {r.id: r.sort for r in p.rooms}
-    by_room.sort(key=lambda r: room_order.get(r["key"], 9999))
+    kinds = {r.id: r.kind for r in p.rooms}
+    for r in by_room:
+        r["kind"] = kinds.get(r["key"], "none")  # room | area | none (unassigned items)
+    by_room.sort(key=lambda r: ({"room": 0, "area": 1}.get(r["kind"], 2), room_order.get(r["key"], 9999)))
     by_cat = agg(lambda i: i.category, lambda i: i.category)
     by_cat.sort(key=lambda r: -r["total"])
     by_sup = agg(lambda i: i.supplier_id or 0, lambda i: i.supplier.name if i.supplier else "No supplier yet")

@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from .config import DATABASE_URL
 
@@ -27,3 +27,35 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+# Columns added to tables that already exist in production. create_all() only creates missing tables, so each new column
+# is listed here with the SQL that adds it (SQLite and Postgres both accept ADD COLUMN ... DEFAULT) and migrate() applies
+# the missing ones at startup. Prefer a new table when you can; when a column is the right model, add it here too.
+COLUMN_MIGRATIONS = [
+    ("items", "draft", "BOOLEAN NOT NULL DEFAULT FALSE"),           # quick-capture drafts
+    ("rooms", "kind", "VARCHAR(10) NOT NULL DEFAULT 'room'"),       # room | area
+]
+
+
+def migrate(eng=None) -> list[str]:
+    """Add the columns in COLUMN_MIGRATIONS that the database does not have yet. Returns what was added."""
+    eng = eng or engine
+    insp = inspect(eng)
+    tables = set(insp.get_table_names())
+    added = []
+    for table, column, ddl in COLUMN_MIGRATIONS:
+        if table not in tables:
+            continue
+        if column in {c["name"] for c in insp.get_columns(table)}:
+            continue
+        try:
+            with eng.begin() as conn:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
+        except Exception:
+            # another instance (autoscale starts several) may have added it a moment ago; only a still-missing column is an error
+            if column not in {c["name"] for c in inspect(eng).get_columns(table)}:
+                raise
+            continue
+        added.append(f"{table}.{column}")
+    return added
