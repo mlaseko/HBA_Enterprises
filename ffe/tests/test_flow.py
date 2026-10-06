@@ -455,6 +455,44 @@ with TestClient(app) as c:
     c.post(f"/p/{pid}/items/{dup.id}/delete", follow_redirects=False)
     db=SessionLocal(); assert db.query(ItemPin).filter(ItemPin.item_id==dup.id).count()==0 and db.query(ItemPin).filter(ItemPin.image_id==roof_id).count()==1; db.close()
     print("item dots + client plan ok")
+    # ---- prices typed in USD or CNY (stored in CNY at the project rate), the help page ----
+    from app.models import ItemPrice
+    r=c.get(f"/p/{pid}/items/new"); assert 'name="price_currency"' in r.text and 'data-remember="1"' in r.text and "<option selected>CNY</option>" in r.text
+    r=c.post(f"/p/{pid}/items/new", data={"room_ids":[str(room.id)],"category":"Lighting","name":"Brass reading light","qty":"2","unit":"pcs","unit_price":"120","price_currency":"USD","status":"Quoted"}, follow_redirects=False)
+    usd_id=int(r.headers["location"].split("/")[-1])
+    db=SessionLocal(); u=db.get(Item, usd_id); assert u.unit_price==852.0 and u.price_currency=="USD" and u.price_amount==120 and u.total==1704.0; db.close()
+    r=c.get(f"/p/{pid}/items/{usd_id}"); assert 'value="120"' in r.text and "<option selected>USD</option>" in r.text and "= ¥852.00" in r.text and 'data-remember' not in r.text
+    r=c.get(f"/p/{pid}/items"); assert "1,704" in r.text  # lists, totals and PDFs keep using the CNY value
+    # same product into a second room: the copy keeps the USD entry
+    r=c.post(f"/p/{pid}/items/{usd_id}", data={"room_id":room.id,"category":"Lighting","name":"Brass reading light","qty":"2","unit":"pcs","unit_price":"120","price_currency":"USD","status":"Quoted","add_room_ids":[str(r2.id)]}, follow_redirects=False)
+    db=SessionLocal(); copies=[i for i in db.query(Item).filter(Item.project_id==int(pid), Item.name=="Brass reading light").all() if i.id!=usd_id]; assert len(copies)==1 and copies[0].unit_price==852.0 and copies[0].price_currency=="USD"; cid=copies[0].id; db.close()
+    # apply to all rooms: a new USD price reaches the other room's row; switching back to CNY drops the USD memory everywhere
+    r=c.post(f"/p/{pid}/items/{usd_id}", data={"room_id":room.id,"category":"Lighting","name":"Brass reading light","qty":"2","unit":"pcs","unit_price":"130","price_currency":"USD","status":"Quoted","apply_all":"1"}, follow_redirects=False)
+    db=SessionLocal(); assert db.get(Item, cid).unit_price==923.0 and db.get(Item, cid).price_amount==130; db.close()
+    r=c.post(f"/p/{pid}/items/{usd_id}", data={"room_id":room.id,"category":"Lighting","name":"Brass reading light","qty":"2","unit":"pcs","unit_price":"900","price_currency":"CNY","status":"Quoted","apply_all":"1"}, follow_redirects=False)
+    db=SessionLocal(); assert db.get(Item, usd_id).unit_price==900.0 and db.get(Item, usd_id).price_entry is None and db.get(Item, cid).price_entry is None and db.query(ItemPrice).filter(ItemPrice.item_id.in_([usd_id, cid])).count()==0; db.close()
+    r=c.get(f"/p/{pid}/items/{usd_id}"); assert 'value="900"' in r.text and "<option selected>CNY</option>" in r.text and "= $126.76" in r.text
+    # junk currency = CNY; a USD price of 0 stores 0 and no memory; duplicate copies the entry; deleting the item removes it
+    r=c.post(f"/p/{pid}/items/{usd_id}", data={"room_id":room.id,"category":"Lighting","name":"Brass reading light","qty":"2","unit":"pcs","unit_price":"55.5","price_currency":"EUR","status":"Quoted"}, follow_redirects=False)
+    db=SessionLocal(); assert db.get(Item, usd_id).unit_price==55.5 and db.get(Item, usd_id).price_currency=="CNY"; db.close()
+    r=c.post(f"/p/{pid}/items/{usd_id}", data={"room_id":room.id,"category":"Lighting","name":"Brass reading light","qty":"2","unit":"pcs","unit_price":"","price_currency":"USD","status":"Quoted"}, follow_redirects=False)
+    db=SessionLocal(); assert db.get(Item, usd_id).unit_price==0 and db.get(Item, usd_id).price_entry is None; db.close()
+    c.post(f"/p/{pid}/items/{usd_id}", data={"room_id":room.id,"category":"Lighting","name":"Brass reading light","qty":"2","unit":"pcs","unit_price":"99.99","price_currency":"USD","status":"Quoted"}, follow_redirects=False)
+    r=c.post(f"/p/{pid}/items/{usd_id}/duplicate", follow_redirects=False); dup_id=int(r.headers["location"].split("/")[-1])
+    db=SessionLocal(); d_=db.get(Item, dup_id); assert d_.unit_price==round(99.99*7.1,2) and d_.price_currency=="USD" and d_.price_amount==99.99; db.close()
+    r=c.get(f"/p/{pid}/items/{dup_id}"); assert 'value="99.99"' in r.text
+    c.post(f"/p/{pid}/items/{dup_id}/delete", follow_redirects=False)
+    db=SessionLocal(); assert db.get(ItemPrice, dup_id) is None; db.close()
+    # drafts: the quick form takes the currency too
+    r=c.post(f"/p/{pid}/capture", data={"room_id":room.id,"category":"Hardware"}, files=[("photo",("d.jpg",img("gray"),"image/jpeg"))], follow_redirects=False)
+    db=SessionLocal(); dr=db.query(Item).filter(Item.project_id==int(pid), Item.draft==True).order_by(Item.id.desc()).first(); db.close()  # noqa: E712
+    r=c.get(f"/p/{pid}/drafts"); assert 'name="price_currency"' in r.text
+    r=c.post(f"/p/{pid}/drafts/{dr.id}", data={"name":"Door stop","room_id":room.id,"category":"Hardware","qty":"4","unit_price":"3","price_currency":"USD"}, follow_redirects=False)
+    db=SessionLocal(); x=db.get(Item, dr.id); assert not x.draft and x.unit_price==21.3 and x.price_currency=="USD"; db.close()
+    # the help page: every feature has a section; login required
+    r=c.get("/help"); assert r.status_code==200 and "How to use" in r.text and 'id="prices"' in r.text and 'id="plan"' in r.text and 'id="client"' in r.text and "Quick capture" in r.text and 'href="/help"' in r.text
+    assert c2.get("/help", follow_redirects=False).status_code==303
+    print("prices in USD or CNY + help ok")
     # deleting a plan removes both files and the tag row
     r=c.post(f"/p/{pid}/images/{roof_id}/delete", follow_redirects=False); assert r.status_code==303
     assert _st.read_image(roof_keys[0]) is None and _st.read_image(roof_keys[1]) is None

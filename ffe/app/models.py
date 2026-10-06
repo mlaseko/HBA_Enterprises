@@ -244,6 +244,9 @@ class Item(Base):
     supplier: Mapped["Supplier | None"] = relationship(back_populates="items")
     photos: Mapped[list["ItemPhoto"]] = relationship(back_populates="item", cascade="all, delete-orphan", order_by="ItemPhoto.id")
     pins: Mapped[list["ItemPin"]] = relationship(back_populates="item", cascade="all, delete-orphan", order_by="ItemPin.id")
+    # Unit prices are stored in CNY (unit_price). When the designer typed the price in USD this row keeps what was typed,
+    # so the form shows "$120" again instead of "¥852". No row = entered in CNY.
+    price_entry: Mapped["ItemPrice | None"] = relationship(back_populates="item", cascade="all, delete-orphan", uselist=False)
 
     @property
     def total(self):
@@ -252,6 +255,25 @@ class Item(Base):
     @property
     def cover(self):
         return self.photos[0] if self.photos else None
+
+    @property
+    def price_currency(self) -> str:
+        return self.price_entry.currency if self.price_entry else "CNY"
+
+    @property
+    def price_amount(self) -> float:
+        """The unit price as the designer typed it: in USD when entered in USD, else the CNY value."""
+        return self.price_entry.amount if self.price_entry else (self.unit_price or 0.0)
+
+
+class ItemPrice(Base):
+    """The unit price as typed when it was not in CNY: currency + amount. Item.unit_price always holds the CNY value
+    (totals, PDFs, exports, share links all use it); this row only remembers the entry. Own table: no ALTER on Neon."""
+    __tablename__ = "item_prices"
+    item_id: Mapped[int] = mapped_column(ForeignKey("items.id"), primary_key=True)
+    currency: Mapped[str] = mapped_column(String(3), default="USD")
+    amount: Mapped[float] = mapped_column(Float, default=0.0)
+    item: Mapped["Item"] = relationship(back_populates="price_entry")
 
 
 class ItemPhoto(Base):

@@ -60,6 +60,28 @@
   };
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') window.toggleMore(false); });
 
+  // price field with a currency choice (item form, drafts): show the conversion as you type; remember the currency for new items
+  function priceHelp(row) {
+    var inp = row.querySelector('[data-price]'), sel = row.querySelector('[data-price-cur]'), help = row.parentElement && row.parentElement.querySelector('[data-price-help]');
+    if (!inp || !sel || !help) return;
+    var rate = parseFloat(row.dataset.rate) || 1, v = parseFloat(inp.value), fmt = function (n) { return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+    var conv = '';
+    if (v > 0) conv = sel.value === 'USD' ? '= ¥' + fmt(v * rate) + ' · ' : '= $' + fmt(v / rate) + ' · ';
+    help.textContent = conv + 'Type it in CNY or USD; stored in CNY at ' + rate + ' per USD.';
+  }
+  document.querySelectorAll('.price-row').forEach(function (row) {
+    var sel = row.querySelector('[data-price-cur]');
+    if (sel && sel.dataset.remember === '1') { try { var c = localStorage.getItem('price.cur'); if (c === 'USD' || c === 'CNY') sel.value = c; } catch (e) { /* private mode */ } }
+    priceHelp(row);
+  });
+  document.addEventListener('input', function (e) { var row = e.target.closest && e.target.closest('.price-row'); if (row) priceHelp(row); });
+  document.addEventListener('change', function (e) {
+    var sel = e.target;
+    if (!(sel instanceof HTMLSelectElement) || !sel.hasAttribute('data-price-cur')) return;
+    try { localStorage.setItem('price.cur', sel.value); } catch (err) { /* ignore */ }
+    var row = sel.closest('.price-row'); if (row) priceHelp(row);
+  });
+
   window.copyText = function (txt, btn) {
     navigator.clipboard.writeText(txt).then(function () { if (btn) { var o = btn.textContent; btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = o; }, 1200); } });
   };

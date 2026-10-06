@@ -24,14 +24,15 @@ ReportLab for PDFs (pure Python — do not add WeasyPrint or anything needing sy
 openpyxl. Hosted on Replit (autoscale deployment, imports from GitHub).
 
 ```
-app/main.py            app, login/logout, /settings, /media/<key>
+app/main.py            app, login/logout, /settings, /help (user guide = templates/help.html), /media/<key>
 app/config.py          env vars + constant lists (CATEGORIES, STATUSES, UNITS …)
 app/db.py              engine/session; create_all on startup (no migrations yet)
 app/models.py          Settings, Project, ProjectImage, PlanTag, RoomPin, ItemPin, DrawingSet, Room, Supplier, SupplierLink, Item, ItemPhoto,
-                       Payment, Carton
+                       ItemPrice (the typed USD price; Item.price_currency / price_amount), Payment, Carton
                        Item.draft = quick-capture draft (no name/code yet); Project.live_items / Project.drafts split them
 app/common.py          templates, auth helpers, number filters, render()/redirect()
-app/services.py        summary() for dashboards, next_code(), carton_positions(), container_for()
+app/services.py        summary() for dashboards, next_code(), set_price()/copy_price() (CNY storage, USD entry), carton_positions(),
+                       container_for()
 app/storage.py         save_image(max_px=)/save_blob/read_image/delete_image — backends: local | replit | s3 (replit is the
                        default when REPL_ID is set; read_image copies a photo found only on local disk into the bucket)
 app/drawings.py        floor plans: render_page()/page_count() via pypdfium2 (optional import), floor_key()/floor_title()
@@ -104,7 +105,11 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
   `p.items`. A draft becomes a real item (draft=False + `next_code()`) the moment it is saved with a name — on the
   Drafts page or on the full item form. Discarding a draft deletes its photos through `storage.py`.
 - Jinja: `summary()` returns a dict; write `s['items']`, not `s.items` (that resolves to `dict.items`).
-- Prices are stored in CNY; USD is derived with `project.rate`. Keep it that way.
+- Prices are stored in CNY; USD is derived with `project.rate`. Keep it that way. The designer may *type* a price in
+  USD: always go through `services.set_price(item, amount, currency, rate)` (converts, remembers the USD entry in
+  `item_prices`) and `copy_price()` when copying an item; never write `unit_price` from a form directly.
+- The user guide (`templates/help.html`, `/help`) describes every feature in plain words. When you change or add a
+  feature, update its section in the same change.
 - Share links are random tokens (`SupplierLink.token`, `Project.client_token`); public routes live only in
   `routers/share.py` and the `/s/… /c/…` PDF routes in `exports.py`. Never expose other routes without login.
 - Photos: compressed in the browser (`app.js`) and again server-side (`storage.process_image`, max 1600 px JPEG).
@@ -182,6 +187,10 @@ ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;   -- quick ca
   which embeds the plan read-only (`readonly=True` in `plan.room_ctx`: USD, badges, no controls / suppliers / notes;
   fragment `GET /c/<token>/plan/room/<room>` lives in routers/share.py, token-scoped). Keep designer-only data out of
   anything rendered with `readonly`. Not done yet: dots on the PDFs (room checklist / schedule by floor).
+
+- **Prices in USD or CNY.** `price_currency` select next to the unit price (item form, Drafts quick form), live
+  conversion in `app.js` (`.price-row`), last choice remembered in localStorage for new items. Storage unchanged (CNY);
+  `ItemPrice` (table `item_prices`) remembers a USD entry. Help page `/help` added to the Studio menu.
 
 ## Backlog (in priority order)
 

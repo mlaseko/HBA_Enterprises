@@ -28,7 +28,13 @@
         <div><label>Room</label><select name="room_id" class="in"><option value="">Whole house / not room-specific</option>{% for r in p.rooms %}<option value="{{ r.id }}" {{ 'selected' if d.room_id == r.id }}>{{ r.label }}</option>{% endfor %}</select></div>
         <div><label>Category</label><select name="category" class="in">{% for c in CATEGORIES %}<option {{ 'selected' if d.category == c }}>{{ c }}</option>{% endfor %}</select></div>
         <div><label>Qty</label><input class="in" type="number" step="0.01" name="qty" value="{{ d.qty|num }}"></div>
-        <div><label>Unit price (CNY)</label><input class="in" type="number" step="0.01" name="unit_price" value="{{ d.unit_price if d.unit_price else '' }}"></div>
+        <div><label>Unit price</label>
+          <div class="field-row price-row" data-rate="{{ p.rate or 1 }}">
+            <input class="in" type="number" step="0.01" min="0" name="unit_price" value="{{ d.price_amount|plain }}" placeholder="0.00" data-price>
+            <select class="in cur" name="price_currency" aria-label="Currency of the price" data-price-cur{% if not d.unit_price %} data-remember="1"{% endif %}>{% for cur in PRICE_CURRENCIES %}<option {{ 'selected' if d.price_currency == cur }}>{{ cur }}</option>{% endfor %}</select>
+          </div>
+          <div class="help" data-price-help></div>
+        </div>
       </div>
       <div class="form-actions">
         <button class="btn"><svg class="ic"><use href="#i-check"/></svg>Save as item</button>

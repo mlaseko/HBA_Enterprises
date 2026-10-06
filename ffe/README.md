@@ -10,7 +10,7 @@ same data, entered once.
 |---|---|
 | Projects | One per client project. USD/CNY rate, budget, delivery address, status. |
 | Rooms | Room codes (GF-KIT …) used on every item, box and label. Optional floor/wall areas. |
-| Items | Room, category (= schedule page), name, must-have spec, brand, size, finish, qty, unit price (CNY), supplier, lead time, status (To buy → Quoted → Ordered → Paid → Shipped → Received), photos from the phone camera. |
+| Items | Room, category (= schedule page), name, must-have spec, brand, size, finish, qty, unit price typed in **CNY or USD** (stored in CNY at the project's rate; a USD entry is remembered so the form shows it again), supplier, lead time, status (To buy → Quoted → Ordered → Paid → Shipped → Received), photos from the phone camera. |
 | Items in several rooms | A new item can be ticked into several rooms at once (one line per room, each with its own code, qty and status; photos are copied to each). An existing item can be added to more rooms from its page. The same product across rooms is recognised by its name: editing one can apply the name, category, spec, size, finish, brand, price, unit, lead time and supplier to every room using it (qty, status, notes and photos stay per room). |
 | Quick capture | Photo-first entry for showrooms: the camera opens, every photo is saved at once as a **draft** item (room/category optional), keep shooting. Drafts are completed later on the Drafts page (name, room, category, qty, price → item code generated) or discarded. Drafts do not count in totals, PDFs, Excel or share links until they have a name. |
 | Save from web | Pictures from any website (supplier catalogue, Pinterest pin, Taobao, 1688): paste a picture or page link on the item form or the Mood board page, or use the **Save to HBA** button from `/clip` (iOS Share-sheet Shortcut or Safari bookmarklet; the page also has a Paste button and remembers the last project) to clip the page's main picture into a project as a draft item or a mood-board image. Pictures are downloaded server-side, shrunk and stored like uploads. |
@@ -25,6 +25,9 @@ same data, entered once.
 | Import | Upload the procurement Excel (Shopping List + Rooms sheets) to load a project in one go. |
 
 Single-user: one app password (the designer). Clients and suppliers only ever get share links.
+
+**Help & guide** (`/help`, Studio menu): a one-page user manual in plain words, feature by feature, with the steps for
+each. Printable. Keep it current when a feature changes.
 
 ## Look and feel
 
@@ -88,7 +91,8 @@ Pushing new commits to GitHub and re-deploying updates the app. The database and
 ```
 app/main.py           app start, login, settings, media
 app/models.py         tables: projects, project_images (mood board + plans), plan_tags, room_pins, item_pins, drawing_sets, rooms,
-                      items, item_photos, suppliers, supplier_links, payments, cartons, settings
+                      items, item_prices (what was typed when a price was in USD), item_photos, suppliers, supplier_links,
+                      payments, cartons, settings
 app/routers/          projects, rooms, items, suppliers, payments, cartons, share (public links), exports, importer,
                       capture (quick capture + drafts), clip (Save from web bookmarklet + /clip page),
                       plan (interactive plan: /p/<id>/plan, room panel fragment, room box and item dot save/delete;
@@ -113,7 +117,18 @@ Columns added after the first deployment — run these on Neon once, in order:
 ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;
 -- Floor plans & drawing sets: new tables plan_tags and drawing_sets only, created automatically on startup (no ALTER).
 -- Interactive plan: new tables room_pins and item_pins only, created automatically on startup (no ALTER).
+-- Prices typed in USD: new table item_prices only, created automatically on startup (no ALTER).
 ```
+
+## Prices and currency
+
+- `Item.unit_price` is always CNY: totals, PDFs, Excel, share links and the supplier pages read it unchanged.
+- The item form and the Drafts quick form take the price in **CNY or USD** (`price_currency`). `services.set_price()`
+  converts a USD amount at `project.rate` and keeps the typed amount in `item_prices` (one row per item, only when
+  USD); `Item.price_currency` / `Item.price_amount` give the form what to show. Copies of an item (several rooms,
+  "apply to all rooms", duplicate) carry the entry with `services.copy_price()`. A price typed in CNY removes the row.
+- The browser shows the conversion under the field as you type and remembers the last currency for new items
+  (`localStorage`, device-local). Changing the project's rate does not move stored CNY prices.
 
 ## Floor plans and drawing sets
 

@@ -42,6 +42,7 @@
   <symbol id="i-truck" viewBox="0 0 24 24"><path d="M3 6h11v10H3z"/><path d="M14 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></symbol>
   <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2"/></symbol>
   <symbol id="i-map" viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 0 1 5 0c0 1.8-2.5 2.2-2.5 4"/><circle cx="12" cy="17" r=".6"/></symbol>
   <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 17l.7 1.8 1.8.7-1.8.7L19 22l-.7-1.8-1.8-.7 1.8-.7z"/></symbol>
 </svg>
 {% set path = request.url.path %}
@@ -66,6 +67,7 @@
   <a href="/settings" class="{{ 'on' if path == '/settings' }}">{{ ic('settings') }}Studio settings</a>
   <a href="/clip" class="{{ 'on' if path == '/clip' }}">{{ ic('link') }}Save from web</a>
   <a href="/projects/new" class="{{ 'on' if path == '/projects/new' }}">{{ ic('plus') }}New project</a>
+  <a href="/help" class="{{ 'on' if path == '/help' }}">{{ ic('help') }}Help &amp; guide</a>
 {% endmacro %}
 {% macro brand(nav) %}
   <a class="brand" href="/">
