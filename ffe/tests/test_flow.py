@@ -186,4 +186,18 @@ with TestClient(app) as c:
     r=c.get(f"/p/{pid}/items/{d3}"); assert "quick-capture draft" in r.text
     r=c.post(f"/p/{pid}/items/{d3}", data={"room_id":room.id,"category":"Hardware","name":"Door stop","qty":"6","unit":"pcs","unit_price":"15","status":"To buy"}, follow_redirects=False); assert r.status_code==303
     db=SessionLocal(); it=db.get(Item,d3); assert not it.draft and it.code.startswith("GF-KIT-") and it.code!=code; db.close()
+    # shared storage: a photo still on this server's disk is served and copied into the bucket
+    class _Fake:
+        def __init__(self): self.b={}
+        def download_as_bytes(self, k): return self.b[k]
+        def upload_from_bytes(self, k, d): self.b[k]=d
+    db=SessionLocal(); code_key=db.get(Item,d3).photos[0].file_key; db.close()
+    fake=_Fake(); _st._replit_client=fake; _st.config.STORAGE_BACKEND="replit"
+    try:
+        assert _st.read_image(code_key) is not None and code_key in fake.b
+        assert _st.read_image("img/missing.jpg") is None
+        k=_st.save_image(img("blue")); assert k in fake.b and _st.read_image(k)==fake.b[k]
+    finally:
+        _st.config.STORAGE_BACKEND="local"; _st._replit_client=None
+    print("shared storage ok")
     print("ALL OK")
