@@ -5,7 +5,7 @@ import re
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Project, Item, ItemPhoto, Supplier, Room
-from ..common import render, redirect, require_login, get_project, ffloat, fint
+from ..common import render, redirect, require_login, get_project, ffloat, fint, safe_next
 from ..services import next_code
 from .. import storage, config, webimage, ai
 
@@ -157,7 +157,8 @@ async def create_item(request: Request, p: Project = Depends(get_project), db: S
 
 
 @router.get("/p/{project_id}/items/{item_id}")
-def item_detail(request: Request, item_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), err: str = "", filled: str = ""):
+def item_detail(request: Request, item_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), err: str = "",
+                filled: str = "", next: str = ""):
     item = db.get(Item, item_id)
     if not item or item.project_id != p.id:
         return redirect(f"/p/{p.id}/items")
@@ -166,7 +167,7 @@ def item_detail(request: Request, item_id: int, p: Project = Depends(get_project
     used = {i.room_id for i in others} | {item.room_id}
     free_rooms = [r for r in p.rooms if r.id not in used]
     return render(request, "items/form.html", p=p, item=item, suppliers=suppliers, pre_room=None, pre_cat="", err=err[:200],
-                  filled=filled[:200], others=others, free_rooms=free_rooms)
+                  filled=filled[:200], others=others, free_rooms=free_rooms, next=safe_next(next, ""))
 
 
 @router.post("/p/{project_id}/items/{item_id}")
@@ -198,10 +199,10 @@ async def update_item(request: Request, item_id: int, p: Project = Depends(get_p
             if data:
                 db.add(ItemPhoto(item_id=new.id, file_key=storage.save_image(data, f"p{p.id}"), caption=ph.caption))
     db.commit()
+    nxt = safe_next(form.get("next"), "")
     if err:
-        return redirect(f"/p/{p.id}/items/{item.id}?err={quote(err)}")
-    nxt = form.get("next") or f"/p/{p.id}/items/{item.id}"
-    return redirect(nxt)
+        return redirect(f"/p/{p.id}/items/{item.id}?err={quote(err)}" + (f"&next={quote(nxt)}" if nxt else ""))
+    return redirect(nxt or f"/p/{p.id}/items/{item.id}")
 
 
 @router.post("/p/{project_id}/items/{item_id}/status")

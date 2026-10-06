@@ -78,7 +78,7 @@
 </form>
 
 <div class="moodboard">
-{% for kind, title, hint in [('cover', 'Cover', 'The first page of the client schedule.'), ('floorplan', 'Floor plans', 'Tag each plan with its floor: the schedule by floor, the Rooms page and room checklists use it. Untagged plans print up front.'), ('mood', 'Mood board', 'Six images per page, with captions.')] %}
+{% for kind, title, hint in [('cover', 'Cover', 'The first page of the client schedule.'), ('floorplan', 'Floor plans', 'Tag each plan with its floor: the schedule by floor, the Rooms page, room checklists and the interactive Plan page use it. Untagged plans print up front.'), ('mood', 'Mood board', 'Six images per page, with captions.')] %}
 {% set imgs = p.images|selectattr('kind', 'equalto', kind)|list %}
 <div class="card">
   <div class="row between top">
@@ -98,6 +98,7 @@
         <button class="btn sm sec"><svg class="ic"><use href="#i-check"/></svg>Save</button>
       </form>
       <div class="cap">{% if im.floor %}{{ plan_caption(im) }}{% else %}<span class="pill red">Untagged</span> prints up front{% endif %}{% if im.tag and im.tag.set_id %} · p.{{ im.tag.page_no }}{% endif %}</div>
+      <div class="cap"><a href="/p/{{ p.id }}/plan?plan={{ im.id }}&amp;mode=mark"><svg class="ic sm"><use href="#i-map"/></svg> {{ im.pins|length }} room{{ 's' if im.pins|length != 1 }} marked · mark rooms</a></div>
     </div>
   {% else %}
     <div class="ph lg">No floor plans yet</div>

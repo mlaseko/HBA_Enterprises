@@ -160,3 +160,59 @@ def client_plans(p) -> list:
     seen = {im.id for im in out}
     out += [im for im in plans(p) if im.id not in seen]
     return out
+
+
+# ---- interactive plan: pins (where a room sits on a plan) --------------------------------------------------
+
+def rooms_for_plan(p, im) -> list:
+    """Rooms that belong on this plan: the rooms of its floor. A plan with no real floor gets the whole-house rooms."""
+    k = floor_key(im.floor) if im is not None else ""
+    if k and k not in PSEUDO:
+        return [r for r in p.rooms if floor_key(r.floor) == k]
+    return [r for r in p.rooms if is_pseudo(r.floor)]
+
+
+def pins_by_room(p) -> dict[int, list]:
+    """room_id -> pins on every plan of the project (a room can be marked on more than one sheet)."""
+    by: dict[int, list] = {}
+    for im in plans(p):
+        for pin in im.pins:
+            by.setdefault(pin.room_id, []).append(pin)
+    return by
+
+
+def plan_with_room(p, room):
+    """The plan to open for a room: the first plan the room is marked on, else the plan of its floor, else None."""
+    if room is None:
+        return None
+    for im in client_plans(p):
+        if any(pin.room_id == room.id for pin in im.pins):
+            return im
+    return plan_for_room(p, room)
+
+
+def default_plan(p):
+    """The plan the Plan page opens on: the first tagged floor's plan, else the first plan at all."""
+    ps = client_plans(p)
+    return ps[0] if ps else None
+
+
+def clamp_box(x, y, w, h, minimum: float = 0.01) -> tuple[float, float, float, float] | None:
+    """Normalise a drawn rectangle (fractions of the image) to the image and refuse one too small to tap.
+    Accepts a box drawn in any direction (negative width/height) and clips it to the image edges."""
+    try:
+        x, y, w, h = float(x), float(y), float(w), float(h)
+    except (TypeError, ValueError):
+        return None
+    if any(v != v for v in (x, y, w, h)):  # NaN
+        return None
+    if w < 0:
+        x, w = x + w, -w
+    if h < 0:
+        y, h = y + h, -h
+    x0, y0 = min(max(x, 0.0), 1.0), min(max(y, 0.0), 1.0)
+    x1, y1 = min(max(x + w, 0.0), 1.0), min(max(y + h, 0.0), 1.0)
+    w, h = x1 - x0, y1 - y0
+    if w < minimum or h < minimum:
+        return None
+    return round(x0, 5), round(y0, 5), round(w, 5), round(h, 5)

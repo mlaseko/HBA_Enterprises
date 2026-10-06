@@ -347,10 +347,73 @@ with TestClient(app) as c:
         r=c.post(f"/p/{pid}/images/plans", data={}, files=[("files",("huge.pdf",pdf_pages(["H"]),"application/pdf"))], follow_redirects=False); assert "larger" in r.headers["location"], r.headers["location"]
     finally:
         _cfg.MAX_PDF_MB=_oldmb
+    # ---- interactive plan: pins (room boxes on a plan), browse page, room panel, mark mode, cascades ----
+    from app.models import RoomPin
+    db=SessionLocal(); gf_rooms=[r for r in db.query(Room).filter(Room.project_id==int(pid)).order_by(Room.sort) if _dr.floor_key(r.floor)=="ground"]; db.close()
+    assert len(gf_rooms)>=2 and room.id in [r.id for r in gf_rooms]
+    r=c.get(f"/p/{pid}/plan"); assert r.status_code==200 and f'data-plan="{gid}"' in r.text and "Tap a room" in r.text and "0 of" in r.text, r.text[:400]
+    assert "plan-tabs" in r.text and "Ground floor" in r.text and "Not on this plan yet" in r.text and f'plan?plan={gid}&amp;mode=mark' in r.text
+    assert 'href="/p/'+pid+'/plan"' in r.text  # shell navigation (sidebar / bottom bar / More sheet)
+    # a box drawn the "wrong way round" (negative size) is normalised; too small is refused; other project's room refused
+    r=c.post(f"/p/{pid}/plan/pins", data={"image_id":gid,"room_id":room.id,"x":"0.4","y":"0.6","w":"-0.3","h":"-0.25"}, headers={"Accept":"application/json"})
+    j=r.json(); assert r.status_code==200 and j["ok"] and j["pin"]["x"]==0.1 and j["pin"]["y"]==0.35 and j["pin"]["w"]==0.3 and j["pin"]["h"]==0.25, j
+    pin_id=j["pin"]["id"]
+    r=c.post(f"/p/{pid}/plan/pins", data={"image_id":gid,"room_id":room.id,"x":"0.1","y":"0.1","w":"0.001","h":"0.2"}, headers={"Accept":"application/json"}); assert r.status_code==400 and "bigger" in r.json()["error"]
+    r=c.post(f"/p/{pid}/plan/pins", data={"image_id":gid,"room_id":other.id,"x":"0.1","y":"0.1","w":"0.2","h":"0.2"}, headers={"Accept":"application/json"}); assert r.status_code==404
+    r=c.post(f"/p/{pid}/plan/pins", data={"image_id":gid,"room_id":room.id,"x":"abc","y":"0.1","w":"0.2","h":"0.2"}, headers={"Accept":"application/json"}); assert r.status_code==400
+    # saving again for the same room on the same plan replaces the box (one pin per room per plan), clipped to the image
+    r=c.post(f"/p/{pid}/plan/pins", data={"image_id":gid,"room_id":room.id,"x":"0.9","y":"0.9","w":"0.5","h":"0.5"}, headers={"Accept":"application/json"}); j=r.json()
+    assert j["pin"]["id"]==pin_id and abs(j["pin"]["w"]-0.1)<1e-6 and abs(j["pin"]["h"]-0.1)<1e-6, j
+    db=SessionLocal(); assert db.query(RoomPin).filter(RoomPin.image_id==gid).count()==1; db.close()
+    # second room via the plain form (no JSON): redirects back to mark mode
+    r2=gf_rooms[1] if gf_rooms[0].id==room.id else gf_rooms[0]
+    r=c.post(f"/p/{pid}/plan/pins", data={"image_id":gid,"room_id":r2.id,"x":"0.5","y":"0.1","w":"0.3","h":"0.3"}, follow_redirects=False); assert r.status_code==303 and f"plan={gid}&mode=mark" in r.headers["location"]
+    # browse page: boxes as links, counts, selected room renders its panel inline (deep link, no JavaScript needed)
+    r=c.get(f"/p/{pid}/plan?plan={gid}&room={room.id}"); assert r.status_code==200
+    assert f'class="pin sel' in r.text and 'left:90.000%;top:90.000%' in r.text and f'data-room="{r2.id}"' in r.text and "2 of" in r.text
+    assert 'class="card tight plan-room"' in r.text and "Room details" in r.text and "status-sel" in r.text and f"/items/new?room={room.id}" in r.text and "GF-KIT" in r.text
+    assert f"next=/p/{pid}/plan%3Fplan%3D{gid}%26room%3D{room.id}" in r.text  # item links come back to the plan
+    # a room not on any plan opens on its floor's plan; a room asked for without a plan opens the plan it is marked on
+    r3=next(x for x in gf_rooms if x.id not in (room.id, r2.id))
+    r=c.get(f"/p/{pid}/plan?room={r3.id}"); assert r.status_code==200 and f'data-plan="{gid}"' in r.text and "Not placed on this plan yet" in r.text
+    r=c.get(f"/p/{pid}/plan?room={room.id}"); assert f'data-plan="{gid}"' in r.text and 'class="pin sel' in r.text
+    # the panel as a fragment (what plan.js fetches when a box is tapped): no app shell, items of that room only
+    r=c.get(f"/p/{pid}/plan/room/{room.id}?plan={gid}"); assert r.status_code==200 and "<html" not in r.text and "plan-room" in r.text and "Island pendant" in r.text
+    assert c.get(f"/p/{pid}/plan/room/{other.id}").status_code==404 and c2.get(f"/p/{pid}/plan", follow_redirects=False).status_code==303
+    # saving the item form with next= returns to the plan; the room form on the panel too
+    nxt=f"/p/{pid}/plan?plan={gid}&room={room.id}"
+    from urllib.parse import quote as _q
+    r=c.get(f"/p/{pid}/items/{iid}?next={_q(nxt, safe='')}"); assert f'name="next" value="{nxt.replace("&", "&amp;")}"' in r.text and "Back to the plan" in r.text, r.text[:300]
+    r=c.post(f"/p/{pid}/items/{iid}", data={"room_id":room.id,"category":"Lighting","name":"Island pendant","qty":"3","unit":"pcs","unit_price":"450","status":"Ordered","next":nxt}, follow_redirects=False); assert r.headers["location"]==nxt
+    r=c.post(f"/p/{pid}/items/{iid}", data={"room_id":room.id,"category":"Lighting","name":"Island pendant","qty":"3","unit":"pcs","unit_price":"450","status":"Ordered","next":"https://evil.example/x"}, follow_redirects=False); assert r.headers["location"].startswith(f"/p/{pid}/items/")
+    r=c.post(f"/p/{pid}/rooms/{room.id}", data={"code":"GF-KIT","name":"Kitchen","floor":"Ground","floor_area":"0","wall_area":"0","notes":"via plan","next":nxt}, follow_redirects=False); assert r.headers["location"]==nxt
+    db=SessionLocal(); assert db.get(Room, room.id).notes=="via plan"; db.close()
+    # mark mode: the floor's rooms with placed/not placed state, other floors collapsed; tabs keep the mode
+    r=c.get(f"/p/{pid}/plan?plan={gid}&mode=mark"); assert r.status_code==200 and "Mark rooms" in r.text and "Done marking" in r.text
+    assert r.text.count('class="r placed"')==2 and "Rooms on other floors" in r.text and f"plan={roof_id}&amp;mode=mark" in r.text and f'data-sel=""' in r.text
+    r=c.get(f"/p/{pid}/plan?plan={gid}&mode=mark&room={r3.id}"); assert f'data-sel="{r3.id}"' in r.text
+    # entry points: Rooms page ("On the plan" / "Place on plan"), Images (count + mark link), Overview, item list filtered by room
+    r=c.get(f"/p/{pid}/rooms"); assert "Open the plan" in r.text and f"plan?plan={gid}&amp;room={room.id}" in r.text and f"plan?plan={gid}&amp;mode=mark&amp;room={r3.id}" in r.text
+    r=c.get(f"/p/{pid}/images"); assert "2 rooms marked" in r.text and f"plan?plan={gid}&amp;mode=mark" in r.text
+    r=c.get(f"/p/{pid}"); assert "Plan view" in r.text and f"plan?room={room.id}" in r.text
+    r=c.get(f"/p/{pid}/items?room={room.id}"); assert f'href="/p/{pid}/plan?room={room.id}"' in r.text
+    # delete a pin (JSON and form); deleting the room or the plan removes its pins
+    r=c.post(f"/p/{pid}/plan/pins/{pin_id}/delete", headers={"Accept":"application/json"}); assert r.json()["ok"]
+    r=c.post(f"/p/{pid}/plan/pins/{pin_id}/delete", headers={"Accept":"application/json"}); assert r.status_code==404
+    c.post(f"/p/{pid}/plan/pins", data={"image_id":roof_id,"room_id":r2.id,"x":"0.1","y":"0.1","w":"0.2","h":"0.2"}, headers={"Accept":"application/json"})
+    c.post(f"/p/{pid}/plan/pins", data={"image_id":roof_id,"room_id":r3.id,"x":"0.5","y":"0.1","w":"0.2","h":"0.2"}, headers={"Accept":"application/json"})
+    db=SessionLocal(); assert db.query(RoomPin).filter(RoomPin.image_id==roof_id).count()==2 and db.query(RoomPin).filter(RoomPin.room_id==r2.id).count()==2; db.close()
+    c.post(f"/p/{pid}/rooms", data={"code":"TMP","name":"Temp","floor":"Ground"}, follow_redirects=False)
+    db=SessionLocal(); tmp=db.query(Room).filter(Room.project_id==int(pid), Room.code=="TMP").first(); db.close()
+    c.post(f"/p/{pid}/plan/pins", data={"image_id":gid,"room_id":tmp.id,"x":"0.1","y":"0.1","w":"0.2","h":"0.2"}, headers={"Accept":"application/json"})
+    c.post(f"/p/{pid}/rooms/{tmp.id}/delete", follow_redirects=False)
+    db=SessionLocal(); assert db.query(RoomPin).filter(RoomPin.room_id==tmp.id).count()==0; db.close()
+    r=c.get(f"/p/{pid2}/plan"); assert r.status_code==200 and f'data-plan=' in r.text  # project with only a pseudo-floor plan still opens
+    print("interactive plan ok")
     # deleting a plan removes both files and the tag row
     r=c.post(f"/p/{pid}/images/{roof_id}/delete", follow_redirects=False); assert r.status_code==303
     assert _st.read_image(roof_keys[0]) is None and _st.read_image(roof_keys[1]) is None
-    db=SessionLocal(); assert db.get(PlanTag, roof_id) is None and db.get(ProjectImage, roof_id) is None; db.close()
+    db=SessionLocal(); assert db.get(PlanTag, roof_id) is None and db.get(ProjectImage, roof_id) is None and db.query(RoomPin).filter(RoomPin.image_id==roof_id).count()==0; db.close()
     print("floor plans ok")
     # shared storage: a photo still on this server's disk is served and copied into the bucket
     class _Fake:

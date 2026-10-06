@@ -390,3 +390,102 @@ details summary{cursor:pointer;color:var(--ink);font-weight:600;margin:0}
 .sticky-actions{position:sticky;bottom:8px;background:var(--bg);padding:10px 0;z-index:2}
 @media(max-width:959px){.sticky-actions{bottom:calc(var(--bottom-h) + 10px + env(safe-area-inset-bottom))}}
 @media(max-width:700px){.pages{grid-template-columns:1fr}}
+
+/* ---------- plan page (plan/index.html + plan/_room.html + plan.js): the floor plan with a tappable box per room ---------- */
+.plan-wrap{max-width:1440px}
+.min0{min-width:0}
+.plan-tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 12px;margin-bottom:4px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+.plan-tabs a{flex:none;display:flex;flex-direction:column;gap:1px;padding:8px 34px 8px 14px;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);min-width:128px;position:relative;box-shadow:var(--sh-1)}
+.plan-tabs a:hover{text-decoration:none;background:var(--surface-2)}
+.plan-tabs a.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.plan-tabs a .t{font-weight:600;font-size:.88rem;white-space:nowrap}
+.plan-tabs a .s{font-size:.72rem;color:var(--muted);white-space:nowrap}.plan-tabs a.on .s{color:rgba(255,255,255,.65)}
+.plan-tabs a .n{position:absolute;top:9px;right:10px;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--surface-3);color:var(--ink-2);font-size:.68rem;font-weight:700;display:flex;align-items:center;justify-content:center}
+.plan-tabs a.on .n{background:rgba(255,255,255,.18);color:#fff}
+.plan-layout{display:grid;gap:14px;grid-template-columns:1fr;align-items:start}
+@media(min-width:960px){.plan-layout{grid-template-columns:minmax(0,1fr) 380px}}
+@media(min-width:1280px){.plan-layout{grid-template-columns:minmax(0,1fr) 420px}}
+.plan-main{min-width:0}
+.plan-card{padding:10px;margin-bottom:0}
+.plan-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:2px 4px 10px}
+.plan-tools .zoom{display:flex;gap:4px}
+.plan-tools .zoom .btn.icon{font-size:1.15rem;line-height:1}
+.plan-tools .hint{min-width:0}.plan-tools .hint.err{color:var(--red);font-weight:600}
+.plan-viewport{overflow:auto;max-height:calc(100vh - 300px);min-height:280px;border:1px solid var(--line);border-radius:12px;background:#fff;position:relative;overscroll-behavior:contain;scrollbar-width:thin}
+@media(max-width:959px){.plan-viewport{max-height:66vh;min-height:240px}}
+.plan-stage{position:relative;width:100%;transition:width .18s ease;user-select:none;-webkit-user-select:none}
+.marking .plan-stage{cursor:crosshair}
+.plan-img{display:block;width:100%;height:auto;pointer-events:none;-webkit-user-drag:none}
+.pin{position:absolute;display:block;border:2px solid var(--accent);background:rgba(185,89,58,.10);border-radius:6px;color:var(--ink);box-shadow:inset 0 0 0 1px rgba(255,255,255,.6);transition:background .15s,box-shadow .15s}
+.pin:hover{background:rgba(185,89,58,.2);text-decoration:none;z-index:2}
+.pin.sel{background:rgba(185,89,58,.26);box-shadow:0 0 0 3px rgba(185,89,58,.35),inset 0 0 0 1px rgba(255,255,255,.7);z-index:3}
+.pin.done{border-color:var(--sage);background:rgba(111,139,116,.14)}.pin.done:hover,.pin.done.sel{background:rgba(111,139,116,.28)}
+.pin .lab{position:absolute;left:4px;top:4px;display:inline-flex;align-items:center;gap:5px;max-width:calc(100% - 8px);padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.93);font-size:.68rem;line-height:1.4;box-shadow:0 1px 2px rgba(0,0,0,.1);white-space:nowrap;overflow:hidden}
+.pin .lab b{color:var(--accent-ink)}.pin.done .lab b{color:var(--sage-ink)}.pin .lab .nm{color:var(--ink-2);overflow:hidden;text-overflow:ellipsis}
+.pin.sm .lab .nm{display:none}.pin.xs .lab{display:none}
+.pin .cnt{position:absolute;right:3px;bottom:3px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--ink);color:#fff;font-size:.62rem;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 2px rgba(0,0,0,.15)}
+.pin.xs .cnt{right:-6px;bottom:-6px}
+.pin .prog{position:absolute;left:-2px;right:-2px;bottom:-2px;height:4px;background:rgba(255,255,255,.75);border-radius:0 0 6px 6px;overflow:hidden}
+.pin .prog:after{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--p,0%);background:var(--green)}
+.pin .handle{position:absolute;right:-8px;bottom:-8px;width:16px;height:16px;border-radius:5px;background:#fff;border:2px solid var(--accent);cursor:nwse-resize;display:none;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.marking .pin{cursor:move}.marking .pin .handle{display:block}.marking .pin .cnt,.marking .pin .prog{display:none}
+.plan-draw{position:absolute;border:2px dashed var(--accent);background:rgba(185,89,58,.14);border-radius:6px;pointer-events:none;z-index:4}
+.plan-unplaced{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:10px 4px 2px}
+.plan-unplaced a.pill:hover{text-decoration:none;background:var(--accent-soft);color:var(--accent-ink)}
+/* side panel: sticky column on desktop; on phones a bottom sheet once a room is open */
+.plan-panel{min-width:0}
+.plan-panel .card{margin-bottom:0}
+.plan-panel .plan-loading{min-height:120px;display:flex;align-items:center;justify-content:center}
+@media(min-width:960px){.plan-panel{position:sticky;top:calc(var(--top-h) + 14px);max-height:calc(100vh - var(--top-h) - 28px);overflow:auto;scrollbar-width:thin}}
+.plan-backdrop{display:none}
+@media(max-width:959px){
+  .plan-panel.open{position:fixed;left:0;right:0;bottom:0;z-index:45;max-height:80vh;overflow:auto;background:var(--surface);border-radius:22px 22px 0 0;box-shadow:var(--sh-2);padding:6px 14px calc(14px + env(safe-area-inset-bottom));animation:up .22s ease}
+  .plan-panel.open:before{content:"";display:block;width:42px;height:4px;border-radius:999px;background:var(--line);margin:6px auto 10px}
+  .plan-panel.open .card{border:0;box-shadow:none;padding:4px 0}
+  .plan-backdrop.on{display:block;position:fixed;inset:0;background:rgba(30,27,24,.35);z-index:44}
+  .plan-intro{display:none}
+  .plan-layout.marking{display:flex;flex-direction:column-reverse;align-items:stretch}
+  .plan-layout.marking .plan-panel{position:sticky;top:var(--top-h);z-index:5;background:var(--bg);padding-top:6px}
+  .plan-layout.marking .plan-rooms .rlist{display:flex;flex-direction:row;gap:6px;overflow-x:auto;padding:2px 2px 8px;margin-top:6px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+  .plan-layout.marking .plan-rooms .r{flex:none;width:auto}
+  .plan-layout.marking .plan-rooms .r .state{display:none}
+  .plan-layout.marking .plan-rooms details.other .rlist{margin-top:4px}
+}
+.plan-intro .empty{padding:26px 10px 18px}
+.plan-dir{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.plan-dir a{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:12px;color:var(--ink);background:var(--surface-2)}
+.plan-dir a:hover{text-decoration:none;background:var(--accent-soft)}
+.plan-dir a .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9rem;font-weight:500}
+.plan-dir a .n{font-size:.74rem;color:var(--muted);font-weight:600}
+/* mark mode: the rooms list */
+.plan-rooms .rlist{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.plan-rooms .r{display:flex;align-items:center;gap:4px;border-radius:12px;border:1px solid var(--line);background:var(--surface);padding:2px 4px 2px 2px}
+.plan-rooms .r .pick{flex:1;min-width:0;display:flex;align-items:center;gap:8px;padding:7px 8px;border:0;background:none;font:inherit;color:var(--ink);text-align:left;cursor:pointer;border-radius:10px}
+.plan-rooms .r:hover{background:var(--surface-2)}
+.plan-rooms .r.on{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 3px rgba(185,89,58,.18)}
+.plan-rooms .r .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;font-size:.9rem}
+.plan-rooms .r .state{font-size:.7rem;color:var(--muted);white-space:nowrap}
+.plan-rooms .r.placed .state{color:var(--green);font-weight:600}
+.plan-rooms .r .del{display:none;flex:none}.plan-rooms .r.placed .del{display:inline-flex}
+.plan-rooms details.other summary{font-size:.88rem}
+/* the room panel */
+.plan-room .ph-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.plan-room h2{font-family:var(--serif);font-weight:500;font-size:1.35rem;margin:2px 0 0;line-height:1.15}
+.ph-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.ph-stats>div{background:var(--surface-2);border:1px solid var(--line-2);border-radius:12px;padding:8px 10px;min-width:0}
+.ph-stats .v{font-family:var(--serif);font-size:1.15rem;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ph-stats .v .of{font-size:.8rem;color:var(--muted)}
+.ph-stats .l{font-size:.64rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-top:3px}
+.ph-actions{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.ph-items .cat{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:12px 0 2px}
+.ph-items .empty{padding:18px 8px}
+.pi{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line-2)}
+.pi .pic{flex:none;width:48px;height:48px;border-radius:10px;overflow:hidden;background:var(--surface-3);border:1px solid var(--line-2);display:flex;align-items:center;justify-content:center;font-size:.58rem;color:var(--muted-2);text-align:center;line-height:1.1}
+.pi .pic.empty{border-style:dashed}
+.pi .pic img{width:100%;height:100%;object-fit:cover;display:block}
+.pi .body{flex:1;min-width:0}
+.pi .t{font-weight:600;font-size:.9rem;line-height:1.25;color:var(--ink);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pi .m{font-size:.76rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pi .status-sel{flex:none;max-width:124px;font-size:.72rem;padding:4px 24px 4px 22px}
+@media(max-width:400px){.pi{flex-wrap:wrap}.pi .status-sel{margin-left:58px}}
+.ph-details{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.ph-details summary{font-size:.9rem}

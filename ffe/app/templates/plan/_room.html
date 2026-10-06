@@ -1,0 +1,56 @@
+{# One room's panel on the Plan page. Rendered inline (?room=) and served as a fragment by GET /p/<id>/plan/room/<room>. #}
+{% set n = items|length %}
+<div class="card tight plan-room" data-room="{{ room.id }}" data-code="{{ room.code }}">
+  <div class="ph-head">
+    <div class="min0">
+      <div class="row"><span class="pill accent">{{ room.code }}</span>{% if room.floor %}<span class="small muted">{{ room.floor|floor_title }}</span>{% endif %}</div>
+      <h2>{{ room.name }}</h2>
+    </div>
+    <a class="btn ghost sm icon close" href="/p/{{ p.id }}/plan{% if plan %}?plan={{ plan.id }}{% endif %}" aria-label="Close" title="Close"><svg class="ic"><use href="#i-x"/></svg></a>
+  </div>
+  <div class="ph-stats">
+    <div><div class="v">{{ n }}</div><div class="l">Item{{ 's' if n != 1 }}</div></div>
+    <div><div class="v">¥{{ (st.total if st else 0)|money }}</div><div class="l">Total CNY</div></div>
+    <div><div class="v"><span data-received>{{ st.received if st else 0 }}</span><span class="of">/{{ n }}</span></div><div class="l">Received</div></div>
+  </div>
+  {% if plan and not pin %}<div class="alert info small">Not placed on this plan yet. <a href="/p/{{ p.id }}/plan?plan={{ plan.id }}&amp;mode=mark&amp;room={{ room.id }}">Mark it</a></div>{% endif %}
+  <div class="ph-actions">
+    <a class="btn sm" href="/p/{{ p.id }}/items/new?room={{ room.id }}"><svg class="ic"><use href="#i-plus"/></svg>Add item</a>
+    <a class="btn sm accent" href="/p/{{ p.id }}/capture?room={{ room.id }}"><svg class="ic"><use href="#i-camera"/></svg>Capture</a>
+    <a class="btn sm sec" href="/p/{{ p.id }}/items?room={{ room.id }}" title="Open this room in the item list"><svg class="ic"><use href="#i-grid"/></svg>List</a>
+    <a class="btn sm sec" href="/p/{{ p.id }}/export/room/{{ room.id }}.pdf" target="_blank" title="Room checklist PDF"><svg class="ic"><use href="#i-file"/></svg>PDF</a>
+  </div>
+  <div class="ph-items">
+    {% set ns = namespace(last='') %}
+    {% for i in items %}
+    {% if i.category != ns.last %}<div class="cat">{{ i.category }}</div>{% set ns.last = i.category %}{% endif %}
+    <div class="pi">
+      <a class="pic{{ '' if i.cover else ' empty' }}" href="/p/{{ p.id }}/items/{{ i.id }}?next={{ here|urlencode }}">{% if i.cover %}<img src="/media/{{ i.cover.file_key }}" loading="lazy" alt="">{% else %}no photo{% endif %}</a>
+      <div class="body">
+        <a class="t" href="/p/{{ p.id }}/items/{{ i.id }}?next={{ here|urlencode }}">{{ i.name }}</a>
+        <div class="m">{{ i.code }} · {{ i.qty|num }} {{ i.unit }}{% if i.unit_price %} · ¥{{ i.total|money }}{% endif %}{% if i.supplier %} · {{ i.supplier.name }}{% endif %}{% if i.optional %} · optional{% endif %}</div>
+      </div>
+      <select class="status-sel" data-url="/p/{{ p.id }}/items/{{ i.id }}/status" style="--c:{{ STATUS_COLORS[i.status] }}" aria-label="Status of {{ i.name }}">{% for s in STATUSES %}<option data-c="{{ STATUS_COLORS[s] }}" {{ 'selected' if i.status == s }}>{{ s }}</option>{% endfor %}</select>
+    </div>
+    {% else %}
+    <div class="empty small"><p>No items in this room yet. Add one, or shoot samples with Quick capture.</p></div>
+    {% endfor %}
+  </div>
+  <details class="ph-details">
+    <summary>Room details</summary>
+    <form method="post" action="/p/{{ p.id }}/rooms/{{ room.id }}" class="mt">
+      <input type="hidden" name="next" value="{{ here }}">
+      <input type="hidden" name="sort" value="{{ room.sort }}">
+      <datalist id="plan-floors">{% for f in floors %}<option value="{{ f }}">{% endfor %}</datalist>
+      <div class="grid g2">
+        <div><label>Code</label><input class="in" type="text" name="code" value="{{ room.code }}" required></div>
+        <div><label>Name</label><input class="in" type="text" name="name" value="{{ room.name }}" required></div>
+        <div><label>Floor</label><input class="in" type="text" name="floor" list="plan-floors" value="{{ room.floor }}" autocomplete="off"></div>
+        <div><label>Floor area m²</label><input class="in" type="number" step="0.1" name="floor_area" value="{{ room.floor_area }}"></div>
+        <div><label>Wall tile m²</label><input class="in" type="number" step="0.1" name="wall_area" value="{{ room.wall_area }}"></div>
+        <div class="span2"><label>Notes</label><input class="in" type="text" name="notes" value="{{ room.notes }}" placeholder="Finish level, access, anything the installers should know"></div>
+      </div>
+      <div class="row mt"><button class="btn sm"><svg class="ic"><use href="#i-check"/></svg>Save room</button><a class="small" href="/p/{{ p.id }}/rooms">All rooms</a></div>
+    </form>
+  </details>
+</div>

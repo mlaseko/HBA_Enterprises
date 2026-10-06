@@ -10,6 +10,7 @@
     <p class="sub">The schedule for {{ p.name }}. Change a status right here; open an item for the full sheet and its photos.</p>
   </div>
   <div class="actions">
+    {% if qroom %}<a class="btn sec" href="/p/{{ p.id }}/plan?room={{ qroom }}" title="Show this room on the floor plan"><svg class="ic"><use href="#i-map"/></svg>On the plan</a>{% endif %}
     <a class="btn accent" href="/p/{{ p.id }}/capture?room={{ qroom }}&amp;category={{ f.category }}"><svg class="ic"><use href="#i-camera"/></svg>Quick capture</a>
     {% if drafts %}<a class="btn sec" href="/p/{{ p.id }}/drafts">Drafts ({{ drafts }})</a>{% endif %}
     <a class="btn" href="/p/{{ p.id }}/items/new?room={{ qroom }}&amp;category={{ f.category }}"><svg class="ic"><use href="#i-plus"/></svg>Add item</a>

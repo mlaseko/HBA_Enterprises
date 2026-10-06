@@ -1,6 +1,6 @@
 import secrets
 from datetime import datetime, date
-from sqlalchemy import String, Integer, Float, Boolean, Text, DateTime, Date, ForeignKey, false
+from sqlalchemy import String, Integer, Float, Boolean, Text, DateTime, Date, ForeignKey, UniqueConstraint, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .db import Base
 
@@ -67,6 +67,8 @@ class ProjectImage(Base):
     project: Mapped["Project"] = relationship(back_populates="images")
     # Floor plans only: which floor the plan shows, sheet reference, full-size copy. No row = untagged plan.
     tag: Mapped["PlanTag | None"] = relationship(back_populates="image", cascade="all, delete-orphan", uselist=False)
+    # Floor plans only: where each room sits on this plan (the interactive Plan page). Deleted with the plan.
+    pins: Mapped[list["RoomPin"]] = relationship(back_populates="image", cascade="all, delete-orphan", order_by="RoomPin.id")
 
     @property
     def floor(self) -> str:
@@ -132,10 +134,34 @@ class Room(Base):
     sort: Mapped[int] = mapped_column(Integer, default=0)
     project: Mapped["Project"] = relationship(back_populates="rooms")
     items: Mapped[list["Item"]] = relationship(back_populates="room")
+    pins: Mapped[list["RoomPin"]] = relationship(back_populates="room", cascade="all, delete-orphan", order_by="RoomPin.id")
 
     @property
     def label(self):
         return f"{self.code} - {self.name}"
+
+
+class RoomPin(Base):
+    """Where a room sits on one floor plan: a rectangle in fractions (0..1) of the plan image, so the same pin fits the
+    1600 px preview, the full-size copy and a phone screen. One pin per room per plan. Own table: no ALTER on Neon.
+    Drawn by the designer on the Plan page; nothing creates pins (or rooms) from a drawing automatically."""
+    __tablename__ = "room_pins"
+    __table_args__ = (UniqueConstraint("image_id", "room_id", name="uq_room_pins_image_room"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    image_id: Mapped[int] = mapped_column(ForeignKey("project_images.id"))
+    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id"))
+    x: Mapped[float] = mapped_column(Float, default=0.0)  # left edge, fraction of the image width
+    y: Mapped[float] = mapped_column(Float, default=0.0)  # top edge, fraction of the image height
+    w: Mapped[float] = mapped_column(Float, default=0.1)
+    h: Mapped[float] = mapped_column(Float, default=0.1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    image: Mapped["ProjectImage"] = relationship(back_populates="pins")
+    room: Mapped["Room"] = relationship(back_populates="pins")
+
+    @property
+    def style(self) -> str:
+        """Inline CSS placing the pin over the plan image."""
+        return f"left:{self.x * 100:.3f}%;top:{self.y * 100:.3f}%;width:{self.w * 100:.3f}%;height:{self.h * 100:.3f}%"
 
 
 class Supplier(Base):

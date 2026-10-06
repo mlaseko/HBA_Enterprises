@@ -4,7 +4,7 @@
 {% set it = item %}
 <div class="page-head">
   <div>
-    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/items">Items</a></div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg>{% if next %}<a href="{{ next }}">Plan</a>{% if it and it.room %}<svg class="ic"><use href="#i-chevron-right"/></svg><a href="{{ next }}">{{ it.room.name }}</a>{% endif %}{% else %}<a href="/p/{{ p.id }}/items">Items</a>{% endif %}</div>
     <h1>{{ (it.name or 'Draft item') if it else 'New item' }}{% if it and it.code %} <span class="h-note">{{ it.code }}</span>{% endif %}</h1>
     {% if it %}<p class="sub">{{ it.category }}{% if it.room %} · {{ it.room.label }}{% endif %}{% if it.supplier %} · {{ it.supplier.name }}{% endif %}</p>
     {% else %}<p class="sub">Fill in what you know now. Everything can be edited later and photos can be added at any time.</p>{% endif %}
@@ -19,6 +19,7 @@
 {% if it and it.draft %}<div class="alert info">This is a quick-capture draft. Give it a name and save: it gets a code and starts counting in totals and documents. <a href="/p/{{ p.id }}/drafts">Back to drafts</a></div>{% endif %}
 
 <form method="post" enctype="multipart/form-data" class="card" id="itemform">
+  {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
   <div class="grid g2 stack">
     {% if it %}
     <div><label>Room</label><select name="room_id" class="in"><option value="">Whole house / not room-specific</option>{% for r in p.rooms %}<option value="{{ r.id }}" {{ 'selected' if it.room_id == r.id }}>{{ r.label }}</option>{% endfor %}</select></div>
@@ -83,7 +84,8 @@
   <div class="form-actions">
     <button class="btn"><svg class="ic"><use href="#i-check"/></svg>Save</button>
     {% if not it %}<button class="btn sec" name="add_another" value="1"><svg class="ic"><use href="#i-plus"/></svg>Save &amp; add another</button>{% endif %}
-    <a class="btn ghost" href="/p/{{ p.id }}/items{% if it and it.room_id %}?room={{ it.room_id }}{% endif %}"><svg class="ic"><use href="#i-arrow-left"/></svg>Back to list</a>
+    {% if next %}<a class="btn ghost" href="{{ next }}"><svg class="ic"><use href="#i-arrow-left"/></svg>Back to the plan</a>
+    {% else %}<a class="btn ghost" href="/p/{{ p.id }}/items{% if it and it.room_id %}?room={{ it.room_id }}{% endif %}"><svg class="ic"><use href="#i-arrow-left"/></svg>Back to list</a>{% endif %}
   </div>
 </form>
 
