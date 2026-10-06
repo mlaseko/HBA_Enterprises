@@ -4,7 +4,7 @@
 <div class="page-head">
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/images">Images &amp; plans</a></div>
-    <h1>{{ set.name }} <span class="h-note">{{ set.pages }} page{{ '' if set.pages == 1 else 's' }}</span></h1>
+    <h1 class="wrap-any">{{ set.name }} <span class="h-note">{{ set.pages }} page{{ '' if set.pages == 1 else 's' }}</span></h1>
     <p class="sub">Tick the pages that are floor plans and say which floor each one shows. Untagged pages still work but print up front. Up to {{ PICK_MAX_PAGES }} pages per go.</p>
   </div>
 </div>

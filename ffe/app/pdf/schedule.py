@@ -114,6 +114,7 @@ def _summary(story, p, all_items, W, currency, rate, show_prices, studio, by_flo
             rows.append([P("Unassigned"), P(len(un)), P(money(tot, dec))])
 
     if by_floor:
+        whole_done = False
         for g in drawings.rooms_by_floor(p):
             has = any(i.room_id == r.id for r in g["rooms"] for i in all_items) or (g["key"] == "whole" and any(i.room_id is None for i in all_items))
             if not has:
@@ -125,7 +126,8 @@ def _summary(story, p, all_items, W, currency, rate, show_prices, studio, by_flo
             room_rows(g["rooms"])
             if g["key"] == "whole":
                 unassigned_row()
-        if not any(drawings.is_pseudo(r.floor) for r in p.rooms) and any(i.room_id is None for i in all_items):
+                whole_done = True
+        if not whole_done and any(i.room_id is None for i in all_items):  # loose items but no whole-house group at all
             r0 = len(rows)
             rows.append([Paragraph("Whole house / other", S["cellb"]), "", ""])
             st.add("SPAN", (0, r0), (-1, r0))

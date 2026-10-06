@@ -378,6 +378,7 @@ details summary{cursor:pointer;color:var(--ink);font-weight:600;margin:0}
 .gallery.plans.mini a.g{text-decoration:none;color:inherit}
 .gallery.wide.plans img{width:260px;height:180px}
 .set-row{padding:8px 0;border-top:1px solid var(--line);gap:10px;flex-wrap:wrap}.set-row:first-child{border-top:0}
+.set-row>.row>div{min-width:0}.set-row .b,.wrap-any{overflow-wrap:anywhere}
 @media(max-width:480px){.gallery.plans img{width:calc(100vw - 72px);height:auto;max-height:240px}.gallery.plans.mini img{width:calc(50vw - 40px);height:auto}.gallery.plans .g .cap,.gallery.plans .g form.tag{max-width:none}.gallery.wide.plans img{width:100%}}
 /* PDF page picker */
 .pages{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
@@ -387,4 +388,5 @@ details summary{cursor:pointer;color:var(--ink);font-weight:600;margin:0}
 .pages .page label.check{display:flex;align-items:center;gap:8px;font-weight:600;cursor:pointer}
 .pages .page input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent)}
 .sticky-actions{position:sticky;bottom:8px;background:var(--bg);padding:10px 0;z-index:2}
-@media(max-width:700px){.pages{grid-template-columns:1fr}.sticky-actions{bottom:74px}}
+@media(max-width:959px){.sticky-actions{bottom:calc(var(--bottom-h) + 10px + env(safe-area-inset-bottom))}}
+@media(max-width:700px){.pages{grid-template-columns:1fr}}

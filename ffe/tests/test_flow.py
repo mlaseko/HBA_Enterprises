@@ -267,13 +267,17 @@ with TestClient(app) as c:
     assert "No plan for this floor yet" not in r.text and "Whole house / other" in r.text
     r=c2.get(f"/c/{ctok}"); assert "Floor plans" in r.text and plan_prev in r.text and "layout=floor" in r.text
     r=c2.get(f"/c/{ctok}/schedule.pdf?layout=floor"); assert r.status_code==200 and r.headers["content-type"]=="application/pdf"
+    tc=pdf_text(r.content); assert "GROUND FLOOR" in tc and "WHOLE HOUSE" in tc and "FLOOR PLAN OVERVIEW" not in tc  # the client link really gets the by-floor layout
     # schedules: by category unchanged in structure, by floor = plan page then that floor's rooms, whole house, summary
     a=c.get(f"/p/{pid}/export/schedule.pdf"); b=c.get(f"/p/{pid}/export/schedule.pdf?layout=floor"); b2=c.get(f"/p/{pid}/export/schedule.pdf?layout=floor")
     assert a.status_code==b.status_code==200 and len(b.content)==len(b2.content) and len(a.content)!=len(b.content)
     assert c.get(f"/p/{pid}/export/schedule.pdf?layout=floor&currency=CNY&prices=0").status_code==200
     t_=pdf_text(b.content)
     assert t_.index("GROUND FLOOR") < t_.index("FIRST FLOOR") < t_.index("ROOF") < t_.index("WHOLE HOUSE") < t_.index("SUMMARY BY ROOM"), t_[:3000]
-    assert "A-101 Rev B" in t_ and "GF-KIT - Kitchen" in t_ and "ALL " not in t_.split("SUMMARY BY ROOM")[0].replace("ALL - Whole house","") and "FLOOR PLAN OVERVIEW" not in t_
+    assert "A-101 Rev B" in t_ and "GF-KIT - Kitchen" in t_ and "FLOOR PLAN OVERVIEW" not in t_
+    # the pseudo-floor room (ALL) prints only in the whole-house section, never under a real floor
+    assert t_.index("WHOLE HOUSE") < t_.index("ALL - Whole house") < t_.index("SUMMARY BY ROOM") and "ALL - Whole house" not in t_[:t_.index("WHOLE HOUSE")]
+    assert t_.count("Whole house / other") == 1, t_.count("Whole house / other")
     ta=pdf_text(a.content); assert "FLOOR PLAN OVERVIEW" in ta and "SCHEDULE" in ta and "Ground floor · A-101 Rev B · Ground plan" in ta
     # room checklist: the room's floor plan is page 1
     r=c.get(f"/p/{pid}/export/room/{room.id}.pdf"); assert r.status_code==200 and len(r.content)>room_len and len(_pf.PdfDocument(r.content))>=2
@@ -285,6 +289,15 @@ with TestClient(app) as c:
     c.post(f"/p/{pid2}/rooms", data={"code":"X-1","name":"Other room","floor":"Ground"}, follow_redirects=False)
     db=SessionLocal(); other=db.query(Room).filter(Room.project_id==int(pid2)).first(); db.close()
     assert c.get(f"/p/{pid}/export/room/{other.id}.pdf").status_code==404 and c.get(f"/p/{pid}/images/sets/{sid}").status_code==200 and c.get(f"/p/{pid2}/images/sets/{sid}").status_code==404
+    # by-floor summary: rooms all on real floors, a plan tagged with a pseudo floor, loose items -> one whole-house section, not two
+    db=SessionLocal(); rooms2={r.code:r for r in db.query(Room).filter(Room.project_id==int(pid2))}; all_id=rooms2["ALL"].id; x1_id=rooms2["X-1"].id; db.close()
+    c.post(f"/p/{pid2}/items/new", data={"room_ids":[str(x1_id)],"category":"Lighting","name":"Lamp","qty":"1","unit":"pcs","unit_price":"100","status":"To buy"}, follow_redirects=False)
+    c.post(f"/p/{pid2}/items/new", data={"room_ids":[str(all_id)],"category":"Lighting","name":"Loose lamp","qty":"1","unit":"pcs","unit_price":"50","status":"To buy"}, follow_redirects=False)
+    c.post(f"/p/{pid2}/rooms/{all_id}/delete", follow_redirects=False)  # its item becomes loose (room_id NULL)
+    c.post(f"/p/{pid2}/images/plans", data={"floor":"Site","sheet":"A-000"}, files=[("files",("site.jpg",big_img("gray",900,600),"image/jpeg"))], follow_redirects=False)
+    t2=pdf_text(c.get(f"/p/{pid2}/export/schedule.pdf?layout=floor").content)
+    assert t2.index("GROUND FLOOR") < t2.index("Lamp") < t2.index("WHOLE HOUSE") < t2.index("Loose lamp") < t2.index("SUMMARY BY ROOM"), t2[:2000]
+    assert t2.count("Whole house / other")==1 and t2.count("Unassigned")==1 and "Unassigned 1 " in t2.split("SUMMARY BY ROOM")[1], t2[-1500:]
     # deleting the PDF keeps the pages already added
     r=c.post(f"/p/{pid}/images/sets/{sid}/delete", follow_redirects=False); assert r.status_code==303
     assert _st.read_image(set_key) is None and _st.read_image(thumb1) is None and c.get(f"/p/{pid}/images/sets/{sid}").status_code==404

@@ -55,7 +55,7 @@
       <div class="row"><svg class="ic"><use href="#i-file"/></svg><div><div class="b">{{ s.name }}</div><div class="small muted">{{ s.pages }} page{{ '' if s.pages == 1 else 's' }} · {{ added_count.get(s.id, 0) }} added · {{ s.created_at.strftime('%d %b %Y') }}</div></div></div>
       <div class="row">
         <a class="btn sm" href="/p/{{ p.id }}/images/sets/{{ s.id }}"><svg class="ic"><use href="#i-layout"/></svg>Pick pages</a>
-        <a class="btn ghost sm" href="/p/{{ p.id }}/images/sets/{{ s.id }}.pdf"><svg class="ic"><use href="#i-download"/></svg><span class="hide-m">PDF</span></a>
+        <a class="btn ghost sm" href="/p/{{ p.id }}/images/sets/{{ s.id }}.pdf" title="Download the PDF" aria-label="Download the PDF"><svg class="ic"><use href="#i-download"/></svg><span class="hide-m">PDF</span></a>
         <form method="post" action="/p/{{ p.id }}/images/sets/{{ s.id }}/delete" onsubmit="return confirmSubmit(this,'Delete this PDF? Pages already added as floor plans stay.')"><button class="btn sm icon danger" title="Delete PDF" aria-label="Delete PDF"><svg class="ic"><use href="#i-x"/></svg></button></form>
       </div>
     </div>
