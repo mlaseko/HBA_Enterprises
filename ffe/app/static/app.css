@@ -180,6 +180,8 @@ input[type=file]{font-size:.88rem;width:100%;padding:9px 10px;border:1px dashed 
 input[type=file]::file-selector-button{font:inherit;font-weight:600;font-size:.84rem;padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);margin-right:10px;cursor:pointer}
 input[type=checkbox]{width:17px;height:17px;accent-color:var(--accent)}
 .help{font-size:.78rem;color:var(--muted);margin-top:4px}
+.room-picks{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:0 14px;max-height:280px;overflow:auto;padding:4px 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--yellow)}
+.room-picks label.check{margin:7px 0}
 .field-row{display:flex;gap:6px}.field-row input{min-width:0}
 .form-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid var(--line-2)}
 .filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:10px 12px}
