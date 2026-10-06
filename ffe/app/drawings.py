@@ -216,3 +216,14 @@ def clamp_box(x, y, w, h, minimum: float = 0.01) -> tuple[float, float, float, f
     if w < minimum or h < minimum:
         return None
     return round(x0, 5), round(y0, 5), round(w, 5), round(h, 5)
+
+
+def clamp_point(x, y) -> tuple[float, float] | None:
+    """A tapped spot (fractions of the image) clipped to the image; None for junk."""
+    try:
+        x, y = float(x), float(y)
+    except (TypeError, ValueError):
+        return None
+    if x != x or y != y:  # NaN
+        return None
+    return round(min(max(x, 0.0), 1.0), 5), round(min(max(y, 0.0), 1.0), 5)

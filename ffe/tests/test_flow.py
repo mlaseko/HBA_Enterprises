@@ -410,10 +410,55 @@ with TestClient(app) as c:
     db=SessionLocal(); assert db.query(RoomPin).filter(RoomPin.room_id==tmp.id).count()==0; db.close()
     r=c.get(f"/p/{pid2}/plan"); assert r.status_code==200 and f'data-plan=' in r.text  # project with only a pseudo-floor plan still opens
     print("interactive plan ok")
+    # ---- item dots: one spot per item per plan; the room panel places / locates / removes them ----
+    from app.models import ItemPin
+    db=SessionLocal(); kit=db.get(Room, room.id); kit_live=[i.id for i in kit.items if not i.draft]; draft_id=db.query(Item).filter(Item.project_id==int(pid), Item.draft==True).first(); draft_id=draft_id.id if draft_id else None; db.close()  # noqa: E712
+    assert int(iid) in kit_live and len(kit_live)>=2
+    other_item=kit_live[1] if kit_live[0]==int(iid) else kit_live[0]
+    r=c.post(f"/p/{pid}/plan/item-pins", data={"image_id":gid,"item_id":iid,"x":"1.7","y":"-0.2"}, headers={"Accept":"application/json"}); j=r.json()
+    assert r.status_code==200 and j["ok"] and j["pin"]["x"]==1.0 and j["pin"]["y"]==0.0 and j["pin"]["room_id"]==room.id and j["pin"]["code"] and j["pin"]["photo"], j  # clipped to the image
+    ip=j["pin"]["id"]
+    r=c.post(f"/p/{pid}/plan/item-pins", data={"image_id":gid,"item_id":iid,"x":"0.25","y":"0.75"}, headers={"Accept":"application/json"}); j=r.json(); assert j["pin"]["id"]==ip and j["pin"]["x"]==0.25  # same item again = moved
+    db=SessionLocal(); assert db.query(ItemPin).filter(ItemPin.item_id==int(iid)).count()==1; db.close()
+    r=c.post(f"/p/{pid}/plan/item-pins", data={"image_id":gid,"item_id":iid,"x":"nope","y":"0.1"}, headers={"Accept":"application/json"}); assert r.status_code==400
+    r=c.post(f"/p/{pid}/plan/item-pins", data={"image_id":gid,"item_id":"999999","x":"0.1","y":"0.1"}, headers={"Accept":"application/json"}); assert r.status_code==404
+    if draft_id: r=c.post(f"/p/{pid}/plan/item-pins", data={"image_id":gid,"item_id":draft_id,"x":"0.1","y":"0.1"}, headers={"Accept":"application/json"}); assert r.status_code==400 and "draft" in r.json()["error"]
+    db=SessionLocal(); oi=db.query(Item).filter(Item.project_id==int(pid2)).first(); db.close()
+    r=c.post(f"/p/{pid}/plan/item-pins", data={"image_id":gid,"item_id":oi.id,"x":"0.1","y":"0.1"}, headers={"Accept":"application/json"}); assert r.status_code==404  # other project's item
+    r=c.post(f"/p/{pid}/plan/item-pins", data={"image_id":gid,"item_id":other_item,"x":"0.6","y":"0.6"}, follow_redirects=False); assert r.status_code==303 and f"room={room.id}&item={other_item}" in r.headers["location"]
+    # the page: dots as links to their room + item, the deep-linked item highlighted in the panel, the items toggle counts them
+    r=c.get(f"/p/{pid}/plan?plan={gid}&room={room.id}&item={iid}"); assert r.status_code==200
+    assert 'class="ipin sel"' in r.text and 'left:25.000%;top:75.000%' in r.text and f'data-item="{iid}"' in r.text and 'class="pi placed hl"' in r.text and "pinbtn" in r.text and "pinrm" in r.text
+    assert f'id="plan-items"' in r.text and '<span class="n">2</span>' in r.text and 'data-placed>2</span>' in r.text
+    r=c.get(f"/p/{pid}/plan?item={iid}"); assert f'data-sel="{room.id}"' in r.text and f'data-sel-item="{iid}"' in r.text  # ?item= alone opens its room
+    r=c.get(f"/p/{pid}/plan/room/{room.id}?plan={gid}&item={iid}"); assert 'class="pi placed hl"' in r.text
+    r=c.get(f"/p/{pid}/items/{iid}"); assert f"plan?plan={gid}&amp;room={room.id}&amp;item={iid}" in r.text and "On the plan" in r.text
+    r=c.get(f"/p/{pid}/plan?plan={gid}&mode=mark"); assert r.status_code==200 and 'id="plan-items"' not in r.text  # dots stay out of the way while marking
+    # ---- the client link: the same plan, read-only (photos, USD, status badges; no controls, suppliers, notes or CNY) ----
+    r=c2.get(f"/c/{ctok}"); assert r.status_code==200 and 'id="plan"' in r.text and 'data-readonly="1"' in r.text and 'class="ipin' in r.text and "plan.js" in r.text
+    assert f'data-room-base="/c/{ctok}/plan/room/"' in r.text and f'href="/c/{ctok}?plan={gid}&amp;room={r2.id}#plan"' in r.text and "Tap a room" in r.text  # r2's box (GF-KIT's was removed above)
+    assert "status-sel" not in r.text and "plan-count" not in r.text and "Mark rooms" not in r.text and "/p/" not in r.text.split('id="plan"')[1].split("</aside>")[0]
+    r=c2.get(f"/c/{ctok}?plan={gid}&room={room.id}&item={iid}"); assert r.status_code==200 and 'class="card tight plan-room"' in r.text and 'class="pi placed hl"' in r.text
+    panel=r.text.split('class="card tight plan-room"')[1].split("</aside>")[0]
+    assert "Total USD" in panel and "status-sel" not in panel and "Room details" not in panel and "/items/new" not in panel and "pinrm" not in panel and "¥" not in panel and "Foshan Tile Co." not in panel and "pinbtn" in panel
+    r=c2.get(f"/c/{ctok}/plan/room/{room.id}?plan={gid}&item={iid}"); assert r.status_code==200 and "<html" not in r.text and "plan-room" in r.text and "status-sel" not in r.text and "¥" not in r.text
+    assert c2.get(f"/c/{ctok}/plan/room/{other.id}").status_code==404 and c2.get(f"/c/nope/plan/room/{room.id}").status_code==404
+    assert c2.post(f"/p/{pid}/plan/item-pins", data={"image_id":gid,"item_id":iid,"x":"0.1","y":"0.1"}, follow_redirects=False).status_code==303  # designer routes still need login
+    # remove a dot; deleting an item or a plan takes its dots along
+    r=c.post(f"/p/{pid}/plan/item-pins/{ip}/delete", headers={"Accept":"application/json"}); assert r.json()["ok"]
+    assert c.post(f"/p/{pid}/plan/item-pins/{ip}/delete", headers={"Accept":"application/json"}).status_code==404
+    c.post(f"/p/{pid}/plan/item-pins", data={"image_id":roof_id,"item_id":iid,"x":"0.3","y":"0.3"}, headers={"Accept":"application/json"})
+    c.post(f"/p/{pid}/items/{other_item}/duplicate", follow_redirects=False)
+    db=SessionLocal(); dup=db.query(Item).filter(Item.project_id==int(pid)).order_by(Item.id.desc()).first(); db.close()
+    c.post(f"/p/{pid}/plan/item-pins", data={"image_id":gid,"item_id":dup.id,"x":"0.3","y":"0.3"}, headers={"Accept":"application/json"})
+    db=SessionLocal(); assert db.query(ItemPin).filter(ItemPin.item_id==dup.id).count()==1; db.close()
+    c.post(f"/p/{pid}/items/{dup.id}/delete", follow_redirects=False)
+    db=SessionLocal(); assert db.query(ItemPin).filter(ItemPin.item_id==dup.id).count()==0 and db.query(ItemPin).filter(ItemPin.image_id==roof_id).count()==1; db.close()
+    print("item dots + client plan ok")
     # deleting a plan removes both files and the tag row
     r=c.post(f"/p/{pid}/images/{roof_id}/delete", follow_redirects=False); assert r.status_code==303
     assert _st.read_image(roof_keys[0]) is None and _st.read_image(roof_keys[1]) is None
-    db=SessionLocal(); assert db.get(PlanTag, roof_id) is None and db.get(ProjectImage, roof_id) is None and db.query(RoomPin).filter(RoomPin.image_id==roof_id).count()==0; db.close()
+    db=SessionLocal(); assert db.get(PlanTag, roof_id) is None and db.get(ProjectImage, roof_id) is None and db.query(RoomPin).filter(RoomPin.image_id==roof_id).count()==0 and db.query(ItemPin).filter(ItemPin.image_id==roof_id).count()==0; db.close()
     print("floor plans ok")
     # shared storage: a photo still on this server's disk is served and copied into the bucket
     class _Fake:

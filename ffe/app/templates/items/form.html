@@ -10,7 +10,8 @@
     {% else %}<p class="sub">Fill in what you know now. Everything can be edited later and photos can be added at any time.</p>{% endif %}
   </div>
   <div class="actions">
-    {% if it %}<span class="badge" style="--c:{{ STATUS_COLORS[it.status] }}">{{ it.status }}</span>{% if it.optional %}<span class="pill">optional</span>{% endif %}{% endif %}
+    {% if it %}<span class="badge" style="--c:{{ STATUS_COLORS[it.status] }}">{{ it.status }}</span>{% if it.optional %}<span class="pill">optional</span>{% endif %}
+    {% if it.room and not it.draft %}<a class="btn sec sm" href="/p/{{ p.id }}/plan?{% if it.pins %}plan={{ it.pins[0].image_id }}&amp;{% endif %}room={{ it.room_id }}&amp;item={{ it.id }}" title="{{ 'Show where it goes on the floor plan' if it.pins else 'Open the room on the floor plan' }}"><svg class="ic"><use href="#i-map"/></svg>{{ 'On the plan' if it.pins else 'Plan' }}</a>{% endif %}{% endif %}
   </div>
 </div>
 

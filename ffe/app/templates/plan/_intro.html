@@ -1,0 +1,19 @@
+{# The side panel before a room is tapped. Needs: p, plan, pins, stats, unplaced, other_rooms, base, anchor, readonly. #}
+{% set ro = readonly is defined and readonly %}
+<div class="card plan-intro">
+  <div class="empty">
+    <div class="ring"><svg class="ic"><use href="#i-map"/></svg></div>
+    <h3>Tap a room</h3>
+    <p>{% if ro %}What goes in it comes up here, with photos and delivery state. The dots on the plan show where each item sits.{% else %}Its items, totals and delivery state come up here. Change a status on the spot, open an item to edit it, or tap where each item goes.{% endif %}</p>
+    {% if not ro and (unplaced or other_rooms) %}<a class="btn sec sm" href="{{ base }}?plan={{ plan.id }}&amp;mode=mark"><svg class="ic"><use href="#i-edit"/></svg>Mark rooms on this plan</a>{% endif %}
+  </div>
+  {% if pins %}
+  <div class="divider"></div>
+  <div class="eyebrow">Rooms on this plan</div>
+  <div class="plan-dir">
+    {% for pin in pins %}{% set st = stats.get(pin.room_id) %}
+    <a href="{{ base }}?plan={{ plan.id }}&amp;room={{ pin.room_id }}{{ anchor }}" data-room="{{ pin.room_id }}"><span class="pill accent">{{ pin.room.code }}</span><span class="nm">{{ pin.room.name }}</span><span class="n">{{ st.count if st else 0 }}</span></a>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>

@@ -27,7 +27,8 @@ openpyxl. Hosted on Replit (autoscale deployment, imports from GitHub).
 app/main.py            app, login/logout, /settings, /media/<key>
 app/config.py          env vars + constant lists (CATEGORIES, STATUSES, UNITS …)
 app/db.py              engine/session; create_all on startup (no migrations yet)
-app/models.py          Settings, Project, ProjectImage, PlanTag, RoomPin, DrawingSet, Room, Supplier, SupplierLink, Item, ItemPhoto, Payment, Carton
+app/models.py          Settings, Project, ProjectImage, PlanTag, RoomPin, ItemPin, DrawingSet, Room, Supplier, SupplierLink, Item, ItemPhoto,
+                       Payment, Carton
                        Item.draft = quick-capture draft (no name/code yet); Project.live_items / Project.drafts split them
 app/common.py          templates, auth helpers, number filters, render()/redirect()
 app/services.py        summary() for dashboards, next_code(), carton_positions(), container_for()
@@ -35,7 +36,7 @@ app/storage.py         save_image(max_px=)/save_blob/read_image/delete_image —
                        default when REPL_ID is set; read_image copies a photo found only on local disk into the bucket)
 app/drawings.py        floor plans: render_page()/page_count() via pypdfium2 (optional import), floor_key()/floor_title()
                        matching plans to Room.floor, rooms_by_floor(), plan_for_room(), client_plans();
-                       interactive plan: rooms_for_plan(), pins_by_room(), plan_with_room(), default_plan(), clamp_box()
+                       interactive plan: rooms_for_plan(), pins_by_room(), plan_with_room(), default_plan(), clamp_box(), clamp_point()
 app/webimage.py        fetch_image(url): picture bytes from a direct image link or a page (og:image / largest <img>);
                        stdlib only, refuses private addresses, raises WebImageError with a message for the page
 app/ai.py              Claude auto-fill (off without ANTHROPIC_API_KEY): suggest_item(image, page_text, url, rooms) → dict via
@@ -44,7 +45,8 @@ app/routers/           projects, rooms, items, suppliers, payments, cartons, sha
                        exports (PDF + xlsx), importer (Excel import),
                        capture (/p/<id>/capture camera page → draft items; /p/<id>/drafts complete or discard),
                        clip (/clip: "Save to HBA" bookmarklet + save-from-web form → draft item or mood-board image),
-                       plan (/p/<id>/plan interactive plan + ?mode=mark, /plan/room/<id> panel fragment, /plan/pins save/delete)
+                       plan (/p/<id>/plan interactive plan + ?mode=mark, /plan/room/<id> panel fragment, /plan/pins and
+                       /plan/item-pins save/delete; stage_ctx()/room_ctx() are reused by share.py for the client's read-only plan)
 app/pdf/common.py      styles, table style, image flowable, footer
 app/pdf/schedule.py    client schedule PDF: layout="category" (cover, contents, floor plans, mood board, table per category,
                        summary by room) or "floor" (each floor's plan, then its rooms in one table with room sub-headers,
@@ -53,12 +55,16 @@ app/pdf/packing.py     packing list, 6-per-page labels, room checklist (page 1 =
 app/templates/         base.html = app shell (desktop sidebar, top bar + project switcher, phone bottom tab bar,
                        "More" sheet, inline SVG icon sprite, public bar for share pages) + pages
                        (capture.html, drafts.html for quick capture; projects/images.html = Images & plans,
-                       projects/pdf_pages.html = PDF page picker; plan/index.html + plan/_room.html = interactive plan,
-                       `{% block scripts %}` for a page-only script); render() in common.py injects `nav`
+                       projects/pdf_pages.html = PDF page picker; plan/index.html = interactive plan built from the partials
+                       plan/_tabs.html, _stage.html (boxes + dots), _room.html (panel, `readonly` for the client) and
+                       _intro.html, which share/client.html includes too; `{% block scripts %}` for a page-only script);
+                       render() in common.py injects `nav`
                        (projects, studio, drafts count) and `public` (login + share/* render without the shell)
 app/static/app.css     the design system (tokens, shell, cards, KPI tiles, buttons, forms, tables, badges, item cards)
 app/static/app.js      photo compression (also exposed as window.compressPhoto), quick status, copy link, toggleMore()
-app/static/plan.js     Plan page only: zoom, tap-a-room panel (fetches plan/_room.html), draw / move / resize room boxes
+app/static/plan.js     Plan page + client plan: zoom, tap-a-room panel (fetches plan/_room.html), item dots (place / drag /
+                       locate / remove), draw / move / resize room boxes in mark mode; reads data-base / data-room-base /
+                       data-readonly from #plan so the same script serves /p/<id>/plan and /c/<token>
 tests/test_flow.py     end-to-end test with TestClient + SQLite (login, import, items, photos, links, PDFs)
 samples/               Kinondoni procurement Excel used by the import test
 ```
@@ -167,7 +173,15 @@ ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;   -- quick ca
   remove; `POST /plan/pins` upserts (JSON when `Accept: application/json`), `drawings.clamp_box` normalises/clips.
   Item and room forms take `next` (`common.safe_next`: same-site paths only) to return to the plan. Entry points: shell
   nav (Plan), Overview "Plan view" + room links, Rooms ("Open the plan", "On the plan" / "Place on plan"), Images
-  ("n rooms marked"), item list filtered by room. Not done yet: item-level pins, the plan on the client link (`/c/`).
+  ("n rooms marked"), item list filtered by room, item form ("On the plan" / "Plan").
+
+- **Item dots and the client plan.** `ItemPin` (table `item_pins`: plan image, item, x/y fractions, one per item per plan,
+  cascades from ProjectImage and Item; drafts refused). In the room panel the pin button starts placing (`plan.js`:
+  the next tap on the stage posts `/plan/item-pins`), dots drag to move, × removes, tapping a dot opens its room with
+  the item highlighted (`?item=`). `_stage.html` draws boxes and dots for both the designer page and `share/client.html`,
+  which embeds the plan read-only (`readonly=True` in `plan.room_ctx`: USD, badges, no controls / suppliers / notes;
+  fragment `GET /c/<token>/plan/room/<room>` lives in routers/share.py, token-scoped). Keep designer-only data out of
+  anything rendered with `readonly`. Not done yet: dots on the PDFs (room checklist / schedule by floor).
 
 ## Backlog (in priority order)
 

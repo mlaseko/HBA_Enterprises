@@ -19,9 +19,9 @@ same data, entered once.
 | Payments | Deposit / balance per supplier with receipt photo. |
 | Packing | One line per box with room code, "Box n of N", CBM, weight, received tick. Container size calculated. Suppliers can list their own boxes through a **packing link** (no login). |
 | Floor plans & drawings | Upload plan images or the architect's PDF drawing set on **Images & plans**, pick the pages that are floor plans and tag each with its floor and sheet reference. Tagged plans appear on the Rooms page (grouped by floor), on the client link, as page 1 of the room checklist and in the schedule by floor. Drawings are a reference only: rooms and items are never created from them. |
-| Interactive plan | **Plan** (`/p/<id>/plan`): the floor plan with a tappable box per room. Tap a room and its items come up beside the plan (on a phone: in a bottom sheet) with counts, total and received, a status dropdown per item, Add item / Quick capture / list / checklist PDF for that room, and the room's own details to edit. Open an item from there and "Save" brings you back to the plan. **Mark rooms** (`?mode=mark`): pick a room, drag a box over it; drag to move, pull the corner to resize, × removes. Boxes are stored as fractions of the image (`room_pins`, one per room per plan) so they fit every screen. Floors switch with tabs; rooms not yet placed are listed under the plan. Zoom buttons (the full-size plan loads once you zoom in) and double-tap. Drawings stay a reference: marking a room never creates rooms or items. |
+| Interactive plan | **Plan** (`/p/<id>/plan`): the floor plan with a tappable box per room and a dot per item. Tap a room and its items come up beside the plan (on a phone: in a bottom sheet) with counts, total and received, a status dropdown per item, Add item / Quick capture / list / checklist PDF for that room, and the room's own details to edit. Open an item from there and "Save" brings you back to the plan. **Item dots**: tap the pin on an item in the panel, then the spot on the plan where it goes; drag a dot to move it, tap a dot to open its room with the item highlighted, × removes it (`item_pins`, one per item per plan). The dot shows the item's photo (or its category letter) ringed in its status colour; an "Items" button hides and shows the dots. **Mark rooms** (`?mode=mark`): pick a room, drag a box over it; drag to move, pull the corner to resize, × removes. Boxes and dots are stored as fractions of the image (`room_pins`, one per room per plan) so they fit every screen. Floors switch with tabs; rooms not yet placed are listed under the plan. Zoom buttons (the full-size plan loads once you zoom in) and double-tap. Drawings stay a reference: marking a room or placing an item never creates rooms or items. |
 | Documents (PDF) | Client FF&E schedule (cover, contents, floor plans, mood board, one table per category, summary by room — USD or CNY, with/without prices), or **by floor** (`?layout=floor`: each floor's plan followed by that floor's rooms with room sub-headers, then whole-house items, then the summary grouped by floor), purchase order per supplier, packing list, box labels (6 per A4), room checklist. Excel export. |
-| Client link | Read-only web view of the schedule + PDF download, per project. |
+| Client link | Read-only web view of the schedule + PDF download, per project. Includes the interactive plan: the floor plan with the room boxes and item dots, read-only; tapping a room lists what goes in it (photos, quantity, size and finish, USD price, delivery status) and the dots show where each item sits. No controls, suppliers, notes or CNY prices are exposed. |
 | Import | Upload the procurement Excel (Shopping List + Rooms sheets) to load a project in one go. |
 
 Single-user: one app password (the designer). Clients and suppliers only ever get share links.
@@ -87,11 +87,12 @@ Pushing new commits to GitHub and re-deploying updates the app. The database and
 
 ```
 app/main.py           app start, login, settings, media
-app/models.py         tables: projects, project_images (mood board + plans), plan_tags, room_pins, drawing_sets, rooms, items,
-                      item_photos, suppliers, supplier_links, payments, cartons, settings
+app/models.py         tables: projects, project_images (mood board + plans), plan_tags, room_pins, item_pins, drawing_sets, rooms,
+                      items, item_photos, suppliers, supplier_links, payments, cartons, settings
 app/routers/          projects, rooms, items, suppliers, payments, cartons, share (public links), exports, importer,
                       capture (quick capture + drafts), clip (Save from web bookmarklet + /clip page),
-                      plan (interactive plan: /p/<id>/plan, room panel fragment, pin save/delete)
+                      plan (interactive plan: /p/<id>/plan, room panel fragment, room box and item dot save/delete;
+                      share.py renders the same plan read-only on /c/<token> through plan.py's helpers)
 app/storage.py        photos: replit | s3 | local backends, shrink on save, disk-to-bucket copy on first read
 app/drawings.py       floor plans: PDF page rendering (pypdfium2, optional) and floor matching between plans and rooms
 app/webimage.py       fetch a picture (+ page text) from a web link (direct image or a page's og:image / largest <img>)
@@ -111,7 +112,7 @@ Columns added after the first deployment — run these on Neon once, in order:
 -- Quick capture drafts (items.draft)
 ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;
 -- Floor plans & drawing sets: new tables plan_tags and drawing_sets only, created automatically on startup (no ALTER).
--- Interactive plan: new table room_pins only, created automatically on startup (no ALTER).
+-- Interactive plan: new tables room_pins and item_pins only, created automatically on startup (no ALTER).
 ```
 
 ## Floor plans and drawing sets
@@ -150,4 +151,16 @@ ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;
   Item links carry `next=` back to the plan; the item form and the room form honour `next` (same-site paths only).
 - Rooms are matched to a plan by floor like everywhere else (`Room.floor` vs the plan's floor tag). A plan with no
   real floor offers the whole-house rooms; any other room can still be placed from "Rooms on other floors".
+- **Item dots.** An item's spot on a plan is an `ItemPin` (table `item_pins`: plan image, item, x/y as fractions of the
+  image, one per item per plan; deleted with the plan or the item; drafts cannot be placed). In the room panel, the pin
+  button on an item starts placing: the next tap on the plan saves the dot (`POST /p/<id>/plan/item-pins`, form:
+  image_id, item_id, x, y; saving again moves it), drag a dot to move it, × on the row removes it
+  (`POST /p/<id>/plan/item-pins/<pin>/delete`). Tapping a dot opens its room with the item highlighted; `?item=<id>`
+  deep-links the same (alone, it opens the item's room). Dots show the cover photo or the category's first letter,
+  ringed in the status colour, with the code and name on hover. The "Items" button in the tools hides or shows the
+  dots (remembered on the device); mark mode hides them. The item form has an "On the plan" / "Plan" button.
+- **Client link.** `/c/<token>` embeds the same plan read-only (tabs, boxes, dots, zoom), between the mood board and the
+  schedule; `?plan=` / `?room=` / `?item=` deep-link a room, and `GET /c/<token>/plan/room/<room>` serves the panel
+  fragment. The read-only panel shows photo, quantity, brand, size, finish, USD line total and the status badge; no
+  status controls, suppliers, notes, CNY prices, room form or designer links. Everything stays scoped to the token.
 - The page uses the 1600 px preview and swaps in the full-size copy once zoomed to 2× or more.
