@@ -1,0 +1,13 @@
+{# One room zoomed in on its plan: the preview image cropped by CSS/JS to the room's box (data-c*), the box outlined, the
+   room's item dots labelled with their code numbers. Needs: p, room, zoom (drawings.room_zoom), optional cls.
+   The whole card opens the interactive plan on the room; a dot (JavaScript) highlights its item on the page. #}
+{% set z = zoom %}
+<a class="room-zoom{{ ' ' ~ cls if cls is defined and cls }}" href="/p/{{ p.id }}/plan?plan={{ z.plan.id }}&amp;room={{ room.id }}" title="Open {{ room.label }} on the plan"
+   data-cx="{{ z.rect[0] }}" data-cy="{{ z.rect[1] }}" data-cw="{{ z.rect[2] }}" data-ch="{{ z.rect[3] }}">
+  <span class="rz-stage">
+    <img src="/media/{{ z.plan.file_key }}" alt="{{ room.label }} on {{ plan_caption(z.plan) or 'the floor plan' }}" loading="lazy" draggable="false">
+    <i class="rz-box" style="{{ z.pin.style }}"></i>
+    {% for d in z.dots %}<span class="rz-dot" style="left:{{ '%.3f'|format(d.x * 100) }}%;top:{{ '%.3f'|format(d.y * 100) }}%;--c:{{ d.color }}" title="{{ d.code }} · {{ d.name }} · {{ d.status }}" data-item="{{ d.item_id }}">{{ d.label }}</span>{% endfor %}
+  </span>
+  <span class="rz-cap"><svg class="ic sm"><use href="#i-map"/></svg>{{ plan_caption(z.plan) or 'Plan' }}{% if z.dots %} · {{ z.dots|length }} dot{{ 's' if z.dots|length != 1 }}{% endif %}</span>
+</a>

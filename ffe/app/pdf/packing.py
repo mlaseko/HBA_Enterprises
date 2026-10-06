@@ -4,9 +4,10 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether
 from html import escape
-from .common import S, P, img_flowable, money, num, make_doc, footer_factory, base_table_style, today, NAVY, GREY, LINE
+from ..services import sort_items
+from .common import S, P, img_flowable, money, num, make_doc, footer_factory, base_table_style, today, NAVY, GREY, LINE, img_flowable_bytes
 from ..services import carton_positions, container_for
-from .. import drawings
+from .. import drawings, storage
 
 
 def _hdr(cols):
@@ -92,10 +93,24 @@ def room_checklist(p, studio, room) -> bytes:
     buf = io.BytesIO()
     doc = make_doc(buf, f"Room checklist - {room.label if room else p.name}")
     W = doc.width
-    items = [i for i in p.live_items if (i.room_id == (room.id if room else None))]
+    items = sort_items([i for i in p.live_items if (i.room_id == (room.id if room else None))], p)
     story = []
+    zoom = drawings.room_zoom(p, room, items) if room else None
+    crop = None
+    if zoom:  # page 1: the room cut out of its plan, its outline and the item dots numbered like the codes below
+        data = storage.read_image(zoom["plan"].best_key)
+        if data:
+            try:
+                crop = drawings.render_room_crop(data, zoom)
+            except Exception:
+                crop = None
     plan = drawings.plan_for_room(p, room) if room else None
-    if plan:  # page 1: the floor plan the room is on, so the site team finds the room before unpacking
+    if crop:
+        story += [Paragraph(f"ON THE PLAN &mdash; {escape(room.label)}", S["h1"]),
+                  Paragraph(escape(f"{drawings.plan_caption(zoom['plan']) or 'Floor plan'}. The outline is {room.label}; "
+                                   f"each dot carries the number of the item code it stands for."), S["grey"]),
+                  img_flowable_bytes(crop, W, doc.height - 26 * mm), PageBreak()]
+    elif plan:  # page 1: the whole floor plan the room is on, so the site team finds the room before unpacking
         story += [Paragraph(f"FLOOR PLAN &mdash; {escape(room.label)}", S["h1"]),
                   Paragraph(escape(f"Find {room.label} on: {drawings.plan_caption(plan) or 'floor plan'}"), S["grey"]),
                   img_flowable(plan.best_key, W, doc.height - 26 * mm), PageBreak()]

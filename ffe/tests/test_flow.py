@@ -617,6 +617,30 @@ with TestClient(app) as c:
     c.post(f"/p/{pid}/images/sets/{ssid}/delete", follow_redirects=False); c.post(f"/p/{pid}/images/sets/{tsid}/delete", follow_redirects=False)
     db=SessionLocal(); from app.models import DrawingPage as _DP; assert db.query(_DP).filter(_DP.set_id.in_([tsid, ssid])).count()==0; db.close()  # page meta goes with the set
     print("rooms & areas + title blocks ok")
+    # ---- a room zoomed in on its plan: the crop rectangle, the Pillow crop, the items-list card, the Rooms page, the checklist PDF ----
+    class _Pin: pass
+    pn=_Pin(); pn.x,pn.y,pn.w,pn.h=0.4,0.4,0.2,0.2
+    assert _dr2.crop_rect(pn)==(0.35,0.35,0.3,0.3)
+    pn.x,pn.y,pn.w,pn.h=0.9,0.9,0.05,0.05; cr=_dr2.crop_rect(pn); assert cr[0]+cr[2]<=1 and cr[1]+cr[3]<=1 and cr[2]>=0.22 and cr[3]>=0.22, cr   # tiny room: at least 22 % of the image, inside it
+    pn.x,pn.y,pn.w,pn.h=0.0,0.0,0.3,0.3; cr=_dr2.crop_rect(pn); assert cr[0]==0 and cr[1]==0, cr
+    pn.x,pn.y,pn.w,pn.h=0.2,0.1,0.4,0.3
+    zoom={"rect":_dr2.crop_rect(pn),"pin":pn,"dots":[{"x":0.3,"y":0.2,"label":"01","color":"#16A34A"},{"x":0.5,"y":0.3,"label":"12","color":"#9CA3AF"},{"x":0.95,"y":0.95,"label":"99","color":"#000000"}]}
+    jpeg=_dr2.render_room_crop(big_img("white", 2400, 1600), zoom); cim=Image.open(io.BytesIO(jpeg)); assert cim.format=="JPEG" and max(cim.size)<=1600
+    assert abs(cim.width/cim.height - (zoom["rect"][2]*2400)/(zoom["rect"][3]*1600)) < 0.02 and cim.getpixel((2,2))!=(185,89,58)  # crop keeps the region's proportions
+    # the items list filtered by a marked room shows it zoomed with its dots; an unmarked room gets the hint instead
+    db=SessionLocal(); zr=_dr2.room_zoom(db.get(_P,int(pid)), db.get(Room, r2.id)); r2_dots=len(zr["dots"]) if zr else None; db.close()
+    assert zr is not None and r2_dots>=1 and zr["plan"].id==gid and all(d["label"].isdigit() for d in zr["dots"])
+    r=c.get(f"/p/{pid}/items?room={r2.id}"); assert r.status_code==200 and 'class="room-zoom"' in r.text and r.text.count('class="rz-dot"')==r2_dots and f'data-cx="{zr["rect"][0]}"' in r.text
+    assert f'href="/p/{pid}/plan?plan={gid}&amp;room={r2.id}"' in r.text and "Checklist PDF" in r.text and f'id="item-{r2_item}"' in r.text and f'data-item="{r2_item}"' in r.text
+    r=c.get(f"/p/{pid}/items?room={room.id}"); assert 'class="room-zoom"' not in r.text and "Mark it on the plan" in r.text and f"plan?room={room.id}&amp;mode=mark" in r.text  # GF-KIT's box was removed earlier
+    r=c.get(f"/p/{pid}/items?room={r2.id}&view=table"); assert f'<tr id="item-{r2_item}">' in r.text
+    r=c.get(f"/p/{pid}/items?room=none"); assert r.status_code==200 and "room-head" not in r.text
+    r=c.get(f"/p/{pid}/rooms"); assert r.text.count('class="room-zoom sm"')>=1 and f'plan?plan={gid}&amp;room={r2.id}"' in r.text
+    # the checklist PDF: page one is the zoomed room for a marked room, the whole plan for an unmarked one
+    t_r2=pdf_text(c.get(f"/p/{pid}/export/room/{r2.id}.pdf").content); assert "ON THE PLAN" in t_r2 and "each dot carries the number" in t_r2 and "FLOOR PLAN" not in t_r2.split("CHECKLIST")[0]
+    t_kit=pdf_text(c.get(f"/p/{pid}/export/room/{room.id}.pdf").content); assert "FLOOR PLAN" in t_kit and "ON THE PLAN" not in t_kit
+    assert c.get(f"/p/{pid}/export/room/0.pdf").status_code==200
+    print("room zoom ok")
     # deleting a plan removes both files and the tag row
     r=c.post(f"/p/{pid}/images/{roof_id}/delete", follow_redirects=False); assert r.status_code==303
     assert _st.read_image(roof_keys[0]) is None and _st.read_image(roof_keys[1]) is None

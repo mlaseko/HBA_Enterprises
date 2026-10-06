@@ -82,6 +82,30 @@
     var row = sel.closest('.price-row'); if (row) priceHelp(row);
   });
 
+  // a room zoomed in on its plan (.room-zoom): size and shift the picture so the room's crop (data-c*) fills the frame
+  function fitZoom(z) {
+    var img = z.querySelector('img'), st = z.querySelector('.rz-stage');
+    if (!img || !st || !img.naturalWidth || !z.clientWidth) return;
+    var cx = +z.dataset.cx, cy = +z.dataset.cy, cw = +z.dataset.cw || 1, ch = +z.dataset.ch || 1;
+    var vw = z.clientWidth, vh = z.clientHeight, iw = img.naturalWidth, ih = img.naturalHeight;
+    var s = Math.min(vw / (cw * iw), vh / (ch * ih)), W = iw * s, H = ih * s;
+    st.style.width = W + 'px'; st.style.height = H + 'px';
+    st.style.left = ((vw - cw * W) / 2 - cx * W) + 'px'; st.style.top = ((vh - ch * H) / 2 - cy * H) + 'px';
+  }
+  function fitZooms(root) { (root || document).querySelectorAll('.room-zoom').forEach(fitZoom); }
+  document.querySelectorAll('.room-zoom img').forEach(function (img) {
+    if (img.complete) fitZoom(img.closest('.room-zoom')); else img.addEventListener('load', function () { fitZoom(img.closest('.room-zoom')); });
+  });
+  window.addEventListener('resize', function () { fitZooms(); });
+  document.addEventListener('toggle', function (e) { if (e.target && e.target.tagName === 'DETAILS') fitZooms(e.target); }, true);
+  document.addEventListener('click', function (e) {  // a dot jumps to its item on the page instead of opening the plan
+    var d = e.target.closest('.rz-dot'); if (!d || !d.dataset.item) return;
+    var row = document.getElementById('item-' + d.dataset.item); if (!row) return;
+    e.preventDefault(); e.stopPropagation();
+    document.querySelectorAll('.hl').forEach(function (x) { x.classList.remove('hl'); });
+    row.classList.add('hl'); row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  });
+
   window.copyText = function (txt, btn) {
     navigator.clipboard.writeText(txt).then(function () { if (btn) { var o = btn.textContent; btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = o; }, 1200); } });
   };

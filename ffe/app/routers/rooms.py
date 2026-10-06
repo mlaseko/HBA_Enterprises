@@ -14,8 +14,9 @@ def rooms(request: Request, p: Project = Depends(get_project), db: Session = Dep
     s = summary(db, p)
     stats = {r["key"]: r for r in s["by_room"]}
     rooms, areas = drawings.split_kinds(p.rooms)
+    zooms = {r.id: z for r in p.rooms if (z := drawings.room_zoom(p, r)) is not None}  # each marked entry, zoomed on its plan
     return render(request, "rooms.html", p=p, stats=stats, groups=drawings.rooms_by_floor(p), floors=drawings.floor_order(p),
-                  pins=drawings.pins_by_room(p), n_rooms=len(rooms), n_areas=len(areas))
+                  pins=drawings.pins_by_room(p), n_rooms=len(rooms), n_areas=len(areas), zooms=zooms)
 
 
 def _kind(value: str, name: str, floor: str, current: str = "room") -> str:

@@ -10,7 +10,7 @@ try:
     import pypdfium2 as pdfium  # pip wheel with pdfium bundled; no system packages. Optional at runtime.
 except ImportError:  # pragma: no cover - exercised in the test by setting pdfium = None
     pdfium = None
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from . import config
 
 # Room.floor values that mean "not a real floor": those rooms and plans go in the Whole house section.
@@ -325,3 +325,89 @@ def read_title_block(text: str) -> dict:
         if found:
             sheet = found[-1]  # title blocks sit bottom-right, so their text comes last
     return {"title": title, "sheet": sheet.replace(" ", "-")[:60], "floor": floor, "is_plan": is_plan}
+
+
+# ---- a room zoomed in on its plan: the web card (CSS/JS crop of the preview) and the PDF page (Pillow crop) --------
+
+def crop_rect(pin, pad: float = 0.25, min_frac: float = 0.22) -> tuple[float, float, float, float]:
+    """(x, y, w, h) in fractions of the plan image: the room's box with a margin around it, at least min_frac of the
+    image each way (a tiny room is not shown as a blur), shifted to stay inside the image."""
+    x0, y0, x1, y1 = pin.x - pin.w * pad, pin.y - pin.h * pad, pin.x + pin.w * (1 + pad), pin.y + pin.h * (1 + pad)
+    out = []
+    for lo, hi in ((x0, x1), (y0, y1)):
+        if hi - lo < min_frac:
+            c = (lo + hi) / 2
+            lo, hi = c - min_frac / 2, c + min_frac / 2
+        if lo < 0:
+            hi, lo = hi - lo, 0.0
+        if hi > 1:
+            lo, hi = max(0.0, lo - (hi - 1)), 1.0
+        out.append((round(lo, 4), round(hi, 4)))
+    (x0, x1), (y0, y1) = out
+    return x0, y0, round(x1 - x0, 4), round(y1 - y0, 4)
+
+
+def room_zoom(p, room, items=None) -> dict | None:
+    """What the zoomed-room card and the checklist page need: {plan, pin, rect, dots}. None when the room has no box.
+    dots = this room's live items that have a dot on that plan, labelled with the number part of their code."""
+    if room is None:
+        return None
+    im = plan_with_room(p, room)
+    if im is None:
+        return None
+    pin = next((x for x in im.pins if x.room_id == room.id), None)
+    if pin is None:
+        return None
+    its = items if items is not None else [i for i in room.items if not i.draft]
+    ids = {i.id for i in its if not i.draft}
+    dots = []
+    for q in im.item_pins:
+        if q.item_id not in ids:
+            continue
+        i = q.item
+        label = i.code.rsplit("-", 1)[-1] if i.code else "•"
+        dots.append({"x": q.x, "y": q.y, "label": label, "code": i.code, "name": i.name, "status": i.status,
+                     "color": config.STATUS_COLORS.get(i.status, "#857C72"), "item_id": i.id})
+    return {"plan": im, "pin": pin, "rect": crop_rect(pin), "dots": dots}
+
+
+def _rgb(hex_color: str) -> tuple[int, int, int]:
+    h = (hex_color or "#857C72").lstrip("#")
+    return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+
+
+def render_room_crop(data: bytes, zoom: dict, max_px: int = 1600) -> bytes:
+    """The room cut out of the plan image with its outline and its item dots (code numbers) drawn on, as a JPEG."""
+    im = Image.open(io.BytesIO(data)).convert("RGB")
+    W, H = im.size
+    cx, cy, cw, ch = zoom["rect"]
+    box = (int(cx * W), int(cy * H), max(int(cx * W) + 1, int((cx + cw) * W)), max(int(cy * H) + 1, int((cy + ch) * H)))
+    crop = im.crop(box)
+    scale = min(1.0, max_px / max(crop.size))
+    if scale < 1:
+        crop = crop.resize((max(1, round(crop.width * scale)), max(1, round(crop.height * scale))), Image.LANCZOS)
+    sx, sy = crop.width / (box[2] - box[0]), crop.height / (box[3] - box[1])  # image px -> crop px
+    draw = ImageDraw.Draw(crop, "RGBA")
+    pin = zoom["pin"]
+    rx0, ry0 = (pin.x * W - box[0]) * sx, (pin.y * H - box[1]) * sy
+    rx1, ry1 = ((pin.x + pin.w) * W - box[0]) * sx, ((pin.y + pin.h) * H - box[1]) * sy
+    lw = max(3, round(crop.width * 0.004))
+    draw.rectangle([rx0, ry0, rx1, ry1], outline=(185, 89, 58, 255), width=lw)
+    draw.rectangle([rx0, ry0, rx1, ry1], fill=(185, 89, 58, 22))
+    r = max(11, round(crop.width * 0.017))
+    try:
+        font = ImageFont.load_default(size=int(r * 1.05))
+    except Exception:  # very old Pillow: the bitmap font
+        font = ImageFont.load_default()
+    for d in zoom["dots"]:
+        px, py = (d["x"] * W - box[0]) * sx, (d["y"] * H - box[1]) * sy
+        if not (-r <= px <= crop.width + r and -r <= py <= crop.height + r):
+            continue
+        draw.ellipse([px - r, py - r, px + r, py + r], fill=(255, 255, 255, 255), outline=_rgb(d["color"]) + (255,), width=max(3, r // 4))
+        try:
+            draw.text((px, py), str(d["label"]), fill=(30, 27, 24, 255), font=font, anchor="mm")
+        except Exception:
+            draw.text((px - r / 2, py - r / 2), str(d["label"]), fill=(30, 27, 24, 255), font=font)
+    out = io.BytesIO()
+    crop.save(out, "JPEG", quality=88, optimize=True)
+    return out.getvalue()

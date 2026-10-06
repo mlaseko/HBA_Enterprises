@@ -53,6 +53,7 @@
     {% set n = st.count if st else 0 %}<span class="pill">{{ n }} item{{ 's' if n != 1 }}<span class="hide-m">· ¥{{ (st.total if st else 0)|money }}{% if st and st.received %} · {{ st.received }} recv{% endif %}</span></span>
   </summary>
   <div class="small muted hide-d mt">¥{{ (st.total if st else 0)|money }} ordered{% if st and st.received %} · {{ st.received }} received{% endif %}</div>
+  {% set zoom = zooms.get(r.id) %}{% if zoom %}<div class="mt">{% set room = r %}{% set cls = 'sm' %}{% include "plan/_zoom.html" %}</div>{% endif %}
   <form method="post" action="/p/{{ p.id }}/rooms/{{ r.id }}" class="mt">
     <div class="grid stack g4">
       <div><label>Code</label><input class="in" type="text" name="code" value="{{ r.code }}"></div>

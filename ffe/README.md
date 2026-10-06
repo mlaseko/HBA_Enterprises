@@ -9,7 +9,7 @@ same data, entered once.
 | Area | What you get |
 |---|---|
 | Projects | One per client project. USD/CNY rate, budget, delivery address, status. |
-| Rooms & areas | Codes (GF-KIT …) used on every item, box and label. Each entry is a **room** (a space you furnish) or an **area** (a zone that still carries items: entrance, corridors, stairs, balconies, carport, whole house); areas list after rooms and count separately ("10 rooms · 5 areas") on the Rooms page, the plan, the Overview and the PDFs. Kind is guessed from the name on import and on "Sort rooms & areas by name"; any entry can be switched. Optional floor/wall areas for tiles. |
+| Rooms & areas | Codes (GF-KIT …) used on every item, box and label. Once an entry is marked on the plan, the Rooms page and the item list filtered by it show it **zoomed in on the plan** with its item dots (numbered like the item codes; a dot jumps to the item), and page one of its checklist PDF is that same zoomed view. Each entry is a **room** (a space you furnish) or an **area** (a zone that still carries items: entrance, corridors, stairs, balconies, carport, whole house); areas list after rooms and count separately ("10 rooms · 5 areas") on the Rooms page, the plan, the Overview and the PDFs. Kind is guessed from the name on import and on "Sort rooms & areas by name"; any entry can be switched. Optional floor/wall areas for tiles. |
 | Items | Room, category (= schedule page), name, must-have spec, brand, size, finish, qty, unit price typed in **CNY or USD** (stored in CNY at the project's rate; a USD entry is remembered so the form shows it again), supplier, lead time, status (To buy → Quoted → Ordered → Paid → Shipped → Received), photos from the phone camera. |
 | Items in several rooms | A new item can be ticked into several rooms at once (one line per room, each with its own code, qty and status; photos are copied to each). An existing item can be added to more rooms from its page. The same product across rooms is recognised by its name: editing one can apply the name, category, spec, size, finish, brand, price, unit, lead time and supplier to every room using it (qty, status, notes and photos stay per room). |
 | Quick capture | Photo-first entry for showrooms: the camera opens, every photo is saved at once as a **draft** item (room/category optional), keep shooting. Drafts are completed later on the Drafts page (name, room, category, qty, price → item code generated) or discarded. Drafts do not count in totals, PDFs, Excel or share links until they have a name. |
@@ -174,6 +174,12 @@ name** (or set the Kind by hand): every existing entry starts as a room.
   Item links carry `next=` back to the plan; the item form and the room form honour `next` (same-site paths only).
 - Rooms are matched to a plan by floor like everywhere else (`Room.floor` vs the plan's floor tag). A plan with no
   real floor offers the whole-house rooms; any other room can still be placed from "Rooms on other floors".
+- **Zoomed room.** `drawings.room_zoom(p, room, items)` gives the room's plan, box, a crop rectangle (`crop_rect`: the box
+  plus a 25 % margin, at least 22 % of the image, kept inside it) and the room's dots labelled with the number part of
+  their codes. `plan/_zoom.html` renders it as a card (the preview image cropped by CSS/JS in `app.js` `fitZoom`; tap a
+  dot → `#item-<id>` highlighted; tap the card → the plan) on the item list filtered by a room and on the Rooms page.
+  `drawings.render_room_crop` cuts the full-size plan with Pillow, draws the outline and the numbered dots, and is page
+  one of the room checklist PDF (`ON THE PLAN`); rooms without a box keep the whole floor plan there.
 - **Item dots.** An item's spot on a plan is an `ItemPin` (table `item_pins`: plan image, item, x/y as fractions of the
   image, one per item per plan; deleted with the plan or the item; drafts cannot be placed). In the room panel, the pin
   button on an item starts placing: the next tap on the plan saves the dot (`POST /p/<id>/plan/item-pins`, form:

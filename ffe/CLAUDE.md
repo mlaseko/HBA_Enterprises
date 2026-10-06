@@ -32,14 +32,16 @@ app/models.py          Settings, Project, ProjectImage, PlanTag, RoomPin, ItemPi
                        ItemPrice (the typed USD price; Item.price_currency / price_amount), Payment, Carton
                        Item.draft = quick-capture draft (no name/code yet); Project.live_items / Project.drafts split them
 app/common.py          templates, auth helpers, number filters, render()/redirect()
-app/services.py        summary() for dashboards (by_room rows carry kind), next_code(), guess_kind() (room | area from the name),
+app/services.py        summary() for dashboards (by_room rows carry kind), sort_items() (schedule order; routers.items re-exports it),
+                       next_code(), guess_kind() (room | area from the name),
                        set_price()/copy_price() (CNY storage, USD entry), carton_positions(), container_for()
 app/storage.py         save_image(max_px=)/save_blob/read_image/delete_image — backends: local | replit | s3 (replit is the
                        default when REPL_ID is set; read_image copies a photo found only on local disk into the bucket)
 app/drawings.py        floor plans: render_page()/page_count() via pypdfium2 (optional import), floor_key()/floor_title()
                        matching plans to Room.floor, rooms_by_floor(), plan_for_room(), client_plans();
                        interactive plan: rooms_for_plan(), pins_by_room(), plan_with_room(), default_plan(), clamp_box(), clamp_point();
-                       rooms vs areas: split_kinds(), count_label(); PDF title blocks: page_text(), read_title_block()
+                       rooms vs areas: split_kinds(), count_label(); PDF title blocks: page_text(), read_title_block();
+                       zoomed room: crop_rect(), room_zoom() (card data), render_room_crop() (Pillow crop for the checklist PDF)
 app/webimage.py        fetch_image(url): picture bytes from a direct image link or a page (og:image / largest <img>);
                        stdlib only, refuses private addresses, raises WebImageError with a message for the page
 app/ai.py              Claude auto-fill (off without ANTHROPIC_API_KEY): suggest_item(image, page_text, url, rooms) → dict via
@@ -211,6 +213,10 @@ ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;   -- quick ca
   "Kind" column and guesses for new rooms. Rooms page, plan mark list, room selects, Overview and PDF summaries list
   rooms first, then areas. **PDF title blocks.** `DrawingPage` rows are read at upload (`drawings.read_title_block`); the
   page picker pre-ticks plan pages and prefills floor, sheet and caption (`caption_<k>` is now posted with the pick).
+  **Zoomed room.** `plan/_zoom.html` (data from `drawings.room_zoom`, fitted by `app.js` `fitZoom`) on the item list
+  filtered by a room (`room_obj`, `zoom`) and inside each marked entry on the Rooms page (`zooms`); rows carry
+  `id="item-<id>"` so a dot can highlight its item. `pdf/packing.room_checklist` page one = `render_room_crop` when the
+  room has a box. A rough box is enough: the crop pads it and the dots are drawn from the item pins.
 
 ## Backlog (in priority order)
 

@@ -1,7 +1,7 @@
 from collections import defaultdict
 from sqlalchemy.orm import Session
 from .models import Project, Item, Room, Carton, Payment, Supplier, ItemPrice
-from .config import CONTAINERS, STATUSES, PRICE_CURRENCIES, AREA_WORDS
+from .config import CONTAINERS, STATUSES, PRICE_CURRENCIES, AREA_WORDS, CATEGORIES
 from . import drawings
 
 
@@ -15,6 +15,13 @@ def next_code(db: Session, project: Project, room: Room | None) -> str:
         except ValueError:
             pass
     return f"{prefix}-{n + 1:02d}"
+
+
+def sort_items(items: list[Item], p: Project) -> list[Item]:
+    """Schedule order: category (config order), then room order, then code. Used by lists, panels, PDFs and share pages."""
+    room_order = {r.id: r.sort for r in p.rooms}
+    cat_order = {c: i for i, c in enumerate(CATEGORIES)}
+    return sorted(items, key=lambda i: (cat_order.get(i.category, 99), room_order.get(i.room_id, 9999), i.code))
 
 
 def guess_kind(name: str, floor: str = "") -> str:
