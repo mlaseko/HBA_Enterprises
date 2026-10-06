@@ -74,7 +74,7 @@
     <td><form method="post" action="/p/{{ p.id }}/cartons/{{ c.id }}/delete" onsubmit="return confirmSubmit(this,'Delete box?')"><button class="btn icon danger" title="Delete box" aria-label="Delete box"><svg class="ic"><use href="#i-trash"/></svg></button></form></td>
   </tr>
   {% else %}
-  <tr><td colspan="9" class="muted center">{% if f.supplier or f.room %}No boxes match this filter.{% else %}No boxes yet. Add the first one above, or send the supplier their packing link from the Suppliers tab.{% endif %}</td></tr>
+  <tr><td colspan="9" class="muted center">{% if f.supplier or f.room %}No boxes match this filter.{% else %}No boxes yet. Add the first one above, or send the supplier their packing link from the Suppliers tab. <a href="#help">How packing works</a>{% endif %}</td></tr>
   {% endfor %}
   </tbody>
 </table></div>

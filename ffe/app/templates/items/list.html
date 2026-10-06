@@ -55,6 +55,7 @@
   <p>{% if filtering %}Try another room, category or status, or clear the filters to see the whole schedule.{% else %}Start with Quick capture in the showroom, add items one by one, or import the Excel schedule.{% endif %}</p>
   <a class="btn" href="/p/{{ p.id }}/items/new"><svg class="ic"><use href="#i-plus"/></svg>Add an item</a>
   <a class="btn sec" href="/p/{{ p.id }}/import"><svg class="ic"><use href="#i-upload"/></svg>Import the Excel</a>
+  {% if not filtering %}<a class="btn ghost" href="#help"><svg class="ic"><use href="#i-help"/></svg>How this works</a>{% endif %}
 </div>
 
 {% elif f.view == 'table' %}

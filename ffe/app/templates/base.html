@@ -67,8 +67,9 @@
   <a href="/settings" class="{{ 'on' if path == '/settings' }}">{{ ic('settings') }}Studio settings</a>
   <a href="/clip" class="{{ 'on' if path == '/clip' }}">{{ ic('link') }}Save from web</a>
   <a href="/projects/new" class="{{ 'on' if path == '/projects/new' }}">{{ ic('plus') }}New project</a>
-  <a href="/help" class="{{ 'on' if path == '/help' }}">{{ ic('help') }}Help &amp; guide</a>
+  <a href="/help{% if help_tip and help_tip.anchor %}#{{ help_tip.anchor }}{% endif %}" class="{{ 'on' if path == '/help' }}">{{ ic('help') }}Help &amp; guide</a>
 {% endmacro %}
+{% macro help_button(cls='') %}{% if help_tip %}<span class="help-wrap {{ cls }}"><button type="button" class="iconbtn help-btn" id="help-btn" aria-controls="page-help" aria-expanded="false" title="Help for this page">{{ ic('help') }}<span class="hide-m">Help</span></button><span class="help-nudge" id="help-nudge" hidden role="status">New here? Tap for the steps on this page.</span></span>{% endif %}{% endmacro %}
 {% macro brand(nav) %}
   <a class="brand" href="/">
     <span class="mark">{% if nav and nav.studio and nav.studio.logo_key %}<img src="/media/{{ nav.studio.logo_key }}" alt="">{% else %}<img class="glyph" src="/static/brand-mark.png" alt="">{% endif %}</span>
@@ -81,6 +82,7 @@
     <span class="brand"><span class="mark">{% if studio is defined and studio.logo_key %}<img src="/media/{{ studio.logo_key }}" alt="">{% else %}<img class="glyph" src="/static/brand-mark.png" alt="">{% endif %}</span><span class="name">{{ studio.studio_name if studio is defined and studio.studio_name else APP_NAME }}</span></span>
     <span class="ctx">{% block pubctx %}{% endblock %}</span>
     <span class="sp"></span>
+    {{ help_button() }}
     {% block pubactions %}{% endblock %}
   </div>
 {% endblock %}</header>
@@ -112,6 +114,7 @@
   </div>
   <div class="tools">
     <a class="iconbtn hide-m" href="/projects/new">{{ ic('plus') }}New project</a>
+    {{ help_button() }}
     <a class="iconbtn" href="/settings" title="Studio settings">{{ ic('settings') }}</a>
     <a class="iconbtn hide-m" href="/logout" title="Log out">{{ ic('logout') }}</a>
   </div>
@@ -153,6 +156,26 @@
     <nav class="nav">{% for pr in nav.projects %}<a href="/p/{{ pr.id }}" class="{{ 'on' if p and p.id == pr.id }}">{{ ic('home') }}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ pr.name }}</span></a>{% endfor %}</nav>
     {% endif %}
   </div>
+</div>
+{% endif %}
+{% if help_tip %}
+<div class="help-drawer" id="page-help" hidden data-key="{{ help_tip.key }}">
+  <div class="back" data-help-close></div>
+  <aside class="panel" role="dialog" aria-modal="true" aria-labelledby="ph-title" tabindex="-1">
+    <div class="grab"></div>
+    <div class="row between top nowrap">
+      <div><div class="eyebrow">Help for this page</div><h2 id="ph-title" class="mb-0">{{ help_tip.title|safe }}</h2></div>
+      <button type="button" class="btn ghost sm icon" data-help-close aria-label="Close help">{{ ic('x') }}</button>
+    </div>
+    <p class="what">{{ help_tip.what|safe }}</p>
+    <div class="eyebrow">Steps</div>
+    <ol class="steps">{% for st in help_tip.steps %}<li>{{ st|safe }}</li>{% endfor %}</ol>
+    {% if help_tip.tips %}<div class="eyebrow">Good to know</div><ul class="tips">{% for t in help_tip.tips %}<li>{{ t|safe }}</li>{% endfor %}</ul>{% endif %}
+    <div class="row mt ph-foot">
+      {% if not public and help_tip.anchor %}<a class="btn sec sm" href="/help#{{ help_tip.anchor }}">{{ ic('help') }}Open the full guide</a>{% endif %}
+      <button type="button" class="btn sm" data-help-close>Got it</button>
+    </div>
+  </aside>
 </div>
 {% endif %}
 <script src="/static/app.js"></script>

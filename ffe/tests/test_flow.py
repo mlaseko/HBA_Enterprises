@@ -493,6 +493,42 @@ with TestClient(app) as c:
     # the help page: every feature has a section; login required
     r=c.get("/help"); assert r.status_code==200 and "How to use" in r.text and 'id="prices"' in r.text and 'id="plan"' in r.text and 'id="client"' in r.text and "Quick capture" in r.text and 'href="/help"' in r.text
     assert c2.get("/help", follow_redirects=False).status_code==303
+    # the guide: every picture it shows exists and has its size, every contents entry has its section, every tip's anchor exists
+    help_html=r.text; import json as _json
+    pics=sorted(set(re.findall(r'/static/help/([\w-]+)\.webp', help_html))); assert len(pics)>=30, pics
+    sizes=_json.load(open("app/static/help/shots.json"))
+    for name in pics:
+        assert os.path.exists(f"app/static/help/{name}.webp"), name
+        assert os.path.getsize(f"app/static/help/{name}.webp") < 200_000, name
+        assert name in sizes and f'width="{sizes[name][0]}" height="{sizes[name][1]}"' in help_html, name
+    assert c.get(f"/static/help/{pics[0]}.webp").status_code==200
+    ids=set(re.findall(r'<section class="card[^"]*" id="([\w-]+)"', help_html)) | set(re.findall(r'<div class="stage" id="([\w-]+)"', help_html))
+    toc=help_html.split('<nav class="help-toc')[1].split('</nav>')[0]; flow=help_html.split('<ol class="flow">')[1].split('</ol>')[0]
+    for href in re.findall(r'href="#([\w-]+)"', toc + flow):
+        assert href in ids, href
+    for st in ("s1","s9","flow","statuses","purchasing","faq","help"): assert st in ids, st
+    from app import help_tips as _ht
+    for k,t in _ht.TIPS.items():
+        assert t["anchor"] in ids or t.get("public"), (k, t["anchor"])
+    assert set(_ht.TEMPLATE_KEYS.values()) <= set(_ht.TIPS)
+    assert 'id="page-help"' not in help_html  # the guide itself has no drawer
+    # help for this page: the drawer, the nudge and the deep link into the guide on the designer's pages
+    r=c.get(f"/p/{pid}/rooms"); assert 'id="page-help"' in r.text and 'data-key="rooms"' in r.text and 'id="help-btn"' in r.text and 'id="help-nudge"' in r.text and 'href="/help#rooms"' in r.text and "Sort rooms &amp; areas by name" in r.text.split('id="page-help"')[1]
+    r=c.get(f"/p/{pid}/plan?mode=mark"); assert 'data-key="plan_mark"' in r.text and "Done marking" in r.text.split('id="page-help"')[1]
+    r=c.get(f"/p/{pid}/plan"); assert 'data-key="plan"' in r.text
+    r=c.get(f"/p/{pid}/items/new"); assert 'data-key="item_new"' in r.text
+    r=c.get(f"/p/{pid}/items/{iid}"); assert 'data-key="item_edit"' in r.text
+    r=c.get("/projects/new"); assert 'data-key="project_new"' in r.text
+    r=c.get(f"/p/{pid}/edit"); assert 'data-key="project_edit"' in r.text
+    for path,key in ((f"/p/{pid}","overview"),("/","projects"),(f"/p/{pid}/images","images"),(f"/p/{pid}/capture","capture"),(f"/p/{pid}/drafts","drafts"),(f"/p/{pid}/suppliers","suppliers"),(f"/p/{pid}/payments","payments"),(f"/p/{pid}/cartons","cartons"),(f"/p/{pid}/import","import"),("/settings","settings"),("/clip","clip")):
+        r=c.get(path); assert r.status_code==200 and f'data-key="{key}"' in r.text, (path, key)
+    r=c.get("/login", follow_redirects=False); assert 'id="page-help"' not in c2.get("/login").text
+    # the share pages get their own help, with no link into the designer's guide and nothing designer-only
+    r=c2.get(f"/c/{ctok}"); drawer=r.text.split('id="page-help"')[1].split('</aside>')[0]; assert 'data-key="share_client"' in r.text and "/help" not in drawer and "/p/" not in drawer and "supplier" not in drawer.lower() and "Download PDF" in drawer
+    r=c2.get(f"/s/{tok}"); drawer=r.text.split('id="page-help"')[1].split('</aside>')[0]; assert 'data-key="share_supplier"' in r.text and "/help" not in drawer and "/p/" not in drawer and "price" not in drawer.lower() and "Add carton" in drawer
+    # empty states point at the help
+    r=c.post("/projects/new", data={"client_name":"Empty","name":"Empty house","rate":"7.1"}, follow_redirects=False); pid_e=r.headers["location"].split("/")[-1]
+    assert 'href="#help"' in c.get(f"/p/{pid_e}/items").text and 'href="#help"' in c.get(f"/p/{pid_e}/plan").text and 'href="#help"' in c.get(f"/p/{pid_e}/drafts").text and 'href="#help"' in c.get(f"/p/{pid_e}/cartons").text and 'href="#help"' in c.get(f"/p/{pid_e}/payments").text
     print("prices in USD or CNY + help ok")
     # ---- review fixes: counts per room, drafts never get dots, client leak checks, dots follow rooms, PDFs with markup, scoping ----
     # the panel's "placed" count is this room's: a dot of another room on the same plan does not count

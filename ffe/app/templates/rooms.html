@@ -33,6 +33,7 @@
   </div>
 </form>
 
+{% if not p.rooms %}<div class="card empty"><div class="ring"><svg class="ic"><use href="#i-layout"/></svg></div><h3>No rooms yet</h3><p>Add the rooms above, one per line, or import the Excel list and they are created for you.</p><a class="btn sec" href="/p/{{ p.id }}/import"><svg class="ic"><use href="#i-upload"/></svg>Import the Excel</a> <a class="btn ghost" href="#help"><svg class="ic"><use href="#i-help"/></svg>How this works</a></div>{% endif %}
 {% for g in groups %}
 <div class="group-title"><h2>{{ g.title }}</h2><span class="n">{{ count_label(g.rooms, g.areas) }}</span></div>
 {% if g.plans %}

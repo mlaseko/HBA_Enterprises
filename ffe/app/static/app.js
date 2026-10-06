@@ -111,3 +111,35 @@
   };
   window.confirmSubmit = function (form, msg) { return confirm(msg || 'Are you sure?'); };
 })();
+
+// "Help for this page": the ? button in the top bar opens a drawer with the steps for this page (base.html, help_tips.py).
+// A one-time nudge points at the button the first time a page is seen; #help in the address opens the drawer.
+(function () {
+  var dr = document.getElementById('page-help'), btn = document.getElementById('help-btn'), nudge = document.getElementById('help-nudge');
+  if (!dr || !btn) return;
+  var key = 'help.seen.' + (dr.dataset.key || 'page'), before = null;
+  function remember() { try { localStorage.setItem(key, '1'); } catch (e) { /* private mode */ } }
+  function hideNudge() { if (nudge && !nudge.hidden) { nudge.hidden = true; } remember(); }
+  function open() {
+    hideNudge(); before = document.activeElement;
+    dr.hidden = false; btn.setAttribute('aria-expanded', 'true'); document.body.style.overflow = 'hidden';
+    var p = dr.querySelector('.panel'); if (p) p.focus();
+  }
+  function close() {
+    dr.hidden = true; btn.setAttribute('aria-expanded', 'false'); document.body.style.overflow = '';
+    if (location.hash === '#help') history.replaceState(null, '', location.pathname + location.search);
+    if (before && before.focus) before.focus();
+  }
+  btn.addEventListener('click', function () { if (dr.hidden) open(); else close(); });
+  dr.addEventListener('click', function (e) { if (e.target.closest('[data-help-close]')) close(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !dr.hidden) close(); });
+  window.addEventListener('hashchange', function () { if (location.hash === '#help') open(); });
+  if (location.hash === '#help') { open(); return; }
+  var seen = '1';
+  try { seen = localStorage.getItem(key); } catch (e) { seen = '1'; }
+  if (!seen && nudge) {
+    nudge.hidden = false;
+    setTimeout(hideNudge, 9000);
+    document.addEventListener('pointerdown', function h() { hideNudge(); document.removeEventListener('pointerdown', h); });
+  }
+})();

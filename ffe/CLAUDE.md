@@ -31,7 +31,9 @@ app/models.py          Settings, Project, ProjectImage, PlanTag, RoomPin, ItemPi
                        Room (kind = room | area; is_area), Supplier, SupplierLink, Item, ItemPhoto,
                        ItemPrice (the typed USD price; Item.price_currency / price_amount), Payment, Carton
                        Item.draft = quick-capture draft (no name/code yet); Project.live_items / Project.drafts split them
-app/common.py          templates, auth helpers, number filters, render()/redirect()
+app/common.py          templates, auth helpers, number filters, render()/redirect() (render injects `help_tip` for the ? drawer)
+app/help_tips.py       "Help for this page": TIPS (title, what, steps, tips, anchor into help.html) per page key, TEMPLATE_KEYS,
+                       tip_for(template, ctx); shots() reads static/help/shots.json (picture sizes for the guide)
 app/services.py        summary() for dashboards (by_room rows carry kind), sort_items() (schedule order; routers.items re-exports it),
                        next_code(), guess_kind() (room | area from the name),
                        set_price()/copy_price() (CNY storage, USD entry), carton_positions(), container_for()
@@ -70,7 +72,9 @@ app/static/app.js      photo compression (also exposed as window.compressPhoto),
 app/static/plan.js     Plan page + client plan: zoom, tap-a-room panel (fetches plan/_room.html), item dots (place / drag /
                        locate / remove), draw / move / resize room boxes in mark mode; reads data-base / data-room-base /
                        data-readonly from #plan so the same script serves /p/<id>/plan and /c/<token>
-tests/test_flow.py     end-to-end test with TestClient + SQLite (login, import, items, photos, links, PDFs)
+tests/test_flow.py     end-to-end test with TestClient + SQLite (login, import, items, photos, links, PDFs, guide + help drawer)
+tools/help_shots.py    regenerates the guide's screenshots (app/static/help/*.webp + shots.json) from a seeded fictional demo
+tools/help_shots.js    project: SQLite in a temp dir, uvicorn on 8777, Playwright through the pages, pypdfium2 for the PDFs
 samples/               Kinondoni procurement Excel used by the import test
 ```
 
@@ -112,8 +116,12 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
 - Prices are stored in CNY; USD is derived with `project.rate`. Keep it that way. The designer may *type* a price in
   USD: always go through `services.set_price(item, amount, currency, rate)` (converts, remembers the USD entry in
   `item_prices`) and `copy_price()` when copying an item; never write `unit_price` from a form directly.
-- The user guide (`templates/help.html`, `/help`) describes every feature in plain words. When you change or add a
-  feature, update its section in the same change.
+- The user guide (`templates/help.html`, `/help`) describes every feature in plain words, with screenshots from
+  `app/static/help/` (WebP, sizes in `shots.json`, rendered through the `shot()` macro). When you change or add a feature,
+  update its section and its "Help for this page" entry in `app/help_tips.py` in the same change (a new page needs a tip
+  and a line in `TEMPLATE_KEYS`; `render()` picks it up). When a page changes enough for its picture to be wrong, re-run
+  `python tools/help_shots.py` on a machine with Chromium + Playwright for Node (it seeds its own demo data, never the
+  real database) and commit the new pictures. Keep the tips for the share pages free of anything designer-only.
 - Share links are random tokens (`SupplierLink.token`, `Project.client_token`); public routes live only in
   `routers/share.py` and the `/s/… /c/…` PDF routes in `exports.py`. Never expose other routes without login.
 - Photos: compressed in the browser (`app.js`) and again server-side (`storage.process_image`, max 1600 px JPEG).
@@ -220,6 +228,13 @@ ALTER TABLE rooms ADD COLUMN kind  VARCHAR(10) NOT NULL DEFAULT 'room';  -- room
   filtered by a room (`room_obj`, `zoom`) and inside each marked entry on the Rooms page (`zooms`); rows carry
   `id="item-<id>"` so a dot can highlight its item. `pdf/packing.room_checklist` page one = `render_room_crop` when the
   room has a box. A rough box is enough: the crop pads it and the dots are drawn from the item pins.
+
+- **Help with pictures and help for this page.** The guide was rebuilt around a nine-stage walkthrough (stage = steps,
+  screenshots, "done when"), a section per feature, a documents table, the statuses, phone tips and a questions page, with
+  a client-side search. `base.html` adds a `?` button (designer top bar and public bar) opening a drawer (`#page-help`,
+  `help_tips.TIPS`), a one-time nudge (`localStorage help.seen.<key>`), `#help` in the URL opens it (empty states link to
+  it), and the Studio menu's Help link deep-links to the section of the current page. Screenshots come from a fictional
+  demo project seeded by `tools/help_shots.py`.
 
 ## Backlog (in priority order)
 

@@ -26,8 +26,14 @@ same data, entered once.
 
 Single-user: one app password (the designer). Clients and suppliers only ever get share links.
 
-**Help & guide** (`/help`, Studio menu): a one-page user manual in plain words, feature by feature, with the steps for
-each. Printable. Keep it current when a feature changes.
+**Help & guide** (`/help`, Studio menu): the user manual in plain words, with screenshots. It opens with the idea in one
+minute and a nine-stage walkthrough (studio → project → rooms & areas → plans → items → buying → shipping → the schedule
+→ on site), then a section per feature, a table of the documents, what the statuses mean, phone tips and a questions
+page; a search box filters it. **Help for this page:** every page has a `?` button in the top bar that opens a drawer with
+that page's steps and a link into the guide (the text lives in `app/help_tips.py`); a one-time nudge points at it on a
+first visit, empty states link to it, and the supplier and client links get their own version. The screenshots in
+`app/static/help/` are generated from a fictional demo project by `tools/help_shots.py` (needs Chromium + Playwright for
+Node; see the file). Keep the guide and the tips current when a feature changes.
 
 ## Look and feel
 

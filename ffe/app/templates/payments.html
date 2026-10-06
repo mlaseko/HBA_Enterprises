@@ -68,7 +68,7 @@
       <td><form method="post" action="/p/{{ p.id }}/payments/{{ pay.id }}/delete" onsubmit="return confirmSubmit(this,'Delete payment?')"><button class="btn icon danger" title="Delete payment" aria-label="Delete payment"><svg class="ic"><use href="#i-trash"/></svg></button></form></td>
     </tr>
     {% else %}
-    <tr><td colspan="8" class="muted center">No payments recorded yet. Use the form above the first time you pay a deposit.</td></tr>
+    <tr><td colspan="8" class="muted center">No payments recorded yet. Use the form above the first time you pay a deposit. <a href="#help">How payments work</a></td></tr>
     {% endfor %}
     </tbody>
   </table></div>

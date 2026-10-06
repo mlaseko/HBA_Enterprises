@@ -28,6 +28,7 @@
   <p>Upload the floor plans (JPG, PNG or the architect's PDF) and tag each with its floor. Then come back here, mark where each room sits, and the plan becomes the quickest way to browse and update the house.</p>
   <a class="btn" href="/p/{{ p.id }}/images#plans"><svg class="ic"><use href="#i-upload"/></svg>Add floor plans</a>
   {% if p.rooms %}<a class="btn sec" href="/p/{{ p.id }}/rooms"><svg class="ic"><use href="#i-layout"/></svg>Rooms</a>{% endif %}
+  <a class="btn ghost" href="#help"><svg class="ic"><use href="#i-help"/></svg>How this works</a>
 </div>
 {% else %}
 

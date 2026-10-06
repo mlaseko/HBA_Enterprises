@@ -1,210 +1,570 @@
 {% extends "base.html" %}
 {% block title %}Help &amp; guide · {{ APP_NAME }}{% endblock %}
+{% macro shot(name, caption, cls='') %}{% set wh = help_shots().get(name) %}<figure class="shot {{ cls }}"><img src="/static/help/{{ name }}.webp" alt="{{ caption|striptags }}"{% if wh %} width="{{ wh[0] }}" height="{{ wh[1] }}"{% endif %} loading="lazy" decoding="async"><figcaption>{{ caption|safe }}</figcaption></figure>{% endmacro %}
 {% block content %}
 <div class="page-head">
   <div>
     <div class="crumbs"><a href="/">Studio</a><svg class="ic"><use href="#i-chevron-right"/></svg>Help &amp; guide</div>
     <h1>How to use {{ nav.studio.name or APP_NAME }}</h1>
-    <p class="sub">A short guide, feature by feature. Each part says what it is for and the steps to do it. Read it top to bottom once; after that, jump to what you need.</p>
+    <p class="sub">The guide, with pictures. Read <a href="#idea">the idea</a> and <a href="#flow">the walkthrough</a> once; after that, jump to the feature you need. On every page of the app, the <b>?</b> button at the top gives the steps for that page.</p>
   </div>
-  <div class="actions"><button type="button" class="btn sec noprint" onclick="window.print()"><svg class="ic"><use href="#i-file"/></svg>Print this guide</button></div>
+  <div class="actions noprint">
+    <label class="help-search"><svg class="ic"><use href="#i-search"/></svg><input type="search" id="help-q" placeholder="Find in the guide… (e.g. labels, rate, PDF)" aria-label="Find in the guide" autocomplete="off"><button type="button" class="btn ghost sm" id="help-clear" hidden>Clear</button></label>
+    <button type="button" class="btn sec" onclick="window.print()"><svg class="ic"><use href="#i-file"/></svg>Print</button>
+  </div>
 </div>
 
 <div class="help-layout">
 <nav class="help-toc card tight noprint" aria-label="Contents">
-  <div class="eyebrow">Contents</div>
+  <div class="eyebrow">Start here</div>
   <a href="#idea">The idea in one minute</a>
-  <a href="#start">1. First-time setup</a>
-  <a href="#project">2. A new project</a>
-  <a href="#rooms">3. Rooms</a>
-  <a href="#plans">4. Floor plans</a>
-  <a href="#plan">5. The interactive plan</a>
-  <a href="#items">6. Items</a>
-  <a href="#prices">7. Prices and currency</a>
-  <a href="#capture">8. Quick capture in a showroom</a>
-  <a href="#web">9. Saving from the web</a>
-  <a href="#suppliers">10. Suppliers and payments</a>
-  <a href="#packing">11. Packing and boxes</a>
-  <a href="#documents">12. PDFs and Excel</a>
-  <a href="#client">13. The client link</a>
+  <a href="#flow">The walkthrough, start to finish</a>
+  <div class="eyebrow sub">Feature by feature</div>
+  <a href="#start">Studio settings</a>
+  <a href="#project">Projects, Overview &amp; import</a>
+  <a href="#rooms">Rooms &amp; areas</a>
+  <a href="#plans">Floor plans &amp; PDF pages</a>
+  <a href="#plan">The interactive plan</a>
+  <a href="#items">Items</a>
+  <a href="#prices">Prices &amp; currency</a>
+  <a href="#capture">Quick capture &amp; drafts</a>
+  <a href="#web">Saving from the web</a>
+  <a href="#suppliers">Suppliers</a>
+  <a href="#purchasing">Purchasing: quotes, orders, payments</a>
+  <a href="#packing">Packing &amp; boxes</a>
+  <a href="#documents">PDFs &amp; Excel</a>
+  <a href="#client">The client link</a>
+  <a href="#statuses">What the statuses mean</a>
+  <div class="eyebrow sub">When you are stuck</div>
+  <a href="#help">Help while you work</a>
   <a href="#phone">Tips for the phone</a>
+  <a href="#faq">Questions &amp; problems</a>
 </nav>
 
 <div class="help-body">
+<div class="card help-nomatch" id="help-nomatch" hidden><b>Nothing in the guide matches that word.</b> Try another word, or clear the search.</div>
+
 <section class="card" id="idea">
   <h2>The idea in one minute</h2>
-  <p>You enter each item once: which room it goes in, what it is, a photo of the sample, the supplier and the price. From that one entry the app gives you the client's schedule as a PDF, keeps track of what is quoted, ordered, paid, shipped and received, prints box labels by room, and gives the client a link to follow progress. Nothing is typed twice.</p>
-  <p>Everything hangs off <b>rooms</b>. Every item and every box carries a room code such as <span class="pill accent">GF-KIT</span>, so a delivery goes straight to the room where it will be installed.</p>
+  <p>You enter each item <b>once</b>: which room it goes in, what it is, a photo of the sample, the supplier and the price. From that one entry the app gives you the client's schedule as a PDF, keeps track of what is quoted, ordered, paid, shipped and received, prints box labels by room, and gives the client a link to follow progress. Nothing is typed twice.</p>
+  <p>Everything hangs off <b>rooms and areas</b>. Every item and every box carries a code such as <span class="pill accent">GF-KIT</span>, so a delivery goes straight to the place where it will be installed.</p>
   <p>Yellow boxes are where you type. Everything else is worked out for you.</p>
+  <ol class="flow">
+    <li><a href="#s1"><span class="n">1</span><span class="t">Studio settings</span><span class="d">Once. Your name on every document.</span></a></li>
+    <li><a href="#s2"><span class="n">2</span><span class="t">Project</span><span class="d">One per house. Import the Excel if you have it.</span></a></li>
+    <li><a href="#s3"><span class="n">3</span><span class="t">Rooms &amp; areas</span><span class="d">Codes for every place.</span></a></li>
+    <li><a href="#s4"><span class="n">4</span><span class="t">Floor plans</span><span class="d">Upload, pick pages, mark rooms.</span></a></li>
+    <li><a href="#s5"><span class="n">5</span><span class="t">Items</span><span class="d">Type, shoot or save from the web.</span></a></li>
+    <li><a href="#s6"><span class="n">6</span><span class="t">Buying</span><span class="d">Suppliers, quotes, orders, payments.</span></a></li>
+    <li><a href="#s7"><span class="n">7</span><span class="t">Shipping</span><span class="d">Boxes, labels, packing list.</span></a></li>
+    <li><a href="#s8"><span class="n">8</span><span class="t">The schedule</span><span class="d">PDFs and the client link.</span></a></li>
+    <li><a href="#s9"><span class="n">9</span><span class="t">On site</span><span class="d">Receive boxes, tick items, checklists.</span></a></li>
+  </ol>
+  <div class="who">
+    <div class="card soft"><div class="eyebrow">You, the designer</div><p>Log in with the app password. You do everything in this guide; the app is built for your phone in the showroom and your laptop at the desk.</p></div>
+    <div class="card soft"><div class="eyebrow">Suppliers</div><p>Get a <b>packing link</b>, no login. They see only their items and list their own cartons.</p></div>
+    <div class="card soft"><div class="eyebrow">The client</div><p>Gets a <b>client link</b>, no login. Read-only: photos, USD prices, delivery status, the plan and the PDF.</p></div>
+    <div class="card soft"><div class="eyebrow">The site team</div><p>Gets PDFs: the schedule without prices, room checklists with the plan, box labels.</p></div>
+  </div>
+</section>
+
+<section class="card" id="flow">
+  <h2>The walkthrough, start to finish</h2>
+  <p>This is the order things happen in a real project. Each stage says what to do, where to do it, and what you have when it is done. What you enter in stage 5 is exactly what prints in stage 8.</p>
+
+  <div class="stage" id="s1">
+    <div class="eyebrow">Stage 1 · once</div>
+    <h3>Set up the studio</h3>
+    <ol>
+      <li>Open <b>Studio settings</b> (the sliders icon at the top right, or the Studio menu).</li>
+      <li>Type the studio name, phone, email and website. They print on every PDF, label and share page.</li>
+      <li>Set the default exchange rate (CNY per 1 USD) and upload the logo if you want it in the app. Press <b>Save</b>.</li>
+    </ol>
+    {{ shot('settings', 'Studio settings. The card on the right shows how clients and suppliers see you.') }}
+    <div class="result"><b>Done when:</b> every document carries your studio's name and contact.</div>
+  </div>
+
+  <div class="stage" id="s2">
+    <div class="eyebrow">Stage 2</div>
+    <h3>Create the project</h3>
+    <ol>
+      <li>On <b>Projects</b>, press <b>New project</b>. Type the client's name, the project name (the house), the delivery address, the exchange rate and, if you like, a budget in USD. Press <b>Create project</b>.</li>
+      <li>You land on the project's <b>Overview</b>. The sidebar (or the <b>More</b> menu on a phone) now shows this project's pages.</li>
+      <li>Already have the procurement list as an Excel file? Open <b>Import</b>, choose the file, press <b>Import</b>. Rooms and items are created in one go. Otherwise carry on to stage 3 and add the rooms yourself.</li>
+    </ol>
+    <div class="shots">
+      {{ shot('projects', 'Projects: one card per house, with items, total, received and boxes.') }}
+      {{ shot('overview', 'The Overview: counts and money at the top, then status, documents, and the breakdown by room, category and supplier.') }}
+    </div>
+    <div class="result"><b>Done when:</b> the project has an Overview and, if you imported, its rooms and items.</div>
+  </div>
+
+  <div class="stage" id="s3">
+    <div class="eyebrow">Stage 3</div>
+    <h3>Rooms &amp; areas</h3>
+    <ol>
+      <li>Open <b>Rooms</b>. For each place type a <b>code</b> (GF-KIT), a <b>name</b> (Kitchen) and the <b>floor</b> (Ground), then press <b>Add</b>. Codes become upper-case and spaces turn into dashes.</li>
+      <li>Leave <b>Kind</b> on Auto and the app decides from the name whether it is a room or an area; or choose yourself. A <b>room</b> is a space you furnish and finish; an <b>area</b> is a zone that still gets items: entrance, hall and corridors, stairs, landing, balconies, carport, roof terrace, the whole house.</li>
+      <li>After an Excel import, press <b>Sort rooms &amp; areas by name</b> once. The page shows a reminder until you do.</li>
+    </ol>
+    {{ shot('rooms', 'Rooms &amp; areas, grouped by floor. The heading tells the truth about the house: here 11 rooms and 8 areas.') }}
+    <div class="result"><b>Done when:</b> every place has a code, a floor and a kind. Items, boxes and labels can now be filed under them.</div>
+  </div>
+
+  <div class="stage" id="s4">
+    <div class="eyebrow">Stage 4</div>
+    <h3>Floor plans and the interactive plan</h3>
+    <ol>
+      <li>Open <b>Images &amp; plans</b>. Under <b>Add floor plans</b>, choose the architect's PDF (or JPG / PNG pictures of the plans) and press <b>Upload</b>.</li>
+      <li>For a PDF, the <b>page picker</b> opens. The app has read the title block of every page: the pages titled floor plan, roof plan or site plan are ticked, with floor, sheet number and caption filled in. Check them, fix what is wrong, untick elevations or sections if any slipped through, then press <b>Add ticked pages</b>.</li>
+      <li>Open <b>Plan</b> and press <b>Mark rooms</b>. Pick a room in the list, drag a box over it on the drawing. It saves at once and the list moves on to the next room. A rough box is enough. Press <b>Done marking</b> when the list is green.</li>
+    </ol>
+    <div class="shots">
+      {{ shot('pdf-pages', 'The page picker after a PDF upload: plan pages ticked and prefilled from their title blocks; the cover sheet is not.') }}
+      {{ shot('plan-mark', 'Mark rooms: rooms first, then areas. Every entry is green once it has a box.') }}
+    </div>
+    {{ shot('plan-browse', 'From now on, tapping a room on the plan brings up its items. The dots are items placed on the plan; their ring shows the status colour.') }}
+    <div class="result"><b>Done when:</b> each floor has its plan, and every room and area has a box on it. The plan is now the quickest way to browse the house.</div>
+  </div>
+
+  <div class="stage" id="s5">
+    <div class="eyebrow">Stage 5</div>
+    <h3>Items: build the schedule</h3>
+    <p>There are three ways in, and you will use all three.</p>
+    <ol>
+      <li><b>Type it.</b> On <b>Items</b> (or on a room in the plan) press <b>Add item</b>. Tick the rooms that get it, choose the category, type the name and the must-have spec, qty, unit and price (CNY or USD), pick the supplier if you know it, add photos. <b>Save</b>, or <b>Save &amp; add another</b>.</li>
+      <li><b>Shoot it.</b> In a showroom press <b>Quick capture</b>. Every photo becomes a draft at once; keep shooting. Later, on <b>Drafts</b>, give each one a name, room, qty and price and press <b>Save as item</b>.</li>
+      <li><b>Save it from the web.</b> Paste a supplier page, Taobao listing or Pinterest pin into the item's web-link field, or use the one-click <b>Save from web</b> button. The picture is downloaded and stored with the item.</li>
+    </ol>
+    <p>Two rules worth knowing now: the <b>category</b> decides which page of the client schedule the item prints on, and the <b>status</b> starts at <span class="badge" style="--c:{{ STATUS_COLORS['To buy'] }}">To buy</span> and follows the purchase from there.</p>
+    <div class="shots">
+      {{ shot('item-new', 'New item: tick every room that gets it. Each ticked room gets its own line with its own code.') }}
+      {{ shot('items', 'Items filtered by one room: the room zoomed in on its plan at the top, with a numbered dot per placed item, then the cards.') }}
+    </div>
+    <div class="shots">
+      {{ shot('phone-capture', 'Quick capture on the phone: tag the next photos if you like, then shoot.', 'phone') }}
+      {{ shot('phone-drafts', 'Drafts: name it, pick the room, save. It gets a code and joins the schedule.', 'phone') }}
+    </div>
+    <div class="result"><b>Done when:</b> every room lists what goes in it, the Overview shows the totals, and the client schedule PDF already prints.</div>
+  </div>
+
+  <div class="stage" id="s6">
+    <div class="eyebrow">Stage 6</div>
+    <h3>Buying: suppliers, quotes, orders, payments</h3>
+    <ol>
+      <li><b>Suppliers.</b> Open <b>Suppliers</b>, press <b>Add supplier</b>: name, city or market, what they supply, contact, phone, WeChat, payment terms. Suppliers are shared by all your projects.</li>
+      <li><b>Quotes.</b> When a supplier quotes, open the item, set the <b>supplier</b> and the <b>unit price</b>, and set the status to <span class="badge" style="--c:{{ STATUS_COLORS['Quoted'] }}">Quoted</span>. The supplier's line on the Suppliers page now shows items, ordered total and balance.</li>
+      <li><b>Order.</b> Open the supplier (inside the project) and press <b>Purchase order PDF</b>: their items with codes, specs, photos, prices and the balance. Send it to confirm. Set the items to <span class="badge" style="--c:{{ STATUS_COLORS['Ordered'] }}">Ordered</span>: from the list, the plan or the item itself.</li>
+      <li><b>Pay.</b> On <b>Payments</b>, record each deposit or balance: supplier, date, amount in CNY, type, the bank or WeChat reference, and a photo of the receipt. The balance per supplier updates on the Overview, the Suppliers page and the purchase order. When an item is fully paid, set it to <span class="badge" style="--c:{{ STATUS_COLORS['Paid'] }}">Paid</span>.</li>
+    </ol>
+    <div class="shots">
+      {{ shot('suppliers', 'Suppliers inside a project: items, ordered, paid and balance per supplier, and who has a packing link.') }}
+      {{ shot('supplier', 'A supplier: details, money with the payments made, and the packing link. The purchase order PDF is the button at the top.') }}
+    </div>
+    <div class="shots">
+      {{ shot('payments', 'Payments: record a payment with its receipt; the tables below show the balance by supplier and every payment.') }}
+      {{ shot('pdf-po', 'The purchase order PDF: items, must-haves, room codes, prices, and total, paid and balance.') }}
+    </div>
+    <div class="result"><b>Done when:</b> every item has a supplier and a price, the orders are confirmed, and the Overview shows paid against balance for each supplier.</div>
+  </div>
+
+  <div class="stage" id="s7">
+    <div class="eyebrow">Stage 7</div>
+    <h3>Shipping: boxes, labels, container</h3>
+    <ol>
+      <li>Open the supplier and press <b>Create packing link</b>, then <b>Copy link</b> and send it on WeChat. With that link, and no login, the supplier lists every carton: the room it goes to, what is inside, item codes, size and weight.</li>
+      <li>Or add the boxes yourself on <b>Packing</b>: <b>Add a box</b> with supplier, room, contents, codes, size and weight.</li>
+      <li>The app numbers each box <b>Box n of N</b> for its room and adds the volume up to a container size. Press <b>Print box labels</b> (six per page) and <b>Packing list PDF</b>; the supplier has the same two buttons on their link.</li>
+      <li>When the goods leave, set the items to <span class="badge" style="--c:{{ STATUS_COLORS['Shipped'] }}">Shipped</span>.</li>
+    </ol>
+    <div class="shots">
+      {{ shot('packing', 'Packing: boxes with their room code and “Box n of N”, who entered them, and a Received button for each.') }}
+      {{ shot('supplier-link', 'What the supplier sees on their packing link: their items, the cartons they listed, and the two print buttons.') }}
+    </div>
+    {{ shot('pdf-labels', 'Box labels, six per page: the room code large, the box number, the supplier, the contents and the delivery address.', 'narrow') }}
+    <div class="result"><b>Done when:</b> every carton carries a room code and a box number, and the packing list shows the volume and the container.</div>
+  </div>
+
+  <div class="stage" id="s8">
+    <div class="eyebrow">Stage 8</div>
+    <h3>The schedule for the client</h3>
+    <ol>
+      <li>On the Overview, under <b>Documents</b>, open <b>Client schedule</b>: cover, contents, the floor plans, the mood board, one table per category and a summary by room and area. It is generated from the current items every time you open it.</li>
+      <li>Pick the version you need: USD or CNY prices, <b>Schedule by floor</b> (each floor's plan, then its rooms), or <b>without prices</b> for the site team and suppliers.</li>
+      <li>Open <b>Project settings</b>, press <b>Copy link</b> under <b>Client link</b> and send it to the client. They see the items with photos and USD prices, the mood board, the plan with the dots, and a <b>Download PDF</b> button. They never see suppliers, notes or CNY prices.</li>
+    </ol>
+    <div class="shots">
+      {{ shot('documents', 'The Documents section of the Overview: every PDF and the Excel export, always up to date.') }}
+      {{ shot('pdf-cover', 'The client schedule: the cover with your cover image.') }}
+    </div>
+    <div class="shots">
+      {{ shot('pdf-table', 'A category page: photo, code, product and must-haves, finish, size, supplier, lead time, price and total.') }}
+      {{ shot('pdf-floor', 'The schedule by floor: the floor plan, then its rooms one after another.') }}
+    </div>
+    {{ shot('client', 'The client link: a read-only page with the totals, the mood board, the plan and the items by category.') }}
+    <div class="result"><b>Done when:</b> the client has the link, and the PDF you send is the same data you keep working in.</div>
+  </div>
+
+  <div class="stage" id="s9">
+    <div class="eyebrow">Stage 9</div>
+    <h3>On site: receiving and checklists</h3>
+    <ol>
+      <li>When a box arrives, open <b>Packing</b> and press <b>Received</b> on it (<b>Undo</b> if you pressed by mistake). The Overview's boxes-received tile follows.</li>
+      <li>When an item is in place, set it to <span class="badge" style="--c:{{ STATUS_COLORS['Received'] }}">Received</span>, quickest from the plan: tap the room, change the status in the panel.</li>
+      <li>Give the installers each room's <b>Checklist PDF</b> (Rooms page, item list or plan panel). Page one is the room cut out of the plan with a numbered dot per item; the next pages list the items with photos and a tick box.</li>
+    </ol>
+    {{ shot('pdf-checklist', 'Page one of a room checklist: the room zoomed in on its plan, its outline, and a dot carrying the number of each item code.') }}
+    <div class="result"><b>Done when:</b> the Overview shows every item and every box received. The client link shows the same.</div>
+  </div>
 </section>
 
 <section class="card" id="start">
-  <h2>1. First-time setup</h2>
-  <ol>
-    <li>Log in with the app password.</li>
-    <li>Open <b>Studio settings</b> (the sliders icon at the top right). Enter the studio name, phone, email and website: they print on every PDF. Upload the logo if you want it in the app.</li>
-    <li>Set the default exchange rate (CNY per 1 USD). Each project can still have its own rate.</li>
-  </ol>
-</section>
-
-<section class="card" id="project">
-  <h2>2. A new project</h2>
-  <p><b>What it is for:</b> one project per client house. It holds the rooms, items, suppliers, payments, boxes and documents for that house.</p>
-  <ol>
-    <li>Press <b>New project</b>. Give it the client's name, the project name, the delivery address, the exchange rate and, if you like, a budget in USD.</li>
-    <li>If you already have the procurement list as an Excel file, open <b>Import</b> and upload it. Rooms and items are created in one go. The Excel needs a <i>Shopping List</i> sheet and a <i>Rooms</i> sheet.</li>
-    <li>Otherwise add the rooms first (next section), then the items.</li>
-  </ol>
-  <p>The <b>Overview</b> page shows the whole project at a glance: items, totals in CNY and USD, how much is paid, how many items and boxes have arrived, and quick links to the documents. Tap a status badge to see only those items.</p>
-</section>
-
-<section class="card" id="rooms">
-  <h2>3. Rooms and areas</h2>
-  <p><b>What it is for:</b> the list of places in the house, each with a short code. Codes end up on items, labels and boxes. A <b>room</b> is a space you furnish and finish: living room, kitchen, bedrooms, bathrooms, office. An <b>area</b> is a zone that still gets items but is not a room: entrance, hall and corridors, stairs, landing, balconies, carport, and the whole-house entries. Both work the same way; areas are just listed after rooms and counted separately, so "10 rooms · 5 areas" tells the truth about the house.</p>
-  <ol>
-    <li>Open <b>Rooms</b>. Type a code (for example <i>GF-KIT</i>), a name (<i>Kitchen</i>) and the floor (<i>Ground</i>). Leave <b>Kind</b> on Auto and the app decides by the name, or pick Room or Area yourself. Press <b>Add</b>.</li>
-    <li>Floor and wall areas are optional; they help you work out tile quantities.</li>
-    <li>To change an entry, open its row, edit (including its Kind) and press <b>Save</b>. Deleting one keeps its items; they just lose their room.</li>
-    <li>After an Excel import, or the first time you open this version, press <b>Sort rooms &amp; areas by name</b> once: entrances, corridors, stairs, balconies and the carport become areas. Switch any of them back if the guess is wrong.</li>
-  </ol>
-  <p>Everything is grouped by floor, and each floor shows its plan once you have uploaded one.</p>
-</section>
-
-<section class="card" id="plans">
-  <h2>4. Floor plans</h2>
-  <p><b>What it is for:</b> the architect's drawings, kept with the project. They print in the client schedule and in the room checklists, and they power the interactive plan.</p>
-  <ol>
-    <li>Open <b>Images &amp; plans</b>. Under <b>Add floor plans</b>, choose JPG or PNG pictures, or the architect's PDF.</li>
-    <li>For a PDF, the app reads the title block of every page and fills in the floor, the sheet number and the title, and ticks the pages whose title says floor plan. Check them, fix anything wrong, untick what you do not want, then press <b>Add ticked pages</b>. A scanned PDF has no text to read, so there you tick and type yourself.</li>
-    <li>Tag every plan with its floor (Ground, First, Roof…). The floor name must match the one you gave the rooms.</li>
-  </ol>
-  <p>The same page holds the <b>cover</b> picture and the <b>mood board</b> that open the client schedule.</p>
-</section>
-
-<section class="card" id="plan">
-  <h2>5. The interactive plan</h2>
-  <p><b>What it is for:</b> browsing and updating the house room by room, straight on the drawing. Tap a room and its items appear; tap a dot and you see which item sits there.</p>
-  <h3>Mark the rooms (once per plan)</h3>
-  <ol>
-    <li>Open <b>Plan</b> and press <b>Mark rooms</b>.</li>
-    <li>Pick a room in the list (areas are listed below the rooms), then drag a box over it on the drawing. It saves at once and the list moves to the next one.</li>
-    <li>Drag a box to move it, pull its corner to resize it, press × to remove it. Press <b>Done marking</b> when you finish.</li>
-  </ol>
-  <h3>Use it every day</h3>
-  <ol>
-    <li>Tap a room. Its items come up beside the plan (on a phone, in a sheet at the bottom) with the count, the total and how many have arrived.</li>
-    <li>Change a status right there with the dropdown, press <b>Add item</b> or <b>Capture</b> for that room, or open an item to edit it. Saving brings you back to the plan.</li>
-    <li>To mark where an item goes, tap the pin <svg class="ic sm"><use href="#i-map"/></svg> on the item, then tap the spot on the drawing. The dot shows the item's photo and its status colour. Drag a dot to move it, tap the pin again to find it, press × twice to remove it. If you move an item to another room, its dot is removed so you can place it again.</li>
-    <li>Use the <b>−</b> / <b>Fit</b> / <b>+</b> buttons or double-tap to zoom. The <b>Items</b> button hides the dots when you want a clean drawing.</li>
-  </ol>
-  <p>Floors switch with the tabs above the plan. Rooms not yet marked on a plan are listed under it.</p>
-</section>
-
-<section class="card" id="items">
-  <h2>6. Items</h2>
-  <p><b>What it is for:</b> the schedule itself. One line per product per room, with the must-have specification, the sample photo, quantity, price, supplier and status.</p>
-  <h3>Add an item</h3>
-  <ol>
-    <li>Open <b>Items</b> and press <b>Add item</b>.</li>
-    <li>Tick the rooms that get this item. Each room gets its own line with its own code, quantity and status. Choose the category: it decides which page of the schedule the item prints on.</li>
-    <li>Type the name and the must-have spec (what the supplier must deliver). Brand, size, finish and lead time are optional.</li>
-    <li>Enter quantity, unit and price (see <a href="#prices">prices</a>), pick the supplier if you know it, and take or choose photos of the sample.</li>
-    <li>Press <b>Save</b>, or <b>Save &amp; add another</b> to keep going.</li>
-  </ol>
-  <h3>Keep it up to date</h3>
+  <h2>Studio settings</h2>
+  <p><b>What it is for:</b> what clients, suppliers and the site team see as the sender. The studio name, phone, email and website print on every PDF, on the box labels and in the header of the share pages.</p>
   <ul>
-    <li>The status follows the purchase: <b>To buy → Quoted → Ordered → Paid → Shipped → Received</b>. Change it from the dropdown on the list, on the plan, or on the item itself.</li>
-    <li>Use the filters at the top of the list (room, category, status, supplier, search) and switch between card and table view. Filtered by one room, the top of the list shows that room <b>zoomed in on the plan</b> with its item dots, once you have marked it on the plan; tap a dot to jump to the item, tap the picture to open the plan.</li>
-    <li>The same product in several rooms: edit one line and tick <b>Apply to the other rooms</b> to copy the product details to all of them. Quantity, status, notes and photos stay per room.</li>
-    <li><b>Duplicate</b> makes a copy to tweak. Delete removes the item and its photos.</li>
+    <li>The <b>default exchange rate</b> is used for new projects. Each project keeps its own rate in Project settings.</li>
+    <li>The <b>logo</b> replaces the house glyph in the app. A square PNG or JPG looks best. The PDFs keep their own layout.</li>
+    <li>The app password, the database and the photo storage are set up on the server, not here.</li>
   </ul>
 </section>
 
+<section class="card" id="project">
+  <h2>Projects, Overview &amp; import</h2>
+  <p><b>What it is for:</b> one project per house. It holds the rooms, items, payments, boxes, images and documents of that house. Suppliers are the only thing shared between projects.</p>
+  <h3>New project and Project settings</h3>
+  <ul>
+    <li>Client name and project name print on the schedule cover. The <b>delivery address</b> prints on every box label.</li>
+    <li>The <b>exchange rate</b> (CNY per 1 USD) drives every USD figure. Changing it later does not move prices, which are stored in CNY; only the USD figures change.</li>
+    <li>A <b>budget</b> in USD shows a bar on the Overview. <b>Status</b> (Active, On hold, Completed) is just a label on the project card.</li>
+    <li>A new project starts with one entry, <b>Whole house</b>, for items that belong to no particular room.</li>
+    <li><b>Danger zone:</b> deleting a project removes everything in it. You have to type <i>delete</i> to confirm.</li>
+  </ul>
+  <h3>The Overview</h3>
+  <ul>
+    <li>The tiles: items (and how many have a price), total in CNY and USD against the budget, paid and balance, items and boxes received, volume packed and the container it fits, and how many items are still to buy.</li>
+    <li><b>Item status</b> badges: tap one to list only those items.</li>
+    <li><b>Documents</b>: every PDF and the Excel export; see <a href="#documents">PDFs &amp; Excel</a>.</li>
+    <li><b>By room &amp; area</b> (tap a room to open it on the plan; the PDF button is its checklist), <b>By category</b>, <b>By supplier</b> with ordered, paid and balance, and the items you touched most recently.</li>
+  </ul>
+  <h3>Import from Excel</h3>
+  <ul>
+    <li>The file needs a <b>Shopping List</b> sheet and a <b>Rooms</b> sheet, or it can be an Excel exported from this app. Columns are matched by their headers (Room, Category, Item, Must-have spec, Size / Finish, Qty, Unit, Price (CNY), Supplier, Status, Notes); extra columns are ignored.</li>
+    <li>Rooms are matched by code and created when new. A <b>Kind</b> column is honoured; new rooms without one are classified by name.</li>
+    <li>Tick <b>Delete all existing items in this project first</b> only to re-import a corrected file. Photos on deleted items are lost.</li>
+    <li>Photos are not in Excel: after importing, open each item and add the sample photo, or use Quick capture.</li>
+  </ul>
+  {{ shot('import', 'Import from Excel: the recognised columns, and the option to start over.') }}
+</section>
+
+<section class="card" id="rooms">
+  <h2>Rooms &amp; areas</h2>
+  <p><b>What it is for:</b> the list of places in the house, each with a short code. Codes end up on items, labels and boxes, so a delivery goes straight to where it will be installed.</p>
+  <h3>Rooms and areas</h3>
+  <ul>
+    <li>A <b>room</b> is a space you furnish and finish: living room, kitchen, bedrooms, bathrooms, office. An <b>area</b> is a zone that still gets items but is not a room: entrance, hall and corridors, stairs, landing, balconies, verandah, terrace, carport, and the whole-house entries.</li>
+    <li>Both work exactly the same way: codes, items, boxes, labels, a box on the plan. The difference is only how they are listed and counted: rooms first, then areas, and "11 rooms · 8 areas" instead of "19 rooms".</li>
+    <li><b>Kind</b> on Auto decides by the name. <b>Sort rooms &amp; areas by name</b> does it for every entry at once; switch any entry back by hand.</li>
+  </ul>
+  <h3>Adding and editing</h3>
+  <ul>
+    <li><b>Code</b>: short and unique, upper-case, dashes instead of spaces. GF for ground floor, FF for first floor is a good habit (GF-KIT, FF-MBR). Codes are never renumbered, because they are printed on labels and purchase orders.</li>
+    <li><b>Floor</b>: the floor name must match the one you give the floor plan, so the plan and the rooms find each other. "Ground" and "Ground floor" count as the same.</li>
+    <li><b>Floor area</b> and <b>wall tile area</b> in m² are optional and help you work out tile quantities. <b>Notes</b> are for the installers (finish level, access).</li>
+    <li>Open an entry to edit it: change the code, name, floor, kind or order and press <b>Save</b>. From there: <b>Items</b>, <b>Checklist PDF</b>, <b>Labels</b>, <b>On the plan</b>.</li>
+    <li><b>Deleting</b> an entry keeps its items and boxes; they lose their room and show under "Not in a room or area" until you file them again.</li>
+  </ul>
+  {{ shot('rooms-entry', 'An entry opened on the Rooms page: once it is marked on the plan, it shows zoomed in with its item dots, above its details and buttons.') }}
+</section>
+
+<section class="card" id="plans">
+  <h2>Floor plans &amp; PDF pages</h2>
+  <p><b>What it is for:</b> the architect's drawings, kept with the project. They print in the client schedule and the room checklists, and they power the interactive plan. The same page holds the <b>cover</b> picture and the <b>mood board</b> of the client schedule.</p>
+  <h3>Adding plans</h3>
+  <ul>
+    <li><b>JPG or PNG</b> pictures are added straight away; give the floor, and optionally the sheet reference and a caption, before you upload.</li>
+    <li><b>A PDF drawing set</b> goes through the page picker (next). You can upload a revised set later: pages already added stay even if you delete the old PDF.</li>
+    <li>Plans are kept at a higher resolution than photos so room names stay readable when you zoom.</li>
+    <li>Drawings are a reference only: rooms and items are never created from them. You decide the scope.</li>
+  </ul>
+  <h3>The page picker</h3>
+  <ul>
+    <li>At upload, the app reads the <b>title block</b> of every page: the drawing title ("Ground Floor Plan (Furniture Layout)"), the sheet number after "Drawing No" (A-101) and the floor the title names.</li>
+    <li>Pages titled floor / roof / site plan are <b>ticked</b>, with floor, sheet and caption filled in. Elevations, sections, services drawings, notes that refer to a plan and cover sheets with a drawing list are left unticked.</li>
+    <li>Check, correct, untick, and press <b>Add ticked pages</b>. Nothing is added until you do.</li>
+    <li>A <b>scanned PDF</b> has no text to read, so nothing is prefilled: tick the plan pages and type the floor yourself.</li>
+  </ul>
+  <h3>Tagging</h3>
+  <ul>
+    <li>Every plan carries a <b>floor</b>, a <b>sheet</b> reference and a <b>caption</b>; change them under the picture and press <b>Save</b>. The caption prints with the plan ("Ground floor · A-101 · Furniture Layout").</li>
+    <li>A plan without a floor prints up front in the schedule and does not join a floor's tab on the Plan page.</li>
+    <li>"n rooms marked · mark rooms" under a plan jumps to mark mode for that plan.</li>
+  </ul>
+  {{ shot('images', 'Images &amp; plans: upload the cover and mood board, and the floor plans as pictures or as the architect\'s PDF.') }}
+</section>
+
+<section class="card" id="plan">
+  <h2>The interactive plan</h2>
+  <p><b>What it is for:</b> browsing and updating the house room by room, straight on the drawing. Tap a room and its items appear; tap a dot and you see which item sits there. It is also what the client sees on their link.</p>
+  <h3>Mark the rooms (once per plan)</h3>
+  <ol>
+    <li>Open <b>Plan</b>, choose the floor tab, press <b>Mark rooms</b>.</li>
+    <li>Pick a room in the list (rooms first, then areas; rooms of other floors are folded below), then drag a box over it on the drawing. It saves at once and the list moves to the next unplaced one.</li>
+    <li>Drag a box to move it, pull its corner to resize it, press <b>×</b> in the list to remove it. The pill above the drawing counts "n of m placed". Press <b>Done marking</b> when you finish.</li>
+  </ol>
+  <h3>Use it every day</h3>
+  <ul>
+    <li><b>Tap a room.</b> Its panel opens beside the plan (as a sheet from the bottom on a phone): items, total and how many have arrived, then the items by category with a status dropdown each.</li>
+    <li><b>Act on the spot.</b> Change a status, press <b>Add item</b> or <b>Capture</b> for that room, <b>List</b> to open it in the item list, <b>PDF</b> for its checklist, or open an item. Saving brings you back to the plan. The room's own details (code, name, floor, kind, notes) are in the fold at the bottom of the panel.</li>
+    <li><b>Place an item.</b> Tap the pin <svg class="ic sm"><use href="#i-map"/></svg> on an item, then the spot on the drawing where it goes. The dot shows the item's photo and its status colour. Drag a dot to move it, tap the pin again to find it, press <b>×</b> twice to remove it. An item that moves to another room loses its dot so you can place it again.</li>
+    <li><b>Read the drawing.</b> Use <b>−</b> / <b>Fit</b> / <b>+</b>, pinch on a phone, or double-tap. <b>Items</b> hides and shows the dots. <b>Full size</b> opens the drawing on its own.</li>
+    <li>Each box shows the room code and name, a count of its items and a thin ring that fills as items arrive. Dashed boxes are areas.</li>
+  </ul>
+  <div class="shots">
+    {{ shot('phone-plan', 'On a phone the room panel is a sheet from the bottom; the plan stays behind it.', 'phone') }}
+    {{ shot('client-plan', 'The client sees the same plan, read-only: USD prices, status badges, no controls.') }}
+  </div>
+</section>
+
+<section class="card" id="items">
+  <h2>Items</h2>
+  <p><b>What it is for:</b> the schedule itself. One line per product per room, with the must-have specification, the sample photo, quantity, price, supplier and status.</p>
+  <h3>The item form, field by field</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Field</th><th>What it is for</th><th>Where it shows</th></tr></thead>
+    <tbody>
+      <tr><td><b>Rooms &amp; areas</b></td><td>Tick every place that gets this item. None ticked = whole house. Each ticked place gets its own line with its own code, quantity and status.</td><td>Codes, labels, plan, every list</td></tr>
+      <tr><td><b>Category</b></td><td>Paint, Tiles, Flooring, Furniture, Lighting, Plumbing &amp; Sanitary, Cabinets, Countertops, Hardware, Appliances, Windows &amp; Doors, Electrical, Curtains &amp; Soft, Water Treatment, Other.</td><td>The page of the client schedule it prints on; the groups on the Items page</td></tr>
+      <tr><td><b>Item / product name</b></td><td>What it is, as the client should read it.</td><td>Everywhere</td></tr>
+      <tr><td><b>Must-have spec</b></td><td>What the supplier must deliver: material, standard, fittings included. Write it so a factory can quote from it.</td><td>Schedule, purchase order, supplier link, checklist</td></tr>
+      <tr><td><b>Brand, size, finish, lead time</b></td><td>Optional details.</td><td>Schedule and purchase order</td></tr>
+      <tr><td><b>Qty, unit, unit price</b></td><td>Per room. The price is typed in CNY or USD; see <a href="#prices">prices</a>.</td><td>Totals everywhere</td></tr>
+      <tr><td><b>Supplier</b></td><td>Who sells it. Pick from the supplier book; "+ new supplier" opens the Suppliers page.</td><td>Purchase order, packing link, balances</td></tr>
+      <tr><td><b>Status</b></td><td>Where the purchase is; see <a href="#statuses">statuses</a>.</td><td>Badges, Overview counts, client link</td></tr>
+      <tr><td><b>Optional item</b></td><td>An alternative the client may or may not take. Counted separately in the totals.</td><td>"optional" pill</td></tr>
+      <tr><td><b>Notes</b></td><td>For you. Never shown to the client.</td><td>Item, checklist</td></tr>
+      <tr><td><b>Photos / web link</b></td><td>Camera or gallery, several at once; or a link to a page or a picture, downloaded when you save. The first photo is the cover.</td><td>Cards, schedule, purchase order, dots on the plan</td></tr>
+    </tbody>
+  </table></div>
+  <h3>The list</h3>
+  <ul>
+    <li>Filter by room or area, category, status, supplier or a search word (name, code, spec, brand). <b>Card view</b> groups by category with photos; <b>Table view</b> is the compact sheet. Both have the status dropdown.</li>
+    <li>Filtered by one room, the top of the list shows that room <b>zoomed in on its plan</b> with a numbered dot per placed item. Tap a dot to jump to the item; tap the picture to open the plan. Rooms not yet marked show a link to mark them.</li>
+    <li><b>Quick capture</b> and <b>Add item</b> from here keep the current room and category.</li>
+  </ul>
+  <div class="shots">
+    {{ shot('items-table', 'Table view, filtered by category: the compact sheet with a status dropdown per row.') }}
+    {{ shot('phone-items', 'The same room filter on a phone: the zoomed room first, then the cards.', 'phone') }}
+  </div>
+  <h3>Editing an item</h3>
+  <ul>
+    <li><b>Apply to the other rooms</b> (ticked by default when the same product is in several rooms) copies the name, category, spec, size, finish, brand, price, unit, lead time and supplier to the other lines. Quantity, status, notes and photos always stay per room.</li>
+    <li><b>Add this item to more rooms</b> copies it into the ticked rooms, each with its own code and the status To buy.</li>
+    <li>Photos: delete, or <b>Make cover</b>. With Claude turned on, <b>Fill in with Claude</b> fills the empty fields from the cover photo.</li>
+    <li><b>Duplicate</b> makes a copy to tweak. <b>Delete item</b> removes the item and its photos; its code is not reused.</li>
+    <li><b>Plan</b> / <b>On the plan</b> at the top opens the room on the drawing, with the item highlighted if it has a dot.</li>
+  </ul>
+  {{ shot('item-edit', 'An existing item: the full sheet, with the status badge and the plan button at the top.') }}
+</section>
+
 <section class="card" id="prices">
-  <h2>7. Prices and currency</h2>
-  <p>Prices are kept in CNY, because that is what you pay. Every total, PDF and export uses the CNY price, and the USD figures come from the project's exchange rate.</p>
+  <h2>Prices &amp; currency</h2>
+  <p>Prices are kept in <b>CNY</b>, because that is what you pay. Every total, PDF and export uses the CNY price, and the USD figures come from the project's exchange rate.</p>
   <ol>
     <li>When you type a unit price, choose <b>CNY</b> or <b>USD</b> next to it. The line below shows the conversion as you type.</li>
     <li>A price typed in USD is stored in CNY at the project's rate, and the app remembers that you typed it in USD so the form shows the same number next time.</li>
     <li>The currency you pick is remembered on your phone for the next new item.</li>
   </ol>
-  <p>To change the exchange rate, open <b>Project settings</b>. Prices already stored in CNY do not move; only the USD figures change.</p>
+  {{ shot('item-price', 'The price row: the amount, the currency it was typed in, and the conversion below.', 'narrow') }}
+  <p>To change the exchange rate, open <b>Project settings</b>. Prices already stored in CNY do not move; only the USD figures change. The client always sees USD.</p>
 </section>
 
 <section class="card" id="capture">
-  <h2>8. Quick capture in a showroom</h2>
+  <h2>Quick capture &amp; drafts</h2>
   <p><b>What it is for:</b> shooting samples fast, without typing. Each photo becomes a draft you complete later, with good Wi-Fi.</p>
   <ol>
-    <li>Press <b>Quick capture</b> (the camera button). Choose the room and category if you know them, then shoot. Every photo is saved straight away as a draft.</li>
-    <li>Later, open <b>Drafts</b>. Give each draft a name, room, quantity and price, and press <b>Save as item</b>. It gets a code and starts counting.</li>
-    <li>Discard the ones you do not want.</li>
+    <li>Press <b>Quick capture</b> (the camera button, also in the middle of the bottom bar on a phone). Choose the room and category if you know them, then <b>Take photo</b>. Every photo is saved straight away as a draft and the counter goes up.</li>
+    <li>Later, open <b>Drafts</b>. Give each draft a name, room, quantity and price, and press <b>Save as item</b>. It gets a code and starts counting. <b>All fields…</b> opens the full form.</li>
+    <li><b>Discard</b> deletes a draft and its photo.</li>
   </ol>
-  <p>Drafts never appear in totals, PDFs or client pages until they have a name.</p>
+  <p>Drafts never appear in totals, PDFs, Excel or the client link until they have a name. The Drafts badge in the menu shows how many are waiting.</p>
 </section>
 
 <section class="card" id="web">
-  <h2>9. Saving from the web</h2>
-  <p><b>What it is for:</b> turning a supplier page, a Taobao or 1688 listing or a Pinterest pin into an item or a mood-board picture.</p>
+  <h2>Saving from the web</h2>
+  <p><b>What it is for:</b> turning a supplier page, a Taobao or 1688 listing or a Pinterest pin into an item or a mood-board picture, with the picture stored in the project.</p>
   <ol>
-    <li>Paste the link in the <b>web link</b> field of an item or of the mood board. The main picture is downloaded and stored with the item.</li>
-    <li>Or set up the <b>Save from web</b> button once (Studio menu). From then on, share any page to it from your phone, or press it in the browser, and the page lands in a project as a draft or a mood-board image.</li>
-    <li>With Claude turned on, the draft is filled in from the page: name, brand, size, finish and a CNY price if the page shows one. Check it, then save.</li>
+    <li>Paste the link in the <b>web link</b> field of an item or of the mood board. The main picture of the page is downloaded and stored when you save.</li>
+    <li>Or set up the <b>Save from web</b> button once (Studio menu): drag <b>Save to HBA</b> to the bookmarks bar, or add the iPhone shortcut as the page explains. From then on, on any website, press it (or Share → Save to HBA) and the page lands here with the picture ready to save as a new item, a mood-board image, a cover or a floor plan.</li>
+    <li>With Claude turned on, a new item saved this way is filled in from the page: name, brand, size, finish and a CNY price if the page shows one. Check it on Drafts, then save.</li>
   </ol>
+  <p>Some sites block downloads. If so, save the picture to your phone and upload it the normal way.</p>
+  {{ shot('clip', 'Save from web: paste a link, or set up the one-click button and the iPhone shortcut.') }}
 </section>
 
 <section class="card" id="suppliers">
-  <h2>10. Suppliers and payments</h2>
-  <p><b>What it is for:</b> who sells what, how to reach them, and what has been paid.</p>
-  <ol>
-    <li>Open <b>Suppliers</b>. Add the company, city, contact, phone, WeChat and payment terms. Pick the supplier on each item.</li>
-    <li>Open a supplier inside a project to see their items, the total, what is paid and the balance, and to print their <b>purchase order</b> PDF.</li>
-    <li>In <b>Payments</b>, record each deposit or balance with the date, the reference and a photo of the receipt. Balances update on the Overview and the supplier pages.</li>
-    <li>Give a supplier a <b>packing link</b> from their page. With that link, and no login, they list their own boxes.</li>
-  </ol>
-</section>
-
-<section class="card" id="packing">
-  <h2>11. Packing and boxes</h2>
-  <p><b>What it is for:</b> making sure every box reaches the right room and nothing is missing.</p>
-  <ol>
-    <li>Open <b>Packing</b>. Add one line per box: supplier, room, what is inside, the item codes, size and weight. The app numbers the boxes <i>Box n of N</i> per room and works out the volume and the container size.</li>
-    <li>Suppliers can add their boxes themselves through their packing link.</li>
-    <li>Print <b>Box labels</b> (six per page) and the <b>Packing list</b> from the Documents section.</li>
-    <li>When a box arrives, tick <b>Received</b> and note its condition.</li>
-  </ol>
-</section>
-
-<section class="card" id="documents">
-  <h2>12. PDFs and Excel</h2>
-  <p>All documents are generated live from the current data, so they are always up to date. Find them under <b>Documents</b> on the Overview.</p>
+  <h2>Suppliers</h2>
+  <p><b>What it is for:</b> who sells what, how to reach them, and, inside a project, what has been ordered and paid and how they pack.</p>
   <ul>
-    <li><b>Client schedule</b>: cover, contents, floor plans, mood board, one table per category and a summary by room. In USD or CNY, with or without prices.</li>
-    <li><b>Schedule by floor</b>: each floor's plan followed by its rooms. The <b>site</b> version has no prices.</li>
-    <li><b>Room checklist</b>: one room's items, with page one showing the room zoomed in on its plan, its outline and a numbered dot per placed item (the number is the item code's). Rooms not yet marked get the whole floor plan instead. From the Rooms page, the item list or the plan.</li>
-    <li><b>Purchase order</b> per supplier, <b>packing list</b>, <b>box labels</b>.</li>
-    <li><b>Excel export</b> of all items.</li>
+    <li><b>Add supplier</b>: name, city or market, what they supply, contact person, phone, WeChat, email, payment terms, notes. The supplier book is shared by all your projects.</li>
+    <li>Pick the supplier on each item. Inside a project the supplier's line shows items, ordered total, paid and balance, and whether a packing link is active.</li>
+    <li>Open a supplier inside a project for the <b>purchase order PDF</b>, the money and the <b>packing link</b> (see <a href="#purchasing">purchasing</a> and <a href="#packing">packing</a>). Opened from the Studio menu, without a project, it shows the supplier's items across all projects.</li>
+    <li>Deleting a supplier keeps the items; they just lose the supplier.</li>
   </ul>
 </section>
 
-<section class="card" id="client">
-  <h2>13. The client link</h2>
-  <p><b>What it is for:</b> letting the client follow progress without logging in.</p>
+<section class="card" id="purchasing">
+  <h2>Purchasing: quotes, orders, payments</h2>
+  <p><b>What it is for:</b> following every item from "to buy" to "paid", and knowing at any moment what you owe each supplier.</p>
+  <h3>The cycle</h3>
   <ol>
-    <li>Open <b>Project settings</b> and copy the <b>client link</b>. Send it to the client.</li>
-    <li>They see the schedule with photos, USD prices and delivery status, the mood board, the floor plan with the rooms and item dots, and a button to download the PDF. They cannot change anything, and they never see suppliers, notes or CNY prices.</li>
-    <li>If the link gets into the wrong hands, press <b>Reset link</b>. The old one stops working at once.</li>
+    <li><b>To buy</b>: the item is on the schedule, no supplier or price yet.</li>
+    <li><b>Quoted</b>: a supplier gave a price. Set the supplier and the unit price on the item; set the status to Quoted. The ordered total of that supplier now includes it.</li>
+    <li><b>Ordered</b>: you confirmed. Send the <b>purchase order PDF</b> from the supplier's page (items, must-haves, room codes, prices, total, paid and balance, and a note asking them to mark every carton with the room code).</li>
+    <li><b>Paid</b>: fully paid. Record the payments as you make them (next).</li>
   </ol>
+  <h3>Payments</h3>
+  <ul>
+    <li>On <b>Payments</b>, record each payment: supplier, date, <b>amount in CNY</b>, type (Deposit, Balance, Full payment, Other), the bank or WeChat reference, a note, and a photo of the receipt.</li>
+    <li><b>Ordered</b> = the total of that supplier's items in this project. <b>Paid</b> = the payments recorded. <b>Balance</b> = ordered minus paid. These show on the Overview, on the Suppliers page, on the supplier's page and on the purchase order.</li>
+    <li>The tile <b>Balance to pay</b> on the Payments page is the whole project. Delete a payment with the bin icon if you recorded it wrongly.</li>
+  </ul>
+  {{ shot('pdf-summary', 'The last page of the client schedule, the summary by room and area, is the same data seen from the client\'s side: totals per place, in USD.') }}
+</section>
+
+<section class="card" id="packing">
+  <h2>Packing &amp; boxes</h2>
+  <p><b>What it is for:</b> making sure every box reaches the right room and nothing is missing on site.</p>
+  <ul>
+    <li><b>Add a box</b>: supplier, the room it is installed in, what is inside, the item codes, qty inside, size in cm, weight and notes. The app numbers boxes <b>Box n of N</b> per room, works out the volume and suggests a container size at the top.</li>
+    <li>The <b>By</b> column says whether you or the supplier entered the box. Suppliers enter theirs through their <b>packing link</b>; they can delete a carton until it is marked received.</li>
+    <li><b>Received</b> on a box when it arrives; <b>Undo</b> if needed. The Overview counts boxes received.</li>
+    <li>Filter by supplier or room. <b>Print box labels</b> and <b>Packing list PDF</b> respect the supplier filter, so you can print one supplier's labels only.</li>
+    <li>The label carries the room code large, the room name and floor, "Box n of N for this room" (or area), the supplier and box number, the contents, item codes, quantity and weight, and the delivery address.</li>
+  </ul>
+  {{ shot('pdf-packing', 'The packing list PDF: every box with its room, contents, codes, size, volume and weight, and the container at the end.') }}
+</section>
+
+<section class="card" id="documents">
+  <h2>PDFs &amp; Excel</h2>
+  <p>All documents are generated from the current data the moment you open them, so they are always up to date. Most are under <b>Documents</b> on the Overview; the others are on the page they belong to.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Document</th><th>What is in it</th><th>For whom</th><th>Where</th></tr></thead>
+    <tbody>
+      <tr><td><b>Client schedule</b></td><td>Cover, contents, floor plans, mood board, one table per category (photo, code, product and must-haves, finish, size, supplier, lead time, price, total), summary by room and area. USD or CNY, with or without prices.</td><td>Client</td><td>Overview › Documents; Images &amp; plans; the client link</td></tr>
+      <tr><td><b>Schedule by floor</b></td><td>Each floor's plan, then its rooms in one table with a sub-header per room, then the whole-house items and a summary by floor.</td><td>Client, or the site team without prices</td><td>Overview › Documents</td></tr>
+      <tr><td><b>Room checklist</b></td><td>Page one: the room zoomed in on its plan with numbered dots. Then its items with photos, must-haves, quantities and a tick box each. Areas get an "Area checklist".</td><td>Installers</td><td>Rooms page, item list filtered by room, plan panel, Overview by room</td></tr>
+      <tr><td><b>Purchase order</b></td><td>One supplier's items with codes, specs, photos, room, qty and CNY prices; total, paid and balance; your contact and the delivery address.</td><td>Supplier</td><td>Supplier page inside the project</td></tr>
+      <tr><td><b>Packing list</b></td><td>Every box with room, contents, codes, size, volume and weight; total volume and container. The supplier's link prints their own.</td><td>Forwarder, site</td><td>Overview › Documents; Packing; supplier link</td></tr>
+      <tr><td><b>Box labels</b></td><td>Six per A4 page, one per box, to stick on the cartons.</td><td>Supplier, site</td><td>Packing; Rooms page (one room); supplier link</td></tr>
+      <tr><td><b>Excel export</b></td><td>All items with their fields, and a Rooms sheet with the kind. Re-importable.</td><td>You</td><td>Overview › Documents</td></tr>
+    </tbody>
+  </table></div>
+  <div class="shots">
+    {{ shot('pdf-plan', 'The floor plan page of the client schedule.') }}
+    {{ shot('pdf-contents', 'The contents page: one entry per category, then the summary; the project description prints below.') }}
+  </div>
+</section>
+
+<section class="card" id="client">
+  <h2>The client link</h2>
+  <p><b>What it is for:</b> letting the client follow progress without logging in, without you sending files back and forth.</p>
+  <ol>
+    <li>Open <b>Project settings</b> and press <b>Copy link</b> under <b>Client link</b>. Send it over WhatsApp or email. <b>Preview as client</b> shows exactly what they see.</li>
+    <li>They see the totals in USD, the mood board, the floor plan with the rooms and the item dots (tap a room, see what goes in it), the items by category with photos, USD prices and delivery status, and <b>Download PDF</b> buttons. They cannot change anything.</li>
+    <li>They never see suppliers, your notes, CNY prices, payments or drafts.</li>
+    <li>If the link gets into the wrong hands, press <b>Reset link</b>. The old one stops working at once; send the new one.</li>
+  </ol>
+</section>
+
+<section class="card" id="statuses">
+  <h2>What the statuses mean</h2>
+  <p>The status of an item follows the purchase. Change it from the dropdown on the item list, in the plan panel, or on the item itself. The Overview counts items per status, and the ring on each room box of the plan fills as items are received.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Status</th><th>Meaning</th><th>Set it when</th></tr></thead>
+    <tbody>
+      {% for st, meaning, when in [
+        ('To buy', 'On the schedule, not yet sourced.', 'An item is created. The Overview counts these as "still to buy".'),
+        ('Quoted', 'A supplier gave a price.', 'You set the supplier and the price on the item.'),
+        ('Ordered', 'The order is confirmed with the supplier.', 'You have sent the purchase order and the supplier confirmed.'),
+        ('Paid', 'Fully paid.', 'The last payment to the supplier for this item is recorded.'),
+        ('Shipped', 'Left the supplier, on its way.', 'The cartons are listed and loaded.'),
+        ('Received', 'On site.', 'The item is checked on site; the boxes are marked received on Packing.'),
+      ] %}
+      <tr><td><span class="badge" style="--c:{{ STATUS_COLORS[st] }}">{{ st }}</span></td><td>{{ meaning }}</td><td>{{ when }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+
+<section class="card" id="help">
+  <h2>Help while you work</h2>
+  <ul>
+    <li>Every page has a <b>?</b> button in the top bar (<b>Help</b> on a laptop). It opens <b>Help for this page</b>: what the page is for, the steps, and a few things worth knowing, plus a button to the matching part of this guide. Suppliers and clients get the same on their links, written for them.</li>
+    <li>The first time you open a page, a small note points at the button. It shows once per page and disappears when you tap anywhere.</li>
+    <li>Empty pages (no items yet, no plan yet, no boxes yet) show <b>How this works</b>, which opens the same help.</li>
+    <li><b>Help &amp; guide</b> in the Studio menu opens this guide at the section for the page you came from. Use the search box at the top of the guide to find a word, and <b>Print</b> for a paper copy.</li>
+  </ul>
+  <div class="shots">
+    {{ shot('help-drawer', 'Help for this page on a laptop: the steps slide in on the right; the page stays where it was.') }}
+    {{ shot('phone-help', 'On a phone the same help comes up from the bottom.', 'phone') }}
+  </div>
 </section>
 
 <section class="card" id="phone">
   <h2>Tips for the phone</h2>
   <ul>
     <li>Add the app to your home screen from the browser menu; it then opens like an app.</li>
+    <li>The bottom bar has the pages you use most: <b>Overview</b>, <b>Items</b>, <b>Capture</b> in the middle, <b>Plan</b>, <b>Packing</b>. Everything else, and switching project, is under <b>More</b>.</li>
     <li>Photos are shrunk on the phone before they upload, so they go through on slow Wi-Fi. Floor plans keep more detail.</li>
-    <li>The bottom bar has the pages you use most: Overview, Items, Capture, Plan, Packing. Everything else is under <b>More</b>.</li>
+    <li>On the plan, pinch to zoom and tap a room; the room's items come up from the bottom. Tap the pin on an item, then the drawing, to place it.</li>
     <li>Nothing here needs Google or any outside service, so it works in China.</li>
   </ul>
+  <div class="shots">
+    {{ shot('phone-overview', 'The Overview on a phone, with the bottom bar: Overview, Items, Capture, Plan, Packing and More.', 'phone') }}
+    {{ shot('phone-more', 'The More menu: every page of the project, the Studio pages and the project switcher.', 'phone') }}
+  </div>
+</section>
+
+<section class="card faq" id="faq">
+  <h2>Questions &amp; problems</h2>
+  <details><summary>I uploaded the plan, but the room is not listed under it on the Plan page.</summary><p>The room's floor and the plan's floor must have the same name. Check the floor on the Rooms page and under the plan on Images &amp; plans ("Ground" and "Ground floor" count as the same; "GF" does not). In mark mode, rooms of other floors are in the folded list below, so you can still place them.</p></details>
+  <details><summary>The PDF pages were not ticked in the page picker.</summary><p>The PDF has no readable text (a scan or a flattened export), so there was nothing to read. Tick the plan pages and type the floor and sheet yourself. Everything else works the same.</p></details>
+  <details><summary>A photo upload failed.</summary><p>Usually the Wi-Fi. Take the photo again; Quick capture keeps the ones that went through. Photos are shrunk before upload, so one photo at a time nearly always goes through even on a slow connection.</p></details>
+  <details><summary>An item is in the wrong room.</summary><p>Open the item and change <b>Room or area</b>, then save. Its code stays as it is (codes are never renumbered); its dot on the plan is removed so you can place it again in the new room.</p></details>
+  <details><summary>I deleted a room by mistake.</summary><p>Its items and boxes are kept; they show under "Not in a room or area" on the Overview and as "Unassigned" in the item filter. Add the room again and set it on each item.</p></details>
+  <details><summary>Why can the client see prices?</summary><p>The client link always shows USD prices, because the schedule is a priced document for the client. For the site team or a supplier, use <b>Schedule without prices</b> or <b>Site schedule by floor</b> under Documents.</p></details>
+  <details><summary>The USD totals changed although I changed no price.</summary><p>The project's exchange rate changed (Project settings). Prices are stored in CNY and do not move; the USD figures follow the rate.</p></details>
+  <details><summary>Why is the code of a deleted item not reused?</summary><p>Codes are printed on labels, purchase orders and packing lists that may already be with a supplier. A code never changes meaning once it exists.</p></details>
+  <details><summary>A supplier cannot open their packing link.</summary><p>Check the whole link was copied (press <b>Copy link</b> again). No login is needed. If the link was disabled, press <b>Create packing link</b> again and send the new one.</p></details>
+  <details><summary>Can two people work at the same time?</summary><p>Yes. There is one password and one set of data; each page shows the latest state when it loads.</p></details>
+  <details><summary>A photo is missing from an item.</summary><p>Open the item and upload it again. Photos are kept in the project's storage, never on your phone only.</p></details>
+  <details><summary>I want to start a project over.</summary><p>To replace the items, use <b>Import</b> with <b>Delete all existing items in this project first</b> ticked. To remove the whole project, open Project settings and use the danger zone. Both cannot be undone.</p></details>
 </section>
 </div>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {  // find in the guide: hide the sections (and their contents entries) that do not contain the word
+  var q = document.getElementById('help-q'), clr = document.getElementById('help-clear'), body = document.querySelector('.help-body'), toc = document.querySelector('.help-toc'), none = document.getElementById('help-nomatch');
+  if (!q || !body) return;
+  var secs = [].slice.call(body.querySelectorAll('section[id]'));
+  function run() {
+    var t = q.value.trim().toLowerCase(), n = 0;
+    clr.hidden = !t;
+    secs.forEach(function (s) {
+      var hit = !t || s.textContent.toLowerCase().indexOf(t) > -1;
+      if (hit) n++;
+      s.toggleAttribute('data-hide', !hit);
+      var a = toc && toc.querySelector('a[href="#' + s.id + '"]'); if (a) a.toggleAttribute('data-hide', !hit);
+      if (hit && t) s.querySelectorAll('details').forEach(function (d) { if (d.textContent.toLowerCase().indexOf(t) > -1) d.open = true; });
+    });
+    none.hidden = !(t && n === 0);
+  }
+  q.addEventListener('input', run);
+  clr.addEventListener('click', function () { q.value = ''; run(); q.focus(); });
+  q.addEventListener('keydown', function (e) { if (e.key === 'Escape') { q.value = ''; run(); } });
+  if (location.hash) { var d = document.querySelector(location.hash + ' details'); if (d && location.hash === '#faq') d.open = true; }
+})();
+</script>
 {% endblock %}
