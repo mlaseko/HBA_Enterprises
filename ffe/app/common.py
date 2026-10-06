@@ -128,6 +128,14 @@ def redirect(url: str):
     return RedirectResponse(url, status_code=303)
 
 
+def safe_next(url, default: str) -> str:
+    """A `next` form/query value we are willing to redirect to: a path inside this app, never another site."""
+    u = (url or "").strip()
+    if u.startswith("/") and not u.startswith("//") and "\\" not in u and "\n" not in u and "\r" not in u:
+        return u
+    return default
+
+
 def content_disposition(name: str, inline: bool = False) -> dict:
     """Download header that survives any file name (Chinese, spaces, quotes): ASCII fallback plus RFC 5987 filename*."""
     name = (name or "file").strip() or "file"

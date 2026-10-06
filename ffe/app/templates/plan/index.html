@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Plan · {{ p.name }} · {{ APP_NAME }}{% endblock %}
+{% block mainclass %}wrap plan-wrap{% endblock %}
+{% block content %}
+{% set marking = mode == 'mark' %}
+{% set pin_of = {} %}{% for pin in pins %}{% set _ = pin_of.update({pin.room_id: pin}) %}{% endfor %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a>{% if marking %}<svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/plan{% if plan %}?plan={{ plan.id }}{% endif %}">Plan</a>{% endif %}</div>
+    <h1>{{ 'Mark rooms' if marking else 'Plan' }}{% if plan %} <span class="h-note">{{ plan_caption(plan) or 'Floor plan' }}</span>{% endif %}</h1>
+    <p class="sub">{% if marking %}Pick a room on the list, then drag a box over it on the plan. Drag a box to move it, pull its corner to resize it. Everything saves as you go.{% else %}Tap a room on the plan to see its items, change a status or open an item. Pinch or use the zoom buttons to read the drawing.{% endif %}</p>
+  </div>
+  <div class="actions">
+    {% if plan %}
+      {% if marking %}<a class="btn" href="/p/{{ p.id }}/plan?plan={{ plan.id }}"><svg class="ic"><use href="#i-check"/></svg>Done marking</a>
+      {% else %}<a class="btn sec" href="/p/{{ p.id }}/plan?plan={{ plan.id }}&amp;mode=mark"><svg class="ic"><use href="#i-edit"/></svg>Mark rooms</a>{% endif %}
+      <a class="btn sec hide-m" href="/media/{{ plan.best_key }}" target="_blank"><svg class="ic"><use href="#i-image"/></svg>Full size</a>
+    {% endif %}
+    <a class="btn ghost" href="/p/{{ p.id }}/rooms"><svg class="ic"><use href="#i-layout"/></svg>Rooms</a>
+  </div>
+</div>
+
+{% if not plan %}
+<div class="card empty">
+  <div class="ring"><svg class="ic"><use href="#i-map"/></svg></div>
+  <h3>No floor plan yet</h3>
+  <p>Upload the floor plans (JPG, PNG or the architect's PDF) and tag each with its floor. Then come back here, mark where each room sits, and the plan becomes the quickest way to browse and update the house.</p>
+  <a class="btn" href="/p/{{ p.id }}/images#plans"><svg class="ic"><use href="#i-upload"/></svg>Add floor plans</a>
+  {% if p.rooms %}<a class="btn sec" href="/p/{{ p.id }}/rooms"><svg class="ic"><use href="#i-layout"/></svg>Rooms</a>{% endif %}
+</div>
+{% else %}
+
+{% if tabs|length > 1 %}
+<nav class="plan-tabs" aria-label="Floor plans">
+  {% for t in tabs %}<a class="{{ 'on' if t.on }}" href="/p/{{ p.id }}/plan?plan={{ t.im.id }}{% if marking %}&amp;mode=mark{% endif %}" {% if t.on %}aria-current="page"{% endif %}><span class="t">{{ t.title }}</span><span class="s">{{ t.sheet or (t.im.caption if t.im.caption != t.title else '') or '&nbsp;'|safe }}</span><span class="n" title="Rooms placed">{{ t.n }}</span></a>{% endfor %}
+</nav>
+{% endif %}
+
+<div class="plan-layout {{ 'marking' if marking }}" id="plan" data-project="{{ p.id }}" data-plan="{{ plan.id }}" data-mode="{{ mode }}"
+     data-hires="/media/{{ plan.best_key }}" data-sel="{{ sel_room.id if sel_room else '' }}">
+  <div class="plan-main">
+    <div class="card tight plan-card">
+      <div class="plan-tools">
+        <div class="zoom" role="group" aria-label="Zoom">
+          <button type="button" class="btn sec sm icon" data-zoom="-" aria-label="Zoom out" title="Zoom out">−</button>
+          <button type="button" class="btn sec sm" data-zoom="fit" title="Fit the plan to the screen">Fit</button>
+          <button type="button" class="btn sec sm icon" data-zoom="+" aria-label="Zoom in" title="Zoom in">+</button>
+        </div>
+        <span class="hint small muted" id="plan-hint" data-default="{% if marking %}Pick a room, then drag a box over it on the plan.{% else %}Tap a room to see its items.{% endif %}">{% if marking %}Pick a room, then drag a box over it on the plan.{% else %}Tap a room to see its items.{% endif %}</span>
+        <span class="sp"></span>
+        <span class="pill" id="plan-count" data-total="{{ floor_rooms|length }}">{{ pins|length }} of {{ floor_rooms|length }} rooms placed</span>
+      </div>
+      <div class="plan-viewport" id="plan-viewport">
+        <div class="plan-stage" id="plan-stage">
+          <img class="plan-img" id="plan-img" src="/media/{{ plan.file_key }}" alt="{{ plan_caption(plan) or 'Floor plan' }}" draggable="false">
+          {% for pin in pins %}{% set st = stats.get(pin.room_id) %}{% set n = st.count if st else 0 %}{% set pct = (100 * st.received / st.count)|int if st and st.count else 0 %}
+          <a class="pin{{ ' sel' if sel_room and sel_room.id == pin.room_id }}{{ ' done' if n and pct == 100 }}" href="/p/{{ p.id }}/plan?plan={{ plan.id }}&amp;room={{ pin.room_id }}" style="{{ pin.style }}"
+             data-room="{{ pin.room_id }}" data-pin="{{ pin.id }}" data-code="{{ pin.room.code }}" title="{{ pin.room.label }} · {{ n }} item{{ 's' if n != 1 }}">
+            <span class="lab"><b>{{ pin.room.code }}</b><span class="nm">{{ pin.room.name }}</span></span>
+            <span class="cnt">{{ n }}</span>
+            <i class="prog" style="--p:{{ pct }}%"></i>
+            <span class="handle" aria-hidden="true"></span>
+          </a>
+          {% endfor %}
+          <div class="plan-draw" id="plan-draw" hidden></div>
+        </div>
+      </div>
+      {% if unplaced and not marking %}
+      <div class="plan-unplaced">
+        <span class="small muted">Not on this plan yet:</span>
+        {% for r in unplaced %}<a class="pill" href="/p/{{ p.id }}/plan?plan={{ plan.id }}&amp;room={{ r.id }}" data-room="{{ r.id }}">{{ r.code }} <span class="muted">{{ r.name }}</span></a>{% endfor %}
+        <a class="small b" href="/p/{{ p.id }}/plan?plan={{ plan.id }}&amp;mode=mark">Mark them</a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <aside class="plan-panel{{ ' open' if room and not marking }}" id="plan-panel" aria-live="polite">
+    {% if marking %}
+    <div class="card tight plan-rooms" id="plan-rooms">
+      <div class="row between"><h2 class="mb-0">{{ (plan.floor|floor_title) if plan.floor else 'Rooms' }}</h2><span class="small muted">{{ floor_rooms|length }} room{{ 's' if floor_rooms|length != 1 }}</span></div>
+      {% if not floor_rooms %}<p class="small muted mt">No room is tagged with this plan's floor{% if plan.floor %} ("{{ plan.floor }}"){% endif %}. Pick from the other floors below, or set the floor on the <a href="/p/{{ p.id }}/rooms">Rooms page</a>.</p>{% endif %}
+      <div class="rlist floor">
+        {% for r in floor_rooms %}{% set pin = pin_of.get(r.id) %}
+        <div class="r{{ ' placed' if pin }}" data-room="{{ r.id }}" data-pin="{{ pin.id if pin else '' }}" data-code="{{ r.code }}" data-name="{{ r.name }}">
+          <button type="button" class="pick"><span class="pill accent">{{ r.code }}</span><span class="nm">{{ r.name }}</span><span class="state">{{ 'Placed' if pin else 'Not placed' }}</span></button>
+          <button type="button" class="btn ghost sm icon del" aria-label="Remove {{ r.code }} from this plan" title="Remove from this plan"><svg class="ic"><use href="#i-x"/></svg></button>
+        </div>
+        {% endfor %}
+      </div>
+      {% if other_rooms %}
+      <details class="mt other"><summary>Rooms on other floors <span class="muted small">({{ other_rooms|length }})</span></summary>
+        <div class="rlist">
+          {% for r in other_rooms %}
+          <div class="r" data-room="{{ r.id }}" data-pin="" data-code="{{ r.code }}" data-name="{{ r.name }}">
+            <button type="button" class="pick"><span class="pill">{{ r.code }}</span><span class="nm">{{ r.name }}{% if r.floor %} <span class="muted small">· {{ r.floor }}</span>{% endif %}</span><span class="state">Not placed</span></button>
+            <button type="button" class="btn ghost sm icon del" aria-label="Remove {{ r.code }} from this plan" title="Remove from this plan"><svg class="ic"><use href="#i-x"/></svg></button>
+          </div>
+          {% endfor %}
+        </div>
+      </details>
+      {% endif %}
+      {% if not p.rooms %}<div class="empty small"><p>No rooms yet. <a href="/p/{{ p.id }}/rooms">Add the rooms</a> first, then mark them here.</p></div>{% endif %}
+      <div class="small muted mt noscript-note" hidden>Marking rooms needs JavaScript.</div>
+    </div>
+    {% elif room %}
+    {% include "plan/_room.html" %}
+    {% else %}
+    <div class="card plan-intro">
+      <div class="empty">
+        <div class="ring"><svg class="ic"><use href="#i-map"/></svg></div>
+        <h3>Tap a room</h3>
+        <p>Its items, totals and delivery state come up here. Change a status on the spot or open an item to edit it.</p>
+        {% if unplaced or other_rooms %}<a class="btn sec sm" href="/p/{{ p.id }}/plan?plan={{ plan.id }}&amp;mode=mark"><svg class="ic"><use href="#i-edit"/></svg>Mark rooms on this plan</a>{% endif %}
+      </div>
+      {% if pins %}
+      <div class="divider"></div>
+      <div class="eyebrow">Rooms on this plan</div>
+      <div class="plan-dir">
+        {% for pin in pins %}{% set st = stats.get(pin.room_id) %}
+        <a href="/p/{{ p.id }}/plan?plan={{ plan.id }}&amp;room={{ pin.room_id }}" data-room="{{ pin.room_id }}"><span class="pill accent">{{ pin.room.code }}</span><span class="nm">{{ pin.room.name }}</span><span class="n">{{ st.count if st else 0 }}</span></a>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </aside>
+</div>
+{% if not marking %}
+<template id="plan-intro-tpl">
+  <div class="card plan-intro">
+    <div class="empty">
+      <div class="ring"><svg class="ic"><use href="#i-map"/></svg></div>
+      <h3>Tap a room</h3>
+      <p>Its items, totals and delivery state come up here. Change a status on the spot or open an item to edit it.</p>
+      {% if unplaced or other_rooms %}<a class="btn sec sm" href="/p/{{ p.id }}/plan?plan={{ plan.id }}&amp;mode=mark"><svg class="ic"><use href="#i-edit"/></svg>Mark rooms on this plan</a>{% endif %}
+    </div>
+    {% if pins %}
+    <div class="divider"></div>
+    <div class="eyebrow">Rooms on this plan</div>
+    <div class="plan-dir">
+      {% for pin in pins %}{% set st = stats.get(pin.room_id) %}
+      <a href="/p/{{ p.id }}/plan?plan={{ plan.id }}&amp;room={{ pin.room_id }}" data-room="{{ pin.room_id }}"><span class="pill accent">{{ pin.room.code }}</span><span class="nm">{{ pin.room.name }}</span><span class="n">{{ st.count if st else 0 }}</span></a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</template>
+{% endif %}
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="/static/plan.js"></script>{% endblock %}

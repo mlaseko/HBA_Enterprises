@@ -19,6 +19,7 @@ same data, entered once.
 | Payments | Deposit / balance per supplier with receipt photo. |
 | Packing | One line per box with room code, "Box n of N", CBM, weight, received tick. Container size calculated. Suppliers can list their own boxes through a **packing link** (no login). |
 | Floor plans & drawings | Upload plan images or the architect's PDF drawing set on **Images & plans**, pick the pages that are floor plans and tag each with its floor and sheet reference. Tagged plans appear on the Rooms page (grouped by floor), on the client link, as page 1 of the room checklist and in the schedule by floor. Drawings are a reference only: rooms and items are never created from them. |
+| Interactive plan | **Plan** (`/p/<id>/plan`): the floor plan with a tappable box per room. Tap a room and its items come up beside the plan (on a phone: in a bottom sheet) with counts, total and received, a status dropdown per item, Add item / Quick capture / list / checklist PDF for that room, and the room's own details to edit. Open an item from there and "Save" brings you back to the plan. **Mark rooms** (`?mode=mark`): pick a room, drag a box over it; drag to move, pull the corner to resize, × removes. Boxes are stored as fractions of the image (`room_pins`, one per room per plan) so they fit every screen. Floors switch with tabs; rooms not yet placed are listed under the plan. Zoom buttons (the full-size plan loads once you zoom in) and double-tap. Drawings stay a reference: marking a room never creates rooms or items. |
 | Documents (PDF) | Client FF&E schedule (cover, contents, floor plans, mood board, one table per category, summary by room — USD or CNY, with/without prices), or **by floor** (`?layout=floor`: each floor's plan followed by that floor's rooms with room sub-headers, then whole-house items, then the summary grouped by floor), purchase order per supplier, packing list, box labels (6 per A4), room checklist. Excel export. |
 | Client link | Read-only web view of the schedule + PDF download, per project. |
 | Import | Upload the procurement Excel (Shopping List + Rooms sheets) to load a project in one go. |
@@ -86,16 +87,17 @@ Pushing new commits to GitHub and re-deploying updates the app. The database and
 
 ```
 app/main.py           app start, login, settings, media
-app/models.py         tables: projects, project_images (mood board + plans), plan_tags, drawing_sets, rooms, items,
+app/models.py         tables: projects, project_images (mood board + plans), plan_tags, room_pins, drawing_sets, rooms, items,
                       item_photos, suppliers, supplier_links, payments, cartons, settings
 app/routers/          projects, rooms, items, suppliers, payments, cartons, share (public links), exports, importer,
-                      capture (quick capture + drafts), clip (Save from web bookmarklet + /clip page)
+                      capture (quick capture + drafts), clip (Save from web bookmarklet + /clip page),
+                      plan (interactive plan: /p/<id>/plan, room panel fragment, pin save/delete)
 app/storage.py        photos: replit | s3 | local backends, shrink on save, disk-to-bucket copy on first read
 app/drawings.py       floor plans: PDF page rendering (pypdfium2, optional) and floor matching between plans and rooms
 app/webimage.py       fetch a picture (+ page text) from a web link (direct image or a page's og:image / largest <img>)
 app/ai.py             Claude auto-fill: suggest_item() from page text + picture, apply_suggestion() onto an Item
 app/pdf/              schedule.py (client FF&E PDF), packing.py (packing list, labels, PO, room checklist)
-app/templates/        Jinja2 pages        app/static/        app.css, app.js
+app/templates/        Jinja2 pages        app/static/        app.css, app.js, plan.js (Plan page only)
 ```
 
 ## Schema changes
@@ -109,6 +111,7 @@ Columns added after the first deployment — run these on Neon once, in order:
 -- Quick capture drafts (items.draft)
 ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;
 -- Floor plans & drawing sets: new tables plan_tags and drawing_sets only, created automatically on startup (no ALTER).
+-- Interactive plan: new table room_pins only, created automatically on startup (no ALTER).
 ```
 
 ## Floor plans and drawing sets
@@ -129,3 +132,22 @@ ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;
   supplier pages stay as they are.
 - PDF page rendering needs `pypdfium2` (a pip wheel; no system packages). Without it the page says so and plan
   images still work.
+
+## Interactive plan
+
+- **Plan** (`/p/<id>/plan`) is in the project navigation (sidebar, phone tab bar, More sheet) and linked from the
+  Overview ("Plan view", and every room in "By room"), the Rooms page ("Open the plan", "On the plan" / "Place on
+  plan" per room), Images & plans ("n rooms marked · mark rooms" under each plan) and the item list filtered by a
+  room ("On the plan"). `?plan=<image id>` picks the plan, `?room=<room id>` opens that room (without `plan`, the
+  plan the room is marked on, else its floor's plan), `?mode=mark` marks rooms.
+- A room's box is a `RoomPin` (table `room_pins`: plan image, room, x/y/w/h as fractions 0..1 of the image, one per
+  room per plan; deleted with the plan or the room). Boxes drawn backwards are normalised and clipped to the image;
+  boxes under 1% of the image are refused. `POST /p/<id>/plan/pins` (form: image_id, room_id, x, y, w, h) saves or
+  replaces, `POST /p/<id>/plan/pins/<pin>/delete` removes; both answer JSON when asked with `Accept: application/json`
+  and redirect otherwise.
+- The room panel is `GET /p/<id>/plan/room/<room>?plan=<image>`: an HTML fragment that `plan.js` fetches when a box
+  is tapped. The same fragment renders inline for `?room=`, so deep links and browsers without JavaScript still work.
+  Item links carry `next=` back to the plan; the item form and the room form honour `next` (same-site paths only).
+- Rooms are matched to a plan by floor like everywhere else (`Room.floor` vs the plan's floor tag). A plan with no
+  real floor offers the whole-house rooms; any other room can still be placed from "Rooms on other floors".
+- The page uses the 1600 px preview and swaps in the full-size copy once zoomed to 2× or more.

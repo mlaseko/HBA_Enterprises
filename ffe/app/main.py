@@ -9,7 +9,7 @@ from .db import engine, Base, get_db
 from .models import Project, Settings
 from .common import (render, redirect, require_login, LoginRequired, make_session_cookie, check_password, COOKIE,
                      get_settings, is_logged_in, ffloat)
-from .routers import projects, rooms, items, suppliers, payments, cartons, share, exports, importer, capture, clip
+from .routers import projects, rooms, items, suppliers, payments, cartons, share, exports, importer, capture, clip, plan
 
 app = FastAPI(title=config.APP_NAME)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -94,3 +94,4 @@ app.include_router(exports.router)
 app.include_router(importer.router)
 app.include_router(capture.router)
 app.include_router(clip.router)
+app.include_router(plan.router)

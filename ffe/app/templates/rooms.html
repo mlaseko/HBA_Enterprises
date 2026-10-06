@@ -7,6 +7,9 @@
     <h1>Rooms <span class="h-note">{{ p.rooms|length }} room{{ '' if p.rooms|length == 1 else 's' }}</span></h1>
     <p class="sub">Every item and every box carries a room code, so deliveries go straight to the room where they will be installed. Areas are optional and help with tile quantities.</p>
   </div>
+  <div class="actions">
+    <a class="btn" href="/p/{{ p.id }}/plan"><svg class="ic"><use href="#i-map"/></svg>Open the plan</a>
+  </div>
 </div>
 
 <datalist id="floors">{% for f in floors %}<option value="{{ f }}">{% endfor %}</datalist>
@@ -33,7 +36,7 @@
   {% for im in g.plans %}<a class="g" href="/media/{{ im.best_key }}" target="_blank" title="Open full size"><img src="/media/{{ im.file_key }}" alt="{{ plan_caption(im) or 'Floor plan' }}"><div class="cap">{{ im.sheet or 'Plan' }}{% if im.caption %} · {{ im.caption }}{% endif %}</div></a>{% endfor %}
 </div>
 {% elif g.key != 'whole' %}
-<div class="small muted mb">No plan for this floor yet. <a href="/p/{{ p.id }}/images#plans">Add one</a> tagged "{{ g.floor }}".</div>
+<div class="small muted mb">No plan for this floor yet. <a href="/p/{{ p.id }}/images#plans">Add one</a> tagged "{{ g.floor }}" and mark its rooms on <a href="/p/{{ p.id }}/plan">the plan</a>.</div>
 {% endif %}
 {% set fp = g.plans[0] if (g.key != 'whole' and g.plans) else none %}
 {% for r in g.rooms %}
@@ -61,7 +64,10 @@
       <a class="btn sec sm" href="/p/{{ p.id }}/items?room={{ r.id }}"><svg class="ic"><use href="#i-grid"/></svg>Items</a>
       <a class="btn sec sm" href="/p/{{ p.id }}/export/room/{{ r.id }}.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Room checklist PDF</a>
       <a class="btn sec sm" href="/p/{{ p.id }}/export/labels.pdf?room={{ r.id }}" target="_blank"><svg class="ic"><use href="#i-tag"/></svg>Labels</a>
-      {% if fp %}<a class="btn sec sm" href="/media/{{ fp.best_key }}" target="_blank"><svg class="ic"><use href="#i-layout"/></svg>Plan{% if fp.sheet %} {{ fp.sheet }}{% endif %}</a>{% endif %}
+      {% set rp = pins.get(r.id) %}
+      {% if rp %}<a class="btn sec sm" href="/p/{{ p.id }}/plan?plan={{ rp[0].image_id }}&amp;room={{ r.id }}"><svg class="ic"><use href="#i-map"/></svg>On the plan</a>
+      {% elif fp %}<a class="btn sec sm" href="/p/{{ p.id }}/plan?plan={{ fp.id }}&amp;mode=mark&amp;room={{ r.id }}"><svg class="ic"><use href="#i-map"/></svg>Place on plan</a>{% endif %}
+      {% if fp %}<a class="btn ghost sm" href="/media/{{ fp.best_key }}" target="_blank"><svg class="ic"><use href="#i-layout"/></svg>Plan{% if fp.sheet %} {{ fp.sheet }}{% endif %}</a>{% endif %}
     </div>
   </form>
   <form method="post" action="/p/{{ p.id }}/rooms/{{ r.id }}/delete" onsubmit="return confirmSubmit(this,'Delete room? Items stay but lose their room.')" class="mt">

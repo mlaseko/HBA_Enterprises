@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, Depends, Form
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Project, Room
-from ..common import render, redirect, require_login, get_project, ffloat, fint
+from ..common import render, redirect, require_login, get_project, ffloat, fint, safe_next
 from ..services import summary
 from .. import drawings
 
@@ -13,7 +13,8 @@ router = APIRouter(dependencies=[Depends(require_login)])
 def rooms(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db)):
     s = summary(db, p)
     stats = {r["key"]: r for r in s["by_room"]}
-    return render(request, "rooms.html", p=p, stats=stats, groups=drawings.rooms_by_floor(p), floors=drawings.floor_order(p))
+    return render(request, "rooms.html", p=p, stats=stats, groups=drawings.rooms_by_floor(p), floors=drawings.floor_order(p),
+                  pins=drawings.pins_by_room(p))
 
 
 @router.post("/p/{project_id}/rooms")
@@ -29,7 +30,7 @@ def add_room(p: Project = Depends(get_project), db: Session = Depends(get_db), c
 @router.post("/p/{project_id}/rooms/{room_id}")
 def edit_room(room_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), code: str = Form(...),
               name: str = Form(...), floor: str = Form(""), floor_area: str = Form("0"), wall_area: str = Form("0"),
-              notes: str = Form(""), sort: str = Form("")):
+              notes: str = Form(""), sort: str = Form(""), next: str = Form("")):
     r = db.get(Room, room_id)
     if r and r.project_id == p.id:
         r.code, r.name, r.floor = code.strip().upper().replace(" ", "-"), name.strip(), floor.strip()
@@ -37,7 +38,7 @@ def edit_room(room_id: int, p: Project = Depends(get_project), db: Session = Dep
         if sort.strip():
             r.sort = fint(sort, r.sort)
         db.commit()
-    return redirect(f"/p/{p.id}/rooms")
+    return redirect(safe_next(next, f"/p/{p.id}/rooms"))
 
 
 @router.post("/p/{project_id}/rooms/{room_id}/delete")

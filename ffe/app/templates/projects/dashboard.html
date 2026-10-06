@@ -90,13 +90,13 @@
 
 <div class="dash-grid">
   <div class="card">
-    <div class="row between"><h2 class="mb-0">By room</h2><a class="small" href="/p/{{ p.id }}/rooms">Manage rooms</a></div>
+    <div class="row between"><h2 class="mb-0">By room</h2><span class="row"><a class="small b" href="/p/{{ p.id }}/plan"><svg class="ic sm"><use href="#i-map"/></svg> Plan view</a><span class="muted small">·</span><a class="small" href="/p/{{ p.id }}/rooms">Manage rooms</a></span></div>
     <div class="tbl mt"><table>
       <thead><tr><th>Room</th><th class="num">Items</th><th class="num">CNY</th><th class="num">Recv</th><th></th></tr></thead>
       <tbody>
       {% for r in s.by_room %}
       <tr>
-        <td><a href="/p/{{ p.id }}/items?room={{ r.key or 'none' }}">{{ r.label }}</a></td>
+        <td><a href="{% if r.key %}/p/{{ p.id }}/plan?room={{ r.key }}{% else %}/p/{{ p.id }}/items?room=none{% endif %}">{{ r.label }}</a></td>
         <td class="num">{{ r.count }}</td><td class="num">{{ r.total|money }}</td><td class="num">{{ r.received }}</td>
         <td class="right"><a class="btn ghost sm" href="/p/{{ p.id }}/export/room/{{ r.key }}.pdf" target="_blank" title="Room schedule PDF"><svg class="ic"><use href="#i-file"/></svg>PDF</a></td>
       </tr>
