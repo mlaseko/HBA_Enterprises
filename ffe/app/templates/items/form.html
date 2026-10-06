@@ -83,7 +83,7 @@
   {% else %}<p class="muted small">This item is only used in this room.</p>{% endif %}
   {% if free_rooms %}
   <details class="mt"><summary>Add this item to more rooms</summary>
-    <div class="room-picks">{% for r in free_rooms %}<label class="check"><input type="checkbox" name="add_room_ids" value="{{ r.id }}"> {{ r.label }}</label>{% endfor %}</div>
+    <div class="room-picks">{% for r in free_rooms|rejectattr('is_area') %}<label class="check"><input type="checkbox" name="add_room_ids" value="{{ r.id }}"> {{ r.label }}</label>{% endfor %}{% set free_areas = free_rooms|selectattr('is_area')|list %}{% if free_areas %}<div class="picks-sub">Areas</div>{% for r in free_areas %}<label class="check"><input type="checkbox" name="add_room_ids" value="{{ r.id }}"> {{ r.label }}</label>{% endfor %}{% endif %}</div>
     <div class="help">Each ticked room gets a copy (same spec, qty and photos, status “To buy”) with its own code.</div>
   </details>
   {% endif %}

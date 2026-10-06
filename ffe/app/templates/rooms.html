@@ -7,6 +7,7 @@
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
     <h1>Rooms &amp; areas <span class="h-note">{{ count_label(groups|map(attribute='rooms')|sum(start=[]), groups|map(attribute='areas')|sum(start=[])) }}</span></h1>
     <p class="sub">Every item and every box carries a code, so deliveries go straight to where they will be installed. A <b>room</b> is a space you furnish and finish; an <b>area</b> is a zone that still gets items (entrance, corridors, stairs, balconies, carport). Floor and wall areas are optional and help with tile quantities.</p>
+    {% if p.rooms and n_areas == 0 %}<div class="alert info mt">Everything here is listed as a room. Press <b>Sort rooms &amp; areas by name</b> once: entrances, corridors, stairs, balconies, the carport and the whole-house entries move under Areas, and the counts become true. You can switch any entry back.</div>{% endif %}
   </div>
   <div class="actions">
     {% if p.rooms %}<form method="post" action="/p/{{ p.id }}/rooms/guess-kinds" onsubmit="return confirmSubmit(this,'Sort every entry into Room or Area by its name? You can switch any of them back afterwards.')"><button class="btn sec" title="Entrance, corridors, stairs, balconies, carport, whole house become areas; the rest rooms"><svg class="ic"><use href="#i-sparkle"/></svg>Sort rooms &amp; areas by name</button></form>{% endif %}
@@ -68,7 +69,7 @@
     <div class="form-actions">
       <button class="btn sm"><svg class="ic"><use href="#i-check"/></svg>Save</button>
       <a class="btn sec sm" href="/p/{{ p.id }}/items?room={{ r.id }}"><svg class="ic"><use href="#i-grid"/></svg>Items</a>
-      <a class="btn sec sm" href="/p/{{ p.id }}/export/room/{{ r.id }}.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Room checklist PDF</a>
+      <a class="btn sec sm" href="/p/{{ p.id }}/export/room/{{ r.id }}.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Checklist PDF</a>
       <a class="btn sec sm" href="/p/{{ p.id }}/export/labels.pdf?room={{ r.id }}" target="_blank"><svg class="ic"><use href="#i-tag"/></svg>Labels</a>
       {% set rp = pins.get(r.id) %}
       {% if rp %}<a class="btn sec sm" href="/p/{{ p.id }}/plan?plan={{ rp[0].image_id }}&amp;room={{ r.id }}"><svg class="ic"><use href="#i-map"/></svg>On the plan</a>

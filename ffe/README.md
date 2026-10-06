@@ -9,7 +9,7 @@ same data, entered once.
 | Area | What you get |
 |---|---|
 | Projects | One per client project. USD/CNY rate, budget, delivery address, status. |
-| Rooms & areas | Codes (GF-KIT …) used on every item, box and label. Once an entry is marked on the plan, the Rooms page and the item list filtered by it show it **zoomed in on the plan** with its item dots (numbered like the item codes; a dot jumps to the item), and page one of its checklist PDF is that same zoomed view. Each entry is a **room** (a space you furnish) or an **area** (a zone that still carries items: entrance, corridors, stairs, balconies, carport, whole house); areas list after rooms and count separately ("10 rooms · 5 areas") on the Rooms page, the plan, the Overview and the PDFs. Kind is guessed from the name on import and on "Sort rooms & areas by name"; any entry can be switched. Optional floor/wall areas for tiles. |
+| Rooms & areas | Codes (GF-KIT …) used on every item, box and label. Once an entry is marked on the plan, the Rooms page and the item list filtered by it show it **zoomed in on the plan** with its item dots (numbered like the item codes; a dot jumps to the item), and page one of its checklist PDF is that same zoomed view. Each entry is a **room** (a space you furnish) or an **area** (a zone that still carries items: entrance, corridors, stairs, balconies, carport, whole house); areas list after rooms and count separately ("10 rooms · 5 areas") on the Rooms page, the plan, the Overview and the PDFs. Kind is guessed from the name for entries the import creates (an existing entry keeps its kind unless the sheet has a Kind column) and for all entries on "Sort rooms & areas by name"; any entry can be switched. The Excel export writes the Kind column, so a re-import keeps hand-set kinds. Optional floor/wall areas for tiles. |
 | Items | Room, category (= schedule page), name, must-have spec, brand, size, finish, qty, unit price typed in **CNY or USD** (stored in CNY at the project's rate; a USD entry is remembered so the form shows it again), supplier, lead time, status (To buy → Quoted → Ordered → Paid → Shipped → Received), photos from the phone camera. |
 | Items in several rooms | A new item can be ticked into several rooms at once (one line per room, each with its own code, qty and status; photos are copied to each). An existing item can be added to more rooms from its page. The same product across rooms is recognised by its name: editing one can apply the name, category, spec, size, finish, brand, price, unit, lead time and supplier to every room using it (qty, status, notes and photos stay per room). |
 | Quick capture | Photo-first entry for showrooms: the camera opens, every photo is saved at once as a **draft** item (room/category optional), keep shooting. Drafts are completed later on the Drafts page (name, room, category, qty, price → item code generated) or discarded. Drafts do not count in totals, PDFs, Excel or share links until they have a name. |
@@ -143,8 +143,12 @@ name** (or set the Kind by hand): every existing entry starts as a room.
 - The title block of every PDF page is read at upload (`drawings.page_text` + `drawings.read_title_block`, stored in
   `drawing_pages`): the drawing title (e.g. "Ground Floor Plan (Furniture Layout)"), the sheet number (A-102, after a
   "Drawing No" label when there is one, else the last sheet-like token on the page) and the floor it names. Pages whose
-  title says floor / roof / site plan are pre-ticked; elevations, sections, details, schedules and services drawings
-  are not. The caption is prefilled with the title. Suggestions only: nothing is added until "Add ticked pages".
+  title says floor / roof / site plan are pre-ticked; elevations, sections, services drawings, notes that merely refer to
+  a plan, and cover sheets listing several plans are not. The floor comes only from the detected title; the sheet number
+  is taken after a "Drawing No" label (same line or the values row below it), else the last plausible sheet-like token
+  on the page, never addresses, revisions or marks (REV, BOX, ISO, DN, D-, W-, P-). The caption is prefilled with the
+  title minus the floor and the word "plan" ("Furniture Layout"). Suggestions only: nothing is added until "Add ticked
+  pages".
 - Every plan is stored twice: a 1600 px preview (pages, galleries) and a full-size copy at `PLAN_MAX_PX` (default
   3200 px, env `PLAN_MAX_PX`) used in PDFs and by "open full size". Phone uploads of plans are compressed to the same size.
 - A plan's floor is matched to `Room.floor` ignoring case and a trailing "floor"/"level" ("ground floor" = "Ground").

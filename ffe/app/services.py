@@ -24,13 +24,24 @@ def sort_items(items: list[Item], p: Project) -> list[Item]:
     return sorted(items, key=lambda i: (cat_order.get(i.category, 99), room_order.get(i.room_id, 9999), i.code))
 
 
+import re as _re
+_AREA_RE = _re.compile(r"\b(?:" + "|".join(_re.escape(w) for w in AREA_WORDS) + r")")
+# A name ending in one of these is a room whatever else it says: "Plant Room", "Garden Room", "Downstairs WC", "Pool Bathroom".
+ROOM_NOUNS = {"room", "bedroom", "bathroom", "wc", "toilet", "lounge", "kitchen", "office", "study", "closet", "gym", "ensuite",
+              "pantry", "store", "nursery", "library", "laundry", "dining", "living", "shower", "sauna", "cinema", "suite", "wardrobe"}
+
+
 def guess_kind(name: str, floor: str = "") -> str:
     """'area' for zones (entrance, corridors, stairs, balconies, carport, whole house, outside), else 'room'.
-    A suggestion the designer can change on the Rooms page."""
-    n = f" {(name or '').lower()} "
+    Matches area words at the start of a word ("Stairs", "Staircase", not "Downstairs"); a name whose last word is a
+    room noun stays a room. A suggestion the designer can change on the Rooms page."""
     if drawings.is_pseudo(floor) and (floor or "").strip():
         return "area"  # "All", "Outside", "Site": not a room on any floor
-    return "area" if any(w in n for w in AREA_WORDS) else "room"
+    n = (name or "").lower()
+    words = _re.findall(r"[a-z]+", n)
+    if words and words[-1] in ROOM_NOUNS:
+        return "room"
+    return "area" if _AREA_RE.search(n) else "room"
 
 
 def set_price(item: Item, amount, currency, rate) -> None:

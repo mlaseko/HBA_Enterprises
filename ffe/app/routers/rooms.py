@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request, Depends, Form
 from sqlalchemy.orm import Session
 from ..db import get_db
-from ..models import Project, Room
+from ..models import Project, Room, Carton
 from ..common import render, redirect, require_login, get_project, ffloat, fint, safe_next
 from ..services import summary, guess_kind
 from .. import drawings, config
@@ -72,6 +72,7 @@ def delete_room(room_id: int, p: Project = Depends(get_project), db: Session = D
         for i in r.items:
             i.room_id = None
             i.pins.clear()  # the dots sat in this room's box
+        db.query(Carton).filter(Carton.room_id == r.id).update({"room_id": None}, synchronize_session=False)  # boxes keep their rows
         db.delete(r)
         db.commit()
     return redirect(f"/p/{p.id}/rooms")

@@ -75,7 +75,7 @@ def labels(p, studio, cartons) -> bytes:
         c.setFont("Helvetica", 10)
         c.drawCentredString(x + lw / 2, y + lh - 35 * mm, f"{room.floor + ' floor' if room and room.floor else ''}")
         c.setFont("Helvetica-Bold", 14)
-        c.drawCentredString(x + lw / 2, y + lh - 44 * mm, f"BOX {bn} OF {bt} FOR THIS ROOM")
+        c.drawCentredString(x + lw / 2, y + lh - 44 * mm, f"BOX {bn} OF {bt} FOR THIS {'AREA' if room is not None and room.is_area else 'ROOM'}")
         c.setFont("Helvetica", 9)
         c.drawCentredString(x + lw / 2, y + lh - 51 * mm, f"Supplier: {ct.supplier.name if ct.supplier else '-'}   Box no. {ct.id}")
         text = (ct.contents or "")[:90]

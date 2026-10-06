@@ -321,7 +321,7 @@
     }
     function updateCount() {
       if (!count) return;
-      count.textContent = panel.querySelectorAll('.floor .r.placed').length + ' of ' + count.dataset.total + ' rooms placed';
+      count.textContent = panel.querySelectorAll('.floor .r.placed').length + ' of ' + count.dataset.total + ' placed';
     }
     panel.addEventListener('click', function (e) {
       var del = e.target.closest('.del');
@@ -384,9 +384,10 @@
 
     function makePin(rid, id, r) {
       var a = document.createElement('a');
-      a.className = 'pin'; a.draggable = false; a.href = pageUrl('&room=' + rid);
+      var area = r && r.dataset.kind === 'area';
+      a.className = 'pin' + (area ? ' is-area' : ''); a.draggable = false; a.href = pageUrl('&room=' + rid);
       a.dataset.room = rid; a.dataset.pin = id; a.dataset.code = r ? r.dataset.code : '';
-      a.innerHTML = '<span class="lab"><b></b><span class="nm"></span></span><span class="cnt">0</span><i class="prog" style="--p:0%"></i><span class="handle" aria-hidden="true"></span>';
+      a.innerHTML = '<span class="lab' + (area ? ' area' : '') + '"><b></b><span class="nm"></span></span><span class="cnt">0</span><i class="prog" style="--p:0%"></i><span class="handle" aria-hidden="true"></span>';
       a.querySelector('b').textContent = r ? r.dataset.code : ''; a.querySelector('.nm').textContent = r ? r.dataset.name : '';
       return a;
     }
@@ -401,7 +402,7 @@
         updateCount();
         var nxt = pinEl ? null : nextUnplaced(rid);
         if (nxt) { selectRoom(nxt); flash('Saved ' + (r ? r.dataset.code : '') + '. Next: ' + row(nxt).dataset.code + ' ' + row(nxt).dataset.name + '.'); }
-        else { selectRoom(rid); flash(pinEl ? 'Saved.' : 'Saved ' + (r ? r.dataset.code : '') + '. All rooms on this floor are placed.'); }
+        else { selectRoom(rid); flash(pinEl ? 'Saved.' : 'Saved ' + (r ? r.dataset.code : '') + '. Everything on this floor is placed.'); }
       }).catch(function (err) { if (pinEl && prev) setBox(pinEl, prev); flash(err.message, true); });
     }
     function removePin(r) {

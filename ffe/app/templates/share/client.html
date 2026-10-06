@@ -31,7 +31,8 @@
 
 {% if plan %}
 <section id="plan-section">
-<div class="group-title"><h2>Floor plan{{ 's' if tabs|length > 1 }}</h2><span class="n">{{ pins|length }} room{{ 's' if pins|length != 1 }} · {{ ipins|length }} item{{ 's' if ipins|length != 1 }} placed</span></div>
+{% set pr = pins|map(attribute='room')|rejectattr('is_area')|list %}{% set pa = pins|map(attribute='room')|selectattr('is_area')|list %}
+<div class="group-title"><h2>Floor plan{{ 's' if tabs|length > 1 }}</h2><span class="n">{{ count_label(pr, pa) }} marked · {{ ipins|length }} item{{ 's' if ipins|length != 1 }} placed</span></div>
 <p class="small muted">Tap a room to see what goes in it. The dots show where each item sits.</p>
 {% include "plan/_tabs.html" %}
 <div class="plan-layout readonly" id="plan" data-plan="{{ plan.id }}" data-mode="" data-base="{{ base }}" data-room-base="{{ base }}/plan/room/" data-anchor="{{ anchor }}"

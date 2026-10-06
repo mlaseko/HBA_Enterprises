@@ -36,7 +36,7 @@ def create_project(request: Request, db: Session = Depends(get_db), client_name:
     db.add(p)
     db.commit()
     # a default "whole house" room so items can be unassigned without confusion
-    db.add(Room(project_id=p.id, code="ALL", name="Whole house", floor="All", sort=999))
+    db.add(Room(project_id=p.id, code="ALL", name="Whole house", floor="All", sort=999, kind="area"))
     db.commit()
     return redirect(f"/p/{p.id}")
 
@@ -221,7 +221,8 @@ def pick_pages(request: Request, set_id: int, p: Project = Depends(get_project),
     ds = _get_set(db, p, set_id)
     added = {im.tag.page_no: im for im in drawings.plans(p) if im.tag and im.tag.set_id == ds.id}
     meta = {m.page_no: m for m in ds.page_meta}
-    return render(request, "projects/pdf_pages.html", p=p, set=ds, pages=range(1, ds.pages + 1), added=added, meta=meta,
+    captions = {k: drawings.caption_from_title(m.title) for k, m in meta.items()}
+    return render(request, "projects/pdf_pages.html", p=p, set=ds, pages=range(1, ds.pages + 1), added=added, meta=meta, captions=captions,
                   floors=drawings.floor_order(p), floor=floor[:40], sheet=sheet[:60], err=err[:200],
                   n_suggested=sum(1 for k, m in meta.items() if m.is_plan and k not in added))
 

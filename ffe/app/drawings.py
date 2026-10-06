@@ -254,13 +254,24 @@ import re as _re
 
 _PLAN_RE = _re.compile(r"\b(FLOOR\s+PLAN|ROOF\s+PLAN|SITE\s+(?:LAYOUT\s+)?PLAN|SITE\s+LAYOUT|FURNITURE\s+(?:LAYOUT|PLAN)|LAYOUT\s+PLAN)\b")
 # Other disciplines' plans are not floor plans. "Detail" and "section" are not in this list on purpose: architects title plan
-# sheets "Ground Floor Plan (Dimension Details)"; a sheet that is only details or sections never matches _PLAN_RE anyway.
+# sheets "Ground Floor Plan (Dimension Details)". Tested on the cut title segment, not the whole line: title blocks often
+# list the consultants ("STRUCTURAL ENGINEER: ...") on the same text line as the title, and _CUT_RE ends the title there.
 _NOT_PLAN_RE = _re.compile(r"ELECTRIC|PLUMB|DRAIN|SANIT|SEWER|STRUCT|FOUNDATION|FOOTING|BEAM|SLAB|COLUMN|CEILING|REFLECTED|FRAMING|TRUSS|"
-                           r"LIGHTING\s+LAYOUT|POWER\s+LAYOUT|HVAC|MECHANICAL|FIRE")
-_FLOORS = [("GROUND", "Ground"), ("FIRST", "First"), ("SECOND", "Second"), ("THIRD", "Third"), ("FOURTH", "Fourth"),
-           ("BASEMENT", "Basement"), ("MEZZANINE", "Mezzanine"), ("ROOF", "Roof"), ("SITE", "Site"), ("PENTHOUSE", "Penthouse")]
-_SHEET_RE = _re.compile(r"\b([A-Z]{1,3}[- ]?\d{2,4}(?:[-/][A-Z0-9]{1,3})?)\b")
-_SHEET_LABEL_RE = _re.compile(r"(DRAWING|DWG|SHEET)\s*(NO|NUMBER|#|REF)?\s*[:.]?\s*([A-Z]{1,3}[- ]?\d{2,4}(?:[-/][A-Z0-9]{1,3})?)")
+                           r"LIGHTING\s+LAYOUT|POWER\s+LAYOUT|HVAC|MECHANICAL|FIRE\s+(?:FIGHTING|PROTECTION|ALARM)")
+# Longer names first: "LOWER GROUND" must win over "GROUND".
+_FLOORS = [("LOWER GROUND", "Lower ground"), ("UPPER GROUND", "Upper ground"), ("GROUND", "Ground"), ("FIRST", "First"),
+           ("SECOND", "Second"), ("THIRD", "Third"), ("FOURTH", "Fourth"), ("BASEMENT", "Basement"), ("MEZZANINE", "Mezzanine"),
+           ("PENTHOUSE", "Penthouse"), ("ROOF", "Roof"), ("SITE", "Site")]
+# Sheet numbers: A-102, A102, S-01, A-102/B. No space inside, so "REV 01", "NO 2024" and "DATE 03" never match.
+_SHEET_VALUE = r"([A-Z]{1,3}-?\d{2,4}(?:[-/][A-Z0-9]{1,3})?|\d{1,4}(?:[-/]\d{1,3})?)"
+_SHEET_RE = _re.compile(r"\b([A-Z]{1,3}-?\d{2,4}(?:[-/][A-Z0-9]{1,3})?)\b")
+_SHEET_LABEL_RE = _re.compile(r"\b(?:DRAWING|DWG|SHEET)\s*(?:NO|NUMBER|NR|#|REF)?\.?\s*[:.]?\s*" + _SHEET_VALUE + r"\b")
+_LABEL_ONLY_RE = _re.compile(r"\b(?:DRAWING|DWG|SHEET)\s*(?:NO|NUMBER|NR|#|REF)\b")
+# Letter prefixes that are never a sheet number on an architect's page: addresses, revisions, standards, pipes, marks.
+_SHEET_STOP = {"REV", "NO", "OF", "ISO", "DIN", "DN", "BOX", "PO", "TEL", "FAX", "PLOT", "DATE", "JOB", "D", "W", "P", "PH", "LOT"}
+# Title-block labels that end (or start) the drawing title when several cells share one text line.
+_CUT_RE = _re.compile(r"\b((?:STRUCTURAL|ELECTRICAL|MECHANICAL|CIVIL|CONSULTING|M&E|MEP)\s+ENGINEERS?|DRAWING|DWG|SHEET|SCALE|DATE|REV|REVISION|CLIENT|PROJECT|ENGINEERS?|ARCHITECTS?|CHECKED|DRAWN|DESIGNED|APPROVED|TITLE|STATUS|CONSULTANTS?|CONTRACTOR)\b")
+_SKIP_WORDS = {"THE", "OF", "FOR", "AND", "&", "-", ":", "PROPOSED", "RESIDENTIAL", "HOUSE", "AT", "TO", "BE", "BUILT"}
 
 
 def page_text(data: bytes, n: int) -> str:
@@ -286,45 +297,87 @@ def page_text(data: bytes, n: int) -> str:
 
 
 def _tidy_title(line: str) -> str:
-    t = " ".join(line.split()).title()
-    for w in ("Wc", "Hvac", "Ac", "Pdf", "Ii", "Iii"):
+    t = " ".join(line.split()).strip(" -:;,|").title()
+    for w in ("Wc", "Hvac", "Ac", "Pdf", "Ii", "Iii", "Iv"):
         t = _re.sub(rf"\b{w}\b", w.upper(), t)
     return t[:120]
 
 
+def _title_segment(line: str, m) -> str:
+    """The drawing title around a plan match, cut at the neighbouring title-block labels: up to three plain words before
+    the match (no numbers, no filler), the match, and what follows up to the next label."""
+    before = line[:m.start()]
+    cut = max([0] + [c.end() for c in _CUT_RE.finditer(before)] + [before.rfind(":") + 1])
+    words = [w for w in before[cut:].split() if not any(ch.isdigit() for ch in w) and w.upper() not in _SKIP_WORDS]
+    after = line[m.end():]
+    nxt = _CUT_RE.search(after)
+    after = after[:nxt.start()] if nxt else after
+    after = _re.split(r"\s{3,}|\s[|]\s", after)[0]  # a wide gap or a bar: the next cell
+    return " ".join(words[-3:] + [m.group(0)]) + after
+
+
+def _sheet_from(lines_up: list[str]) -> str:
+    """The sheet number: after a DRAWING/DWG/SHEET NO label on the same line, else the first sheet-like value on the one or
+    two lines after such a label (title blocks often print the labels row above the values row), else the last plausible
+    sheet-like token on the page."""
+    for l in lines_up:
+        m = _SHEET_LABEL_RE.search(l)
+        if m:
+            return m.group(1)
+    for i, l in enumerate(lines_up):
+        if _LABEL_ONLY_RE.search(l):
+            for nxt in lines_up[i + 1:i + 3]:
+                c = next((x for x in _SHEET_RE.findall(nxt) if _re.match(r"[A-Z]+", x).group() not in _SHEET_STOP), None)
+                if c:
+                    return c
+                first = nxt.split(" ")[0] if nxt else ""
+                if _re.fullmatch(r"\d{1,4}(?:[-/]\d{1,3})?", first):
+                    return first
+    found = [c for c in _SHEET_RE.findall(" ".join(lines_up)) if _re.match(r"[A-Z]+", c).group() not in _SHEET_STOP]
+    return found[-1] if found else ""
+
+
 def read_title_block(text: str) -> dict:
-    """{title, sheet, floor, is_plan} guessed from a page's text. Everything is a suggestion for the page picker."""
+    """{title, sheet, floor, is_plan} guessed from a page's text. Everything is a suggestion for the page picker:
+    is_plan pre-ticks the page, the floor and sheet prefill the fields, the title becomes the caption suggestion."""
     lines = [" ".join(l.split()) for l in (text or "").splitlines()]
     lines = [l for l in lines if l]
     up = [l.upper() for l in lines]
-    title, is_plan = "", False
+    cands = []
     for idx, (raw, l) in enumerate(zip(lines, up)):
-        if _PLAN_RE.search(l) and not _NOT_PLAN_RE.search(l):
-            if raw.count("(") > raw.count(")") and idx + 1 < len(lines) and ")" in lines[idx + 1]:
-                raw = raw + " " + lines[idx + 1]  # a title wrapped onto a second line in the title block
-            title, is_plan = _tidy_title(raw), True
-            break
-    if not title:  # a page that names a floor without "plan" (an elevation, a layout): keep the line, do not pre-tick
-        for raw, l in zip(lines, up):
-            if any(f"{w} FLOOR" in l for w, _ in _FLOORS) or "ROOF PLAN" in l:
-                title = _tidy_title(raw)
-                break
+        m = _PLAN_RE.search(l)
+        if not m:
+            continue
+        if _re.search(r"\b(SEE|REFER)\b", l) or _re.match(r"^[A-Z]{1,3}-?\d{2,4}\b", l):
+            continue  # a note pointing at another drawing, or a row of a drawing list ("A-101 GROUND FLOOR PLAN")
+        seg = _title_segment(l, m) if len(raw) == len(l) else l
+        if _NOT_PLAN_RE.search(seg):
+            continue
+        if seg.count("(") > seg.count(")") and idx + 1 < len(lines) and ")" in up[idx + 1]:
+            seg = seg + " " + up[idx + 1]  # a title wrapped onto a second line in the title block
+        cands.append(_tidy_title(seg))
+    distinct = list(dict.fromkeys(cands))
+    title = distinct[0] if distinct else ""
+    is_plan = len(distinct) == 1  # several different plan titles on one page = a cover sheet with a drawing list
     floor = ""
-    source = title.upper() if title else " ".join(up)
     for word, name in _FLOORS:
-        if _re.search(rf"\b{word}\b", source):
+        if _re.search(rf"\b{word}\b", title.upper()):
             floor = name
             break
-    sheet = ""
-    joined = " ".join(up)
-    m = _SHEET_LABEL_RE.search(joined)
-    if m:
-        sheet = m.group(3)
-    else:
-        found = [c for c in _SHEET_RE.findall(joined) if not _re.fullmatch(r"[A-Z]{1,3}\d{2}", c)]  # A4, D12: paper sizes, door marks
-        if found:
-            sheet = found[-1]  # title blocks sit bottom-right, so their text comes last
-    return {"title": title, "sheet": sheet.replace(" ", "-")[:60], "floor": floor, "is_plan": is_plan}
+    return {"title": title, "sheet": _sheet_from(up).replace(" ", "-")[:60], "floor": floor, "is_plan": is_plan}
+
+
+def caption_from_title(title: str) -> str:
+    """What is worth keeping as the plan's caption: the title without the floor and the words plan/layout, since
+    plan_caption() already prints the floor and the sheet. 'Ground Floor Plan (Furniture Layout)' -> 'Furniture Layout'."""
+    t = title or ""
+    t = _re.sub(r"(?i)\b(lower|upper)?\s*(ground|first|second|third|fourth|basement|mezzanine|penthouse|roof|site)\b", " ", t)
+    t = _re.sub(r"(?i)\b(floor|plan)\b", " ", t)
+    t = t.replace("(", " ").replace(")", " ")
+    t = " ".join(t.split()).strip(" -:;,")
+    if t.lower() in ("layout", "plan", "floor", "layout plan"):
+        return ""
+    return t
 
 
 # ---- a room zoomed in on its plan: the web card (CSS/JS crop of the preview) and the PDF page (Pillow crop) --------

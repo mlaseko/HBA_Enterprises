@@ -9,8 +9,9 @@
   </div>
 </div>
 {% if err %}<div class="alert err">{{ err }}</div>{% endif %}
-{% if meta %}<div class="alert"><svg class="ic sm"><use href="#i-sparkle"/></svg> Read from each page's title block: {{ n_suggested }} page{{ '' if n_suggested == 1 else 's' }} look{{ 's' if n_suggested == 1 }} like floor plans and {{ 'are' if n_suggested != 1 else 'is' }} ticked, with floor, sheet number and title filled in. Check them, fix what is wrong, untick what you do not want.</div>
-{% elif set.pages %}<div class="alert info">This PDF has no readable text (a scan), so nothing could be prefilled. Tick the plan pages and type the floor and sheet number.</div>{% endif %}
+{% if meta and n_suggested %}<div class="alert"><svg class="ic sm"><use href="#i-sparkle"/></svg> Read from each page's title block: {{ n_suggested }} page{{ '' if n_suggested == 1 else 's' }} look{{ 's' if n_suggested == 1 }} like {{ 'a floor plan and is' if n_suggested == 1 else 'floor plans and are' }} ticked, with floor, sheet number and caption filled in. Check them, fix what is wrong, untick what you do not want.</div>
+{% elif meta %}<div class="alert info">Read from each page's title block: nothing more here looks like a floor plan. Tick any page you want anyway; sheet numbers are filled in where they were found.</div>
+{% elif set.pages %}<div class="alert info">Nothing could be read from this PDF's pages (a scan, or a set uploaded before this version), so nothing is prefilled. Tick the plan pages and type the floor and sheet number.</div>{% endif %}
 <datalist id="floors">{% for f in floors %}<option value="{{ f }}">{% endfor %}</datalist>
 <form method="post" action="/p/{{ p.id }}/images/sets/{{ set.id }}/pick">
   <div class="pages">
@@ -25,7 +26,7 @@
       <div class="grid g2 stack mt">
         <input class="in" type="text" name="floor_{{ k }}" list="floors" value="{{ (m.floor if m and m.floor else floor) }}" placeholder="Floor" aria-label="Floor for page {{ k }}" autocomplete="off">
         <input class="in" type="text" name="sheet_{{ k }}" value="{{ (m.sheet if m and m.sheet else sheet) }}" placeholder="Sheet ref" aria-label="Sheet for page {{ k }}">
-        <input class="in span2" type="text" name="caption_{{ k }}" value="{{ m.title if m else '' }}" placeholder="Caption (optional)" aria-label="Caption for page {{ k }}">
+        <input class="in span2" type="text" name="caption_{{ k }}" value="{{ captions.get(k, '') if m else '' }}" placeholder="Caption (optional)" aria-label="Caption for page {{ k }}">
       </div>
       {% endif %}
     </div>

@@ -48,7 +48,7 @@
       {% if f_areas %}<div class="sub-title mt"><span>{{ kind_title }}</span></div>{% endif %}
       <div class="rlist">
         {% for r in kind_rooms %}{% set pin = pin_of.get(r.id) %}
-        <div class="r{{ ' placed' if pin }}" data-room="{{ r.id }}" data-pin="{{ pin.id if pin else '' }}" data-code="{{ r.code }}" data-name="{{ r.name }}">
+        <div class="r{{ ' placed' if pin }}" data-room="{{ r.id }}" data-pin="{{ pin.id if pin else '' }}" data-code="{{ r.code }}" data-name="{{ r.name }}" data-kind="{{ r.kind }}">
           <button type="button" class="pick">{{ room_pill(r) }}<span class="nm">{{ r.name }}</span><span class="state">{{ 'Placed' if pin else 'Not placed' }}</span></button>
           <button type="button" class="btn ghost sm icon del" aria-label="Remove {{ r.code }} from this plan" title="Remove from this plan"><svg class="ic"><use href="#i-x"/></svg></button>
         </div>
@@ -60,7 +60,7 @@
       <details class="mt other"><summary>Rooms on other floors <span class="muted small">({{ other_rooms|length }})</span></summary>
         <div class="rlist">
           {% for r in other_rooms %}
-          <div class="r" data-room="{{ r.id }}" data-pin="" data-code="{{ r.code }}" data-name="{{ r.name }}">
+          <div class="r" data-room="{{ r.id }}" data-pin="" data-code="{{ r.code }}" data-name="{{ r.name }}" data-kind="{{ r.kind }}">
             <button type="button" class="pick">{{ room_pill(r) }}<span class="nm">{{ r.name }}{% if r.floor %} <span class="muted small">· {{ r.floor }}</span>{% endif %}{% if r.is_area %} <span class="muted small">· area</span>{% endif %}</span><span class="state">Not placed</span></button>
             <button type="button" class="btn ghost sm icon del" aria-label="Remove {{ r.code }} from this plan" title="Remove from this plan"><svg class="ic"><use href="#i-x"/></svg></button>
           </div>

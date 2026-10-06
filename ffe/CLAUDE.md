@@ -147,10 +147,13 @@ Deploy = push to GitHub, then in Replit pull the repo and redeploy. Secrets (Rep
 `APP_PASSWORD`, `SECRET_KEY`, `DATABASE_URL` (Neon), `ANTHROPIC_API_KEY` (optional), `STORAGE_BACKEND=replit` (+ Object Storage bucket) or
 `s3` with `S3_*`.
 
-## Schema changes so far (run on Neon once each)
+## Schema changes so far
+
+Applied automatically at startup by `db.migrate()` from `db.COLUMN_MIGRATIONS` (nothing to run on Neon by hand):
 
 ```sql
-ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;   -- quick capture drafts
+ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;      -- quick capture drafts
+ALTER TABLE rooms ADD COLUMN kind  VARCHAR(10) NOT NULL DEFAULT 'room';  -- room | area
 ```
 
 ## Done
@@ -199,7 +202,7 @@ ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;   -- quick ca
   fragment `GET /c/<token>/plan/room/<room>` lives in routers/share.py, token-scoped). Keep designer-only data out of
   anything rendered with `readonly`; the test suite checks the client panel against the designer's for supplier, notes,
   CNY and `/p/` links. A dot belongs to a room's box: `update_item` and `delete_room` clear `item.pins` when the item
-  leaves the room. Not done yet: dots on the PDFs (room checklist / schedule by floor).
+  leaves the room. The room checklist PDF carries the dots (zoomed room, see below); the schedule by floor does not yet.
 - PDFs: any user text that goes into a ReportLab `Paragraph` string must pass through `escape()` (`pdf/common.P()`
   does it; the cover / header lines in schedule.py and packing.py do it explicitly). A `<` in a project name used to 500
   the client's schedule PDF.

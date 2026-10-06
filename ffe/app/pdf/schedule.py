@@ -107,7 +107,7 @@ def _summary(story, p, all_items, W, currency, rate, show_prices, studio, by_flo
             group = [r for r in group if has_items(r)]
             if not group:
                 continue
-            if label and n:  # only when rooms precede the areas in this block
+            if label:
                 r0 = len(rows)
                 rows.append([Paragraph(label, S["grey"]), "", ""])
                 st.add("SPAN", (0, r0), (-1, r0))
