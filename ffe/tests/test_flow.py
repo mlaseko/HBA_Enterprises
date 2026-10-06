@@ -213,4 +213,18 @@ with TestClient(app) as c:
     db=SessionLocal(); acs=db.query(Item).filter(Item.project_id==int(pid), Item.name=="Air conditioner 12000 BTU").all()
     assert len(acs)==5 and {a.room_id for a in acs}==set(rids+extra_ids)
     new=[a for a in acs if a.room_id in extra_ids]; assert all(a.status=="To buy" and len(a.photos)==1 and a.code for a in new); db.close()
+    # shared storage: a photo still on this server's disk is served and copied into the bucket
+    class _Fake:
+        def __init__(self): self.b={}
+        def download_as_bytes(self, k): return self.b[k]
+        def upload_from_bytes(self, k, d): self.b[k]=d
+    db=SessionLocal(); code_key=db.get(Item,d3).photos[0].file_key; db.close()
+    fake=_Fake(); _st._replit_client=fake; _st.config.STORAGE_BACKEND="replit"
+    try:
+        assert _st.read_image(code_key) is not None and code_key in fake.b
+        assert _st.read_image("img/missing.jpg") is None
+        k=_st.save_image(img("blue")); assert k in fake.b and _st.read_image(k)==fake.b[k]
+    finally:
+        _st.config.STORAGE_BACKEND="local"; _st._replit_client=None
+    print("shared storage ok")
     print("ALL OK")

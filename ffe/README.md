@@ -59,7 +59,7 @@ Open http://localhost:8080 — SQLite database and photos are created under `./d
    - `DATABASE_URL` – a Neon Postgres connection string (`postgresql://…?sslmode=require`). Create a new
      Neon database for this app; tables are created automatically on first start.
    - `ANTHROPIC_API_KEY` – optional, turns on the Claude auto-fill (Console → API keys); `CLAUDE_MODEL` overrides the model
-   - `STORAGE_BACKEND` – `replit` (then **Tools → Object Storage → create a bucket**), or `s3` with
+   - `STORAGE_BACKEND` – `replit` (the default on Replit; needs a bucket in **Tools → Object Storage**), or `s3` with
      `S3_BUCKET`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` for Cloudflare R2.
      Do **not** use `local` on Replit deployments — the disk is not persistent.
    - optional `APP_NAME` – name shown in the top bar.

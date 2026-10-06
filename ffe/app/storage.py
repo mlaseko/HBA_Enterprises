@@ -54,18 +54,35 @@ def save_image(data: bytes, prefix: str = "img") -> str:
     return key
 
 
+def _read_local(key: str) -> bytes | None:
+    try:
+        with open(os.path.join(config.LOCAL_UPLOAD_DIR, key), "rb") as f:
+            return f.read()
+    except OSError:
+        return None
+
+
 def read_image(key: str) -> bytes | None:
     backend = config.STORAGE_BACKEND
+    if backend == "local":
+        return _read_local(key)
     try:
         if backend == "replit":
             return _replit().download_as_bytes(key)
-        if backend == "s3":
-            return _s3client().get_object(Bucket=config.S3_BUCKET, Key=key)["Body"].read()
-        path = os.path.join(config.LOCAL_UPLOAD_DIR, key)
-        with open(path, "rb") as f:
-            return f.read()
+        return _s3client().get_object(Bucket=config.S3_BUCKET, Key=key)["Body"].read()
     except Exception:
-        return None
+        pass
+    # Photo saved before shared storage was switched on: still on this server's disk, so move it across.
+    data = _read_local(key)
+    if data is not None:
+        try:
+            if backend == "replit":
+                _replit().upload_from_bytes(key, data)
+            else:
+                _s3client().put_object(Bucket=config.S3_BUCKET, Key=key, Body=data, ContentType="image/jpeg")
+        except Exception:
+            pass
+    return data
 
 
 def delete_image(key: str):
