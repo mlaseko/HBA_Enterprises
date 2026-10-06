@@ -186,7 +186,12 @@ ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;   -- quick ca
   the item highlighted (`?item=`). `_stage.html` draws boxes and dots for both the designer page and `share/client.html`,
   which embeds the plan read-only (`readonly=True` in `plan.room_ctx`: USD, badges, no controls / suppliers / notes;
   fragment `GET /c/<token>/plan/room/<room>` lives in routers/share.py, token-scoped). Keep designer-only data out of
-  anything rendered with `readonly`. Not done yet: dots on the PDFs (room checklist / schedule by floor).
+  anything rendered with `readonly`; the test suite checks the client panel against the designer's for supplier, notes,
+  CNY and `/p/` links. A dot belongs to a room's box: `update_item` and `delete_room` clear `item.pins` when the item
+  leaves the room. Not done yet: dots on the PDFs (room checklist / schedule by floor).
+- PDFs: any user text that goes into a ReportLab `Paragraph` string must pass through `escape()` (`pdf/common.P()`
+  does it; the cover / header lines in schedule.py and packing.py do it explicitly). A `<` in a project name used to 500
+  the client's schedule PDF.
 
 - **Prices in USD or CNY.** `price_currency` select next to the unit price (item form, Drafts quick form), live
   conversion in `app.js` (`.price-row`), last choice remembered in localStorage for new items. Storage unchanged (CNY);

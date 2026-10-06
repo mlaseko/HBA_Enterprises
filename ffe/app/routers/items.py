@@ -182,6 +182,8 @@ async def update_item(request: Request, item_id: int, p: Project = Depends(get_p
     apply_form(item, db, p, form)
     if item.room_id != old_room and not was_draft and not item.draft:
         item.code = next_code(db, p, item.room)
+    if item.room_id != old_room:
+        item.pins.clear()  # its dots sat in the old room's box: place it again from the new room's panel
     for o in others:  # same product in other rooms: copy the product fields, keep their own room, qty, status, notes
         for f in SHARED_FIELDS:
             setattr(o, f, getattr(item, f))

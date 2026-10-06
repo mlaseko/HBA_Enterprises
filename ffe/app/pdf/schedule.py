@@ -144,7 +144,7 @@ def _summary(story, p, all_items, W, currency, rate, show_prices, studio, by_flo
     if not show_prices:
         story[-1] = Paragraph("Prices withheld in this version.", S["grey"])
     story.append(Spacer(1, 8 * mm))
-    story.append(Paragraph(f"{studio.studio_name} &nbsp; {studio.studio_website} &nbsp; {studio.studio_email} &nbsp; {studio.studio_phone}", S["grey"]))
+    story.append(Paragraph(" &nbsp; ".join(escape(x) for x in [studio.studio_name, studio.studio_website, studio.studio_email, studio.studio_phone]), S["grey"]))
 
 
 def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=True, layout="category") -> bytes:
@@ -157,11 +157,11 @@ def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=T
 
     # ---- cover ----
     covers = [i for i in p.images if i.kind == "cover"]
-    story.append(Paragraph(f"{today().upper()} &nbsp;&nbsp;|&nbsp;&nbsp; {studio.studio_name.upper()}", S["grey"]))
+    story.append(Paragraph(f"{today().upper()} &nbsp;&nbsp;|&nbsp;&nbsp; {escape(studio.studio_name.upper())}", S["grey"]))
     story.append(Spacer(1, 10 * mm))
     story.append(Paragraph("FURNITURE AND FIXTURE SCHEDULE", S["title"]))
-    story.append(Paragraph(f"Prepared for: {p.client_name}", S["h2"]))
-    story.append(Paragraph(f"{p.name}" + (f" &mdash; {p.address}" if p.address else ""), S["body"]))
+    story.append(Paragraph(f"Prepared for: {escape(p.client_name)}", S["h2"]))
+    story.append(Paragraph(escape(p.name) + (f" &mdash; {escape(p.address)}" if p.address else ""), S["body"]))
     story.append(Spacer(1, 6 * mm))
     if covers:
         story.append(img_flowable(covers[0].file_key, W, H * 0.62))
@@ -175,7 +175,7 @@ def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=T
     def toc(titles):
         story.append(Paragraph("TABLE OF CONTENTS", S["h1"]))
         for n, t in enumerate(titles, 1):
-            story.append(Paragraph(f"{n}. {t}", S["body"]))
+            story.append(Paragraph(f"{n}. {escape(t)}", S["body"]))
         if p.description:
             story.append(Spacer(1, 6 * mm))
             story.append(Paragraph(p.description, S["body"]))
@@ -247,7 +247,7 @@ def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=T
         for c in cats:
             items = [i for i in all_items if i.category == c]
             items.sort(key=lambda i: (room_order.get(i.room_id, 9999), i.code))
-            story.append(Paragraph(f"{c.upper()} SCHEDULE", S["h1"]))
+            story.append(Paragraph(f"{escape(c.upper())} SCHEDULE", S["h1"]))
             story.append(_schedule_table(items, W, currency, rate, show_prices, include_photos))
             story.append(PageBreak())
         _summary(story, p, all_items, W, currency, rate, show_prices, studio)

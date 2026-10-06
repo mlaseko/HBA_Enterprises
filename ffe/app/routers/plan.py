@@ -77,7 +77,8 @@ def room_ctx(db: Session, p: Project, room: Room, im: ProjectImage | None, *, se
     st = next((r for r in s["by_room"] if r["key"] == room.id), None)
     items = sort_items([i for i in room.items if not i.draft], p)
     pin = next((x for x in im.pins if x.room_id == room.id), None) if im is not None else None
-    ipin_of = {q.item_id: q for q in live_item_pins(im)} if im is not None else {}
+    ids = {i.id for i in items}
+    ipin_of = {q.item_id: q for q in live_item_pins(im) if q.item_id in ids} if im is not None else {}  # this room's dots only
     here = f"{base}?" + (f"plan={im.id}&" if im is not None else "") + f"room={room.id}{anchor}"
     return dict(p=p, room=room, items=items, st=st, plan=im, pin=pin, ipin_of=ipin_of, here=here, sel_item=sel_item,
                 base=base, anchor=anchor, readonly=readonly, floors=drawings.floor_order(p))

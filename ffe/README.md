@@ -102,7 +102,7 @@ app/drawings.py       floor plans: PDF page rendering (pypdfium2, optional) and 
 app/webimage.py       fetch a picture (+ page text) from a web link (direct image or a page's og:image / largest <img>)
 app/ai.py             Claude auto-fill: suggest_item() from page text + picture, apply_suggestion() onto an Item
 app/pdf/              schedule.py (client FF&E PDF), packing.py (packing list, labels, PO, room checklist)
-app/templates/        Jinja2 pages        app/static/        app.css, app.js, plan.js (Plan page only)
+app/templates/        Jinja2 pages        app/static/        app.css, app.js, plan.js (Plan page and the client plan)
 ```
 
 ## Schema changes
@@ -169,13 +169,15 @@ ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;
 - **Item dots.** An item's spot on a plan is an `ItemPin` (table `item_pins`: plan image, item, x/y as fractions of the
   image, one per item per plan; deleted with the plan or the item; drafts cannot be placed). In the room panel, the pin
   button on an item starts placing: the next tap on the plan saves the dot (`POST /p/<id>/plan/item-pins`, form:
-  image_id, item_id, x, y; saving again moves it), drag a dot to move it, × on the row removes it
+  image_id, item_id, x, y; saving again moves it), drag a dot to move it, × on the row (tapped twice) removes it
   (`POST /p/<id>/plan/item-pins/<pin>/delete`). Tapping a dot opens its room with the item highlighted; `?item=<id>`
   deep-links the same (alone, it opens the item's room). Dots show the cover photo or the category's first letter,
-  ringed in the status colour, with the code and name on hover. The "Items" button in the tools hides or shows the
-  dots (remembered on the device); mark mode hides them. The item form has an "On the plan" / "Plan" button.
+  ringed in the status colour, with code, name and status on hover. The "Items" button in the tools hides or shows the
+  dots (remembered on the device); mark mode hides them. The item form has an "On the plan" / "Plan" button. A dot
+  belongs to a room's box: moving the item to another room, or deleting the room, removes the item's dots so it can be
+  placed again from its new room's panel.
 - **Client link.** `/c/<token>` embeds the same plan read-only (tabs, boxes, dots, zoom), between the mood board and the
-  schedule; `?plan=` / `?room=` / `?item=` deep-link a room, and `GET /c/<token>/plan/room/<room>` serves the panel
-  fragment. The read-only panel shows photo, quantity, brand, size, finish, USD line total and the status badge; no
+  schedule; `?plan=` / `?room=` deep-link a room, `?item=` highlights an item (alone, it opens the item's room), and
+  `GET /c/<token>/plan/room/<room>` serves the panel fragment. Plan, room and item ids from another project are ignored. The read-only panel shows photo, quantity, brand, size, finish, USD line total and the status badge; no
   status controls, suppliers, notes, CNY prices, room form or designer links. Everything stays scoped to the token.
 - The page uses the 1600 px preview and swaps in the full-size copy once zoomed to 2× or more.

@@ -18,8 +18,8 @@ def packing_list(p, studio, cartons, title="Packing List") -> bytes:
     doc = make_doc(buf, f"{title} - {p.name}")
     W = doc.width
     pos = carton_positions(p.cartons)
-    story = [Paragraph(f"{title.upper()} &mdash; {p.name}", S["h1"]),
-             Paragraph(f"Client: {p.client_name} &nbsp;&nbsp; Deliver to: {p.address or '-'} &nbsp;&nbsp; {today()}", S["grey"]),
+    story = [Paragraph(f"{escape(title.upper())} &mdash; {escape(p.name)}", S["h1"]),
+             Paragraph(f"Client: {escape(p.client_name)} &nbsp;&nbsp; Deliver to: {escape(p.address or '-')} &nbsp;&nbsp; {today()}", S["grey"]),
              Spacer(1, 3 * mm)]
     cols = ["#", "Write on the box", "Supplier", "Contents", "Items", "Qty", "L", "W", "H", "CBM", "kg", "Recv"]
     widths = [8, 50, 30, 60, 30, 10, 10, 10, 10, 12, 10, 10]
@@ -99,8 +99,8 @@ def room_checklist(p, studio, room) -> bytes:
         story += [Paragraph(f"FLOOR PLAN &mdash; {escape(room.label)}", S["h1"]),
                   Paragraph(escape(f"Find {room.label} on: {drawings.plan_caption(plan) or 'floor plan'}"), S["grey"]),
                   img_flowable(plan.best_key, W, doc.height - 26 * mm), PageBreak()]
-    story += [Paragraph(f"ROOM CHECKLIST &mdash; {room.label if room else 'Whole house'}", S["h1"]),
-              Paragraph(f"{p.name} &nbsp; {p.client_name} &nbsp; {today()}", S["grey"]), Spacer(1, 3 * mm)]
+    story += [Paragraph(f"ROOM CHECKLIST &mdash; {escape(room.label if room else 'Whole house')}", S["h1"]),
+              Paragraph(f"{escape(p.name)} &nbsp; {escape(p.client_name)} &nbsp; {today()}", S["grey"]), Spacer(1, 3 * mm)]
     cols = ["Photo", "Code", "Item", "Spec", "Size / Finish", "Qty", "Supplier", "Status", "Packed", "Received", "Installed"]
     widths = [18, 16, 46, 60, 36, 12, 30, 16, 14, 14, 14]
     widths = [w / sum(widths) * W for w in widths]
@@ -120,10 +120,10 @@ def purchase_order(p, studio, supplier, items, payments) -> bytes:
     buf = io.BytesIO()
     doc = make_doc(buf, f"PO - {supplier.name}")
     W = doc.width
-    story = [Paragraph(f"PURCHASE ORDER &mdash; {supplier.name}", S["h1"]),
-             Paragraph(f"From: {studio.studio_name} {studio.studio_phone} {studio.studio_email}<br/>"
-                       f"Project: {p.name} ({p.client_name}) &nbsp; Deliver to: {p.address or '-'} &nbsp; Date: {today()}<br/>"
-                       f"Supplier contact: {supplier.contact} {supplier.phone} {supplier.wechat} &nbsp; Terms: {supplier.payment_terms}", S["body"]),
+    story = [Paragraph(f"PURCHASE ORDER &mdash; {escape(supplier.name)}", S["h1"]),
+             Paragraph(f"From: {escape(studio.studio_name)} {escape(studio.studio_phone)} {escape(studio.studio_email)}<br/>"
+                       f"Project: {escape(p.name)} ({escape(p.client_name)}) &nbsp; Deliver to: {escape(p.address or '-')} &nbsp; Date: {today()}<br/>"
+                       f"Supplier contact: {escape(supplier.contact)} {escape(supplier.phone)} {escape(supplier.wechat)} &nbsp; Terms: {escape(supplier.payment_terms)}", S["body"]),
              Spacer(1, 3 * mm)]
     cols = ["Photo", "Code", "Item", "Spec / must-haves", "Size / Finish", "Room", "Qty", "Unit price (CNY)", "Total (CNY)", "Lead time"]
     widths = [18, 16, 44, 64, 34, 26, 14, 18, 20, 16]

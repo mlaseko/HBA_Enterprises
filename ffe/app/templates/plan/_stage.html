@@ -30,10 +30,10 @@
       </a>
       {% endfor %}
       {% for q in ipins %}{% set i = q.item %}
-      <a class="ipin{{ ' sel' if sel_item == i.id }}" href="{% if i.room_id %}{{ base }}?plan={{ plan.id }}&amp;room={{ i.room_id }}&amp;item={{ i.id }}{{ anchor }}{% elif ro %}{{ anchor or '#plan' }}{% else %}/p/{{ p.id }}/items/{{ i.id }}{% endif %}"
-         style="{{ q.style }};--c:{{ STATUS_COLORS[i.status] }}" draggable="false" data-item="{{ i.id }}" data-room="{{ i.room_id or '' }}" data-pin="{{ q.id }}" title="{{ i.code }} · {{ i.name }}">
+      <a class="ipin{{ ' sel' if sel_item == i.id }}" href="{% if i.room_id %}{{ base }}?plan={{ plan.id }}&amp;room={{ i.room_id }}&amp;item={{ i.id }}{{ anchor }}{% elif ro %}{{ anchor or '#plan' }}{% else %}/p/{{ p.id }}/items/{{ i.id }}?next={{ (base ~ '?plan=' ~ plan.id)|urlencode }}{% endif %}"
+         style="{{ q.style }};--c:{{ STATUS_COLORS[i.status] }}" draggable="false" data-item="{{ i.id }}" data-room="{{ i.room_id or '' }}" data-pin="{{ q.id }}" title="{{ i.code }} · {{ i.name }} · {{ i.status }}">
         {% if i.cover %}<img src="/media/{{ i.cover.file_key }}" alt="" loading="lazy" draggable="false">{% else %}<span class="ini">{{ (i.category or '?')[:1] }}</span>{% endif %}
-        <span class="tip"><b>{{ i.code }}</b> {{ i.name }}</span>
+        <span class="tip"><b>{{ i.code }}</b> {{ i.name }} <i>· {{ i.status }}</i></span>
       </a>
       {% endfor %}
       <div class="plan-draw" id="plan-draw" hidden></div>

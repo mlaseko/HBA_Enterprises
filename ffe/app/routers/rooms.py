@@ -47,6 +47,7 @@ def delete_room(room_id: int, p: Project = Depends(get_project), db: Session = D
     if r and r.project_id == p.id:
         for i in r.items:
             i.room_id = None
+            i.pins.clear()  # the dots sat in this room's box
         db.delete(r)
         db.commit()
     return redirect(f"/p/{p.id}/rooms")

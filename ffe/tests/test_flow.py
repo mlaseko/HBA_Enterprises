@@ -436,7 +436,7 @@ with TestClient(app) as c:
     r=c.get(f"/p/{pid}/plan?plan={gid}&mode=mark"); assert r.status_code==200 and 'id="plan-items"' not in r.text  # dots stay out of the way while marking
     # ---- the client link: the same plan, read-only (photos, USD, status badges; no controls, suppliers, notes or CNY) ----
     r=c2.get(f"/c/{ctok}"); assert r.status_code==200 and 'id="plan"' in r.text and 'data-readonly="1"' in r.text and 'class="ipin' in r.text and "plan.js" in r.text
-    assert f'data-room-base="/c/{ctok}/plan/room/"' in r.text and f'href="/c/{ctok}?plan={gid}&amp;room={r2.id}#plan"' in r.text and "Tap a room" in r.text  # r2's box (GF-KIT's was removed above)
+    assert f'data-room-base="/c/{ctok}/plan/room/"' in r.text and f'href="/c/{ctok}?plan={gid}&amp;room={r2.id}#plan-section"' in r.text and "Tap a room" in r.text  # r2's box (GF-KIT's was removed above)
     assert "status-sel" not in r.text and "plan-count" not in r.text and "Mark rooms" not in r.text and "/p/" not in r.text.split('id="plan"')[1].split("</aside>")[0]
     r=c2.get(f"/c/{ctok}?plan={gid}&room={room.id}&item={iid}"); assert r.status_code==200 and 'class="card tight plan-room"' in r.text and 'class="pi placed hl"' in r.text
     panel=r.text.split('class="card tight plan-room"')[1].split("</aside>")[0]
@@ -493,6 +493,52 @@ with TestClient(app) as c:
     r=c.get("/help"); assert r.status_code==200 and "How to use" in r.text and 'id="prices"' in r.text and 'id="plan"' in r.text and 'id="client"' in r.text and "Quick capture" in r.text and 'href="/help"' in r.text
     assert c2.get("/help", follow_redirects=False).status_code==303
     print("prices in USD or CNY + help ok")
+    # ---- review fixes: counts per room, drafts never get dots, client leak checks, dots follow rooms, PDFs with markup, scoping ----
+    # the panel's "placed" count is this room's: a dot of another room on the same plan does not count
+    db=SessionLocal(); kit_dots=sum(1 for q in db.query(ItemPin).filter(ItemPin.image_id==gid) if q.item.room_id==room.id); r2_item=[i.id for i in db.get(Room, r2.id).items if not i.draft][0]; db.close()
+    assert kit_dots>=1
+    r=c.post(f"/p/{pid}/plan/item-pins", data={"image_id":gid,"item_id":r2_item,"x":"0.6","y":"0.2"}, headers={"Accept":"application/json"}); assert r.status_code==200
+    r=c.get(f"/p/{pid}/plan/room/{room.id}?plan={gid}"); assert f"data-placed>{kit_dots}</span>" in r.text, re.search(r"data-placed>\d+</span> of \d+", r.text).group(0)
+    r=c.get(f"/p/{pid}/plan/room/{r2.id}?plan={gid}"); assert "data-placed>1</span>" in r.text
+    # a draft can never get a dot, and a dot row for a draft never shows (designer page or client link)
+    db=SessionLocal(); drf=Item(project_id=int(pid), room_id=room.id, name="", category="Other", draft=True); db.add(drf); db.commit(); drf_id=drf.id; db.close()
+    r=c.post(f"/p/{pid}/plan/item-pins", data={"image_id":gid,"item_id":drf_id,"x":"0.1","y":"0.1"}, headers={"Accept":"application/json"}); assert r.status_code==400 and "draft" in r.json()["error"]
+    db=SessionLocal(); db.add(ItemPin(image_id=gid, item_id=drf_id, x=0.5, y=0.5)); db.commit(); db.close()
+    for page in (c.get(f"/p/{pid}/plan?plan={gid}"), c2.get(f"/c/{ctok}?plan={gid}"), c.get(f"/p/{pid}/plan/room/{room.id}?plan={gid}")):
+        assert page.status_code==200 and f'data-item="{drf_id}"' not in page.text
+    db=SessionLocal(); db.delete(db.get(Item, drf_id)); db.commit(); assert db.query(ItemPin).filter(ItemPin.item_id==drf_id).count()==0; db.close()
+    # the client panel hides what the designer's panel shows: supplier, notes, CNY, designer links
+    c.post(f"/p/{pid}/items/{iid}", data={"room_id":room.id,"category":"Lighting","name":"Island pendant","qty":"3","unit":"pcs","unit_price":"450","price_currency":"CNY","supplier_id":sup.id,"status":"Ordered","notes":"secret supplier note"}, follow_redirects=False)
+    d=c.get(f"/p/{pid}/plan/room/{room.id}?plan={gid}").text; assert "Foshan Tile Co." in d and "¥" in d and "/items/" in d
+    for page in (c2.get(f"/c/{ctok}?plan={gid}&room={room.id}"), c2.get(f"/c/{ctok}/plan/room/{room.id}?plan={gid}")):
+        panel=page.text.split('class="card tight plan-room"')[1].split("</aside>")[0] if "</aside>" in page.text else page.text
+        assert "Foshan Tile Co." not in panel and "secret supplier note" not in panel and "¥" not in panel and "/p/" not in panel and "/items/" not in panel and "status-sel" not in panel
+    # a dot sits in a room's box: moving the item to another room removes its dots; deleting a room removes its items' dots
+    c.post(f"/p/{pid}/plan/item-pins", data={"image_id":gid,"item_id":iid,"x":"0.2","y":"0.2"}, headers={"Accept":"application/json"})
+    db=SessionLocal(); assert db.query(ItemPin).filter(ItemPin.item_id==int(iid)).count()==2; db.close()  # ground + roof
+    c.post(f"/p/{pid}/items/{iid}", data={"room_id":r3.id,"category":"Lighting","name":"Island pendant","qty":"3","unit":"pcs","unit_price":"450","status":"Ordered"}, follow_redirects=False)
+    db=SessionLocal(); assert db.get(Item, int(iid)).room_id==r3.id and db.query(ItemPin).filter(ItemPin.item_id==int(iid)).count()==0; db.close()
+    c.post(f"/p/{pid}/items/{iid}", data={"room_id":room.id,"category":"Lighting","name":"Island pendant","qty":"3","unit":"pcs","unit_price":"450","status":"Ordered"}, follow_redirects=False)
+    c.post(f"/p/{pid}/rooms", data={"code":"TMP2","name":"Temp two","floor":"Ground"}, follow_redirects=False)
+    db=SessionLocal(); tmp2=db.query(Room).filter(Room.project_id==int(pid), Room.code=="TMP2").first(); db.close()
+    r=c.post(f"/p/{pid}/items/new", data={"room_ids":[str(tmp2.id)],"category":"Other","name":"Temp lamp","qty":"1","unit":"pcs","status":"To buy"}, follow_redirects=False); tl=int(r.headers["location"].split("/")[-1])
+    c.post(f"/p/{pid}/plan/item-pins", data={"image_id":gid,"item_id":tl,"x":"0.4","y":"0.4"}, headers={"Accept":"application/json"})
+    c.post(f"/p/{pid}/rooms/{tmp2.id}/delete", follow_redirects=False)
+    db=SessionLocal(); assert db.get(Item, tl).room_id is None and db.query(ItemPin).filter(ItemPin.item_id==tl).count()==0; c.post(f"/p/{pid}/items/{tl}/delete", follow_redirects=False); db.close()
+    # markup in names must not break the PDFs the client and suppliers download
+    db=SessionLocal(); pr=db.get(_P, int(pid)); old_name, old_addr=pr.name, pr.address; pr.name='Kinondoni <b>House</b> & "Villa"'; pr.address="Plot <70>"; db.commit(); db.close()
+    for url, cl in ((f"/c/{ctok}/schedule.pdf", c2), (f"/c/{ctok}/schedule.pdf?layout=floor", c2), (f"/p/{pid}/export/packing.pdf", c), (f"/p/{pid}/export/room/{room.id}.pdf", c), (f"/p/{pid}/export/labels.pdf", c)):
+        r=cl.get(url); assert r.status_code==200 and r.headers["content-type"]=="application/pdf", url
+    assert "Kinondoni <b>House</b>" in pdf_text(c2.get(f"/c/{ctok}/schedule.pdf").content)
+    db=SessionLocal(); pr=db.get(_P, int(pid)); pr.name, pr.address=old_name, old_addr; db.commit(); db.close()
+    # the client link: ?item= alone opens the item's room; another project's plan / room ids are ignored, nothing of theirs renders
+    r=c2.get(f"/c/{ctok}?item={other_item}"); assert r.status_code==200 and f'data-sel="{room.id}"' in r.text and 'class="card tight plan-room"' in r.text
+    db=SessionLocal(); op=db.query(ProjectImage).filter(ProjectImage.project_id==int(pid2), ProjectImage.kind=="floorplan").first(); db.close()
+    r=c2.get(f"/c/{ctok}?plan={op.id}&room={other.id}"); assert r.status_code==200 and op.file_key not in r.text and f'data-plan="{gid}"' in r.text and 'class="card tight plan-room"' not in r.text and "Other room" not in r.text
+    r=c.get(f"/p/{pid}/plan?plan={op.id}&room={other.id}"); assert r.status_code==200 and op.file_key not in r.text and f'data-plan="{gid}"' in r.text and 'class="card tight plan-room"' not in r.text
+    r=c.get(f"/p/{pid}/plan/room/{room.id}?plan={op.id}"); assert r.status_code==200 and op.file_key not in r.text and "data-placed" not in r.text  # unknown plan = no plan context
+    assert c2.get(f"/c/{ctok}/plan/room/{room.id}?plan={op.id}").status_code==200
+    print("review fixes ok")
     # deleting a plan removes both files and the tag row
     r=c.post(f"/p/{pid}/images/{roof_id}/delete", follow_redirects=False); assert r.status_code==303
     assert _st.read_image(roof_keys[0]) is None and _st.read_image(roof_keys[1]) is None
