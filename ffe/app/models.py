@@ -69,6 +69,7 @@ class ProjectImage(Base):
     tag: Mapped["PlanTag | None"] = relationship(back_populates="image", cascade="all, delete-orphan", uselist=False)
     # Floor plans only: where each room sits on this plan (the interactive Plan page). Deleted with the plan.
     pins: Mapped[list["RoomPin"]] = relationship(back_populates="image", cascade="all, delete-orphan", order_by="RoomPin.id")
+    item_pins: Mapped[list["ItemPin"]] = relationship(back_populates="image", cascade="all, delete-orphan", order_by="ItemPin.id")
 
     @property
     def floor(self) -> str:
@@ -164,6 +165,26 @@ class RoomPin(Base):
         return f"left:{self.x * 100:.3f}%;top:{self.y * 100:.3f}%;width:{self.w * 100:.3f}%;height:{self.h * 100:.3f}%"
 
 
+class ItemPin(Base):
+    """The spot on one floor plan where an item goes: a point in fractions (0..1) of the plan image. One pin per item
+    per plan (the same product in another room is another Item row with its own pin). Own table: no ALTER on Neon.
+    Placed by the designer from the room panel on the Plan page; never created automatically."""
+    __tablename__ = "item_pins"
+    __table_args__ = (UniqueConstraint("image_id", "item_id", name="uq_item_pins_image_item"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    image_id: Mapped[int] = mapped_column(ForeignKey("project_images.id"))
+    item_id: Mapped[int] = mapped_column(ForeignKey("items.id"))
+    x: Mapped[float] = mapped_column(Float, default=0.5)  # fraction of the image width
+    y: Mapped[float] = mapped_column(Float, default=0.5)  # fraction of the image height
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    image: Mapped["ProjectImage"] = relationship(back_populates="item_pins")
+    item: Mapped["Item"] = relationship(back_populates="pins")
+
+    @property
+    def style(self) -> str:
+        return f"left:{self.x * 100:.3f}%;top:{self.y * 100:.3f}%"
+
+
 class Supplier(Base):
     __tablename__ = "suppliers"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -222,6 +243,10 @@ class Item(Base):
     room: Mapped["Room | None"] = relationship(back_populates="items")
     supplier: Mapped["Supplier | None"] = relationship(back_populates="items")
     photos: Mapped[list["ItemPhoto"]] = relationship(back_populates="item", cascade="all, delete-orphan", order_by="ItemPhoto.id")
+    pins: Mapped[list["ItemPin"]] = relationship(back_populates="item", cascade="all, delete-orphan", order_by="ItemPin.id")
+    # Unit prices are stored in CNY (unit_price). When the designer typed the price in USD this row keeps what was typed,
+    # so the form shows "$120" again instead of "¥852". No row = entered in CNY.
+    price_entry: Mapped["ItemPrice | None"] = relationship(back_populates="item", cascade="all, delete-orphan", uselist=False)
 
     @property
     def total(self):
@@ -230,6 +255,25 @@ class Item(Base):
     @property
     def cover(self):
         return self.photos[0] if self.photos else None
+
+    @property
+    def price_currency(self) -> str:
+        return self.price_entry.currency if self.price_entry else "CNY"
+
+    @property
+    def price_amount(self) -> float:
+        """The unit price as the designer typed it: in USD when entered in USD, else the CNY value."""
+        return self.price_entry.amount if self.price_entry else (self.unit_price or 0.0)
+
+
+class ItemPrice(Base):
+    """The unit price as typed when it was not in CNY: currency + amount. Item.unit_price always holds the CNY value
+    (totals, PDFs, exports, share links all use it); this row only remembers the entry. Own table: no ALTER on Neon."""
+    __tablename__ = "item_prices"
+    item_id: Mapped[int] = mapped_column(ForeignKey("items.id"), primary_key=True)
+    currency: Mapped[str] = mapped_column(String(3), default="USD")
+    amount: Mapped[float] = mapped_column(Float, default=0.0)
+    item: Mapped["Item"] = relationship(back_populates="price_entry")
 
 
 class ItemPhoto(Base):

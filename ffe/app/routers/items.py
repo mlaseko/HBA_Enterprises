@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Project, Item, ItemPhoto, Supplier, Room
 from ..common import render, redirect, require_login, get_project, ffloat, fint, safe_next
-from ..services import next_code
+from ..services import next_code, set_price, copy_price
 from .. import storage, config, webimage, ai
 
 router = APIRouter(dependencies=[Depends(require_login)])
@@ -65,7 +65,7 @@ def apply_form(item: Item, db: Session, p: Project, form: dict):
     item.finish = (form.get("finish") or "").strip()
     item.qty = ffloat(form.get("qty"), 1)
     item.unit = form.get("unit") or "pcs"
-    item.unit_price = ffloat(form.get("unit_price"))
+    set_price(item, ffloat(form.get("unit_price")), form.get("price_currency"), p.rate)
     item.lead_time = (form.get("lead_time") or "").strip()
     item.status = form.get("status") if form.get("status") in config.STATUSES else "To buy"
     item.optional = form.get("optional") in ("on", "1", "true")
@@ -105,6 +105,7 @@ def _copy_to_room(db: Session, p: Project, src: Item, room: Room | None) -> Item
     new = Item(project=p, code="", room_id=room.id if room else None, optional=src.optional, notes=src.notes, qty=src.qty,
                status="To buy", **{f: getattr(src, f) for f in SHARED_FIELDS})
     new.code = next_code(db, p, room)
+    copy_price(src, new)
     db.add(new)
     return new
 
@@ -184,6 +185,7 @@ async def update_item(request: Request, item_id: int, p: Project = Depends(get_p
     for o in others:  # same product in other rooms: copy the product fields, keep their own room, qty, status, notes
         for f in SHARED_FIELDS:
             setattr(o, f, getattr(item, f))
+        copy_price(item, o)
     copies = [_copy_to_room(db, p, item, r) for r in _form_rooms(p, form.getlist("add_room_ids"))] if not item.draft else []
     for f in form.getlist("photos"):
         if hasattr(f, "read"):
@@ -308,6 +310,7 @@ def duplicate_item(item_id: int, p: Project = Depends(get_project), db: Session 
                brand=src.brand, spec=src.spec, size=src.size, finish=src.finish, qty=src.qty, unit=src.unit,
                unit_price=src.unit_price, lead_time=src.lead_time, status="To buy", optional=src.optional, notes=src.notes)
     new.code = next_code(db, p, src.room)
+    copy_price(src, new)
     db.add(new)
     db.commit()
     return redirect(f"/p/{p.id}/items/{new.id}")

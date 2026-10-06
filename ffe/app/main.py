@@ -68,6 +68,12 @@ def settings_page(request: Request, db: Session = Depends(get_db)):
     return render(request, "settings.html", s=get_settings(db))
 
 
+@app.get("/help", dependencies=[Depends(require_login)])
+def help_page(request: Request):
+    """The user guide: one page, feature by feature, in plain words (templates/help.html)."""
+    return render(request, "help.html")
+
+
 @app.post("/settings", dependencies=[Depends(require_login)])
 async def settings_save(request: Request, db: Session = Depends(get_db), studio_name: str = Form(""),
                         studio_email: str = Form(""), studio_phone: str = Form(""), studio_website: str = Form(""),

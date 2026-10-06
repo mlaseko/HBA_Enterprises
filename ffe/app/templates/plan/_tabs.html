@@ -1,0 +1,6 @@
+{# Floor tabs, one per plan. Needs: tabs, base, mode, anchor. #}
+{% if tabs|length > 1 %}
+<nav class="plan-tabs" aria-label="Floor plans">
+  {% for t in tabs %}<a class="{{ 'on' if t.on }}" href="{{ base }}?plan={{ t.im.id }}{% if mode == 'mark' %}&amp;mode=mark{% endif %}{{ anchor }}" {% if t.on %}aria-current="page"{% endif %}><span class="t">{{ t.title }}</span><span class="s">{{ t.sheet or (t.im.caption if t.im.caption != t.title else '') or '&nbsp;'|safe }}</span><span class="n" title="Rooms placed">{{ t.n }}</span></a>{% endfor %}
+</nav>
+{% endif %}

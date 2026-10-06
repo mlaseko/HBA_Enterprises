@@ -1,7 +1,7 @@
 from collections import defaultdict
 from sqlalchemy.orm import Session
-from .models import Project, Item, Room, Carton, Payment, Supplier
-from .config import CONTAINERS, STATUSES
+from .models import Project, Item, Room, Carton, Payment, Supplier, ItemPrice
+from .config import CONTAINERS, STATUSES, PRICE_CURRENCIES
 
 
 def next_code(db: Session, project: Project, room: Room | None) -> str:
@@ -14,6 +14,35 @@ def next_code(db: Session, project: Project, room: Room | None) -> str:
         except ValueError:
             pass
     return f"{prefix}-{n + 1:02d}"
+
+
+def set_price(item: Item, amount, currency, rate) -> None:
+    """Store a typed unit price. Prices live in CNY (every total, PDF and export reads item.unit_price); a price typed in
+    USD is converted at the project's rate and the typed USD amount is remembered so the form can show it again."""
+    currency = currency if currency in PRICE_CURRENCIES else "CNY"
+    try:
+        amount = float(amount or 0)
+    except (TypeError, ValueError):
+        amount = 0.0
+    if currency == "USD" and amount:
+        item.unit_price = round(amount * (rate or 1), 2)
+        if item.price_entry is None:
+            item.price_entry = ItemPrice()
+        item.price_entry.currency, item.price_entry.amount = "USD", amount
+    else:
+        item.unit_price = amount
+        item.price_entry = None  # delete-orphan removes the row
+
+
+def copy_price(src: Item, dst: Item) -> None:
+    """Same unit price (and the same typed currency) on another row of the same product."""
+    dst.unit_price = src.unit_price
+    if src.price_entry is not None:
+        if dst.price_entry is None:
+            dst.price_entry = ItemPrice()
+        dst.price_entry.currency, dst.price_entry.amount = src.price_entry.currency, src.price_entry.amount
+    else:
+        dst.price_entry = None
 
 
 def container_for(cbm: float) -> str:

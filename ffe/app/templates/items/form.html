@@ -10,7 +10,8 @@
     {% else %}<p class="sub">Fill in what you know now. Everything can be edited later and photos can be added at any time.</p>{% endif %}
   </div>
   <div class="actions">
-    {% if it %}<span class="badge" style="--c:{{ STATUS_COLORS[it.status] }}">{{ it.status }}</span>{% if it.optional %}<span class="pill">optional</span>{% endif %}{% endif %}
+    {% if it %}<span class="badge" style="--c:{{ STATUS_COLORS[it.status] }}">{{ it.status }}</span>{% if it.optional %}<span class="pill">optional</span>{% endif %}
+    {% if it.room and not it.draft %}<a class="btn sec sm" href="/p/{{ p.id }}/plan?{% if it.pins %}plan={{ it.pins[0].image_id }}&amp;{% endif %}room={{ it.room_id }}&amp;item={{ it.id }}" title="{{ 'Show where it goes on the floor plan' if it.pins else 'Open the room on the floor plan' }}"><svg class="ic"><use href="#i-map"/></svg>{{ 'On the plan' if it.pins else 'Plan' }}</a>{% endif %}{% endif %}
   </div>
 </div>
 
@@ -47,7 +48,13 @@
   <div class="grid stack g2">
     <div><label>Qty</label><input class="in" type="number" step="0.01" name="qty" value="{{ it.qty|num if it else 1 }}"></div>
     <div><label>Unit</label><select name="unit" class="in">{% for u in UNITS %}<option {{ 'selected' if it and it.unit == u }}>{{ u }}</option>{% endfor %}</select></div>
-    <div><label>Unit price (CNY)</label><input class="in" type="number" step="0.01" name="unit_price" value="{{ it.unit_price if it and it.unit_price else '' }}"></div>
+    <div><label>Unit price</label>
+      <div class="field-row price-row" data-rate="{{ p.rate or 1 }}">
+        <input class="in" type="number" step="0.01" min="0" name="unit_price" value="{{ it.price_amount|plain if it else '' }}" placeholder="0.00" data-price>
+        <select class="in cur" name="price_currency" aria-label="Currency of the price" data-price-cur{% if not it %} data-remember="1"{% endif %}>{% for cur in PRICE_CURRENCIES %}<option {{ 'selected' if (it and it.price_currency == cur) or (not it and cur == 'CNY') }}>{{ cur }}</option>{% endfor %}</select>
+      </div>
+      <div class="help" data-price-help>{% if it and it.unit_price %}{% if it.price_currency == 'USD' %}= ¥{{ it.unit_price|money(2) }} · {% else %}= ${{ (it.unit_price / (p.rate or 1))|money(2) }} · {% endif %}{% endif %}Type it in CNY or USD; stored in CNY at {{ p.rate }} per USD.</div>
+    </div>
     <div><label>Supplier</label><select name="supplier_id" class="in"><option value="">— none yet —</option>{% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if it and it.supplier_id == s.id }}>{{ s.name }}</option>{% endfor %}</select>
       <div class="help"><a href="/p/{{ p.id }}/suppliers">+ new supplier</a></div></div>
   </div>
