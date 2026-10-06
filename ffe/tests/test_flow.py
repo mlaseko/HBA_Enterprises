@@ -311,6 +311,29 @@ with TestClient(app) as c:
         sid3=int(re.search(r"/sets/(\d+)", r.headers["location"]).group(1)); db=SessionLocal(); assert db.get(DrawingSet,sid3).pages==3; db.close()
     finally:
         _cfg.MAX_PDF_PAGES=_old
+    # a good PDF next to a broken one: the good one is kept (set in the DB, no orphan files) and the error still shows
+    db=SessionLocal(); before=db.query(DrawingSet).count(); db.close()
+    r=c.post(f"/p/{pid}/images/plans", data={}, files=[("files",("good.pdf",pdf_pages(["G"]),"application/pdf")),("files",("broken.pdf",b"%PDF-1.4 not really","application/pdf"))], follow_redirects=False)
+    assert "/sets/" in r.headers["location"] and "err=" in r.headers["location"] and "broken.pdf" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); assert db.query(DrawingSet).count()==before+1; db.close()
+    r=c.get(r.headers["location"]); assert r.status_code==200 and "broken.pdf" in r.text
+    # storage keys are validated: /media never leaves the upload folder (no login needed for /media)
+    anon=TestClient(app)
+    for bad in ["%2e%2e/%2e%2e/%2e%2e/%2e%2e/etc/passwd", "../../etc/passwd", "/etc/passwd", "p1/..%2fx.jpg"]:
+        r=anon.get(f"/media/{bad}"); assert r.status_code==404, (bad, r.status_code)
+    assert _st.safe_key("p1/sets/abc.pdf") and _st.safe_key("img/0123abcd.jpg") and not _st.safe_key("../x") and not _st.safe_key("/x") and not _st.safe_key("a/../b") and not _st.safe_key("")
+    assert _st.read_image("../../etc/passwd") is None
+    r=anon.get(f"/media/{roof_keys[0]}"); assert r.status_code==200 and r.headers["content-type"].startswith("image/jpeg")
+    # Chinese drawing-set names download fine (RFC 5987 header) and the schedule PDF too
+    r=c.post(f"/p/{pid}/images/plans", data={}, files=[("files",("一层平面图.pdf",pdf_pages(["CN"]),"application/pdf"))], follow_redirects=False)
+    sid_cn=int(re.search(r"/sets/(\d+)", r.headers["location"]).group(1))
+    r=c.get(f"/p/{pid}/images/sets/{sid_cn}.pdf"); assert r.status_code==200 and "filename*=UTF-8''%E4%B8%80" in r.headers["content-disposition"], r.headers.get("content-disposition")
+    # the size cap is applied before the file is read into memory
+    _oldmb=_cfg.MAX_PDF_MB; _cfg.MAX_PDF_MB=0
+    try:
+        r=c.post(f"/p/{pid}/images/plans", data={}, files=[("files",("huge.pdf",pdf_pages(["H"]),"application/pdf"))], follow_redirects=False); assert "larger" in r.headers["location"], r.headers["location"]
+    finally:
+        _cfg.MAX_PDF_MB=_oldmb
     # deleting a plan removes both files and the tag row
     r=c.post(f"/p/{pid}/images/{roof_id}/delete", follow_redirects=False); assert r.status_code==303
     assert _st.read_image(roof_keys[0]) is None and _st.read_image(roof_keys[1]) is None

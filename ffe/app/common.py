@@ -1,5 +1,7 @@
+import re
 import secrets
 from datetime import datetime
+from urllib.parse import quote
 from fastapi import Request, HTTPException, Depends
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -124,3 +126,11 @@ def render(request: Request, name: str, **ctx):
 
 def redirect(url: str):
     return RedirectResponse(url, status_code=303)
+
+
+def content_disposition(name: str, inline: bool = False) -> dict:
+    """Download header that survives any file name (Chinese, spaces, quotes): ASCII fallback plus RFC 5987 filename*."""
+    name = (name or "file").strip() or "file"
+    ascii_name = re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("_") or "file"
+    disp = "inline" if inline else "attachment"
+    return {"Content-Disposition": f"{disp}; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name)}"}

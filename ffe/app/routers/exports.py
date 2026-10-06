@@ -6,7 +6,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from ..db import get_db
 from ..models import Project, Supplier, Room, Payment
-from ..common import require_login, get_project, get_settings
+from ..common import require_login, get_project, get_settings, content_disposition
 from ..pdf.schedule import build_schedule
 from ..pdf.packing import packing_list, labels, room_checklist, purchase_order
 from .items import sort_items
@@ -15,8 +15,7 @@ router = APIRouter()
 
 
 def pdf(data: bytes, name: str, inline=True):
-    disp = "inline" if inline else "attachment"
-    return Response(content=data, media_type="application/pdf", headers={"Content-Disposition": f'{disp}; filename="{name}"'})
+    return Response(content=data, media_type="application/pdf", headers=content_disposition(name, inline=inline))
 
 
 @router.get("/p/{project_id}/export/schedule.pdf", dependencies=[Depends(require_login)])
@@ -112,4 +111,4 @@ def items_xlsx(p: Project = Depends(get_project), db: Session = Depends(get_db))
     buf = io.BytesIO()
     wb.save(buf)
     return Response(content=buf.getvalue(), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    headers={"Content-Disposition": f'attachment; filename="{p.name}-items.xlsx"'})
+                    headers=content_disposition(f"{p.name}-items.xlsx"))

@@ -30,7 +30,9 @@ S = {
 
 
 def P(text, style="cell"):
+    """Escaped paragraph. The callers' own <b>, </b> and <br/> markup is kept; everything else in the text is literal."""
     text = (str(text) if text is not None else "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
+    text = text.replace("&lt;b&gt;", "<b>").replace("&lt;/b&gt;", "</b>").replace("&lt;br/&gt;", "<br/>")
     return Paragraph(text, S[style])
 
 

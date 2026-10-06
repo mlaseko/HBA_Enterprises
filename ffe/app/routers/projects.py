@@ -4,7 +4,7 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Project, ProjectImage, Room, Item, DrawingSet, PlanTag
-from ..common import render, redirect, require_login, get_project, get_settings, ffloat, fint
+from ..common import render, redirect, require_login, get_project, get_settings, ffloat, fint, content_disposition
 from ..services import summary
 from .. import storage, webimage, drawings, config
 from urllib.parse import quote
@@ -144,19 +144,26 @@ async def upload_images(p: Project = Depends(get_project), db: Session = Depends
 @router.post("/p/{project_id}/images/plans")
 async def upload_plans(p: Project = Depends(get_project), db: Session = Depends(get_db), floor: str = Form(""),
                        sheet: str = Form(""), caption: str = Form(""), files: list[UploadFile] = File(...)):
-    """Floor plans: JPG/PNG are added at once (tagged); a PDF becomes a drawing set whose pages are picked next."""
-    added, bad, first_set = 0, 0, None
+    """Floor plans: JPG/PNG are added at once (tagged); a PDF becomes a drawing set whose pages are picked next.
+
+    One bad file never loses the others: every file is tried, what worked is committed, and the errors are shown together.
+    """
+    added, bad, errs, first_set = 0, 0, [], None
+    cap = config.MAX_PDF_MB * 1024 * 1024
     for f in files:
-        data = await f.read()
+        name = f.filename or "file"
+        data = b"" if (f.size and f.size > cap) else await f.read(cap + 1)  # never hold more than the cap in memory
+        if len(data) > cap or (f.size and f.size > cap):
+            errs.append(f"{name}: larger than {config.MAX_PDF_MB} MB")
+            continue
         if not data:
             continue
         if drawings.is_pdf(data):
-            if len(data) > config.MAX_PDF_MB * 1024 * 1024:
-                return redirect(f"/p/{p.id}/images?err={quote(f'{f.filename}: PDF larger than {config.MAX_PDF_MB} MB')}")
             try:
                 n = drawings.page_count(data)
             except drawings.DrawingError as e:
-                return redirect(f"/p/{p.id}/images?err={quote(str(e))}")
+                errs.append(f"{name}: {e}")
+                continue
             hex_ = uuid.uuid4().hex
             storage.save_blob(data, f"p{p.id}/sets/{hex_}.pdf", "application/pdf")
             n = min(n, config.MAX_PDF_PAGES)
@@ -165,7 +172,7 @@ async def upload_plans(p: Project = Depends(get_project), db: Session = Depends(
                     storage.save_blob(drawings.render_page(data, k, config.PLAN_THUMB_PX), f"p{p.id}/sets/{hex_}/t{k:03d}.jpg", "image/jpeg")
                 except drawings.DrawingError:
                     pass  # the picker shows "Page k" without a picture
-            ds = DrawingSet(project_id=p.id, name=(f.filename or "drawings.pdf")[:200], file_key=f"p{p.id}/sets/{hex_}.pdf",
+            ds = DrawingSet(project_id=p.id, name=name[:200], file_key=f"p{p.id}/sets/{hex_}.pdf",
                             thumb_prefix=f"p{p.id}/sets/{hex_}/t", pages=n)
             db.add(ds)
             db.flush()
@@ -177,10 +184,13 @@ async def upload_plans(p: Project = Depends(get_project), db: Session = Depends(
         except Exception:
             bad += 1
     db.commit()
-    if first_set:
-        return redirect(f"/p/{p.id}/images/sets/{first_set}?floor={quote(floor)}&sheet={quote(sheet)}")
     if bad:
-        return redirect(f"/p/{p.id}/images?err={quote(f'{bad} file(s) could not be read as an image or PDF')}")
+        errs.append(f"{bad} file(s) could not be read as an image or PDF")
+    err = "; ".join(errs)
+    if first_set:
+        return redirect(f"/p/{p.id}/images/sets/{first_set}?floor={quote(floor)}&sheet={quote(sheet)}" + (f"&err={quote(err)}" if err else ""))
+    if err:
+        return redirect(f"/p/{p.id}/images?err={quote(err)}")
     return redirect(f"/p/{p.id}/images?ok={quote(f'{added} plan(s) added')}")
 
 
@@ -198,7 +208,7 @@ def download_set(set_id: int, p: Project = Depends(get_project), db: Session = D
     if not data:
         raise HTTPException(404, "The PDF is no longer in storage")
     name = ds.name if ds.name.lower().endswith(".pdf") else ds.name + ".pdf"
-    return Response(content=data, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{name}"'})
+    return Response(content=data, media_type="application/pdf", headers=content_disposition(name))
 
 
 @router.get("/p/{project_id}/images/sets/{set_id}")

@@ -60,7 +60,7 @@ def media(key: str):
     data = storage.read_image(key)
     if data is None:
         return Response(status_code=404)
-    return Response(content=data, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=604800"})
+    return Response(content=data, media_type=storage.content_type(key), headers={"Cache-Control": "public, max-age=604800"})
 
 
 @app.get("/settings", dependencies=[Depends(require_login)])
