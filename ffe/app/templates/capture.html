@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import room_options %}
 {% block title %}Quick capture · {{ p.name }}{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -13,7 +14,7 @@
 <form method="post" action="/p/{{ p.id }}/capture" enctype="multipart/form-data" class="card" id="capform">
   <div class="eyebrow">Tag the next photos (optional)</div>
   <div class="grid g2">
-    <div><label>Room</label><select name="room_id" class="in" id="cap-room"><option value="">Not decided yet</option>{% for r in p.rooms %}<option value="{{ r.id }}" {{ 'selected' if pre_room == r.id }}>{{ r.label }}</option>{% endfor %}</select></div>
+    <div><label>Room</label><select name="room_id" class="in" id="cap-room"><option value="">Not decided yet</option>{{ room_options(p.rooms, pre_room) }}</select></div>
     <div><label>Category</label><select name="category" class="in" id="cap-cat"><option value="">Not decided yet</option>{% for c in CATEGORIES %}<option {{ 'selected' if pre_cat == c }}>{{ c }}</option>{% endfor %}</select></div>
   </div>
   <input type="hidden" name="n" value="{{ n }}">

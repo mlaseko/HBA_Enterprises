@@ -6,7 +6,7 @@
 <div class="card tight plan-room" data-room="{{ room.id }}" data-code="{{ room.code }}">
   <div class="ph-head">
     <div class="min0">
-      <div class="row"><span class="pill accent">{{ room.code }}</span>{% if room.floor %}<span class="small muted">{{ room.floor|floor_title }}</span>{% endif %}</div>
+      <div class="row"><span class="pill {{ 'area' if room.is_area else 'accent' }}">{{ room.code }}</span>{% if room.is_area %}<span class="small muted">Area</span>{% endif %}{% if room.floor %}<span class="small muted">{{ room.floor|floor_title }}</span>{% endif %}</div>
       <h2>{{ room.name }}</h2>
     </div>
     <a class="btn ghost sm icon close" href="{{ base }}{% if plan %}?plan={{ plan.id }}{% endif %}{{ anchor }}" aria-label="Close" title="Close"><svg class="ic"><use href="#i-x"/></svg></a>
@@ -22,8 +22,8 @@
   <div class="ph-actions">
     <a class="btn sm" href="/p/{{ p.id }}/items/new?room={{ room.id }}"><svg class="ic"><use href="#i-plus"/></svg>Add item</a>
     <a class="btn sm accent" href="/p/{{ p.id }}/capture?room={{ room.id }}"><svg class="ic"><use href="#i-camera"/></svg>Capture</a>
-    <a class="btn sm sec" href="/p/{{ p.id }}/items?room={{ room.id }}" title="Open this room in the item list"><svg class="ic"><use href="#i-grid"/></svg>List</a>
-    <a class="btn sm sec" href="/p/{{ p.id }}/export/room/{{ room.id }}.pdf" target="_blank" title="Room checklist PDF"><svg class="ic"><use href="#i-file"/></svg>PDF</a>
+    <a class="btn sm sec" href="/p/{{ p.id }}/items?room={{ room.id }}" title="Open this {{ 'area' if room.is_area else 'room' }} in the item list"><svg class="ic"><use href="#i-grid"/></svg>List</a>
+    <a class="btn sm sec" href="/p/{{ p.id }}/export/room/{{ room.id }}.pdf" target="_blank" title="Checklist PDF"><svg class="ic"><use href="#i-file"/></svg>PDF</a>
   </div>
   {% if plan and n %}<div class="small muted ph-tip"><span data-placed>{{ ipin_of|length }}</span> of {{ n }} item{{ 's' if n != 1 }} placed on this plan. Tap <svg class="ic sm"><use href="#i-map"/></svg> on an item, then the spot on the plan where it goes.</div>{% endif %}
   {% endif %}
@@ -56,12 +56,12 @@
       {% endif %}
     </div>
     {% else %}
-    <div class="empty small"><p>{% if ro %}Nothing scheduled for this room yet.{% else %}No items in this room yet. Add one, or shoot samples with Quick capture.{% endif %}</p></div>
+    <div class="empty small"><p>{% if ro %}Nothing scheduled here yet.{% else %}No items here yet. Add one, or shoot samples with Quick capture.{% endif %}</p></div>
     {% endfor %}
   </div>
   {% if not ro %}
   <details class="ph-details">
-    <summary>Room details</summary>
+    <summary>{{ 'Area' if room.is_area else 'Room' }} details</summary>
     <form method="post" action="/p/{{ p.id }}/rooms/{{ room.id }}" class="mt">
       <input type="hidden" name="next" value="{{ here }}">
       <input type="hidden" name="sort" value="{{ room.sort }}">
@@ -74,7 +74,7 @@
         <div><label>Wall tile m²</label><input class="in" type="number" step="0.1" name="wall_area" value="{{ room.wall_area }}"></div>
         <div class="span2"><label>Notes</label><input class="in" type="text" name="notes" value="{{ room.notes }}" placeholder="Finish level, access, anything the installers should know"></div>
       </div>
-      <div class="row mt"><button class="btn sm"><svg class="ic"><use href="#i-check"/></svg>Save room</button><a class="small" href="/p/{{ p.id }}/rooms">All rooms</a></div>
+      <div class="row mt"><button class="btn sm"><svg class="ic"><use href="#i-check"/></svg>Save</button><a class="small" href="/p/{{ p.id }}/rooms">Rooms &amp; areas</a></div>
     </form>
   </details>
   {% endif %}

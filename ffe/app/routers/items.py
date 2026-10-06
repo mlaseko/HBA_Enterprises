@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Project, Item, ItemPhoto, Supplier, Room
 from ..common import render, redirect, require_login, get_project, ffloat, fint, safe_next
-from ..services import next_code, set_price, copy_price
-from .. import storage, config, webimage, ai
+from ..services import next_code, set_price, copy_price, sort_items  # noqa: F401  (sort_items is imported from here by share.py and plan.py)
+from .. import storage, config, webimage, ai, drawings
 
 router = APIRouter(dependencies=[Depends(require_login)])
 
@@ -28,12 +28,6 @@ def item_query(db: Session, p: Project, room: str = "", category: str = "", stat
     return qs
 
 
-def sort_items(items: list[Item], p: Project):
-    room_order = {r.id: r.sort for r in p.rooms}
-    cat_order = {c: i for i, c in enumerate(config.CATEGORIES)}
-    return sorted(items, key=lambda i: (cat_order.get(i.category, 99), room_order.get(i.room_id, 9999), i.code))
-
-
 @router.get("/p/{project_id}/items")
 def list_items(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), room: str = "",
                category: str = "", status: str = "", supplier: str = "", q: str = "", view: str = ""):
@@ -41,7 +35,9 @@ def list_items(request: Request, p: Project = Depends(get_project), db: Session 
     suppliers = db.query(Supplier).order_by(Supplier.name).all()
     total = sum(i.total for i in items)
     drafts = db.query(Item).filter(Item.project_id == p.id, Item.draft == True).count()  # noqa: E712
-    return render(request, "items/list.html", p=p, items=items, suppliers=suppliers, total=total, drafts=drafts,
+    room_obj = next((r for r in p.rooms if r.id == fint(room)), None) if room and room != "none" else None
+    zoom = drawings.room_zoom(p, room_obj, items) if room_obj is not None else None  # the room on the plan, zoomed, with its dots
+    return render(request, "items/list.html", p=p, items=items, suppliers=suppliers, total=total, drafts=drafts, room_obj=room_obj, zoom=zoom,
                   f=dict(room=room, category=category, status=status, supplier=supplier, q=q, view=view))
 
 
@@ -182,6 +178,8 @@ async def update_item(request: Request, item_id: int, p: Project = Depends(get_p
     apply_form(item, db, p, form)
     if item.room_id != old_room and not was_draft and not item.draft:
         item.code = next_code(db, p, item.room)
+    if item.room_id != old_room:
+        item.pins.clear()  # its dots sat in the old room's box: place it again from the new room's panel
     for o in others:  # same product in other rooms: copy the product fields, keep their own room, qty, status, notes
         for f in SHARED_FIELDS:
             setattr(o, f, getattr(item, f))

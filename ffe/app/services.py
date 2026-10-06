@@ -1,7 +1,8 @@
 from collections import defaultdict
 from sqlalchemy.orm import Session
 from .models import Project, Item, Room, Carton, Payment, Supplier, ItemPrice
-from .config import CONTAINERS, STATUSES, PRICE_CURRENCIES
+from .config import CONTAINERS, STATUSES, PRICE_CURRENCIES, AREA_WORDS, CATEGORIES
+from . import drawings
 
 
 def next_code(db: Session, project: Project, room: Room | None) -> str:
@@ -14,6 +15,33 @@ def next_code(db: Session, project: Project, room: Room | None) -> str:
         except ValueError:
             pass
     return f"{prefix}-{n + 1:02d}"
+
+
+def sort_items(items: list[Item], p: Project) -> list[Item]:
+    """Schedule order: category (config order), then room order, then code. Used by lists, panels, PDFs and share pages."""
+    room_order = {r.id: r.sort for r in p.rooms}
+    cat_order = {c: i for i, c in enumerate(CATEGORIES)}
+    return sorted(items, key=lambda i: (cat_order.get(i.category, 99), room_order.get(i.room_id, 9999), i.code))
+
+
+import re as _re
+_AREA_RE = _re.compile(r"\b(?:" + "|".join(_re.escape(w) for w in AREA_WORDS) + r")")
+# A name ending in one of these is a room whatever else it says: "Plant Room", "Garden Room", "Downstairs WC", "Pool Bathroom".
+ROOM_NOUNS = {"room", "bedroom", "bathroom", "wc", "toilet", "lounge", "kitchen", "office", "study", "closet", "gym", "ensuite",
+              "pantry", "store", "nursery", "library", "laundry", "dining", "living", "shower", "sauna", "cinema", "suite", "wardrobe"}
+
+
+def guess_kind(name: str, floor: str = "") -> str:
+    """'area' for zones (entrance, corridors, stairs, balconies, carport, whole house, outside), else 'room'.
+    Matches area words at the start of a word ("Stairs", "Staircase", not "Downstairs"); a name whose last word is a
+    room noun stays a room. A suggestion the designer can change on the Rooms page."""
+    if drawings.is_pseudo(floor) and (floor or "").strip():
+        return "area"  # "All", "Outside", "Site": not a room on any floor
+    n = (name or "").lower()
+    words = _re.findall(r"[a-z]+", n)
+    if words and words[-1] in ROOM_NOUNS:
+        return "room"
+    return "area" if _AREA_RE.search(n) else "room"
 
 
 def set_price(item: Item, amount, currency, rate) -> None:
@@ -84,7 +112,10 @@ def summary(db: Session, p: Project) -> dict:
 
     by_room = agg(lambda i: i.room_id or 0, lambda i: i.room.label if i.room else "Whole house / unassigned")
     room_order = {r.id: r.sort for r in p.rooms}
-    by_room.sort(key=lambda r: room_order.get(r["key"], 9999))
+    kinds = {r.id: r.kind for r in p.rooms}
+    for r in by_room:
+        r["kind"] = kinds.get(r["key"], "none")  # room | area | none (unassigned items)
+    by_room.sort(key=lambda r: ({"room": 0, "area": 1}.get(r["kind"], 2), room_order.get(r["key"], 9999)))
     by_cat = agg(lambda i: i.category, lambda i: i.category)
     by_cat.sort(key=lambda r: -r["total"])
     by_sup = agg(lambda i: i.supplier_id or 0, lambda i: i.supplier.name if i.supplier else "No supplier yet")

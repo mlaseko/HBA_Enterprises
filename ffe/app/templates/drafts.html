@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import room_options %}
 {% block title %}Drafts · {{ p.name }}{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -25,7 +26,7 @@
       {% if filled == d.id %}<div class="alert"><svg class="ic sm"><use href="#i-sparkle"/></svg> Claude filled this in from the page. Check it, then save.</div>{% endif %}
       <label>Item / product name</label><input class="in" type="text" name="name" value="{{ d.name }}" required placeholder="e.g. Brass basin mixer, matt black"{% if err == d.id %} autofocus{% endif %}>
       <div class="grid stack g2">
-        <div><label>Room</label><select name="room_id" class="in"><option value="">Whole house / not room-specific</option>{% for r in p.rooms %}<option value="{{ r.id }}" {{ 'selected' if d.room_id == r.id }}>{{ r.label }}</option>{% endfor %}</select></div>
+        <div><label>Room or area</label><select name="room_id" class="in"><option value="">Whole house / not room-specific</option>{{ room_options(p.rooms, d.room_id) }}</select></div>
         <div><label>Category</label><select name="category" class="in">{% for c in CATEGORIES %}<option {{ 'selected' if d.category == c }}>{{ c }}</option>{% endfor %}</select></div>
         <div><label>Qty</label><input class="in" type="number" step="0.01" name="qty" value="{{ d.qty|num }}"></div>
         <div><label>Unit price</label>
@@ -51,6 +52,7 @@
   <p>Open the camera to capture samples in the showroom, or go back to the items list.</p>
   <a class="btn accent" href="/p/{{ p.id }}/capture"><svg class="ic"><use href="#i-camera"/></svg>Quick capture</a>
   <a class="btn sec" href="/p/{{ p.id }}/items"><svg class="ic"><use href="#i-grid"/></svg>Items</a>
+  <a class="btn ghost" href="#help"><svg class="ic"><use href="#i-help"/></svg>How this works</a>
 </div>
 {% endfor %}
 {% endblock %}

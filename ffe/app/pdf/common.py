@@ -39,6 +39,11 @@ def P(text, style="cell"):
 def img_flowable(key: str, w: float, h: float):
     """Image sized to fit in w x h (points), keeping aspect ratio. Returns a Spacer if the image is missing."""
     data = storage.read_image(key) if key else None
+    return img_flowable_bytes(data, w, h)
+
+
+def img_flowable_bytes(data: bytes | None, w: float, h: float):
+    """Same, for picture bytes already in hand (e.g. a crop rendered for this PDF)."""
     if not data:
         return Spacer(w, h)
     try:

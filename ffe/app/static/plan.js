@@ -96,7 +96,10 @@
       panel.classList.toggle('open', on); backdrop.classList.toggle('on', on);
       document.body.style.overflow = on && phone() ? 'hidden' : '';
     }
+    if (panel.classList.contains('open')) sheet(true);  // a deep link (?room=) renders the panel open: give it the backdrop too
+    var seq = 0;  // only the latest tap may fill the panel: a slow answer for a room the user left is dropped
     function openRoom(rid, iid) {
+      var my = ++seq;
       select(rid, iid);
       sheet(true);
       panel.innerHTML = '<div class="card tight plan-loading"><span class="small muted">Loading…</span></div>';
@@ -104,14 +107,16 @@
       fetch(roomBase + rid + q, { headers: { 'Accept': 'text/html' } })
         .then(function (r) { if (!r.ok) throw new Error(); return r.text(); })
         .then(function (html) {
+          if (my !== seq) return;
           panel.innerHTML = html; panel.scrollTop = 0;
           var row = iid && panel.querySelector('.pi[data-item="' + iid + '"]');
           if (row && row.scrollIntoView) row.scrollIntoView({ block: 'center' });
         })
-        .catch(function () { location.href = pageUrl('&room=' + rid + (iid ? '&item=' + iid : '')); });
+        .catch(function () { if (my === seq) location.href = pageUrl('&room=' + rid + (iid ? '&item=' + iid : '')); });
       history.replaceState(null, '', pageUrl('&room=' + rid + (iid ? '&item=' + iid : '')));
     }
     function closeRoom() {
+      seq++;
       sheet(false); select(null, null);
       if (introTpl) panel.innerHTML = introTpl.innerHTML;
       history.replaceState(null, '', pageUrl());
@@ -124,11 +129,17 @@
 
     var justDragged = null;
     root.addEventListener('click', function (e) {
-      if (placing) return;  // the stage handler places the dot
+      if (placing) {  // the stage handler places the dot; the panel's own controls cancel placing first, then act
+        if (!e.target.closest('.plan-room .close, a[data-room], .pinbtn, .pinrm')) return;
+        stopPlacing(true);
+      }
       var dot = e.target.closest('a.ipin');
       if (dot) {
         if (justDragged === dot) { e.preventDefault(); justDragged = null; return; }
-        if (!dot.dataset.room) { if (readonly) e.preventDefault(); return; }  // a whole-house item: the link opens the item itself
+        if (!dot.dataset.room) {  // a whole-house item: no room panel; the designer's link opens the item, the client sees its label
+          if (readonly) { e.preventDefault(); select(null, dot.dataset.item); flash(dot.title); }
+          return;
+        }
         e.preventDefault(); openRoom(dot.dataset.room, dot.dataset.item); return;
       }
       var a = e.target.closest('a[data-room]');
@@ -206,12 +217,14 @@
     function makeDot(d) {
       var a = document.createElement('a');
       a.className = 'ipin'; a.draggable = false;
-      a.href = d.room_id ? pageUrl('&room=' + d.room_id + '&item=' + d.item_id) : (base.indexOf('/plan') > 0 ? base.replace(/\/plan$/, '') + '/items/' + d.item_id : '#plan');
+      a.href = d.room_id ? pageUrl('&room=' + d.room_id + '&item=' + d.item_id)
+        : (readonly ? (anchor || '#plan') : base.replace(/\/plan$/, '') + '/items/' + d.item_id + '?next=' + encodeURIComponent(pageUrl()));
       a.dataset.item = d.item_id; a.dataset.room = d.room_id || ''; a.dataset.pin = d.id;
-      a.title = d.code + ' · ' + d.name;
+      a.title = d.code + ' · ' + d.name + ' · ' + d.status;
       if (d.photo) { var im = document.createElement('img'); im.src = '/media/' + d.photo; im.alt = ''; im.draggable = false; a.appendChild(im); }
       else { var sp = document.createElement('span'); sp.className = 'ini'; sp.textContent = d.initial || '?'; a.appendChild(sp); }
-      var tip = document.createElement('span'); tip.className = 'tip'; var b = document.createElement('b'); b.textContent = d.code; tip.appendChild(b); tip.appendChild(document.createTextNode(d.name)); a.appendChild(tip);
+      var tip = document.createElement('span'); tip.className = 'tip'; var b = document.createElement('b'); b.textContent = d.code; tip.appendChild(b); tip.appendChild(document.createTextNode(d.name + ' '));
+      var st = document.createElement('i'); st.textContent = '· ' + d.status; tip.appendChild(st); a.appendChild(tip);
       return a;
     }
     function saveDot(iid, x, y, dotEl, reopen, prev) {
@@ -238,6 +251,13 @@
     }
     function removeDot(row) {
       if (!row || !row.dataset.pin) return;
+      var btn = row.querySelector('.pinrm');
+      if (btn && !btn.classList.contains('confirm')) {  // first tap arms, second tap removes
+        btn.classList.add('confirm'); flash('Tap × again to remove ' + row.dataset.code + ' from the plan.');
+        setTimeout(function () { btn.classList.remove('confirm'); }, 3000);
+        return;
+      }
+      if (btn) btn.classList.remove('confirm');
       post(base + '/item-pins/' + row.dataset.pin + '/delete').then(function () {
         var el = stage.querySelector('.ipin[data-item="' + row.dataset.item + '"]'); if (el) { el.remove(); setItemCount(-1); }
         row.classList.remove('placed'); row.dataset.pin = '';
@@ -301,7 +321,7 @@
     }
     function updateCount() {
       if (!count) return;
-      count.textContent = panel.querySelectorAll('.floor .r.placed').length + ' of ' + count.dataset.total + ' rooms placed';
+      count.textContent = panel.querySelectorAll('.floor .r.placed').length + ' of ' + count.dataset.total + ' placed';
     }
     panel.addEventListener('click', function (e) {
       var del = e.target.closest('.del');
@@ -364,9 +384,10 @@
 
     function makePin(rid, id, r) {
       var a = document.createElement('a');
-      a.className = 'pin'; a.draggable = false; a.href = pageUrl('&room=' + rid);
+      var area = r && r.dataset.kind === 'area';
+      a.className = 'pin' + (area ? ' is-area' : ''); a.draggable = false; a.href = pageUrl('&room=' + rid);
       a.dataset.room = rid; a.dataset.pin = id; a.dataset.code = r ? r.dataset.code : '';
-      a.innerHTML = '<span class="lab"><b></b><span class="nm"></span></span><span class="cnt">0</span><i class="prog" style="--p:0%"></i><span class="handle" aria-hidden="true"></span>';
+      a.innerHTML = '<span class="lab' + (area ? ' area' : '') + '"><b></b><span class="nm"></span></span><span class="cnt">0</span><i class="prog" style="--p:0%"></i><span class="handle" aria-hidden="true"></span>';
       a.querySelector('b').textContent = r ? r.dataset.code : ''; a.querySelector('.nm').textContent = r ? r.dataset.name : '';
       return a;
     }
@@ -381,7 +402,7 @@
         updateCount();
         var nxt = pinEl ? null : nextUnplaced(rid);
         if (nxt) { selectRoom(nxt); flash('Saved ' + (r ? r.dataset.code : '') + '. Next: ' + row(nxt).dataset.code + ' ' + row(nxt).dataset.name + '.'); }
-        else { selectRoom(rid); flash(pinEl ? 'Saved.' : 'Saved ' + (r ? r.dataset.code : '') + '. All rooms on this floor are placed.'); }
+        else { selectRoom(rid); flash(pinEl ? 'Saved.' : 'Saved ' + (r ? r.dataset.code : '') + '. Everything on this floor is placed.'); }
       }).catch(function (err) { if (pinEl && prev) setBox(pinEl, prev); flash(err.message, true); });
     }
     function removePin(r) {

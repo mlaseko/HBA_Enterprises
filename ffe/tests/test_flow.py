@@ -8,6 +8,7 @@ os.environ["APP_PASSWORD"]="test123"; os.environ["SECRET_KEY"]="x"*32
 from fastapi.testclient import TestClient
 from app.main import app
 from PIL import Image
+import openpyxl
 
 def img(color):
     b=io.BytesIO(); Image.new("RGB",(900,700),color).save(b,"JPEG"); return b.getvalue()
@@ -31,7 +32,7 @@ with TestClient(app) as c:
     r=c.post("/suppliers/new", data={"name":"Foshan Tile Co.","city":"Foshan","category":"Tiles","wechat":"li_tiles","payment_terms":"30/70","back":f"/p/{pid}/suppliers"}, follow_redirects=False)
     r=c.get(f"/p/{pid}/suppliers"); assert "Foshan Tile Co." in r.text
     from app.db import SessionLocal
-    from app.models import Supplier, Room, Item
+    from app.models import Supplier, Room, Item, Carton
     db=SessionLocal(); sup=db.query(Supplier).first(); room=db.query(Room).filter(Room.code=="GF-KIT").first(); db.close()
     r=c.post(f"/p/{pid}/items/new", data={"room_id":room.id,"category":"Lighting","name":"Island pendant","spec":"LED 24V","size":"300 mm","finish":"black","qty":"3","unit":"pcs","unit_price":"450","supplier_id":sup.id,"status":"Quoted","lead_time":"2 weeks"},
              files=[("photos",("a.jpg",img("red"),"image/jpeg")),("photos",("b.jpg",img("blue"),"image/jpeg"))], follow_redirects=False)
@@ -436,7 +437,7 @@ with TestClient(app) as c:
     r=c.get(f"/p/{pid}/plan?plan={gid}&mode=mark"); assert r.status_code==200 and 'id="plan-items"' not in r.text  # dots stay out of the way while marking
     # ---- the client link: the same plan, read-only (photos, USD, status badges; no controls, suppliers, notes or CNY) ----
     r=c2.get(f"/c/{ctok}"); assert r.status_code==200 and 'id="plan"' in r.text and 'data-readonly="1"' in r.text and 'class="ipin' in r.text and "plan.js" in r.text
-    assert f'data-room-base="/c/{ctok}/plan/room/"' in r.text and f'href="/c/{ctok}?plan={gid}&amp;room={r2.id}#plan"' in r.text and "Tap a room" in r.text  # r2's box (GF-KIT's was removed above)
+    assert f'data-room-base="/c/{ctok}/plan/room/"' in r.text and f'href="/c/{ctok}?plan={gid}&amp;room={r2.id}#plan-section"' in r.text and "Tap a room" in r.text  # r2's box (GF-KIT's was removed above)
     assert "status-sel" not in r.text and "plan-count" not in r.text and "Mark rooms" not in r.text and "/p/" not in r.text.split('id="plan"')[1].split("</aside>")[0]
     r=c2.get(f"/c/{ctok}?plan={gid}&room={room.id}&item={iid}"); assert r.status_code==200 and 'class="card tight plan-room"' in r.text and 'class="pi placed hl"' in r.text
     panel=r.text.split('class="card tight plan-room"')[1].split("</aside>")[0]
@@ -492,7 +493,235 @@ with TestClient(app) as c:
     # the help page: every feature has a section; login required
     r=c.get("/help"); assert r.status_code==200 and "How to use" in r.text and 'id="prices"' in r.text and 'id="plan"' in r.text and 'id="client"' in r.text and "Quick capture" in r.text and 'href="/help"' in r.text
     assert c2.get("/help", follow_redirects=False).status_code==303
+    # the guide: every picture it shows exists and has its size, every contents entry has its section, every tip's anchor exists
+    help_html=r.text; import json as _json
+    pics=sorted(set(re.findall(r'/static/help/([\w-]+)\.webp', help_html))); assert len(pics)>=30, pics
+    sizes=_json.load(open("app/static/help/shots.json"))
+    for name in pics:
+        assert os.path.exists(f"app/static/help/{name}.webp"), name
+        assert os.path.getsize(f"app/static/help/{name}.webp") < 200_000, name
+        assert name in sizes and f'width="{sizes[name][0]}" height="{sizes[name][1]}"' in help_html, name
+    assert c.get(f"/static/help/{pics[0]}.webp").status_code==200
+    ids=set(re.findall(r'<section class="card[^"]*" id="([\w-]+)"', help_html)) | set(re.findall(r'<div class="stage" id="([\w-]+)"', help_html))
+    toc=help_html.split('<nav class="help-toc')[1].split('</nav>')[0]; flow=help_html.split('<ol class="flow">')[1].split('</ol>')[0]
+    for href in re.findall(r'href="#([\w-]+)"', toc + flow):
+        assert href in ids, href
+    for st in ("s1","s9","flow","statuses","purchasing","faq","help"): assert st in ids, st
+    from app import help_tips as _ht
+    for k,t in _ht.TIPS.items():
+        assert t["anchor"] in ids or t.get("public"), (k, t["anchor"])
+    assert set(_ht.TEMPLATE_KEYS.values()) <= set(_ht.TIPS)
+    assert 'id="page-help"' not in help_html  # the guide itself has no drawer
+    # help for this page: the drawer, the nudge and the deep link into the guide on the designer's pages
+    r=c.get(f"/p/{pid}/rooms"); assert 'id="page-help"' in r.text and 'data-key="rooms"' in r.text and 'id="help-btn"' in r.text and 'id="help-nudge"' in r.text and 'href="/help#rooms"' in r.text and "Sort rooms &amp; areas by name" in r.text.split('id="page-help"')[1]
+    r=c.get(f"/p/{pid}/plan?mode=mark"); assert 'data-key="plan_mark"' in r.text and "Done marking" in r.text.split('id="page-help"')[1]
+    r=c.get(f"/p/{pid}/plan"); assert 'data-key="plan"' in r.text
+    r=c.get(f"/p/{pid}/items/new"); assert 'data-key="item_new"' in r.text
+    r=c.get(f"/p/{pid}/items/{iid}"); assert 'data-key="item_edit"' in r.text
+    r=c.get("/projects/new"); assert 'data-key="project_new"' in r.text
+    r=c.get(f"/p/{pid}/edit"); assert 'data-key="project_edit"' in r.text
+    for path,key in ((f"/p/{pid}","overview"),("/","projects"),(f"/p/{pid}/images","images"),(f"/p/{pid}/capture","capture"),(f"/p/{pid}/drafts","drafts"),(f"/p/{pid}/suppliers","suppliers"),(f"/p/{pid}/payments","payments"),(f"/p/{pid}/cartons","cartons"),(f"/p/{pid}/import","import"),("/settings","settings"),("/clip","clip")):
+        r=c.get(path); assert r.status_code==200 and f'data-key="{key}"' in r.text, (path, key)
+    r=c.get("/login", follow_redirects=False); assert 'id="page-help"' not in c2.get("/login").text
+    # the share pages get their own help, with no link into the designer's guide and nothing designer-only
+    r=c2.get(f"/c/{ctok}"); drawer=r.text.split('id="page-help"')[1].split('</aside>')[0]; assert 'data-key="share_client"' in r.text and "/help" not in drawer and "/p/" not in drawer and "supplier" not in drawer.lower() and "Download PDF" in drawer
+    r=c2.get(f"/s/{tok}"); drawer=r.text.split('id="page-help"')[1].split('</aside>')[0]; assert 'data-key="share_supplier"' in r.text and "/help" not in drawer and "/p/" not in drawer and "price" not in drawer.lower() and "Add carton" in drawer
+    # empty states point at the help
+    r=c.post("/projects/new", data={"client_name":"Empty","name":"Empty house","rate":"7.1"}, follow_redirects=False); pid_e=r.headers["location"].split("/")[-1]
+    assert 'href="#help"' in c.get(f"/p/{pid_e}/items").text and 'href="#help"' in c.get(f"/p/{pid_e}/plan").text and 'href="#help"' in c.get(f"/p/{pid_e}/drafts").text and 'href="#help"' in c.get(f"/p/{pid_e}/cartons").text and 'href="#help"' in c.get(f"/p/{pid_e}/payments").text
     print("prices in USD or CNY + help ok")
+    # ---- review fixes: counts per room, drafts never get dots, client leak checks, dots follow rooms, PDFs with markup, scoping ----
+    # the panel's "placed" count is this room's: a dot of another room on the same plan does not count
+    db=SessionLocal(); kit_dots=sum(1 for q in db.query(ItemPin).filter(ItemPin.image_id==gid) if q.item.room_id==room.id); r2_item=[i.id for i in db.get(Room, r2.id).items if not i.draft][0]; db.close()
+    assert kit_dots>=1
+    r=c.post(f"/p/{pid}/plan/item-pins", data={"image_id":gid,"item_id":r2_item,"x":"0.6","y":"0.2"}, headers={"Accept":"application/json"}); assert r.status_code==200
+    r=c.get(f"/p/{pid}/plan/room/{room.id}?plan={gid}"); assert f"data-placed>{kit_dots}</span>" in r.text, re.search(r"data-placed>\d+</span> of \d+", r.text).group(0)
+    r=c.get(f"/p/{pid}/plan/room/{r2.id}?plan={gid}"); assert "data-placed>1</span>" in r.text
+    # a draft can never get a dot, and a dot row for a draft never shows (designer page or client link)
+    db=SessionLocal(); drf=Item(project_id=int(pid), room_id=room.id, name="", category="Other", draft=True); db.add(drf); db.commit(); drf_id=drf.id; db.close()
+    r=c.post(f"/p/{pid}/plan/item-pins", data={"image_id":gid,"item_id":drf_id,"x":"0.1","y":"0.1"}, headers={"Accept":"application/json"}); assert r.status_code==400 and "draft" in r.json()["error"]
+    db=SessionLocal(); db.add(ItemPin(image_id=gid, item_id=drf_id, x=0.5, y=0.5)); db.commit(); db.close()
+    for page in (c.get(f"/p/{pid}/plan?plan={gid}"), c2.get(f"/c/{ctok}?plan={gid}"), c.get(f"/p/{pid}/plan/room/{room.id}?plan={gid}")):
+        assert page.status_code==200 and f'data-item="{drf_id}"' not in page.text
+    db=SessionLocal(); db.delete(db.get(Item, drf_id)); db.commit(); assert db.query(ItemPin).filter(ItemPin.item_id==drf_id).count()==0; db.close()
+    # the client panel hides what the designer's panel shows: supplier, notes, CNY, designer links
+    c.post(f"/p/{pid}/items/{iid}", data={"room_id":room.id,"category":"Lighting","name":"Island pendant","qty":"3","unit":"pcs","unit_price":"450","price_currency":"CNY","supplier_id":sup.id,"status":"Ordered","notes":"secret supplier note"}, follow_redirects=False)
+    d=c.get(f"/p/{pid}/plan/room/{room.id}?plan={gid}").text; assert "Foshan Tile Co." in d and "¥" in d and "/items/" in d
+    for page in (c2.get(f"/c/{ctok}?plan={gid}&room={room.id}"), c2.get(f"/c/{ctok}/plan/room/{room.id}?plan={gid}")):
+        panel=page.text.split('class="card tight plan-room"')[1].split("</aside>")[0] if "</aside>" in page.text else page.text
+        assert "Foshan Tile Co." not in panel and "secret supplier note" not in panel and "¥" not in panel and "/p/" not in panel and "/items/" not in panel and "status-sel" not in panel
+    # a dot sits in a room's box: moving the item to another room removes its dots; deleting a room removes its items' dots
+    c.post(f"/p/{pid}/plan/item-pins", data={"image_id":gid,"item_id":iid,"x":"0.2","y":"0.2"}, headers={"Accept":"application/json"})
+    db=SessionLocal(); assert db.query(ItemPin).filter(ItemPin.item_id==int(iid)).count()==2; db.close()  # ground + roof
+    c.post(f"/p/{pid}/items/{iid}", data={"room_id":r3.id,"category":"Lighting","name":"Island pendant","qty":"3","unit":"pcs","unit_price":"450","status":"Ordered"}, follow_redirects=False)
+    db=SessionLocal(); assert db.get(Item, int(iid)).room_id==r3.id and db.query(ItemPin).filter(ItemPin.item_id==int(iid)).count()==0; db.close()
+    c.post(f"/p/{pid}/items/{iid}", data={"room_id":room.id,"category":"Lighting","name":"Island pendant","qty":"3","unit":"pcs","unit_price":"450","status":"Ordered"}, follow_redirects=False)
+    c.post(f"/p/{pid}/rooms", data={"code":"TMP2","name":"Temp two","floor":"Ground"}, follow_redirects=False)
+    db=SessionLocal(); tmp2=db.query(Room).filter(Room.project_id==int(pid), Room.code=="TMP2").first(); db.close()
+    r=c.post(f"/p/{pid}/items/new", data={"room_ids":[str(tmp2.id)],"category":"Other","name":"Temp lamp","qty":"1","unit":"pcs","status":"To buy"}, follow_redirects=False); tl=int(r.headers["location"].split("/")[-1])
+    c.post(f"/p/{pid}/plan/item-pins", data={"image_id":gid,"item_id":tl,"x":"0.4","y":"0.4"}, headers={"Accept":"application/json"})
+    c.post(f"/p/{pid}/rooms/{tmp2.id}/delete", follow_redirects=False)
+    db=SessionLocal(); assert db.get(Item, tl).room_id is None and db.query(ItemPin).filter(ItemPin.item_id==tl).count()==0; c.post(f"/p/{pid}/items/{tl}/delete", follow_redirects=False); db.close()
+    # markup in names must not break the PDFs the client and suppliers download
+    db=SessionLocal(); pr=db.get(_P, int(pid)); old_name, old_addr=pr.name, pr.address; pr.name='Kinondoni <b>House</b> & "Villa"'; pr.address="Plot <70>"; db.commit(); db.close()
+    for url, cl in ((f"/c/{ctok}/schedule.pdf", c2), (f"/c/{ctok}/schedule.pdf?layout=floor", c2), (f"/p/{pid}/export/packing.pdf", c), (f"/p/{pid}/export/room/{room.id}.pdf", c), (f"/p/{pid}/export/labels.pdf", c)):
+        r=cl.get(url); assert r.status_code==200 and r.headers["content-type"]=="application/pdf", url
+    assert "Kinondoni <b>House</b>" in pdf_text(c2.get(f"/c/{ctok}/schedule.pdf").content)
+    db=SessionLocal(); pr=db.get(_P, int(pid)); pr.name, pr.address=old_name, old_addr; db.commit(); db.close()
+    # the client link: ?item= alone opens the item's room; another project's plan / room ids are ignored, nothing of theirs renders
+    r=c2.get(f"/c/{ctok}?item={other_item}"); assert r.status_code==200 and f'data-sel="{room.id}"' in r.text and 'class="card tight plan-room"' in r.text
+    db=SessionLocal(); op=db.query(ProjectImage).filter(ProjectImage.project_id==int(pid2), ProjectImage.kind=="floorplan").first(); db.close()
+    r=c2.get(f"/c/{ctok}?plan={op.id}&room={other.id}"); assert r.status_code==200 and op.file_key not in r.text and f'data-plan="{gid}"' in r.text and 'class="card tight plan-room"' not in r.text and "Other room" not in r.text
+    r=c.get(f"/p/{pid}/plan?plan={op.id}&room={other.id}"); assert r.status_code==200 and op.file_key not in r.text and f'data-plan="{gid}"' in r.text and 'class="card tight plan-room"' not in r.text
+    r=c.get(f"/p/{pid}/plan/room/{room.id}?plan={op.id}"); assert r.status_code==200 and op.file_key not in r.text and "data-placed" not in r.text  # unknown plan = no plan context
+    assert c2.get(f"/c/{ctok}/plan/room/{room.id}?plan={op.id}").status_code==200
+    print("review fixes ok")
+    # ---- rooms vs areas, the startup column migration, PDF title blocks in the page picker ----
+    from app.db import migrate as _migrate
+    from app.services import guess_kind as _gk
+    from app import drawings as _dr2
+    from sqlalchemy import create_engine as _ce, text as _text
+    # migrate(): adds items.draft and rooms.kind to an old database, once
+    _eng=_ce(f"sqlite:///{_tmp}/old.db")
+    with _eng.begin() as cn:
+        cn.execute(_text("CREATE TABLE rooms (id INTEGER PRIMARY KEY, code VARCHAR(20), name VARCHAR(120))"))
+        cn.execute(_text("CREATE TABLE items (id INTEGER PRIMARY KEY, name VARCHAR(200))"))
+        cn.execute(_text("INSERT INTO rooms (code, name) VALUES ('X', 'Old room')"))
+    assert _migrate(_eng)==["items.draft", "rooms.kind"] and _migrate(_eng)==[]
+    with _eng.connect() as cn: assert cn.execute(_text("SELECT kind FROM rooms")).scalar()=="room"
+    # the guess: zones are areas, everything else a room
+    for nm, fl, k in [("Entrance","Ground","area"),("Hall & Corridors","Ground","area"),("Living Room","Ground","room"),("Store Room","Ground","room"),
+                      ("Carport","Ground","area"),("Kitchen Verandah","Ground","area"),("Stairs Ground to First","Ground","area"),("Landing & Corridor","First","area"),
+                      ("Balconies (all 4)","First","area"),("Roof Lobby","Roof","area"),("Roof Terrace (Phase II)","Roof","area"),("Family Lounge","First","room"),
+                      ("Master Closet","First","room"),("Guest Bathroom","Ground","room"),("Whole house","All","area"),("All doors","All","area"),("RO plant","Outside","area"),("Gym","Roof","room"),
+                      ("Downstairs WC","Ground","room"),("Upstairs Lounge","First","room"),("Plant Room","Ground","room"),("Garden Room","Ground","room"),("Pool Bathroom","Ground","room"),
+                      ("Gate House Bedroom","Ground","room"),("Hallway","Ground","area"),("Staircase","Ground","area"),("Balconies","First","area"),("Hall Bathroom","First","room")]:
+        assert _gk(nm, fl)==k, (nm, _gk(nm, fl))
+    # the import classified the Kinondoni list; the Rooms page counts rooms and areas separately and groups them
+    db=SessionLocal(); kinds={r.code: r.kind for r in db.query(Room).filter(Room.project_id==int(pid))}; db.close()
+    assert kinds["GF-ENT"]=="area" and kinds["GF-HAL"]=="area" and kinds["GF-KIT"]=="room" and kinds["GF-LIV"]=="room" and kinds["FF-BAL"]=="area" and kinds["RF-GYM"]=="room"
+    r=c.get(f"/p/{pid}/rooms"); assert r.status_code==200 and "Rooms &amp; areas" in r.text and 'name="kind"' in r.text and "Sort rooms &amp; areas by name" in r.text
+    gf=r.text.split("<h2>Ground floor</h2>")[1].split("<h2>First floor</h2>")[0]
+    assert re.search(r"\d+ rooms · \d+ areas", gf) and ">Areas</span>" in gf and 'class="pill area"' in gf and gf.index("GF-KIT") < gf.index(">Areas</span>") < gf.index("GF-ENT")
+    assert _dr2.count_label([1,2],[])=="2 rooms" and _dr2.count_label([1],[1,1])=="1 room · 2 areas" and _dr2.count_label([],[1])=="1 area" and _dr2.count_label([],[])=="0 rooms"
+    # kind by hand: edit, add with Auto, sort everything by name again
+    r=c.post(f"/p/{pid}/rooms/{room.id}", data={"code":"GF-KIT","name":"Kitchen","floor":"Ground","floor_area":"0","wall_area":"0","notes":"via plan","kind":"area"}, follow_redirects=False)
+    db=SessionLocal(); assert db.get(Room, room.id).is_area; db.close()
+    c.post(f"/p/{pid}/rooms", data={"code":"GF-PAS","name":"Side Passage","floor":"Ground","kind":"auto"}, follow_redirects=False)
+    db=SessionLocal(); pas=db.query(Room).filter(Room.project_id==int(pid), Room.code=="GF-PAS").first(); assert pas.is_area; db.close()
+    r=c.post(f"/p/{pid}/rooms/guess-kinds", follow_redirects=False); assert r.status_code==303
+    db=SessionLocal(); assert not db.get(Room, room.id).is_area and db.get(Room, pas.id).is_area; c.post(f"/p/{pid}/rooms/{pas.id}/delete", follow_redirects=False); db.close()
+    # everywhere rooms are listed: selects group areas after rooms; the Overview separates them; the plan's mark list too
+    db=SessionLocal(); ent=db.query(Room).filter(Room.project_id==int(pid), Room.code=="GF-ENT").first(); db.close()
+    r=c.get(f"/p/{pid}/items"); assert '<optgroup label="Rooms">' in r.text and '<optgroup label="Areas">' in r.text and r.text.index("GF-KIT - Kitchen") < r.text.index('<optgroup label="Areas">') < r.text.index("GF-ENT - Entrance")
+    r=c.get(f"/p/{pid}/items/new"); assert 'class="picks-sub">Areas<' in r.text
+    r=c.get(f"/p/{pid}/items/{iid}"); assert '<optgroup label="Areas">' in r.text
+    r=c.get(f"/p/{pid}"); assert "By room &amp; area" in r.text and '<tr class="sub"><td colspan="5">Areas</td></tr>' in r.text
+    r=c.get(f"/p/{pid}/plan?plan={gid}&mode=mark"); assert r.text.count('class="sub-title mt"')==2 and '<span>Rooms</span>' in r.text and '<span>Areas</span>' in r.text and re.search(r'id="plan-count" data-total="\d+">\d+ of \d+ placed</span>', r.text)
+    pl=r.text.split('id="plan-rooms"')[1]; assert pl.index('<span>Rooms</span>') < pl.index("GF-KIT") < pl.index('<span>Areas</span>') < pl.index("GF-ENT")
+    r=c.get(f"/p/{pid}/plan?plan={gid}&room={ent.id}"); head=r.text.split('class="card tight plan-room"')[1][:400]; assert 'class="pill area"' in head and ">Area<" in head  # an area's panel says so
+    # PDFs: the summary lists rooms, then an Areas row, then areas; the checklist of an area says so
+    tf=pdf_text(c.get(f"/p/{pid}/export/schedule.pdf?layout=floor").content); summ=tf.split("SUMMARY BY ROOM")[1]
+    assert summ.index("GF-KIT - Kitchen") < summ.index("Areas") < summ.index("GF-ENT - Entrance"), summ[:800]
+    assert "AREA CHECKLIST" in pdf_text(c.get(f"/p/{pid}/export/room/{ent.id}.pdf").content) and "ROOM CHECKLIST" in pdf_text(c.get(f"/p/{pid}/export/room/{room.id}.pdf").content)
+    # the title block reader
+    tb=_dr2.read_title_block("PROPOSED RESIDENTIAL HOUSE\nGROUND FLOOR PLAN (DIMENSION DETAILS)\nSCALE 1:100\nDRAWING NO: A-102\nREV A")
+    assert tb=={"title":"Ground Floor Plan (Dimension Details)","sheet":"A-102","floor":"Ground","is_plan":True}, tb
+    assert _dr2.read_title_block("GROUND FLOOR PLAN (FURNITURE\nLAYOUT)\nA-104")["title"]=="Ground Floor Plan (Furniture Layout)"  # wrapped title
+    # labels row above the values row; addresses, revisions, standards and marks are never a sheet number
+    assert _dr2.read_title_block("GROUND FLOOR PLAN\nDRAWING NO. SCALE DATE REV\nA-102 1:100 12-03-2026 B\nP.O. BOX 1234 DAR ES SALAAM")["sheet"]=="A-102"
+    assert _dr2.read_title_block("GROUND FLOOR PLAN\nP.O. BOX 1234\nREV 01\nISO 9001 CERTIFIED\nDN100 PVC\nDOOR D-01\nPLOT NO 456\nPROJECT NO P-2024-017")["sheet"]==""
+    assert _dr2.read_title_block("GROUND FLOOR PLAN\nSCALE 1:100\nDATE: MAY 2024\nJOB NO 2024-15\nA01\nREV 01")["sheet"]=="A01"
+    assert _dr2.read_title_block("GROUND FLOOR PLAN\nDWG NO 01\nREV A")["sheet"]=="01" and _dr2.read_title_block("ROOF PLAN\nDWG NO\n07 1:100")["sheet"]=="07"
+    # cover sheets with a drawing list and notes that refer to a plan are not plans; consultants on the same text line do not disqualify a plan
+    tb=_dr2.read_title_block("DRAWING LIST\nA-100 SITE LAYOUT PLAN\nA-101 GROUND FLOOR PLAN\nA-102 FIRST FLOOR PLAN\nA-000"); assert tb["is_plan"] is False, tb
+    tb=_dr2.read_title_block("SECTION A-A\nFOR SECTION LINE SEE GROUND FLOOR PLAN\nA-301"); assert tb["is_plan"] is False and tb["title"]=="" and tb["floor"]=="", tb
+    tb=_dr2.read_title_block("PROJECT: PROPOSED RESIDENTIAL HOUSE P-2024-017 GROUND FLOOR PLAN DRAWING NO. SCALE DATE REV\nA-102 1:100 12-03-2026 B"); assert tb=={"title":"Ground Floor Plan","sheet":"A-102","floor":"Ground","is_plan":True}, tb
+    assert _dr2.read_title_block("GROUND FLOOR PLAN STRUCTURAL ENGINEER: ABC LTD\nA-101")["is_plan"] is True and _dr2.read_title_block("GROUND FLOOR PLAN - FIREPLACE DETAIL\nA-101")["is_plan"] is True
+    # the floor comes from the title only; lower / upper ground are their own floors
+    tb=_dr2.read_title_block("FRONT ELEVATION\nALL DIMENSIONS TO BE CHECKED ON SITE\nGROUND FLOOR LEVEL +0.000\nA-201"); assert tb["floor"]=="" and tb["is_plan"] is False and tb["title"]=="", tb
+    assert _dr2.read_title_block("LOWER GROUND FLOOR PLAN\nA-100")["floor"]=="Lower ground" and _dr2.read_title_block("UPPER GROUND FLOOR PLAN (FURNITURE LAYOUT)\nA-104")["floor"]=="Upper ground"
+    # the caption suggestion keeps only what plan_caption would not print anyway
+    assert _dr2.caption_from_title("Ground Floor Plan (Furniture Layout)")=="Furniture Layout" and _dr2.caption_from_title("Site Layout Plan")=="" and _dr2.caption_from_title("Roof Plan")=="" and _dr2.caption_from_title("Lower Ground Floor Plan (Dimension Details)")=="Dimension Details"
+    assert _dr2.read_title_block("FRONT ELEVATION\n1:100\nA-201")=={"title":"","sheet":"A-201","floor":"","is_plan":False}
+    assert _dr2.read_title_block("ELECTRICAL LAYOUT PLAN - GROUND FLOOR\nE-01")["is_plan"] is False
+    assert _dr2.read_title_block("SITE LAYOUT PLAN\nA-100")=={"title":"Site Layout Plan","sheet":"A-100","floor":"Site","is_plan":True}
+    assert _dr2.read_title_block("ROOF PLAN\nSHEET A-104")["floor"]=="Roof" and _dr2.read_title_block("FIRST FLOOR PLAN (FURNITURE LAYOUT)\nA4\nA-103")["sheet"]=="A-103"
+    assert _dr2.read_title_block("")=={"title":"","sheet":"","floor":"","is_plan":False}
+    # a drawing set with title blocks: the picker arrives prefilled and pre-ticked; the pick keeps the caption
+    def pdf_titled(pages):
+        b=io.BytesIO(); k=_cv.Canvas(b, pagesize=_A4)
+        for title, sheet in pages:
+            k.setFont("Helvetica",18); k.drawString(60,780,title); k.rect(80,200,400,450); k.setFont("Helvetica",10); k.drawString(380,120,"DRAWING NO: "+sheet); k.showPage()
+        k.save(); return b.getvalue()
+    r=c.post(f"/p/{pid}/images/plans", data={}, files=[("files",("titled.pdf",pdf_titled([("GROUND FLOOR PLAN (FURNITURE LAYOUT)","A-105"),("FRONT ELEVATION","A-301"),("FIRST FLOOR PLAN","A-106")]),"application/pdf"))], follow_redirects=False)
+    tsid=int(r.headers["location"].split("/sets/")[1].split("?")[0])
+    r=c.get(f"/p/{pid}/images/sets/{tsid}"); assert r.status_code==200 and "2 pages look like floor plans" in r.text
+    assert 'name="page_1" checked' in r.text and 'name="page_2">' in r.text and 'name="page_3" checked' in r.text
+    assert 'name="floor_1" list="floors" value="Ground"' in r.text and 'name="sheet_1" value="A-105"' in r.text and 'name="caption_1" value="Furniture Layout"' in r.text and "Ground Floor Plan (Furniture Layout) · A-105" in r.text
+    assert 'name="sheet_2" value="A-301"' in r.text and 'name="floor_2" list="floors" value=""' in r.text and 'name="floor_3" list="floors" value="First"' in r.text
+    r=c.post(f"/p/{pid}/images/sets/{tsid}/pick", data={"page_1":"on","floor_1":"Ground","sheet_1":"A-105","caption_1":"Furniture Layout"}, follow_redirects=False); assert r.status_code==303
+    db=SessionLocal(); newp=db.query(ProjectImage).filter(ProjectImage.project_id==int(pid), ProjectImage.kind=="floorplan").order_by(ProjectImage.id.desc()).first()
+    assert newp.caption=="Furniture Layout" and newp.sheet=="A-105" and newp.floor=="Ground" and newp.tag.set_id==tsid and _dr2.plan_caption(newp)=="Ground floor · A-105 · Furniture Layout"; db.close()
+    r=c.get(f"/p/{pid}/images/sets/{tsid}"); assert "1 page looks like a floor plan and is ticked" in r.text  # page 3 still suggested, page 1 added
+    r=c.post(f"/p/{pid}/images/sets/{tsid}/pick", data={"page_3":"on","floor_3":"First","sheet_3":"A-106"}, follow_redirects=False)
+    r=c.get(f"/p/{pid}/images/sets/{tsid}"); assert "nothing more here looks like a floor plan" in r.text and "look like" not in r.text
+    # a scanned set (no text layer) says so and prefills nothing
+    r=c.post(f"/p/{pid}/images/plans", data={}, files=[("files",("scan.pdf",pdf_pages([""]),"application/pdf"))], follow_redirects=False)
+    ssid=int(r.headers["location"].split("/sets/")[1].split("?")[0])
+    r=c.get(f"/p/{pid}/images/sets/{ssid}"); assert "Nothing could be read" in r.text and "checked" not in r.text.split('<div class="pages">')[1]
+    c.post(f"/p/{pid}/images/sets/{ssid}/delete", follow_redirects=False); c.post(f"/p/{pid}/images/sets/{tsid}/delete", follow_redirects=False)
+    db=SessionLocal(); from app.models import DrawingPage as _DP; assert db.query(_DP).filter(_DP.set_id.in_([tsid, ssid])).count()==0; db.close()  # page meta goes with the set
+    # a new project's default "Whole house" entry is an area; deleting a room that has a box works; the export carries Kind
+    r=c.post("/projects/new", data={"client_name":"New","name":"Fresh","rate":"7.1"}, follow_redirects=False); pid3=r.headers["location"].split("/")[-1]
+    db=SessionLocal(); assert db.query(Room).filter(Room.project_id==int(pid3)).one().is_area; db.close()
+    r=c.get(f"/p/{pid3}/rooms"); assert "1 area</span>" in r.text and "0 rooms" not in r.text and "Everything here is listed as a room" not in r.text
+    r=c.get(f"/p/{pid3}/items"); assert '<optgroup label="Rooms">' not in r.text and '<optgroup label="Areas">' in r.text  # no empty Rooms group
+    c.post(f"/p/{pid}/rooms", data={"code":"TMP3","name":"Box room","floor":"Ground","kind":"room"}, follow_redirects=False)
+    db=SessionLocal(); tmp3=db.query(Room).filter(Room.project_id==int(pid), Room.code=="TMP3").first(); db.close()
+    c.post(f"/p/{pid}/cartons", data={"supplier_id":sup.id,"room_id":tmp3.id,"contents":"Box in a room","qty":"1","length_cm":"10","width_cm":"10","height_cm":"10"}, follow_redirects=False)
+    from sqlalchemy import event as _ev
+    from app.db import engine as _eng2
+    def _fk_on(dbapi_conn, rec): dbapi_conn.execute("PRAGMA foreign_keys=ON")
+    _ev.listen(_eng2, "connect", _fk_on)
+    try:
+        r=c.post(f"/p/{pid}/rooms/{tmp3.id}/delete", follow_redirects=False); assert r.status_code==303
+    finally:
+        _ev.remove(_eng2, "connect", _fk_on)
+    db=SessionLocal(); assert db.get(Room, tmp3.id) is None and db.query(Carton).filter(Carton.contents=="Box in a room").one().room_id is None; db.close()
+    x=openpyxl.load_workbook(io.BytesIO(c.get(f"/p/{pid}/export/items.xlsx").content), read_only=True)["Rooms"]; hdr=[v for v in next(x.iter_rows(values_only=True))]; assert hdr[:3]==["Room","Floor","Kind"]
+    r=c2.get(f"/c/{ctok}"); assert re.search(r"\d+ rooms? · \d+ areas? marked|\d+ rooms? marked|\d+ areas? marked", r.text) and " room · " not in r.text.split('id="plan-section"')[1][:300]
+    r=c.get(f"/p/{pid2}"); assert '<td colspan="5">Not in a room or area</td>' in r.text and '<td colspan="5">Areas</td>' not in r.text  # the loose items row is not filed under Areas
+    # startup on an old database adds the columns (the app's own path, not just migrate() directly)
+    import subprocess, sys as _sys
+    _env=dict(os.environ, DATABASE_URL=f"sqlite:///{_tmp}/old.db")
+    out=subprocess.run([_sys.executable, "-c", "from app.main import startup; startup(); from app.db import engine; from sqlalchemy import inspect; print(sorted(c['name'] for c in inspect(engine).get_columns('rooms')))"], env=_env, capture_output=True, text=True, cwd=os.getcwd())
+    assert out.returncode==0 and "'kind'" in out.stdout, out.stderr[-800:]
+    print("rooms & areas + title blocks ok")
+    # ---- a room zoomed in on its plan: the crop rectangle, the Pillow crop, the items-list card, the Rooms page, the checklist PDF ----
+    class _Pin: pass
+    pn=_Pin(); pn.x,pn.y,pn.w,pn.h=0.4,0.4,0.2,0.2
+    assert _dr2.crop_rect(pn)==(0.35,0.35,0.3,0.3)
+    pn.x,pn.y,pn.w,pn.h=0.9,0.9,0.05,0.05; cr=_dr2.crop_rect(pn); assert cr[0]+cr[2]<=1 and cr[1]+cr[3]<=1 and cr[2]>=0.22 and cr[3]>=0.22, cr   # tiny room: at least 22 % of the image, inside it
+    pn.x,pn.y,pn.w,pn.h=0.0,0.0,0.3,0.3; cr=_dr2.crop_rect(pn); assert cr[0]==0 and cr[1]==0, cr
+    pn.x,pn.y,pn.w,pn.h=0.2,0.1,0.4,0.3
+    zoom={"rect":_dr2.crop_rect(pn),"pin":pn,"dots":[{"x":0.3,"y":0.2,"label":"01","color":"#16A34A"},{"x":0.5,"y":0.3,"label":"12","color":"#9CA3AF"},{"x":0.95,"y":0.95,"label":"99","color":"#000000"}]}
+    jpeg=_dr2.render_room_crop(big_img("white", 2400, 1600), zoom); cim=Image.open(io.BytesIO(jpeg)); assert cim.format=="JPEG" and max(cim.size)<=1600
+    assert abs(cim.width/cim.height - (zoom["rect"][2]*2400)/(zoom["rect"][3]*1600)) < 0.02 and cim.getpixel((2,2))!=(185,89,58)  # crop keeps the region's proportions
+    # the items list filtered by a marked room shows it zoomed with its dots; an unmarked room gets the hint instead
+    db=SessionLocal(); zr=_dr2.room_zoom(db.get(_P,int(pid)), db.get(Room, r2.id)); r2_dots=len(zr["dots"]) if zr else None; db.close()
+    assert zr is not None and r2_dots>=1 and zr["plan"].id==gid and all(d["label"].isdigit() for d in zr["dots"])
+    r=c.get(f"/p/{pid}/items?room={r2.id}"); assert r.status_code==200 and 'class="room-zoom"' in r.text and r.text.count('class="rz-dot"')==r2_dots and f'data-cx="{zr["rect"][0]}"' in r.text
+    assert f'href="/p/{pid}/plan?plan={gid}&amp;room={r2.id}"' in r.text and "Checklist PDF" in r.text and f'id="item-{r2_item}"' in r.text and f'data-item="{r2_item}"' in r.text
+    r=c.get(f"/p/{pid}/items?room={room.id}"); assert 'class="room-zoom"' not in r.text and "Mark it on the plan" in r.text and f"plan?room={room.id}&amp;mode=mark" in r.text  # GF-KIT's box was removed earlier
+    r=c.get(f"/p/{pid}/items?room={r2.id}&view=table"); assert f'<tr id="item-{r2_item}">' in r.text
+    r=c.get(f"/p/{pid}/items?room=none"); assert r.status_code==200 and "room-head" not in r.text
+    r=c.get(f"/p/{pid}/rooms"); assert r.text.count('class="room-zoom sm"')>=1 and f'plan?plan={gid}&amp;room={r2.id}"' in r.text
+    # the checklist PDF: page one is the zoomed room for a marked room, the whole plan for an unmarked one
+    t_r2=pdf_text(c.get(f"/p/{pid}/export/room/{r2.id}.pdf").content); assert "ON THE PLAN" in t_r2 and "each dot carries the number" in t_r2 and "FLOOR PLAN" not in t_r2.split("CHECKLIST")[0]
+    t_kit=pdf_text(c.get(f"/p/{pid}/export/room/{room.id}.pdf").content); assert "FLOOR PLAN" in t_kit and "ON THE PLAN" not in t_kit
+    assert c.get(f"/p/{pid}/export/room/0.pdf").status_code==200
+    print("room zoom ok")
     # deleting a plan removes both files and the tag row
     r=c.post(f"/p/{pid}/images/{roof_id}/delete", follow_redirects=False); assert r.status_code==303
     assert _st.read_image(roof_keys[0]) is None and _st.read_image(roof_keys[1]) is None

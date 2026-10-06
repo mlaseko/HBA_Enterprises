@@ -26,18 +26,24 @@ openpyxl. Hosted on Replit (autoscale deployment, imports from GitHub).
 ```
 app/main.py            app, login/logout, /settings, /help (user guide = templates/help.html), /media/<key>
 app/config.py          env vars + constant lists (CATEGORIES, STATUSES, UNITS …)
-app/db.py              engine/session; create_all on startup (no migrations yet)
-app/models.py          Settings, Project, ProjectImage, PlanTag, RoomPin, ItemPin, DrawingSet, Room, Supplier, SupplierLink, Item, ItemPhoto,
+app/db.py              engine/session; create_all on startup + migrate(): COLUMN_MIGRATIONS adds columns to existing tables
+app/models.py          Settings, Project, ProjectImage, PlanTag, RoomPin, ItemPin, DrawingSet, DrawingPage (title block per page),
+                       Room (kind = room | area; is_area), Supplier, SupplierLink, Item, ItemPhoto,
                        ItemPrice (the typed USD price; Item.price_currency / price_amount), Payment, Carton
                        Item.draft = quick-capture draft (no name/code yet); Project.live_items / Project.drafts split them
-app/common.py          templates, auth helpers, number filters, render()/redirect()
-app/services.py        summary() for dashboards, next_code(), set_price()/copy_price() (CNY storage, USD entry), carton_positions(),
-                       container_for()
+app/common.py          templates, auth helpers, number filters, render()/redirect() (render injects `help_tip` for the ? drawer)
+app/help_tips.py       "Help for this page": TIPS (title, what, steps, tips, anchor into help.html) per page key, TEMPLATE_KEYS,
+                       tip_for(template, ctx); shots() reads static/help/shots.json (picture sizes for the guide)
+app/services.py        summary() for dashboards (by_room rows carry kind), sort_items() (schedule order; routers.items re-exports it),
+                       next_code(), guess_kind() (room | area from the name),
+                       set_price()/copy_price() (CNY storage, USD entry), carton_positions(), container_for()
 app/storage.py         save_image(max_px=)/save_blob/read_image/delete_image — backends: local | replit | s3 (replit is the
                        default when REPL_ID is set; read_image copies a photo found only on local disk into the bucket)
 app/drawings.py        floor plans: render_page()/page_count() via pypdfium2 (optional import), floor_key()/floor_title()
                        matching plans to Room.floor, rooms_by_floor(), plan_for_room(), client_plans();
-                       interactive plan: rooms_for_plan(), pins_by_room(), plan_with_room(), default_plan(), clamp_box(), clamp_point()
+                       interactive plan: rooms_for_plan(), pins_by_room(), plan_with_room(), default_plan(), clamp_box(), clamp_point();
+                       rooms vs areas: split_kinds(), count_label(); PDF title blocks: page_text(), read_title_block();
+                       zoomed room: crop_rect(), room_zoom() (card data), render_room_crop() (Pillow crop for the checklist PDF)
 app/webimage.py        fetch_image(url): picture bytes from a direct image link or a page (og:image / largest <img>);
                        stdlib only, refuses private addresses, raises WebImageError with a message for the page
 app/ai.py              Claude auto-fill (off without ANTHROPIC_API_KEY): suggest_item(image, page_text, url, rooms) → dict via
@@ -66,7 +72,9 @@ app/static/app.js      photo compression (also exposed as window.compressPhoto),
 app/static/plan.js     Plan page + client plan: zoom, tap-a-room panel (fetches plan/_room.html), item dots (place / drag /
                        locate / remove), draw / move / resize room boxes in mark mode; reads data-base / data-room-base /
                        data-readonly from #plan so the same script serves /p/<id>/plan and /c/<token>
-tests/test_flow.py     end-to-end test with TestClient + SQLite (login, import, items, photos, links, PDFs)
+tests/test_flow.py     end-to-end test with TestClient + SQLite (login, import, items, photos, links, PDFs, guide + help drawer)
+tools/help_shots.py    regenerates the guide's screenshots (app/static/help/*.webp + shots.json) from a seeded fictional demo
+tools/help_shots.js    project: SQLite in a temp dir, uvicorn on 8777, Playwright through the pages, pypdfium2 for the PDFs
 samples/               Kinondoni procurement Excel used by the import test
 ```
 
@@ -108,17 +116,28 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
 - Prices are stored in CNY; USD is derived with `project.rate`. Keep it that way. The designer may *type* a price in
   USD: always go through `services.set_price(item, amount, currency, rate)` (converts, remembers the USD entry in
   `item_prices`) and `copy_price()` when copying an item; never write `unit_price` from a form directly.
-- The user guide (`templates/help.html`, `/help`) describes every feature in plain words. When you change or add a
-  feature, update its section in the same change.
+- The user guide (`templates/help.html`, `/help`) describes every feature in plain words, with screenshots from
+  `app/static/help/` (WebP, sizes in `shots.json`, rendered through the `shot()` macro). When you change or add a feature,
+  update its section and its "Help for this page" entry in `app/help_tips.py` in the same change (a new page needs a tip
+  and a line in `TEMPLATE_KEYS`; `render()` picks it up). When a page changes enough for its picture to be wrong, re-run
+  `python tools/help_shots.py` on a machine with Chromium + Playwright for Node (it seeds its own demo data, never the
+  real database) and commit the new pictures. Keep the tips for the share pages free of anything designer-only.
 - Share links are random tokens (`SupplierLink.token`, `Project.client_token`); public routes live only in
   `routers/share.py` and the `/s/… /c/…` PDF routes in `exports.py`. Never expose other routes without login.
 - Photos: compressed in the browser (`app.js`) and again server-side (`storage.process_image`, max 1600 px JPEG).
   Always go through `storage.py`; never write files directly.
-- Schema changes: edit `models.py` **and** add the `ALTER TABLE` to README "Schema changes" (production is Neon;
-  `create_all` only creates missing tables, it does not add columns). Prefer a new table over a new column on an
-  existing table (a new table needs no ALTER, e.g. `plan_tags`). Adding Alembic is a welcome backlog item.
+- Schema changes: a new table needs only `models.py` (`create_all`). A new column on an existing table needs
+  `models.py` **and** a line in `db.COLUMN_MIGRATIONS` (table, column, SQL type/default); `migrate()` adds it at startup
+  on SQLite and Neon, so nothing is run by hand. Still prefer a new table when the data is optional (e.g. `plan_tags`).
+  Adding Alembic is a welcome backlog item.
+- Rooms vs areas: `Room.kind` is `room` or `area`. Both carry codes, items, boxes and pins identically; the difference is
+  wording, grouping and counting: list rooms first, then areas under a sub-title (`drawings.rooms_by_floor` gives
+  `rooms` / `areas` / `all`; `summary()['by_room']` rows carry `kind`; the `_macros.html` `room_options` macro groups
+  selects). Never hide areas or their items. `services.guess_kind` classifies by name (config.AREA_WORDS); the designer
+  can override on the Rooms page.
 - Drawings are a reference only. Nothing may create rooms or items from a floor plan; the designer chooses the scope.
-  Room boxes on the Plan page are drawn by the designer (`RoomPin`); never place them automatically.
+  Room boxes on the Plan page are drawn by the designer (`RoomPin`); never place them automatically. What the page
+  picker reads from a PDF's title blocks (`DrawingPage`) only prefills the form; the designer still ticks and saves.
 - Keep the README current in the same change — if you change behaviour, env vars, routes or deploy steps,
   update README.md before you finish.
 
@@ -136,10 +155,13 @@ Deploy = push to GitHub, then in Replit pull the repo and redeploy. Secrets (Rep
 `APP_PASSWORD`, `SECRET_KEY`, `DATABASE_URL` (Neon), `ANTHROPIC_API_KEY` (optional), `STORAGE_BACKEND=replit` (+ Object Storage bucket) or
 `s3` with `S3_*`.
 
-## Schema changes so far (run on Neon once each)
+## Schema changes so far
+
+Applied automatically at startup by `db.migrate()` from `db.COLUMN_MIGRATIONS` (nothing to run on Neon by hand):
 
 ```sql
-ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;   -- quick capture drafts
+ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;      -- quick capture drafts
+ALTER TABLE rooms ADD COLUMN kind  VARCHAR(10) NOT NULL DEFAULT 'room';  -- room | area
 ```
 
 ## Done
@@ -186,11 +208,33 @@ ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;   -- quick ca
   the item highlighted (`?item=`). `_stage.html` draws boxes and dots for both the designer page and `share/client.html`,
   which embeds the plan read-only (`readonly=True` in `plan.room_ctx`: USD, badges, no controls / suppliers / notes;
   fragment `GET /c/<token>/plan/room/<room>` lives in routers/share.py, token-scoped). Keep designer-only data out of
-  anything rendered with `readonly`. Not done yet: dots on the PDFs (room checklist / schedule by floor).
+  anything rendered with `readonly`; the test suite checks the client panel against the designer's for supplier, notes,
+  CNY and `/p/` links. A dot belongs to a room's box: `update_item` and `delete_room` clear `item.pins` when the item
+  leaves the room. The room checklist PDF carries the dots (zoomed room, see below); the schedule by floor does not yet.
+- PDFs: any user text that goes into a ReportLab `Paragraph` string must pass through `escape()` (`pdf/common.P()`
+  does it; the cover / header lines in schedule.py and packing.py do it explicitly). A `<` in a project name used to 500
+  the client's schedule PDF.
 
 - **Prices in USD or CNY.** `price_currency` select next to the unit price (item form, Drafts quick form), live
   conversion in `app.js` (`.price-row`), last choice remembered in localStorage for new items. Storage unchanged (CNY);
   `ItemPrice` (table `item_prices`) remembers a USD entry. Help page `/help` added to the Studio menu.
+
+- **Rooms and areas.** `Room.kind` (column via `db.COLUMN_MIGRATIONS`), `services.guess_kind`, Kind select on the Rooms
+  page (Auto / Room / Area) and `POST /p/<id>/rooms/guess-kinds` to classify every entry at once; the importer honours a
+  "Kind" column and guesses for new rooms. Rooms page, plan mark list, room selects, Overview and PDF summaries list
+  rooms first, then areas. **PDF title blocks.** `DrawingPage` rows are read at upload (`drawings.read_title_block`); the
+  page picker pre-ticks plan pages and prefills floor, sheet and caption (`caption_<k>` is now posted with the pick).
+  **Zoomed room.** `plan/_zoom.html` (data from `drawings.room_zoom`, fitted by `app.js` `fitZoom`) on the item list
+  filtered by a room (`room_obj`, `zoom`) and inside each marked entry on the Rooms page (`zooms`); rows carry
+  `id="item-<id>"` so a dot can highlight its item. `pdf/packing.room_checklist` page one = `render_room_crop` when the
+  room has a box. A rough box is enough: the crop pads it and the dots are drawn from the item pins.
+
+- **Help with pictures and help for this page.** The guide was rebuilt around a nine-stage walkthrough (stage = steps,
+  screenshots, "done when"), a section per feature, a documents table, the statuses, phone tips and a questions page, with
+  a client-side search. `base.html` adds a `?` button (designer top bar and public bar) opening a drawer (`#page-help`,
+  `help_tips.TIPS`), a one-time nudge (`localStorage help.seen.<key>`), `#help` in the URL opens it (empty states link to
+  it), and the Studio menu's Help link deep-links to the section of the current page. Screenshots come from a fictional
+  demo project seeded by `tools/help_shots.py`.
 
 ## Backlog (in priority order)
 

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ p.name }} — FF&E Schedule{% endblock %}
 {% block pubctx %}{{ p.name }}{% endblock %}
-{% block pubactions %}{% if plan %}<a class="btn sm sec" href="#plan" title="Floor plan"><svg class="ic"><use href="#i-map"/></svg><span class="hide-m">Plan</span></a>{% endif %}<a class="btn sm" href="/c/{{ token }}/schedule.pdf" target="_blank" title="Download PDF"><svg class="ic"><use href="#i-download"/></svg><span class="hide-m">Download PDF</span></a>{% endblock %}
+{% block pubactions %}{% if plan %}<a class="btn sm sec" href="#plan-section" title="Floor plan"><svg class="ic"><use href="#i-map"/></svg><span class="hide-m">Plan</span></a>{% endif %}<a class="btn sm" href="/c/{{ token }}/schedule.pdf" target="_blank" title="Download PDF"><svg class="ic"><use href="#i-download"/></svg><span class="hide-m">Download PDF</span></a>{% endblock %}
 {% block content %}
 <div class="hero client">
   <img class="hero-logo" src="/static/logo.png" alt="">
@@ -30,7 +30,9 @@
 {% endif %}
 
 {% if plan %}
-<div class="group-title"><h2>Floor plan{{ 's' if tabs|length > 1 }}</h2><span class="n">{{ pins|length }} room{{ 's' if pins|length != 1 }} · {{ ipins|length }} item{{ 's' if ipins|length != 1 }} placed</span></div>
+<section id="plan-section">
+{% set pr = pins|map(attribute='room')|rejectattr('is_area')|list %}{% set pa = pins|map(attribute='room')|selectattr('is_area')|list %}
+<div class="group-title"><h2>Floor plan{{ 's' if tabs|length > 1 }}</h2><span class="n">{{ count_label(pr, pa) }} marked · {{ ipins|length }} item{{ 's' if ipins|length != 1 }} placed</span></div>
 <p class="small muted">Tap a room to see what goes in it. The dots show where each item sits.</p>
 {% include "plan/_tabs.html" %}
 <div class="plan-layout readonly" id="plan" data-plan="{{ plan.id }}" data-mode="" data-base="{{ base }}" data-room-base="{{ base }}/plan/room/" data-anchor="{{ anchor }}"
@@ -40,6 +42,7 @@
     {% if room %}{% include "plan/_room.html" %}{% else %}{% include "plan/_intro.html" %}{% endif %}
   </aside>
 </div>
+</section>
 <template id="plan-intro-tpl">{% include "plan/_intro.html" %}</template>
 {% endif %}
 

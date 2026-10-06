@@ -3,7 +3,7 @@ from fastapi import APIRouter, Request, Depends, Form, UploadFile, File, HTTPExc
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from ..db import get_db
-from ..models import Project, ProjectImage, Room, Item, DrawingSet, PlanTag
+from ..models import Project, ProjectImage, Room, Item, DrawingSet, PlanTag, DrawingPage
 from ..common import render, redirect, require_login, get_project, get_settings, ffloat, fint, content_disposition
 from ..services import summary
 from .. import storage, webimage, drawings, config
@@ -36,7 +36,7 @@ def create_project(request: Request, db: Session = Depends(get_db), client_name:
     db.add(p)
     db.commit()
     # a default "whole house" room so items can be unassigned without confusion
-    db.add(Room(project_id=p.id, code="ALL", name="Whole house", floor="All", sort=999))
+    db.add(Room(project_id=p.id, code="ALL", name="Whole house", floor="All", sort=999, kind="area"))
     db.commit()
     return redirect(f"/p/{p.id}")
 
@@ -174,6 +174,10 @@ async def upload_plans(p: Project = Depends(get_project), db: Session = Depends(
                     pass  # the picker shows "Page k" without a picture
             ds = DrawingSet(project_id=p.id, name=name[:200], file_key=f"p{p.id}/sets/{hex_}.pdf",
                             thumb_prefix=f"p{p.id}/sets/{hex_}/t", pages=n)
+            for k in range(1, n + 1):  # what each title block says: prefills the page picker (suggestions only)
+                meta = drawings.read_title_block(drawings.page_text(data, k))
+                if any(meta.values()):
+                    ds.page_meta.append(DrawingPage(page_no=k, **meta))
             db.add(ds)
             db.flush()
             first_set = first_set or ds.id
@@ -216,8 +220,11 @@ def pick_pages(request: Request, set_id: int, p: Project = Depends(get_project),
                floor: str = "", sheet: str = "", err: str = ""):
     ds = _get_set(db, p, set_id)
     added = {im.tag.page_no: im for im in drawings.plans(p) if im.tag and im.tag.set_id == ds.id}
-    return render(request, "projects/pdf_pages.html", p=p, set=ds, pages=range(1, ds.pages + 1), added=added,
-                  floors=drawings.floor_order(p), floor=floor[:40], sheet=sheet[:60], err=err[:200])
+    meta = {m.page_no: m for m in ds.page_meta}
+    captions = {k: drawings.caption_from_title(m.title) for k, m in meta.items()}
+    return render(request, "projects/pdf_pages.html", p=p, set=ds, pages=range(1, ds.pages + 1), added=added, meta=meta, captions=captions,
+                  floors=drawings.floor_order(p), floor=floor[:40], sheet=sheet[:60], err=err[:200],
+                  n_suggested=sum(1 for k, m in meta.items() if m.is_plan and k not in added))
 
 
 @router.post("/p/{project_id}/images/sets/{set_id}/pick")
@@ -240,7 +247,8 @@ async def pick_pages_save(request: Request, set_id: int, p: Project = Depends(ge
         except drawings.DrawingError as e:
             db.commit()
             return redirect(f"{back}?err={quote(str(e))}")
-        _add_plan(db, p, str(form.get(f"floor_{k}", "")), str(form.get(f"sheet_{k}", "")), "", hires=jpeg, set_id=ds.id, page_no=k)
+        _add_plan(db, p, str(form.get(f"floor_{k}", "")), str(form.get(f"sheet_{k}", "")), str(form.get(f"caption_{k}", "")),
+                  hires=jpeg, set_id=ds.id, page_no=k)
     db.commit()
     return redirect(f"/p/{p.id}/images?ok={quote(f'{len(picked)} page(s) added as floor plans')}#plans")
 

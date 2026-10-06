@@ -15,25 +15,25 @@
     <button type="button" class="btn sm soft" id="plan-cancel" hidden>Cancel</button>
     <span class="sp"></span>
     {% if ro %}<a class="btn sec sm" href="/media/{{ plan.best_key }}" target="_blank" title="Open the drawing full size"><svg class="ic"><use href="#i-image"/></svg><span class="hide-m">Full size</span></a>
-    {% else %}<span class="pill" id="plan-count" data-total="{{ floor_rooms|length }}">{{ pins|length }} of {{ floor_rooms|length }} rooms placed</span>{% endif %}
+    {% else %}<span class="pill" id="plan-count" data-total="{{ floor_rooms|length }}">{{ pins|length }} of {{ floor_rooms|length }} placed</span>{% endif %}
   </div>
   <div class="plan-viewport" id="plan-viewport">
     <div class="plan-stage" id="plan-stage">
       <img class="plan-img" id="plan-img" src="/media/{{ plan.file_key }}" alt="{{ plan_caption(plan) or 'Floor plan' }}" draggable="false">
       {% for pin in pins %}{% set st = stats.get(pin.room_id) %}{% set n = st.count if st else 0 %}{% set pct = (100 * st.received / st.count)|int if st and st.count else 0 %}
-      <a class="pin{{ ' sel' if sel_room and sel_room.id == pin.room_id }}{{ ' done' if n and pct == 100 }}" href="{{ base }}?plan={{ plan.id }}&amp;room={{ pin.room_id }}{{ anchor }}" style="{{ pin.style }}" draggable="false"
+      <a class="pin{{ ' sel' if sel_room and sel_room.id == pin.room_id }}{{ ' done' if n and pct == 100 }}{{ ' is-area' if pin.room.is_area }}" href="{{ base }}?plan={{ plan.id }}&amp;room={{ pin.room_id }}{{ anchor }}" style="{{ pin.style }}" draggable="false"
          data-room="{{ pin.room_id }}" data-pin="{{ pin.id }}" data-code="{{ pin.room.code }}" title="{{ pin.room.label }} · {{ n }} item{{ 's' if n != 1 }}">
-        <span class="lab"><b>{{ pin.room.code }}</b><span class="nm">{{ pin.room.name }}</span></span>
+        <span class="lab{{ ' area' if pin.room.is_area }}"><b>{{ pin.room.code }}</b><span class="nm">{{ pin.room.name }}</span></span>
         <span class="cnt">{{ n }}</span>
         <i class="prog" style="--p:{{ pct }}%"></i>
         <span class="handle" aria-hidden="true"></span>
       </a>
       {% endfor %}
       {% for q in ipins %}{% set i = q.item %}
-      <a class="ipin{{ ' sel' if sel_item == i.id }}" href="{% if i.room_id %}{{ base }}?plan={{ plan.id }}&amp;room={{ i.room_id }}&amp;item={{ i.id }}{{ anchor }}{% elif ro %}{{ anchor or '#plan' }}{% else %}/p/{{ p.id }}/items/{{ i.id }}{% endif %}"
-         style="{{ q.style }};--c:{{ STATUS_COLORS[i.status] }}" draggable="false" data-item="{{ i.id }}" data-room="{{ i.room_id or '' }}" data-pin="{{ q.id }}" title="{{ i.code }} · {{ i.name }}">
+      <a class="ipin{{ ' sel' if sel_item == i.id }}" href="{% if i.room_id %}{{ base }}?plan={{ plan.id }}&amp;room={{ i.room_id }}&amp;item={{ i.id }}{{ anchor }}{% elif ro %}{{ anchor or '#plan' }}{% else %}/p/{{ p.id }}/items/{{ i.id }}?next={{ (base ~ '?plan=' ~ plan.id)|urlencode }}{% endif %}"
+         style="{{ q.style }};--c:{{ STATUS_COLORS[i.status] }}" draggable="false" data-item="{{ i.id }}" data-room="{{ i.room_id or '' }}" data-pin="{{ q.id }}" title="{{ i.code }} · {{ i.name }} · {{ i.status }}">
         {% if i.cover %}<img src="/media/{{ i.cover.file_key }}" alt="" loading="lazy" draggable="false">{% else %}<span class="ini">{{ (i.category or '?')[:1] }}</span>{% endif %}
-        <span class="tip"><b>{{ i.code }}</b> {{ i.name }}</span>
+        <span class="tip"><b>{{ i.code }}</b> {{ i.name }} <i>· {{ i.status }}</i></span>
       </a>
       {% endfor %}
       <div class="plan-draw" id="plan-draw" hidden></div>

@@ -1,0 +1,170 @@
+{
+"client": [
+1100,
+684
+],
+"client-plan": [
+1100,
+684
+],
+"clip": [
+1100,
+684
+],
+"documents": [
+1100,
+684
+],
+"help-drawer": [
+1100,
+684
+],
+"images": [
+1100,
+684
+],
+"import": [
+1100,
+684
+],
+"item-edit": [
+1100,
+684
+],
+"item-new": [
+1100,
+684
+],
+"item-price": [
+996,
+182
+],
+"items": [
+1100,
+684
+],
+"items-table": [
+1100,
+684
+],
+"overview": [
+1100,
+684
+],
+"packing": [
+1100,
+684
+],
+"payments": [
+1100,
+684
+],
+"pdf-checklist": [
+1100,
+778
+],
+"pdf-contents": [
+1100,
+778
+],
+"pdf-cover": [
+1100,
+778
+],
+"pdf-floor": [
+1100,
+778
+],
+"pdf-labels": [
+900,
+1273
+],
+"pdf-packing": [
+1100,
+778
+],
+"pdf-pages": [
+1100,
+684
+],
+"pdf-plan": [
+1100,
+778
+],
+"pdf-po": [
+1100,
+778
+],
+"pdf-summary": [
+1100,
+778
+],
+"pdf-table": [
+1100,
+778
+],
+"phone-capture": [
+780,
+1688
+],
+"phone-drafts": [
+780,
+1688
+],
+"phone-help": [
+780,
+1688
+],
+"phone-items": [
+780,
+1688
+],
+"phone-more": [
+780,
+1688
+],
+"phone-overview": [
+780,
+1688
+],
+"phone-plan": [
+780,
+1688
+],
+"plan-browse": [
+1100,
+684
+],
+"plan-mark": [
+1100,
+684
+],
+"projects": [
+1100,
+684
+],
+"rooms": [
+1100,
+684
+],
+"rooms-entry": [
+1100,
+684
+],
+"settings": [
+1100,
+684
+],
+"supplier": [
+1100,
+684
+],
+"supplier-link": [
+1100,
+684
+],
+"suppliers": [
+1100,
+684
+]
+}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import room_options %}
 {% block title %}{{ (item.name or 'Draft item') if item else 'New item' }} · {{ p.name }}{% endblock %}
 {% block content %}
 {% set it = item %}
@@ -23,10 +24,10 @@
   {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
   <div class="grid g2 stack">
     {% if it %}
-    <div><label>Room</label><select name="room_id" class="in"><option value="">Whole house / not room-specific</option>{% for r in p.rooms %}<option value="{{ r.id }}" {{ 'selected' if it.room_id == r.id }}>{{ r.label }}</option>{% endfor %}</select></div>
+    <div><label>Room or area</label><select name="room_id" class="in"><option value="">Whole house / not room-specific</option>{{ room_options(p.rooms, it.room_id) }}</select></div>
     {% else %}
-    <div class="span2"><label>Rooms <span class="muted small">(tick every room that gets this item; none = whole house)</span></label>
-      <div class="room-picks">{% for r in p.rooms %}<label class="check"><input type="checkbox" name="room_ids" value="{{ r.id }}" {{ 'checked' if pre_room == r.id }}> {{ r.label }}</label>{% endfor %}</div>
+    <div class="span2"><label>Rooms &amp; areas <span class="muted small">(tick every one that gets this item; none = whole house)</span></label>
+      <div class="room-picks">{% for r in p.rooms|rejectattr('is_area') %}<label class="check"><input type="checkbox" name="room_ids" value="{{ r.id }}" {{ 'checked' if pre_room == r.id }}> {{ r.label }}</label>{% endfor %}{% set areas = p.rooms|selectattr('is_area')|list %}{% if areas %}<div class="picks-sub">Areas</div>{% for r in areas %}<label class="check"><input type="checkbox" name="room_ids" value="{{ r.id }}" {{ 'checked' if pre_room == r.id }}> {{ r.label }}</label>{% endfor %}{% endif %}</div>
       <div class="help">Each ticked room gets its own line with its own code, status and quantity. Qty below is per room; adjust any room afterwards.</div></div>
     {% endif %}
     <div><label>Category (schedule)</label><select name="category" class="in">{% for c in CATEGORIES %}<option {{ 'selected' if (it and it.category == c) or (not it and pre_cat == c) }}>{{ c }}</option>{% endfor %}</select></div>
@@ -82,7 +83,7 @@
   {% else %}<p class="muted small">This item is only used in this room.</p>{% endif %}
   {% if free_rooms %}
   <details class="mt"><summary>Add this item to more rooms</summary>
-    <div class="room-picks">{% for r in free_rooms %}<label class="check"><input type="checkbox" name="add_room_ids" value="{{ r.id }}"> {{ r.label }}</label>{% endfor %}</div>
+    <div class="room-picks">{% for r in free_rooms|rejectattr('is_area') %}<label class="check"><input type="checkbox" name="add_room_ids" value="{{ r.id }}"> {{ r.label }}</label>{% endfor %}{% set free_areas = free_rooms|selectattr('is_area')|list %}{% if free_areas %}<div class="picks-sub">Areas</div>{% for r in free_areas %}<label class="check"><input type="checkbox" name="add_room_ids" value="{{ r.id }}"> {{ r.label }}</label>{% endfor %}{% endif %}</div>
     <div class="help">Each ticked room gets a copy (same spec, qty and photos, status “To buy”) with its own code.</div>
   </details>
   {% endif %}

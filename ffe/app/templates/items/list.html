@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import room_options, room_pill %}
 {% block title %}Items · {{ p.name }}{% endblock %}
 {% block content %}
 {% set qroom = f.room if f.room not in ('', 'none') else '' %}
@@ -18,7 +19,7 @@
 </div>
 
 <form method="get" class="card filters">
-  <select name="room" class="in" aria-label="Room"><option value="">All rooms</option>{% for r in p.rooms %}<option value="{{ r.id }}" {{ 'selected' if f.room == r.id|string }}>{{ r.label }}</option>{% endfor %}<option value="none" {{ 'selected' if f.room == 'none' }}>Unassigned</option></select>
+  <select name="room" class="in" aria-label="Room"><option value="">All rooms &amp; areas</option>{{ room_options(p.rooms, f.room) }}<option value="none" {{ 'selected' if f.room == 'none' }}>Unassigned</option></select>
   <select name="category" class="in" aria-label="Category"><option value="">All categories</option>{% for c in CATEGORIES %}<option {{ 'selected' if f.category == c }}>{{ c }}</option>{% endfor %}</select>
   <select name="status" class="in" aria-label="Status"><option value="">Any status</option>{% for st in STATUSES %}<option {{ 'selected' if f.status == st }}>{{ st }}</option>{% endfor %}</select>
   <select name="supplier" class="in" aria-label="Supplier"><option value="">Any supplier</option>{% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if f.supplier == s.id|string }}>{{ s.name }}</option>{% endfor %}</select>
@@ -30,6 +31,23 @@
   <a class="btn sec sm" href="/p/{{ p.id }}/items?{{ request.url.query|replace('view=table','')|replace('view=cards','') }}&view={{ 'cards' if f.view == 'table' else 'table' }}"><svg class="ic"><use href="#i-{{ 'grid' if f.view == 'table' else 'layout' }}"/></svg>{{ 'Card view' if f.view == 'table' else 'Table view' }}</a>
 </form>
 
+{% if room_obj %}
+<div class="card tight room-head">
+  {% if zoom %}{% set room = room_obj %}{% include "plan/_zoom.html" %}{% endif %}
+  <div class="rh-body">
+    <div class="row">{{ room_pill(room_obj) }}<span class="small muted">{{ room_obj.kind_title }}{% if room_obj.floor %} · {{ room_obj.floor|floor_title }}{% endif %}</span></div>
+    <h2 class="rh-name">{{ room_obj.name }}</h2>
+    <div class="small muted">{{ items|length }} item{{ 's' if items|length != 1 }} · ¥{{ total|money }}{% if room_obj.notes %} · {{ room_obj.notes }}{% endif %}</div>
+    {% if zoom %}<p class="small muted mt">Each dot carries the number of its item code; tap a dot to jump to that item below. Tap the picture to open the plan.</p>
+    {% else %}<p class="small muted mt">Not marked on the plan yet. <a class="b" href="/p/{{ p.id }}/plan?room={{ room_obj.id }}&amp;mode=mark">Mark it on the plan</a> and it shows here, zoomed in, with its item dots.</p>{% endif %}
+    <div class="row mt">
+      <a class="btn sm sec" href="/p/{{ p.id }}/export/room/{{ room_obj.id }}.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Checklist PDF</a>
+      <a class="btn sm ghost" href="/p/{{ p.id }}/rooms"><svg class="ic"><use href="#i-layout"/></svg>Rooms &amp; areas</a>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {% if not items %}
 <div class="card empty">
   <div class="ring"><svg class="ic"><use href="#i-grid"/></svg></div>
@@ -37,6 +55,7 @@
   <p>{% if filtering %}Try another room, category or status, or clear the filters to see the whole schedule.{% else %}Start with Quick capture in the showroom, add items one by one, or import the Excel schedule.{% endif %}</p>
   <a class="btn" href="/p/{{ p.id }}/items/new"><svg class="ic"><use href="#i-plus"/></svg>Add an item</a>
   <a class="btn sec" href="/p/{{ p.id }}/import"><svg class="ic"><use href="#i-upload"/></svg>Import the Excel</a>
+  {% if not filtering %}<a class="btn ghost" href="#help"><svg class="ic"><use href="#i-help"/></svg>How this works</a>{% endif %}
 </div>
 
 {% elif f.view == 'table' %}
@@ -44,7 +63,7 @@
   <thead><tr><th></th><th>Code</th><th>Item</th><th>Room</th><th>Category</th><th class="num">Qty</th><th class="num">Unit CNY</th><th class="num">Total CNY</th><th>Supplier</th><th>Status</th></tr></thead>
   <tbody>
   {% for i in items %}
-  <tr>
+  <tr id="item-{{ i.id }}">
     <td>{% if i.cover %}<a href="/p/{{ p.id }}/items/{{ i.id }}"><img class="thumb sm" src="/media/{{ i.cover.file_key }}" alt=""></a>{% endif %}</td>
     <td class="small muted nowrap">{{ i.code }}</td>
     <td><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a>{% if i.optional %} <span class="pill">optional</span>{% endif %}{% if i.size or i.finish %}<div class="small muted">{{ i.size }}{% if i.size and i.finish %} · {% endif %}{{ i.finish }}</div>{% endif %}</td>
@@ -72,7 +91,7 @@
     <div class="cards">
     {% set ns.last = grp %}{% set ns.open = true %}
   {% endif %}
-  <div class="item-card">
+  <div class="item-card" id="item-{{ i.id }}">
     {% if i.cover %}<a class="pic" href="/p/{{ p.id }}/items/{{ i.id }}"><img src="/media/{{ i.cover.file_key }}" alt=""></a>{% else %}<a class="pic empty" href="/p/{{ p.id }}/items/{{ i.id }}">no photo</a>{% endif %}
     <div class="body">
       <div class="t"><a href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a></div>

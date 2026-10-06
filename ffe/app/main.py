@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text, inspect
 
 from . import config, storage
-from .db import engine, Base, get_db
+from .db import engine, Base, get_db, migrate
 from .models import Project, Settings
 from .common import (render, redirect, require_login, LoginRequired, make_session_cookie, check_password, COOKIE,
                      get_settings, is_logged_in, ffloat)
@@ -18,6 +18,7 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 @app.on_event("startup")
 def startup():
     Base.metadata.create_all(bind=engine)
+    migrate(engine)  # columns added to existing tables (db.COLUMN_MIGRATIONS)
     with engine.begin() as conn:
         s = conn.execute(text("SELECT id FROM settings WHERE id=1")).first()
         if not s:

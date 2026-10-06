@@ -96,15 +96,26 @@ def _summary(story, p, all_items, W, currency, rate, show_prices, studio, by_flo
     dec = 2 if currency == "USD" else 0
     rate_div = rate if currency == "USD" else 1
 
+    def has_items(r):
+        return any(i.room_id == r.id for i in all_items)
+
     def room_rows(rooms):
+        """Rooms first, then the areas under a small 'Areas' row; entries without items are skipped."""
         n = 0
-        for r in rooms:
-            its = [i for i in all_items if i.room_id == r.id]
-            if not its:
+        proper, areas = drawings.split_kinds(rooms)
+        for group, label in ((proper, None), (areas, "Areas")):
+            group = [r for r in group if has_items(r)]
+            if not group:
                 continue
-            tot = sum(i.total for i in its) / rate_div
-            rows.append([P(r.label), P(len(its)), P(money(tot, dec))])
-            n += 1
+            if label:
+                r0 = len(rows)
+                rows.append([Paragraph(label, S["grey"]), "", ""])
+                st.add("SPAN", (0, r0), (-1, r0))
+            for r in group:
+                its = [i for i in all_items if i.room_id == r.id]
+                tot = sum(i.total for i in its) / rate_div
+                rows.append([P(r.label), P(len(its)), P(money(tot, dec))])
+                n += 1
         return n
 
     def unassigned_row():
@@ -116,14 +127,14 @@ def _summary(story, p, all_items, W, currency, rate, show_prices, studio, by_flo
     if by_floor:
         whole_done = False
         for g in drawings.rooms_by_floor(p):
-            has = any(i.room_id == r.id for r in g["rooms"] for i in all_items) or (g["key"] == "whole" and any(i.room_id is None for i in all_items))
+            has = any(i.room_id == r.id for r in g["all"] for i in all_items) or (g["key"] == "whole" and any(i.room_id is None for i in all_items))
             if not has:
                 continue
             r0 = len(rows)
             rows.append([Paragraph(escape(g["title"]), S["cellb"]), "", ""])
             st.add("SPAN", (0, r0), (-1, r0))
             st.add("BACKGROUND", (0, r0), (-1, r0), LIGHT)
-            room_rows(g["rooms"])
+            room_rows(g["all"])
             if g["key"] == "whole":
                 unassigned_row()
                 whole_done = True
@@ -144,7 +155,7 @@ def _summary(story, p, all_items, W, currency, rate, show_prices, studio, by_flo
     if not show_prices:
         story[-1] = Paragraph("Prices withheld in this version.", S["grey"])
     story.append(Spacer(1, 8 * mm))
-    story.append(Paragraph(f"{studio.studio_name} &nbsp; {studio.studio_website} &nbsp; {studio.studio_email} &nbsp; {studio.studio_phone}", S["grey"]))
+    story.append(Paragraph(" &nbsp; ".join(escape(x) for x in [studio.studio_name, studio.studio_website, studio.studio_email, studio.studio_phone]), S["grey"]))
 
 
 def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=True, layout="category") -> bytes:
@@ -157,11 +168,11 @@ def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=T
 
     # ---- cover ----
     covers = [i for i in p.images if i.kind == "cover"]
-    story.append(Paragraph(f"{today().upper()} &nbsp;&nbsp;|&nbsp;&nbsp; {studio.studio_name.upper()}", S["grey"]))
+    story.append(Paragraph(f"{today().upper()} &nbsp;&nbsp;|&nbsp;&nbsp; {escape(studio.studio_name.upper())}", S["grey"]))
     story.append(Spacer(1, 10 * mm))
     story.append(Paragraph("FURNITURE AND FIXTURE SCHEDULE", S["title"]))
-    story.append(Paragraph(f"Prepared for: {p.client_name}", S["h2"]))
-    story.append(Paragraph(f"{p.name}" + (f" &mdash; {p.address}" if p.address else ""), S["body"]))
+    story.append(Paragraph(f"Prepared for: {escape(p.client_name)}", S["h2"]))
+    story.append(Paragraph(escape(p.name) + (f" &mdash; {escape(p.address)}" if p.address else ""), S["body"]))
     story.append(Spacer(1, 6 * mm))
     if covers:
         story.append(img_flowable(covers[0].file_key, W, H * 0.62))
@@ -175,10 +186,10 @@ def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=T
     def toc(titles):
         story.append(Paragraph("TABLE OF CONTENTS", S["h1"]))
         for n, t in enumerate(titles, 1):
-            story.append(Paragraph(f"{n}. {t}", S["body"]))
+            story.append(Paragraph(f"{n}. {escape(t)}", S["body"]))
         if p.description:
             story.append(Spacer(1, 6 * mm))
-            story.append(Paragraph(p.description, S["body"]))
+            story.append(Paragraph(escape(p.description), S["body"]))
         story.append(PageBreak())
 
     if layout == "floor":
@@ -190,7 +201,7 @@ def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=T
         floors = []  # (title, plans, [(room label, items)])
         for f in drawings.floor_order(p):
             k = drawings.floor_key(f)
-            rooms = [r for r in p.rooms if drawings.floor_key(r.floor) == k]
+            rooms = sorted([r for r in p.rooms if drawings.floor_key(r.floor) == k], key=lambda r: (r.is_area, r.sort))  # rooms, then areas
             groups = []
             for r in rooms:
                 its = sorted([i for i in all_items if i.room_id == r.id], key=lambda i: (cat_idx.get(i.category, 99), i.code))
@@ -200,7 +211,7 @@ def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=T
             if groups or fl_plans:
                 floors.append((drawings.floor_title(f), fl_plans, groups))
         whole_groups = []
-        for r in p.rooms:
+        for r in sorted(p.rooms, key=lambda r: (r.is_area, r.sort)):
             if r.id in whole_room_ids:
                 its = sorted([i for i in all_items if i.room_id == r.id], key=lambda i: (cat_idx.get(i.category, 99), i.code))
                 if its:
@@ -247,7 +258,7 @@ def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=T
         for c in cats:
             items = [i for i in all_items if i.category == c]
             items.sort(key=lambda i: (room_order.get(i.room_id, 9999), i.code))
-            story.append(Paragraph(f"{c.upper()} SCHEDULE", S["h1"]))
+            story.append(Paragraph(f"{escape(c.upper())} SCHEDULE", S["h1"]))
             story.append(_schedule_table(items, W, currency, rate, show_prices, include_photos))
             story.append(PageBreak())
         _summary(story, p, all_items, W, currency, rate, show_prices, studio)

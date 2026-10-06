@@ -7,7 +7,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from itsdangerous import URLSafeSerializer, BadSignature
 from sqlalchemy.orm import Session
-from . import config, drawings
+from . import config, drawings, help_tips
 from .db import get_db, SessionLocal
 from .models import Project, Settings, Item
 
@@ -110,6 +110,7 @@ templates.env.filters["floor_title"] = drawings.floor_title
 templates.env.globals.update(AI_ENABLED=lambda: bool(__import__('os').getenv('ANTHROPIC_API_KEY')), APP_NAME=config.APP_NAME, CATEGORIES=config.CATEGORIES, UNITS=config.UNITS,
                              STATUSES=config.STATUSES, STATUS_COLORS=config.STATUS_COLORS,
                              PAYMENT_KINDS=config.PAYMENT_KINDS, PRICE_CURRENCIES=config.PRICE_CURRENCIES, plan_caption=drawings.plan_caption,
+                             count_label=drawings.count_label, help_shots=help_tips.shots,
                              PLAN_MAX_PX=config.PLAN_MAX_PX, MAX_PDF_MB=config.MAX_PDF_MB, MAX_PDF_PAGES=config.MAX_PDF_PAGES,
                              PICK_MAX_PAGES=config.PICK_MAX_PAGES)
 
@@ -133,6 +134,8 @@ def render(request: Request, name: str, **ctx):
     ctx.setdefault("public", public)
     if not ctx["public"] and "nav" not in ctx:
         ctx["nav"] = nav_context(ctx.get("p"))
+    if "help_tip" not in ctx:
+        ctx["help_tip"] = help_tips.tip_for(name, ctx)  # the "?" drawer of base.html (None = no drawer on this page)
     return templates.TemplateResponse(request, name, ctx)
 
 

@@ -90,11 +90,12 @@
 
 <div class="dash-grid">
   <div class="card">
-    <div class="row between"><h2 class="mb-0">By room</h2><span class="row"><a class="small b" href="/p/{{ p.id }}/plan"><svg class="ic sm"><use href="#i-map"/></svg> Plan view</a><span class="muted small">·</span><a class="small" href="/p/{{ p.id }}/rooms">Manage rooms</a></span></div>
+    <div class="row between"><h2 class="mb-0">By room &amp; area</h2><span class="row"><a class="small b" href="/p/{{ p.id }}/plan"><svg class="ic sm"><use href="#i-map"/></svg> Plan view</a><span class="muted small">·</span><a class="small" href="/p/{{ p.id }}/rooms">Manage rooms</a></span></div>
     <div class="tbl mt"><table>
       <thead><tr><th>Room</th><th class="num">Items</th><th class="num">CNY</th><th class="num">Recv</th><th></th></tr></thead>
       <tbody>
       {% for r in s.by_room %}
+      {% if r.kind != 'room' and (loop.first or loop.previtem.kind != r.kind) %}<tr class="sub"><td colspan="5">{{ 'Areas' if r.kind == 'area' else 'Not in a room or area' }}</td></tr>{% endif %}
       <tr>
         <td><a href="{% if r.key %}/p/{{ p.id }}/plan?room={{ r.key }}{% else %}/p/{{ p.id }}/items?room=none{% endif %}">{{ r.label }}</a></td>
         <td class="num">{{ r.count }}</td><td class="num">{{ r.total|money }}</td><td class="num">{{ r.received }}</td>
@@ -153,6 +154,7 @@
         <a class="btn accent" href="/p/{{ p.id }}/capture"><svg class="ic"><use href="#i-camera"/></svg>Quick capture</a>
         <a class="btn sec" href="/p/{{ p.id }}/items/new"><svg class="ic"><use href="#i-plus"/></svg>Add an item</a>
         <a class="btn ghost" href="/p/{{ p.id }}/import"><svg class="ic"><use href="#i-upload"/></svg>Import Excel</a>
+        <a class="btn ghost" href="#help"><svg class="ic"><use href="#i-help"/></svg>How this works</a>
       </div>
     </div>
     {% endfor %}

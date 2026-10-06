@@ -117,9 +117,28 @@ class DrawingSet(Base):
     pages: Mapped[int] = mapped_column(Integer, default=0)  # pages thumbnailed (min(real pages, MAX_PDF_PAGES))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     project: Mapped["Project"] = relationship(back_populates="drawing_sets")
+    # What the title block of each page says (read once at upload): prefills the page picker.
+    page_meta: Mapped[list["DrawingPage"]] = relationship(back_populates="set", cascade="all, delete-orphan", order_by="DrawingPage.page_no")
 
     def thumb_key(self, n: int) -> str:
         return f"{self.thumb_prefix}{n:03d}.jpg"
+
+    def meta_for(self, n: int) -> "DrawingPage | None":
+        return next((m for m in self.page_meta if m.page_no == n), None)
+
+
+class DrawingPage(Base):
+    """Text read from one page's title block of a drawing set: the sheet number, the drawing title and the floor it names,
+    and whether the title says it is a floor plan. Suggestions only: the designer confirms them in the page picker."""
+    __tablename__ = "drawing_pages"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    set_id: Mapped[int] = mapped_column(ForeignKey("drawing_sets.id"))
+    page_no: Mapped[int] = mapped_column(Integer)
+    title: Mapped[str] = mapped_column(String(120), default="")
+    sheet: Mapped[str] = mapped_column(String(60), default="")
+    floor: Mapped[str] = mapped_column(String(40), default="")
+    is_plan: Mapped[bool] = mapped_column(Boolean, default=False)
+    set: Mapped["DrawingSet"] = relationship(back_populates="page_meta")
 
 
 class Room(Base):
@@ -133,6 +152,9 @@ class Room(Base):
     wall_area: Mapped[float] = mapped_column(Float, default=0.0)
     notes: Mapped[str] = mapped_column(String(255), default="")
     sort: Mapped[int] = mapped_column(Integer, default=0)
+    # room = a space you furnish and finish; area = a zone that still carries a code and items (entrance, corridors,
+    # stairs, balconies, carport, whole house). Column added by db.COLUMN_MIGRATIONS on existing databases.
+    kind: Mapped[str] = mapped_column(String(10), default="room", server_default="room")
     project: Mapped["Project"] = relationship(back_populates="rooms")
     items: Mapped[list["Item"]] = relationship(back_populates="room")
     pins: Mapped[list["RoomPin"]] = relationship(back_populates="room", cascade="all, delete-orphan", order_by="RoomPin.id")
@@ -140,6 +162,14 @@ class Room(Base):
     @property
     def label(self):
         return f"{self.code} - {self.name}"
+
+    @property
+    def is_area(self) -> bool:
+        return self.kind == "area"
+
+    @property
+    def kind_title(self) -> str:
+        return "Area" if self.is_area else "Room"
 
 
 class RoomPin(Base):

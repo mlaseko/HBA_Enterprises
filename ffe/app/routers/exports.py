@@ -105,9 +105,9 @@ def items_xlsx(p: Project = Depends(get_project), db: Session = Depends(get_db))
         ws.column_dimensions[col].width = w
     ws.freeze_panes = "A2"
     ws2 = wb.create_sheet("Rooms")
-    ws2.append(["Room", "Floor", "Floor area m²", "Wall tile m²", "Notes"])
+    ws2.append(["Room", "Floor", "Kind", "Floor area m²", "Wall tile m²", "Notes"])
     for r in p.rooms:
-        ws2.append([r.label, r.floor, r.floor_area, r.wall_area, r.notes])
+        ws2.append([r.label, r.floor, r.kind, r.floor_area, r.wall_area, r.notes])
     buf = io.BytesIO()
     wb.save(buf)
     return Response(content=buf.getvalue(), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

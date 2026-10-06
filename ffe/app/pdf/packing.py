@@ -4,9 +4,10 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether
 from html import escape
-from .common import S, P, img_flowable, money, num, make_doc, footer_factory, base_table_style, today, NAVY, GREY, LINE
+from ..services import sort_items
+from .common import S, P, img_flowable, money, num, make_doc, footer_factory, base_table_style, today, NAVY, GREY, LINE, img_flowable_bytes
 from ..services import carton_positions, container_for
-from .. import drawings
+from .. import drawings, storage
 
 
 def _hdr(cols):
@@ -18,8 +19,8 @@ def packing_list(p, studio, cartons, title="Packing List") -> bytes:
     doc = make_doc(buf, f"{title} - {p.name}")
     W = doc.width
     pos = carton_positions(p.cartons)
-    story = [Paragraph(f"{title.upper()} &mdash; {p.name}", S["h1"]),
-             Paragraph(f"Client: {p.client_name} &nbsp;&nbsp; Deliver to: {p.address or '-'} &nbsp;&nbsp; {today()}", S["grey"]),
+    story = [Paragraph(f"{escape(title.upper())} &mdash; {escape(p.name)}", S["h1"]),
+             Paragraph(f"Client: {escape(p.client_name)} &nbsp;&nbsp; Deliver to: {escape(p.address or '-')} &nbsp;&nbsp; {today()}", S["grey"]),
              Spacer(1, 3 * mm)]
     cols = ["#", "Write on the box", "Supplier", "Contents", "Items", "Qty", "L", "W", "H", "CBM", "kg", "Recv"]
     widths = [8, 50, 30, 60, 30, 10, 10, 10, 10, 12, 10, 10]
@@ -74,7 +75,7 @@ def labels(p, studio, cartons) -> bytes:
         c.setFont("Helvetica", 10)
         c.drawCentredString(x + lw / 2, y + lh - 35 * mm, f"{room.floor + ' floor' if room and room.floor else ''}")
         c.setFont("Helvetica-Bold", 14)
-        c.drawCentredString(x + lw / 2, y + lh - 44 * mm, f"BOX {bn} OF {bt} FOR THIS ROOM")
+        c.drawCentredString(x + lw / 2, y + lh - 44 * mm, f"BOX {bn} OF {bt} FOR THIS {'AREA' if room is not None and room.is_area else 'ROOM'}")
         c.setFont("Helvetica", 9)
         c.drawCentredString(x + lw / 2, y + lh - 51 * mm, f"Supplier: {ct.supplier.name if ct.supplier else '-'}   Box no. {ct.id}")
         text = (ct.contents or "")[:90]
@@ -92,15 +93,29 @@ def room_checklist(p, studio, room) -> bytes:
     buf = io.BytesIO()
     doc = make_doc(buf, f"Room checklist - {room.label if room else p.name}")
     W = doc.width
-    items = [i for i in p.live_items if (i.room_id == (room.id if room else None))]
+    items = sort_items([i for i in p.live_items if (i.room_id == (room.id if room else None))], p)
     story = []
+    zoom = drawings.room_zoom(p, room, items) if room else None
+    crop = None
+    if zoom:  # page 1: the room cut out of its plan, its outline and the item dots numbered like the codes below
+        data = storage.read_image(zoom["plan"].best_key)
+        if data:
+            try:
+                crop = drawings.render_room_crop(data, zoom)
+            except Exception:
+                crop = None
     plan = drawings.plan_for_room(p, room) if room else None
-    if plan:  # page 1: the floor plan the room is on, so the site team finds the room before unpacking
+    if crop:
+        story += [Paragraph(f"ON THE PLAN &mdash; {escape(room.label)}", S["h1"]),
+                  Paragraph(escape(f"{drawings.plan_caption(zoom['plan']) or 'Floor plan'}. The outline is {room.label}; "
+                                   f"each dot carries the number of the item code it stands for."), S["grey"]),
+                  img_flowable_bytes(crop, W, doc.height - 26 * mm), PageBreak()]
+    elif plan:  # page 1: the whole floor plan the room is on, so the site team finds the room before unpacking
         story += [Paragraph(f"FLOOR PLAN &mdash; {escape(room.label)}", S["h1"]),
                   Paragraph(escape(f"Find {room.label} on: {drawings.plan_caption(plan) or 'floor plan'}"), S["grey"]),
                   img_flowable(plan.best_key, W, doc.height - 26 * mm), PageBreak()]
-    story += [Paragraph(f"ROOM CHECKLIST &mdash; {room.label if room else 'Whole house'}", S["h1"]),
-              Paragraph(f"{p.name} &nbsp; {p.client_name} &nbsp; {today()}", S["grey"]), Spacer(1, 3 * mm)]
+    story += [Paragraph(f"{'AREA' if room is not None and room.is_area else 'ROOM'} CHECKLIST &mdash; {escape(room.label if room else 'Whole house')}", S["h1"]),
+              Paragraph(f"{escape(p.name)} &nbsp; {escape(p.client_name)} &nbsp; {today()}", S["grey"]), Spacer(1, 3 * mm)]
     cols = ["Photo", "Code", "Item", "Spec", "Size / Finish", "Qty", "Supplier", "Status", "Packed", "Received", "Installed"]
     widths = [18, 16, 46, 60, 36, 12, 30, 16, 14, 14, 14]
     widths = [w / sum(widths) * W for w in widths]
@@ -120,10 +135,10 @@ def purchase_order(p, studio, supplier, items, payments) -> bytes:
     buf = io.BytesIO()
     doc = make_doc(buf, f"PO - {supplier.name}")
     W = doc.width
-    story = [Paragraph(f"PURCHASE ORDER &mdash; {supplier.name}", S["h1"]),
-             Paragraph(f"From: {studio.studio_name} {studio.studio_phone} {studio.studio_email}<br/>"
-                       f"Project: {p.name} ({p.client_name}) &nbsp; Deliver to: {p.address or '-'} &nbsp; Date: {today()}<br/>"
-                       f"Supplier contact: {supplier.contact} {supplier.phone} {supplier.wechat} &nbsp; Terms: {supplier.payment_terms}", S["body"]),
+    story = [Paragraph(f"PURCHASE ORDER &mdash; {escape(supplier.name)}", S["h1"]),
+             Paragraph(f"From: {escape(studio.studio_name)} {escape(studio.studio_phone)} {escape(studio.studio_email)}<br/>"
+                       f"Project: {escape(p.name)} ({escape(p.client_name)}) &nbsp; Deliver to: {escape(p.address or '-')} &nbsp; Date: {today()}<br/>"
+                       f"Supplier contact: {escape(supplier.contact)} {escape(supplier.phone)} {escape(supplier.wechat)} &nbsp; Terms: {escape(supplier.payment_terms)}", S["body"]),
              Spacer(1, 3 * mm)]
     cols = ["Photo", "Code", "Item", "Spec / must-haves", "Size / Finish", "Room", "Qty", "Unit price (CNY)", "Total (CNY)", "Lead time"]
     widths = [18, 16, 44, 64, 34, 26, 14, 18, 20, 16]

@@ -73,11 +73,14 @@ def client_page(request: Request, token: str, db: Session = Depends(get_db), pla
     base = f"/c/{token}"
     sel_room = planmod.find_room(p, fint(room))
     sel_item = fint(item)
+    if sel_item is not None and sel_room is None:  # ?item= alone: open the item's room (drafts never show on the client link)
+        it = db.get(Item, sel_item)
+        sel_room = it.room if it is not None and it.project_id == p.id and not it.draft and it.room is not None else None
     im = planmod.pick_plan(p, fint(plan), sel_room)
     ctx = dict(p=p, s=s, groups=groups, studio=get_settings(db), token=token, plans=drawings.client_plans(p), room=None, readonly=True)
-    ctx.update(planmod.stage_ctx(db, p, im, sel_room=sel_room, sel_item=sel_item, base=base, anchor="#plan"))
+    ctx.update(planmod.stage_ctx(db, p, im, sel_room=sel_room, sel_item=sel_item, base=base, anchor="#plan-section"))
     if sel_room is not None:
-        ctx.update(planmod.room_ctx(db, p, sel_room, im, sel_item=sel_item, base=base, anchor="#plan", readonly=True))
+        ctx.update(planmod.room_ctx(db, p, sel_room, im, sel_item=sel_item, base=base, anchor="#plan-section", readonly=True))
     ctx["p"] = p
     return render(request, "share/client.html", **ctx)
 
@@ -91,4 +94,4 @@ def client_room_panel(request: Request, token: str, room_id: int, db: Session = 
         raise HTTPException(404, "Room not found")
     return render(request, "plan/_room.html", nav=None, public=True,
                   **planmod.room_ctx(db, p, r, planmod.find_plan(p, fint(plan)), sel_item=fint(item), base=f"/c/{token}",
-                                     anchor="#plan", readonly=True))
+                                     anchor="#plan-section", readonly=True))
