@@ -3,8 +3,10 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether
+from html import escape
 from .common import S, P, img_flowable, money, num, make_doc, footer_factory, base_table_style, today, NAVY, GREY, LINE
 from ..services import carton_positions, container_for
+from .. import drawings
 
 
 def _hdr(cols):
@@ -91,8 +93,14 @@ def room_checklist(p, studio, room) -> bytes:
     doc = make_doc(buf, f"Room checklist - {room.label if room else p.name}")
     W = doc.width
     items = [i for i in p.live_items if (i.room_id == (room.id if room else None))]
-    story = [Paragraph(f"ROOM CHECKLIST &mdash; {room.label if room else 'Whole house'}", S["h1"]),
-             Paragraph(f"{p.name} &nbsp; {p.client_name} &nbsp; {today()}", S["grey"]), Spacer(1, 3 * mm)]
+    story = []
+    plan = drawings.plan_for_room(p, room) if room else None
+    if plan:  # page 1: the floor plan the room is on, so the site team finds the room before unpacking
+        story += [Paragraph(f"FLOOR PLAN &mdash; {escape(room.label)}", S["h1"]),
+                  Paragraph(escape(f"Find {room.label} on: {drawings.plan_caption(plan) or 'floor plan'}"), S["grey"]),
+                  img_flowable(plan.best_key, W, doc.height - 26 * mm), PageBreak()]
+    story += [Paragraph(f"ROOM CHECKLIST &mdash; {room.label if room else 'Whole house'}", S["h1"]),
+              Paragraph(f"{p.name} &nbsp; {p.client_name} &nbsp; {today()}", S["grey"]), Spacer(1, 3 * mm)]
     cols = ["Photo", "Code", "Item", "Spec", "Size / Finish", "Qty", "Supplier", "Status", "Packed", "Received", "Installed"]
     widths = [18, 16, 46, 60, 36, 12, 30, 16, 14, 14, 14]
     widths = [w / sum(widths) * W for w in widths]

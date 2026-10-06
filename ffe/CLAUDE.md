@@ -31,8 +31,10 @@ app/models.py          Settings, Project, ProjectImage, Room, Supplier, Supplier
                        Item.draft = quick-capture draft (no name/code yet); Project.live_items / Project.drafts split them
 app/common.py          templates, auth helpers, number filters, render()/redirect()
 app/services.py        summary() for dashboards, next_code(), carton_positions(), container_for()
-app/storage.py         save_image/read_image/delete_image — backends: local | replit | s3 (replit is the default when
-                       REPL_ID is set; read_image copies a photo found only on local disk into the bucket)
+app/storage.py         save_image(max_px=)/save_blob/read_image/delete_image — backends: local | replit | s3 (replit is the
+                       default when REPL_ID is set; read_image copies a photo found only on local disk into the bucket)
+app/drawings.py        floor plans: render_page()/page_count() via pypdfium2 (optional import), floor_key()/floor_title()
+                       matching plans to Room.floor, rooms_by_floor(), plan_for_room(), client_plans()
 app/webimage.py        fetch_image(url): picture bytes from a direct image link or a page (og:image / largest <img>);
                        stdlib only, refuses private addresses, raises WebImageError with a message for the page
 app/ai.py              Claude auto-fill (off without ANTHROPIC_API_KEY): suggest_item(image, page_text, url, rooms) → dict via
@@ -42,11 +44,14 @@ app/routers/           projects, rooms, items, suppliers, payments, cartons, sha
                        capture (/p/<id>/capture camera page → draft items; /p/<id>/drafts complete or discard),
                        clip (/clip: "Save to HBA" bookmarklet + save-from-web form → draft item or mood-board image)
 app/pdf/common.py      styles, table style, image flowable, footer
-app/pdf/schedule.py    client schedule PDF (cover, contents, floor plan, mood board, table per category, summary by room)
-app/pdf/packing.py     packing list, 6-per-page labels, room checklist, purchase order
+app/pdf/schedule.py    client schedule PDF: layout="category" (cover, contents, floor plans, mood board, table per category,
+                       summary by room) or "floor" (each floor's plan, then its rooms in one table with room sub-headers,
+                       whole-house section, summary grouped by floor)
+app/pdf/packing.py     packing list, 6-per-page labels, room checklist (page 1 = the room's floor plan), purchase order
 app/templates/         base.html = app shell (desktop sidebar, top bar + project switcher, phone bottom tab bar,
                        "More" sheet, inline SVG icon sprite, public bar for share pages) + pages
-                       (capture.html, drafts.html for quick capture); render() in common.py injects `nav`
+                       (capture.html, drafts.html for quick capture; projects/images.html = Images & plans,
+                       projects/pdf_pages.html = PDF page picker); render() in common.py injects `nav`
                        (projects, studio, drafts count) and `public` (login + share/* render without the shell)
 app/static/app.css     the design system (tokens, shell, cards, KPI tiles, buttons, forms, tables, badges, item cards)
 app/static/app.js      photo compression (also exposed as window.compressPhoto), quick status, copy link, toggleMore()
@@ -94,7 +99,9 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
 - Photos: compressed in the browser (`app.js`) and again server-side (`storage.process_image`, max 1600 px JPEG).
   Always go through `storage.py`; never write files directly.
 - Schema changes: edit `models.py` **and** add the `ALTER TABLE` to README "Schema changes" (production is Neon;
-  `create_all` only creates missing tables, it does not add columns). Adding Alembic is a welcome backlog item.
+  `create_all` only creates missing tables, it does not add columns). Prefer a new table over a new column on an
+  existing table (a new table needs no ALTER, e.g. `plan_tags`). Adding Alembic is a welcome backlog item.
+- Drawings are a reference only. Nothing may create rooms or items from a floor plan; the designer chooses the scope.
 - Keep the README current in the same change — if you change behaviour, env vars, routes or deploy steps,
   update README.md before you finish.
 
@@ -135,6 +142,12 @@ ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;   -- quick ca
   code, qty, status, cartons) and rows are grouped by name (`items.same_item_elsewhere`, case/space-insensitive).
   New item form posts `room_ids` (checklist, one row per room, photos copied per row); the edit form has
   `apply_all` (copies `SHARED_FIELDS` to the other rooms' rows) and `add_room_ids` (copies this item into more rooms).
+
+- **Architectural drawings.** Floor plans tagged with floor + sheet (`PlanTag`, own table), PDF drawing sets with a
+  page picker (`DrawingSet`, pages rendered by `pypdfium2` at `PLAN_MAX_PX`, previews at 1600 px), plans on the Rooms
+  page, client link and room checklist, and the schedule PDF `?layout=floor`. Owner rules: the Kinondoni scope is the
+  rooms on the imported Excel (staff house excluded, 8 dining chairs by choice); drawings never create rooms or items.
+  Not done yet: pins linking items to a spot on a plan, quantities from drawings, a per-project default layout.
 
 ## Backlog (in priority order)
 

@@ -18,7 +18,8 @@ same data, entered once.
 | Suppliers | Contacts, WeChat, payment terms, what they supply; per-project ordered / paid / balance. |
 | Payments | Deposit / balance per supplier with receipt photo. |
 | Packing | One line per box with room code, "Box n of N", CBM, weight, received tick. Container size calculated. Suppliers can list their own boxes through a **packing link** (no login). |
-| Documents (PDF) | Client FF&E schedule (cover, contents, floor plan, mood board, one table per category, summary by room — USD or CNY, with/without prices), purchase order per supplier, packing list, box labels (6 per A4), room checklist. Excel export. |
+| Floor plans & drawings | Upload plan images or the architect's PDF drawing set on **Images & plans**, pick the pages that are floor plans and tag each with its floor and sheet reference. Tagged plans appear on the Rooms page (grouped by floor), on the client link, as page 1 of the room checklist and in the schedule by floor. Drawings are a reference only: rooms and items are never created from them. |
+| Documents (PDF) | Client FF&E schedule (cover, contents, floor plans, mood board, one table per category, summary by room — USD or CNY, with/without prices), or **by floor** (`?layout=floor`: each floor's plan followed by that floor's rooms with room sub-headers, then whole-house items, then the summary grouped by floor), purchase order per supplier, packing list, box labels (6 per A4), room checklist. Excel export. |
 | Client link | Read-only web view of the schedule + PDF download, per project. |
 | Import | Upload the procurement Excel (Shopping List + Rooms sheets) to load a project in one go. |
 
@@ -84,6 +85,7 @@ app/main.py           app start, login, settings, media
 app/models.py         tables: projects, rooms, items, photos, suppliers, supplier_links, payments, cartons, settings
 app/routers/          projects, rooms, items, suppliers, payments, cartons, share (public links), exports, importer,
                       capture (quick capture + drafts), clip (Save from web bookmarklet + /clip page)
+app/drawings.py       floor plans: PDF page rendering (pypdfium2, optional) and floor matching between plans and rooms
 app/webimage.py       fetch a picture (+ page text) from a web link (direct image or a page's og:image / largest <img>)
 app/ai.py             Claude auto-fill: suggest_item() from page text + picture, apply_suggestion() onto an Item
 app/pdf/              schedule.py (client FF&E PDF), packing.py (packing list, labels, PO, room checklist)
@@ -100,4 +102,24 @@ Columns added after the first deployment — run these on Neon once, in order:
 ```sql
 -- Quick capture drafts (items.draft)
 ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;
+-- Floor plans & drawing sets: new tables plan_tags and drawing_sets only, created automatically on startup (no ALTER).
 ```
+
+## Floor plans and drawing sets
+
+- **Images & plans** (`/p/<id>/images`): "Add floor plans" takes JPG/PNG (added at once, tagged with the floor and
+  sheet ref you typed) or a PDF drawing set (up to `MAX_PDF_MB` = 40 MB, `MAX_PDF_PAGES` = 60 pages). A PDF opens the
+  page picker (`/p/<id>/images/sets/<set>`): tick the plan pages, give each a floor and sheet ref, up to
+  `PICK_MAX_PAGES` = 12 per go. The PDF stays listed under "Drawing sets" (download, pick more pages, delete; pages
+  already added stay).
+- Every plan is stored twice: a 1600 px preview (pages, galleries) and a full-size copy at `PLAN_MAX_PX` (default
+  3200 px, env `PLAN_MAX_PX`) used in PDFs and by "open full size". Phone uploads of plans are compressed to the same size.
+- A plan's floor is matched to `Room.floor` ignoring case and a trailing "floor"/"level" ("ground floor" = "Ground").
+  Floors like "All", "Outside" or "Whole house" are not floors: their rooms and plans go under "Whole house / other".
+  Untagged plans (older uploads, `/clip`) still print up front in the schedule.
+- Where plans show: Rooms page (grouped by floor, plan strip per floor, "Plan" button per room), client link
+  (`/c/<token>`, with a "PDF by floor" button), room checklist PDF (page 1), client schedule (floor plan overview in
+  the category layout; each floor's plan before its rooms in the by-floor layout). Labels, packing lists, POs and
+  supplier pages stay as they are.
+- PDF page rendering needs `pypdfium2` (a pip wheel; no system packages). Without it the page says so and plan
+  images still work.

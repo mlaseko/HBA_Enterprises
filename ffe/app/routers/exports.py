@@ -6,7 +6,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from ..db import get_db
 from ..models import Project, Supplier, Room, Payment
-from ..common import require_login, get_project, get_settings
+from ..common import require_login, get_project, get_settings, content_disposition
 from ..pdf.schedule import build_schedule
 from ..pdf.packing import packing_list, labels, room_checklist, purchase_order
 from .items import sort_items
@@ -15,22 +15,26 @@ router = APIRouter()
 
 
 def pdf(data: bytes, name: str, inline=True):
-    disp = "inline" if inline else "attachment"
-    return Response(content=data, media_type="application/pdf", headers={"Content-Disposition": f'{disp}; filename="{name}"'})
+    return Response(content=data, media_type="application/pdf", headers=content_disposition(name, inline=inline))
 
 
 @router.get("/p/{project_id}/export/schedule.pdf", dependencies=[Depends(require_login)])
-def schedule_pdf(p: Project = Depends(get_project), db: Session = Depends(get_db), currency: str = "USD", prices: int = 1, photos: int = 1):
-    data = build_schedule(p, get_settings(db), currency=("CNY" if currency == "CNY" else "USD"), show_prices=bool(prices), include_photos=bool(photos))
-    return pdf(data, f"FFE-Schedule-{p.name}.pdf")
+def schedule_pdf(p: Project = Depends(get_project), db: Session = Depends(get_db), currency: str = "USD", prices: int = 1, photos: int = 1,
+                 layout: str = "category"):
+    by_floor = layout == "floor"
+    data = build_schedule(p, get_settings(db), currency=("CNY" if currency == "CNY" else "USD"), show_prices=bool(prices),
+                          include_photos=bool(photos), layout="floor" if by_floor else "category")
+    return pdf(data, f"FFE-Schedule-{p.name}{'-by-floor' if by_floor else ''}.pdf")
 
 
 @router.get("/c/{token}/schedule.pdf")
-def client_schedule_pdf(token: str, db: Session = Depends(get_db), currency: str = "USD"):
+def client_schedule_pdf(token: str, db: Session = Depends(get_db), currency: str = "USD", layout: str = "category"):
     p = db.query(Project).filter(Project.client_token == token).first()
     if not p:
         raise HTTPException(404)
-    return pdf(build_schedule(p, get_settings(db), currency=("CNY" if currency == "CNY" else "USD")), f"FFE-Schedule-{p.name}.pdf")
+    by_floor = layout == "floor"
+    data = build_schedule(p, get_settings(db), currency=("CNY" if currency == "CNY" else "USD"), layout="floor" if by_floor else "category")
+    return pdf(data, f"FFE-Schedule-{p.name}{'-by-floor' if by_floor else ''}.pdf")
 
 
 @router.get("/p/{project_id}/export/packing.pdf", dependencies=[Depends(require_login)])
@@ -68,6 +72,8 @@ def supplier_packing_pdf(token: str, db: Session = Depends(get_db)):
 @router.get("/p/{project_id}/export/room/{room_id}.pdf", dependencies=[Depends(require_login)])
 def room_pdf(room_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
     room = db.get(Room, room_id) if room_id else None
+    if room is not None and room.project_id != p.id:
+        raise HTTPException(404)
     return pdf(room_checklist(p, get_settings(db), room), f"Room-{room.code if room else 'ALL'}.pdf")
 
 
@@ -105,4 +111,4 @@ def items_xlsx(p: Project = Depends(get_project), db: Session = Depends(get_db))
     buf = io.BytesIO()
     wb.save(buf)
     return Response(content=buf.getvalue(), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    headers={"Content-Disposition": f'attachment; filename="{p.name}-items.xlsx"'})
+                    headers=content_disposition(f"{p.name}-items.xlsx"))

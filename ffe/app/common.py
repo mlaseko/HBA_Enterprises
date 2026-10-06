@@ -1,11 +1,13 @@
+import re
 import secrets
 from datetime import datetime
+from urllib.parse import quote
 from fastapi import Request, HTTPException, Depends
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from itsdangerous import URLSafeSerializer, BadSignature
 from sqlalchemy.orm import Session
-from . import config
+from . import config, drawings
 from .db import get_db, SessionLocal
 from .models import Project, Settings, Item
 
@@ -92,9 +94,12 @@ def fint(v, default=None):
 
 templates.env.filters["money"] = fmt_money
 templates.env.filters["num"] = fnum
+templates.env.filters["floor_title"] = drawings.floor_title
 templates.env.globals.update(AI_ENABLED=lambda: bool(__import__('os').getenv('ANTHROPIC_API_KEY')), APP_NAME=config.APP_NAME, CATEGORIES=config.CATEGORIES, UNITS=config.UNITS,
                              STATUSES=config.STATUSES, STATUS_COLORS=config.STATUS_COLORS,
-                             PAYMENT_KINDS=config.PAYMENT_KINDS)
+                             PAYMENT_KINDS=config.PAYMENT_KINDS, plan_caption=drawings.plan_caption,
+                             PLAN_MAX_PX=config.PLAN_MAX_PX, MAX_PDF_MB=config.MAX_PDF_MB, MAX_PDF_PAGES=config.MAX_PDF_PAGES,
+                             PICK_MAX_PAGES=config.PICK_MAX_PAGES)
 
 
 PUBLIC_TEMPLATES = {"login.html"}  # plus everything under share/: pages without the app shell
@@ -121,3 +126,11 @@ def render(request: Request, name: str, **ctx):
 
 def redirect(url: str):
     return RedirectResponse(url, status_code=303)
+
+
+def content_disposition(name: str, inline: bool = False) -> dict:
+    """Download header that survives any file name (Chinese, spaces, quotes): ASCII fallback plus RFC 5987 filename*."""
+    name = (name or "file").strip() or "file"
+    ascii_name = re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("_") or "file"
+    disp = "inline" if inline else "attachment"
+    return {"Content-Disposition": f"{disp}; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name)}"}

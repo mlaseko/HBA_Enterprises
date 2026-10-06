@@ -9,6 +9,7 @@
   </div>
 </div>
 
+<datalist id="floors">{% for f in floors %}<option value="{{ f }}">{% endfor %}</datalist>
 <form method="post" class="card">
   <div class="row between">
     <h2 class="mb-0">Add a room</h2>
@@ -20,12 +21,22 @@
     <div><label>Floor area m²</label><input class="in" type="number" step="0.1" name="floor_area" placeholder="0"></div>
     <div><label>Wall tile m²</label><input class="in" type="number" step="0.1" name="wall_area" placeholder="0"></div>
     <div class="span2"><label>Notes</label><input class="in" type="text" name="notes" placeholder="Finish level, access, anything the installers should know"></div>
-    <div><label>Floor</label><input class="in" type="text" name="floor" placeholder="Ground"></div>
+    <div><label>Floor</label><input class="in" type="text" name="floor" list="floors" placeholder="Ground" autocomplete="off"></div>
     <div class="btn-cell"><button class="btn"><svg class="ic"><use href="#i-plus"/></svg>Add room</button></div>
   </div>
 </form>
 
-{% for r in p.rooms %}
+{% for g in groups %}
+<div class="group-title"><h2>{{ g.title }}</h2><span class="n">{{ g.rooms|length }} room{{ '' if g.rooms|length == 1 else 's' }}</span></div>
+{% if g.plans %}
+<div class="gallery plans mini">
+  {% for im in g.plans %}<a class="g" href="/media/{{ im.best_key }}" target="_blank" title="Open full size"><img src="/media/{{ im.file_key }}" alt="{{ plan_caption(im) or 'Floor plan' }}"><div class="cap">{{ im.sheet or 'Plan' }}{% if im.caption %} · {{ im.caption }}{% endif %}</div></a>{% endfor %}
+</div>
+{% elif g.key != 'whole' %}
+<div class="small muted mb">No plan for this floor yet. <a href="/p/{{ p.id }}/images#plans">Add one</a> tagged "{{ g.floor }}".</div>
+{% endif %}
+{% set fp = g.plans[0] if (g.key != 'whole' and g.plans) else none %}
+{% for r in g.rooms %}
 {% set st = stats.get(r.id) %}
 <details class="card tight">
   <summary>
@@ -39,7 +50,7 @@
     <div class="grid stack g4">
       <div><label>Code</label><input class="in" type="text" name="code" value="{{ r.code }}"></div>
       <div><label>Name</label><input class="in" type="text" name="name" value="{{ r.name }}"></div>
-      <div><label>Floor</label><input class="in" type="text" name="floor" value="{{ r.floor }}"></div>
+      <div><label>Floor</label><input class="in" type="text" name="floor" list="floors" value="{{ r.floor }}" autocomplete="off"></div>
       <div><label>Order</label><input class="in" type="number" name="sort" value="{{ r.sort }}"></div>
       <div><label>Floor area m²</label><input class="in" type="number" step="0.1" name="floor_area" value="{{ r.floor_area }}"></div>
       <div><label>Wall tile m²</label><input class="in" type="number" step="0.1" name="wall_area" value="{{ r.wall_area }}"></div>
@@ -50,17 +61,20 @@
       <a class="btn sec sm" href="/p/{{ p.id }}/items?room={{ r.id }}"><svg class="ic"><use href="#i-grid"/></svg>Items</a>
       <a class="btn sec sm" href="/p/{{ p.id }}/export/room/{{ r.id }}.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Room checklist PDF</a>
       <a class="btn sec sm" href="/p/{{ p.id }}/export/labels.pdf?room={{ r.id }}" target="_blank"><svg class="ic"><use href="#i-tag"/></svg>Labels</a>
+      {% if fp %}<a class="btn sec sm" href="/media/{{ fp.best_key }}" target="_blank"><svg class="ic"><use href="#i-layout"/></svg>Plan{% if fp.sheet %} {{ fp.sheet }}{% endif %}</a>{% endif %}
     </div>
   </form>
   <form method="post" action="/p/{{ p.id }}/rooms/{{ r.id }}/delete" onsubmit="return confirmSubmit(this,'Delete room? Items stay but lose their room.')" class="mt">
     <button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete room</button>
   </form>
 </details>
-{% else %}
+{% endfor %}
+{% endfor %}
+{% if not p.rooms %}
 <div class="card empty">
   <div class="ring"><svg class="ic"><use href="#i-layout"/></svg></div>
   <h3>No rooms yet</h3>
   <p>Add the rooms of the house above. Each one gets a short code that goes on every item and every box.</p>
 </div>
-{% endfor %}
+{% endif %}
 {% endblock %}

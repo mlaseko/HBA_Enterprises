@@ -213,6 +213,145 @@ with TestClient(app) as c:
     db=SessionLocal(); acs=db.query(Item).filter(Item.project_id==int(pid), Item.name=="Air conditioner 12000 BTU").all()
     assert len(acs)==5 and {a.room_id for a in acs}==set(rids+extra_ids)
     new=[a for a in acs if a.room_id in extra_ids]; assert all(a.status=="To buy" and len(a.photos)==1 and a.code for a in new); db.close()
+    # ---- floor plans & drawing sets: tagged plans, PDF page picker, rooms/client pages, by-floor schedule, checklist ----
+    from app import drawings as _dr
+    from app.models import ProjectImage, DrawingSet, PlanTag
+    import pypdfium2 as _pf; assert _dr.available()
+    from reportlab.pdfgen import canvas as _cv
+    from reportlab.lib.pagesizes import A4 as _A4
+    def pdf_pages(labels):
+        b=io.BytesIO(); k=_cv.Canvas(b, pagesize=_A4)
+        for t_ in labels: k.setFont("Helvetica",40); k.drawString(100,500,t_); k.rect(80,100,400,300); k.showPage()
+        k.save(); return b.getvalue()
+    def pdf_text(data):
+        doc=_pf.PdfDocument(data); out=[]
+        for pg in doc: tp=pg.get_textpage(); out.append(tp.get_text_range()); tp.close(); pg.close()
+        doc.close(); return "\n".join(out)
+    def long_edge(key): return max(Image.open(io.BytesIO(_st.read_image(key))).size)
+    def big_img(color, w=2400, h=1800):
+        b=io.BytesIO(); Image.new("RGB",(w,h),color).save(b,"JPEG"); return b.getvalue()
+    assert _dr.floor_key("Ground Floor")=="ground" and _dr.floor_key(" first fl ")=="first" and _dr.floor_title("Ground")=="Ground floor"
+    assert _dr.floor_title("Roof")=="Roof" and _dr.floor_title("First Floor")=="First Floor" and _dr.floor_title("ground floor")=="Ground floor" and _dr.is_pseudo("All") and _dr.is_pseudo("Outside") and not _dr.is_pseudo("Roof")
+    r=c.get(f"/p/{pid}/images"); assert r.status_code==200 and "Add floor plans" in r.text and 'name="floor"' in r.text and 'value="Ground"' in r.text
+    assert "Untagged" in r.text and 'option value="floorplan"' not in r.text and "Drawing sets" not in r.text
+    # image plan, tagged at upload: 1600px preview + full-size copy
+    r=c.post(f"/p/{pid}/images/plans", data={"floor":"Roof","sheet":"A-103","caption":"Roof terrace"}, files=[("files",("roof.jpg",big_img("white"),"image/jpeg"))], follow_redirects=False)
+    assert r.status_code==303 and "?ok=" in r.headers["location"], r.headers
+    db=SessionLocal(); roof=db.query(ProjectImage).filter(ProjectImage.project_id==int(pid), ProjectImage.kind=="floorplan").order_by(ProjectImage.id.desc()).first()
+    assert roof.tag.floor=="Roof" and roof.sheet=="A-103" and long_edge(roof.hires_key)==2400 and long_edge(roof.file_key)<=1600; roof_id=roof.id; roof_keys=(roof.file_key, roof.hires_key); db.close()
+    # PDF drawing sets: every PDF in the upload becomes a set; redirect to the first set's page picker
+    r=c.post(f"/p/{pid}/images/plans", data={"floor":"","sheet":"A-100"}, files=[("files",("plans.pdf",pdf_pages(["GROUND FLOOR","FIRST FLOOR"]),"application/pdf")),("files",("more.pdf",pdf_pages(["SITE"]),"application/pdf"))], follow_redirects=False)
+    assert r.status_code==303, r.headers; loc=r.headers["location"]; sid=int(re.search(rf"/p/{pid}/images/sets/(\d+)", loc).group(1)); assert "sheet=A-100" in loc
+    db=SessionLocal(); sets=db.query(DrawingSet).filter(DrawingSet.project_id==int(pid)).order_by(DrawingSet.id).all()
+    assert len(sets)==2 and sets[0].id==sid and sets[0].pages==2 and sets[0].name=="plans.pdf" and sets[1].pages==1
+    assert _st.read_image(sets[0].file_key)[:5]==b"%PDF-" and long_edge(sets[0].thumb_key(1))<=480; set_key=sets[0].file_key; thumb1=sets[0].thumb_key(1); db.close()
+    r=c.get(loc); assert r.status_code==200 and r.text.count('name="page_')==2 and "/t001.jpg" in r.text and 'value="A-100"' in r.text
+    r=c.get(f"/p/{pid}/images/sets/{sid}.pdf"); assert r.status_code==200 and r.headers["content-type"]=="application/pdf"
+    r=c2.get(f"/p/{pid}/images/sets/{sid}.pdf", follow_redirects=False); assert r.status_code==303  # login required
+    r=c.post(f"/p/{pid}/images/sets/{sid}/pick", data={}, follow_redirects=False); assert "err=Tick" in r.headers["location"]
+    r=c.post(f"/p/{pid}/images/sets/{sid}/pick", data={"page_1":"on","floor_1":"Ground","sheet_1":"A-101 Rev A","page_2":"on","floor_2":"First","sheet_2":"A-102"}, follow_redirects=False)
+    assert r.status_code==303 and "?ok=" in r.headers["location"], r.headers
+    db=SessionLocal(); fps=db.query(ProjectImage).filter(ProjectImage.project_id==int(pid), ProjectImage.kind=="floorplan").order_by(ProjectImage.id).all()
+    assert len(fps)==4, len(fps)  # legacy untagged, roof, two picked pages
+    pages={im.tag.page_no: im for im in fps if im.tag and im.tag.set_id==sid}; assert set(pages)=={1,2}
+    assert 2000<=long_edge(pages[1].hires_key)<=3200 and long_edge(pages[1].file_key)<=1600 and pages[2].floor=="First"; gid=pages[1].id; db.close()
+    r=c.get(f"/p/{pid}/images/sets/{sid}"); assert r.text.count("Added")==2 and 'name="page_' not in r.text
+    r=c.get(f"/p/{pid}/images"); assert "A-101 Rev A" in r.text and f'action="/p/{pid}/images/{gid}"' in r.text and "Drawing sets" in r.text and "plans.pdf" in r.text and "more.pdf" in r.text
+    # tag edit; floor matching is case-insensitive and ignores "floor"
+    r=c.post(f"/p/{pid}/images/{gid}", data={"floor":" ground floor ","sheet":"A-101 Rev B","caption":"Ground plan"}, follow_redirects=False)
+    assert r.status_code==303 and r.headers["location"].endswith(f"#img-{gid}")
+    db=SessionLocal(); im=db.get(ProjectImage,gid); assert im.tag.floor=="ground floor" and im.sheet=="A-101 Rev B" and im.caption=="Ground plan"
+    pr=db.get(_P,int(pid)); assert _dr.plan_for_room(pr, db.get(Room, room.id)).id==gid and [g["title"] for g in _dr.rooms_by_floor(pr)]==["Ground floor","First floor","Roof","Whole house / other"]
+    plan_prev=im.file_key; db.close()
+    r=c.get(f"/p/{pid}/rooms"); assert "Ground floor" in r.text and "A-101 Rev B" in r.text and plan_prev in r.text and "Plan A-101 Rev B" in r.text and 'list="floors"' in r.text
+    assert "No plan for this floor yet" not in r.text and "Whole house / other" in r.text
+    r=c2.get(f"/c/{ctok}"); assert "Floor plans" in r.text and plan_prev in r.text and "layout=floor" in r.text
+    r=c2.get(f"/c/{ctok}/schedule.pdf?layout=floor"); assert r.status_code==200 and r.headers["content-type"]=="application/pdf"
+    tc=pdf_text(r.content); assert "GROUND FLOOR" in tc and "WHOLE HOUSE" in tc and "FLOOR PLAN OVERVIEW" not in tc  # the client link really gets the by-floor layout
+    # schedules: by category unchanged in structure, by floor = plan page then that floor's rooms, whole house, summary
+    a=c.get(f"/p/{pid}/export/schedule.pdf"); b=c.get(f"/p/{pid}/export/schedule.pdf?layout=floor"); b2=c.get(f"/p/{pid}/export/schedule.pdf?layout=floor")
+    assert a.status_code==b.status_code==200 and len(b.content)==len(b2.content) and len(a.content)!=len(b.content)
+    assert c.get(f"/p/{pid}/export/schedule.pdf?layout=floor&currency=CNY&prices=0").status_code==200
+    t_=pdf_text(b.content)
+    assert t_.index("GROUND FLOOR") < t_.index("FIRST FLOOR") < t_.index("ROOF") < t_.index("WHOLE HOUSE") < t_.index("SUMMARY BY ROOM"), t_[:3000]
+    assert "A-101 Rev B" in t_ and "GF-KIT - Kitchen" in t_ and "FLOOR PLAN OVERVIEW" not in t_
+    # the pseudo-floor room (ALL) prints only in the whole-house section, never under a real floor
+    assert t_.index("WHOLE HOUSE") < t_.index("ALL - Whole house") < t_.index("SUMMARY BY ROOM") and "ALL - Whole house" not in t_[:t_.index("WHOLE HOUSE")]
+    assert t_.count("Whole house / other") == 1, t_.count("Whole house / other")
+    ta=pdf_text(a.content); assert "FLOOR PLAN OVERVIEW" in ta and "SCHEDULE" in ta and "Ground floor · A-101 Rev B · Ground plan" in ta
+    # room checklist: the room's floor plan is page 1
+    r=c.get(f"/p/{pid}/export/room/{room.id}.pdf"); assert r.status_code==200 and len(r.content)>room_len and len(_pf.PdfDocument(r.content))>=2
+    assert "Find GF-KIT - Kitchen on: Ground floor" in pdf_text(r.content) and "A-101 Rev B" in pdf_text(r.content)
+    db=SessionLocal(); gym=db.query(Room).filter(Room.project_id==int(pid), Room.code=="RF-GYM").first(); db.close()
+    assert "A-103" in pdf_text(c.get(f"/p/{pid}/export/room/{gym.id}.pdf").content)
+    assert c.get(f"/p/{pid}/export/room/0.pdf").status_code==200
+    r=c.post("/projects/new", data={"client_name":"Other","name":"Other house","rate":"7.1"}, follow_redirects=False); pid2=r.headers["location"].split("/")[-1]
+    c.post(f"/p/{pid2}/rooms", data={"code":"X-1","name":"Other room","floor":"Ground"}, follow_redirects=False)
+    db=SessionLocal(); other=db.query(Room).filter(Room.project_id==int(pid2)).first(); db.close()
+    assert c.get(f"/p/{pid}/export/room/{other.id}.pdf").status_code==404 and c.get(f"/p/{pid}/images/sets/{sid}").status_code==200 and c.get(f"/p/{pid2}/images/sets/{sid}").status_code==404
+    # by-floor summary: rooms all on real floors, a plan tagged with a pseudo floor, loose items -> one whole-house section, not two
+    db=SessionLocal(); rooms2={r.code:r for r in db.query(Room).filter(Room.project_id==int(pid2))}; all_id=rooms2["ALL"].id; x1_id=rooms2["X-1"].id; db.close()
+    c.post(f"/p/{pid2}/items/new", data={"room_ids":[str(x1_id)],"category":"Lighting","name":"Lamp","qty":"1","unit":"pcs","unit_price":"100","status":"To buy"}, follow_redirects=False)
+    c.post(f"/p/{pid2}/items/new", data={"room_ids":[str(all_id)],"category":"Lighting","name":"Loose lamp","qty":"1","unit":"pcs","unit_price":"50","status":"To buy"}, follow_redirects=False)
+    c.post(f"/p/{pid2}/rooms/{all_id}/delete", follow_redirects=False)  # its item becomes loose (room_id NULL)
+    c.post(f"/p/{pid2}/images/plans", data={"floor":"Site","sheet":"A-000"}, files=[("files",("site.jpg",big_img("gray",900,600),"image/jpeg"))], follow_redirects=False)
+    t2=pdf_text(c.get(f"/p/{pid2}/export/schedule.pdf?layout=floor").content)
+    assert t2.index("GROUND FLOOR") < t2.index("Lamp") < t2.index("WHOLE HOUSE") < t2.index("Loose lamp") < t2.index("SUMMARY BY ROOM"), t2[:2000]
+    assert t2.count("Whole house / other")==1 and t2.count("Unassigned")==1 and "Unassigned 1 " in t2.split("SUMMARY BY ROOM")[1], t2[-1500:]
+    # deleting the PDF keeps the pages already added
+    r=c.post(f"/p/{pid}/images/sets/{sid}/delete", follow_redirects=False); assert r.status_code==303
+    assert _st.read_image(set_key) is None and _st.read_image(thumb1) is None and c.get(f"/p/{pid}/images/sets/{sid}").status_code==404
+    db=SessionLocal(); im=db.get(ProjectImage,gid); assert im is not None and im.tag.set_id is None and im.tag.page_no is None and im.floor=="ground floor"; db.close()
+    # without pypdfium2: PDFs are refused with a clear message, image plans still work
+    _real=_dr.pdfium; _dr.pdfium=None
+    try:
+        r=c.post(f"/p/{pid}/images/plans", data={"floor":"Roof"}, files=[("files",("x.pdf",pdf_pages(["X"]),"application/pdf"))], follow_redirects=False)
+        assert "err=" in r.headers["location"] and "pypdfium2" in r.headers["location"]
+        assert "not available" in c.get(f"/p/{pid}/images").text
+        r=c.post(f"/p/{pid}/images/plans", data={"floor":"Roof","sheet":"A-103b"}, files=[("files",("r2.jpg",big_img("gray",1000,700),"image/jpeg"))], follow_redirects=False)
+        assert "?ok=" in r.headers["location"]
+    finally:
+        _dr.pdfium=_real
+    # caps and junk: pages beyond MAX_PDF_PAGES are ignored, too many picks refused, unreadable files reported
+    r=c.post(f"/p/{pid}/images/plans", data={}, files=[("files",("big.pdf",pdf_pages(["P"]*14),"application/pdf"))], follow_redirects=False)
+    sid2=int(re.search(r"/sets/(\d+)", r.headers["location"]).group(1))
+    r=c.post(f"/p/{pid}/images/sets/{sid2}/pick", data={f"page_{k}":"on" for k in range(1,14)}, follow_redirects=False); assert "err=Add+at+most" in r.headers["location"] or "err=Add%20at%20most" in r.headers["location"], r.headers
+    r=c.post(f"/p/{pid}/images/plans", data={}, files=[("files",("junk.bin",b"hello","application/octet-stream"))], follow_redirects=False); assert "could" in r.headers["location"]
+    from app import config as _cfg
+    _old=_cfg.MAX_PDF_PAGES; _cfg.MAX_PDF_PAGES=3
+    try:
+        r=c.post(f"/p/{pid}/images/plans", data={}, files=[("files",("many.pdf",pdf_pages(["P"]*5),"application/pdf"))], follow_redirects=False)
+        sid3=int(re.search(r"/sets/(\d+)", r.headers["location"]).group(1)); db=SessionLocal(); assert db.get(DrawingSet,sid3).pages==3; db.close()
+    finally:
+        _cfg.MAX_PDF_PAGES=_old
+    # a good PDF next to a broken one: the good one is kept (set in the DB, no orphan files) and the error still shows
+    db=SessionLocal(); before=db.query(DrawingSet).count(); db.close()
+    r=c.post(f"/p/{pid}/images/plans", data={}, files=[("files",("good.pdf",pdf_pages(["G"]),"application/pdf")),("files",("broken.pdf",b"%PDF-1.4 not really","application/pdf"))], follow_redirects=False)
+    assert "/sets/" in r.headers["location"] and "err=" in r.headers["location"] and "broken.pdf" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); assert db.query(DrawingSet).count()==before+1; db.close()
+    r=c.get(r.headers["location"]); assert r.status_code==200 and "broken.pdf" in r.text
+    # storage keys are validated: /media never leaves the upload folder (no login needed for /media)
+    anon=TestClient(app)
+    for bad in ["%2e%2e/%2e%2e/%2e%2e/%2e%2e/etc/passwd", "../../etc/passwd", "/etc/passwd", "p1/..%2fx.jpg"]:
+        r=anon.get(f"/media/{bad}"); assert r.status_code==404, (bad, r.status_code)
+    assert _st.safe_key("p1/sets/abc.pdf") and _st.safe_key("img/0123abcd.jpg") and not _st.safe_key("../x") and not _st.safe_key("/x") and not _st.safe_key("a/../b") and not _st.safe_key("")
+    assert _st.read_image("../../etc/passwd") is None
+    r=anon.get(f"/media/{roof_keys[0]}"); assert r.status_code==200 and r.headers["content-type"].startswith("image/jpeg")
+    # Chinese drawing-set names download fine (RFC 5987 header) and the schedule PDF too
+    r=c.post(f"/p/{pid}/images/plans", data={}, files=[("files",("一层平面图.pdf",pdf_pages(["CN"]),"application/pdf"))], follow_redirects=False)
+    sid_cn=int(re.search(r"/sets/(\d+)", r.headers["location"]).group(1))
+    r=c.get(f"/p/{pid}/images/sets/{sid_cn}.pdf"); assert r.status_code==200 and "filename*=UTF-8''%E4%B8%80" in r.headers["content-disposition"], r.headers.get("content-disposition")
+    # the size cap is applied before the file is read into memory
+    _oldmb=_cfg.MAX_PDF_MB; _cfg.MAX_PDF_MB=0
+    try:
+        r=c.post(f"/p/{pid}/images/plans", data={}, files=[("files",("huge.pdf",pdf_pages(["H"]),"application/pdf"))], follow_redirects=False); assert "larger" in r.headers["location"], r.headers["location"]
+    finally:
+        _cfg.MAX_PDF_MB=_oldmb
+    # deleting a plan removes both files and the tag row
+    r=c.post(f"/p/{pid}/images/{roof_id}/delete", follow_redirects=False); assert r.status_code==303
+    assert _st.read_image(roof_keys[0]) is None and _st.read_image(roof_keys[1]) is None
+    db=SessionLocal(); assert db.get(PlanTag, roof_id) is None and db.get(ProjectImage, roof_id) is None; db.close()
+    print("floor plans ok")
     # shared storage: a photo still on this server's disk is served and copied into the bucket
     class _Fake:
         def __init__(self): self.b={}

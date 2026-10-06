@@ -1,21 +1,27 @@
 {% extends "base.html" %}
-{% block title %}Mood board · {{ p.name }} · {{ APP_NAME }}{% endblock %}
+{% block title %}Images &amp; plans · {{ p.name }} · {{ APP_NAME }}{% endblock %}
 {% block content %}
 {% set total = p.images|length %}
 <div class="page-head">
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
-    <h1>Mood board{% if total %} <span class="h-note">{{ total }} {{ 'image' if total == 1 else 'images' }}</span>{% endif %}</h1>
-    <p class="sub">Cover, floor plans and mood board for the client schedule PDF: one cover image, floor plan pages, then mood board pages with six images each.</p>
+    <h1>Images &amp; plans{% if total %} <span class="h-note">{{ total }} {{ 'image' if total == 1 else 'images' }}</span>{% endif %}</h1>
+    <p class="sub">Cover and mood board for the client schedule, plus the floor plans. Drawings are a reference only: rooms and items are never created from them.</p>
   </div>
-  <div class="actions"><a class="btn sec sm" href="/p/{{ p.id }}/export/schedule.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Preview schedule PDF</a></div>
+  <div class="actions">
+    <a class="btn sec sm" href="/p/{{ p.id }}/export/schedule.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Preview schedule PDF</a>
+    <a class="btn sec sm" href="/p/{{ p.id }}/export/schedule.pdf?layout=floor" target="_blank"><svg class="ic"><use href="#i-layout"/></svg>Schedule by floor</a>
+  </div>
 </div>
 
 {% if err %}<div class="alert err">{{ err }}</div>{% endif %}
+{% if ok %}<div class="alert info">{{ ok }}</div>{% endif %}
+<datalist id="floors">{% for f in floors %}<option value="{{ f }}">{% endfor %}</datalist>
+
 <form method="post" enctype="multipart/form-data" class="card">
   <h2><svg class="ic"><use href="#i-upload"/></svg> Add images</h2>
   <div class="grid g3 stack">
-    <div><label for="im-kind">Type</label><select id="im-kind" name="kind" class="in"><option value="mood">Mood board</option><option value="floorplan">Floor plan</option><option value="cover">Cover image</option></select></div>
+    <div><label for="im-kind">Type</label><select id="im-kind" name="kind" class="in"><option value="mood">Mood board</option><option value="cover">Cover image</option></select></div>
     <div><label for="im-cap">Caption (optional)</label><input id="im-cap" class="in" type="text" name="caption" placeholder="e.g. Warm wood &amp; linen"></div>
     <div><label for="im-files">Photos</label><input id="im-files" type="file" name="files" accept="image/*" multiple required><div class="filehint help"></div></div>
   </div>
@@ -25,10 +31,43 @@
   </div>
 </form>
 
+<form method="post" action="/p/{{ p.id }}/images/plans" enctype="multipart/form-data" class="card" id="plans">
+  <h2><svg class="ic"><use href="#i-layout"/></svg> Add floor plans</h2>
+  <div class="grid g3 stack">
+    <div><label for="fp-floor">Floor</label><input id="fp-floor" class="in" type="text" name="floor" list="floors" placeholder="Ground" autocomplete="off"></div>
+    <div><label for="fp-sheet">Sheet ref (optional)</label><input id="fp-sheet" class="in" type="text" name="sheet" placeholder="A-104 Rev A"></div>
+    <div><label for="fp-cap">Caption (optional)</label><input id="fp-cap" class="in" type="text" name="caption" placeholder="e.g. Furniture layout"></div>
+    <div class="span3"><label for="fp-files">Plan images or a PDF drawing set</label><input id="fp-files" type="file" name="files" accept="image/*,application/pdf,.pdf" data-maxpx="{{ PLAN_MAX_PX }}" multiple required><div class="filehint help"></div></div>
+  </div>
+  <div class="form-actions">
+    <button class="btn"><svg class="ic"><use href="#i-upload"/></svg>Upload</button>
+    <span class="small muted">{% if pdf_ok %}JPG/PNG are added straight away. A PDF drawing set (up to {{ MAX_PDF_MB }} MB, {{ MAX_PDF_PAGES }} pages) lets you pick the plan pages next.{% else %}PDF import is not available on this server: export plan pages as JPG or PNG.{% endif %} Plans are kept at {{ PLAN_MAX_PX }} px so room names stay readable.</span>
+  </div>
+</form>
+
+{% if sets %}
+<div class="card tight">
+  <h2 class="mb-0">Drawing sets</h2>
+  <div class="small muted">PDFs you uploaded. Pages already added stay even if you delete the PDF.</div>
+  <div class="mt">
+  {% for s in sets %}
+    <div class="row between set-row">
+      <div class="row"><svg class="ic"><use href="#i-file"/></svg><div><div class="b">{{ s.name }}</div><div class="small muted">{{ s.pages }} page{{ '' if s.pages == 1 else 's' }} · {{ added_count.get(s.id, 0) }} added · {{ s.created_at.strftime('%d %b %Y') }}</div></div></div>
+      <div class="row">
+        <a class="btn sm" href="/p/{{ p.id }}/images/sets/{{ s.id }}"><svg class="ic"><use href="#i-layout"/></svg>Pick pages</a>
+        <a class="btn ghost sm" href="/p/{{ p.id }}/images/sets/{{ s.id }}.pdf" title="Download the PDF" aria-label="Download the PDF"><svg class="ic"><use href="#i-download"/></svg><span class="hide-m">PDF</span></a>
+        <form method="post" action="/p/{{ p.id }}/images/sets/{{ s.id }}/delete" onsubmit="return confirmSubmit(this,'Delete this PDF? Pages already added as floor plans stay.')"><button class="btn sm icon danger" title="Delete PDF" aria-label="Delete PDF"><svg class="ic"><use href="#i-x"/></svg></button></form>
+      </div>
+    </div>
+  {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 <form method="post" action="/p/{{ p.id }}/images/url" class="card">
   <h2><svg class="ic"><use href="#i-link"/></svg> Add from a web link</h2>
   <div class="grid g3 stack">
-    <div><label for="iu-kind">Type</label><select id="iu-kind" name="kind" class="in"><option value="mood">Mood board</option><option value="floorplan">Floor plan</option><option value="cover">Cover image</option></select></div>
+    <div><label for="iu-kind">Type</label><select id="iu-kind" name="kind" class="in"><option value="mood">Mood board</option><option value="cover">Cover image</option></select></div>
     <div><label for="iu-cap">Caption (optional)</label><input id="iu-cap" class="in" type="text" name="caption" placeholder="e.g. Brass &amp; travertine"></div>
     <div><label for="iu-url">Picture or page link</label><input id="iu-url" class="in" type="url" name="url" inputmode="url" required placeholder="https://… (Pinterest pin, supplier page, image)" autocomplete="off"></div>
   </div>
@@ -39,13 +78,32 @@
 </form>
 
 <div class="moodboard">
-{% for kind, title, hint in [('cover', 'Cover', 'The first page of the client schedule.'), ('floorplan', 'Floor plan', 'Each plan gets its own page.'), ('mood', 'Mood board', 'Six images per page, with captions.')] %}
+{% for kind, title, hint in [('cover', 'Cover', 'The first page of the client schedule.'), ('floorplan', 'Floor plans', 'Tag each plan with its floor: the schedule by floor, the Rooms page and room checklists use it. Untagged plans print up front.'), ('mood', 'Mood board', 'Six images per page, with captions.')] %}
 {% set imgs = p.images|selectattr('kind', 'equalto', kind)|list %}
 <div class="card">
   <div class="row between top">
     <div><h2 class="mb-0">{{ title }}</h2><div class="small muted">{{ hint }}</div></div>
     <span class="pill">{{ imgs|length }}</span>
   </div>
+  {% if kind == 'floorplan' %}
+  <div class="gallery plans mt">
+  {% for im in imgs %}
+    <div class="g" id="img-{{ im.id }}">
+      <a href="/media/{{ im.best_key }}" target="_blank" title="Open full size"><img src="/media/{{ im.file_key }}" alt="{{ plan_caption(im) or 'Floor plan' }}"></a>
+      <form method="post" action="/p/{{ p.id }}/images/{{ im.id }}/delete" onsubmit="return confirmSubmit(this,'Delete this plan?')"><button class="btn sm icon danger" title="Delete plan" aria-label="Delete plan"><svg class="ic"><use href="#i-x"/></svg></button></form>
+      <form method="post" action="/p/{{ p.id }}/images/{{ im.id }}" class="tag">
+        <input class="in" type="text" name="floor" list="floors" value="{{ im.floor }}" placeholder="Floor" aria-label="Floor" autocomplete="off">
+        <input class="in" type="text" name="sheet" value="{{ im.sheet }}" placeholder="Sheet, e.g. A-104 Rev A" aria-label="Sheet">
+        <input class="in" type="text" name="caption" value="{{ im.caption }}" placeholder="Caption" aria-label="Caption">
+        <button class="btn sm sec"><svg class="ic"><use href="#i-check"/></svg>Save</button>
+      </form>
+      <div class="cap">{% if im.floor %}{{ plan_caption(im) }}{% else %}<span class="pill red">Untagged</span> prints up front{% endif %}{% if im.tag and im.tag.set_id %} · p.{{ im.tag.page_no }}{% endif %}</div>
+    </div>
+  {% else %}
+    <div class="ph lg">No floor plans yet</div>
+  {% endfor %}
+  </div>
+  {% else %}
   <div class="gallery mt">
   {% for im in imgs %}
     <div class="g"><img src="/media/{{ im.file_key }}" alt="{{ im.caption }}">
@@ -55,6 +113,7 @@
     <div class="ph lg">No {{ title|lower }} yet</div>
   {% endfor %}
   </div>
+  {% endif %}
 </div>
 {% endfor %}
 </div>

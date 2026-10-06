@@ -5,6 +5,7 @@ from ..db import get_db
 from ..models import Project, SupplierLink, Carton, Item
 from ..common import render, redirect, get_settings
 from ..services import carton_positions, summary
+from .. import drawings
 from .cartons import save_carton
 from .items import sort_items
 
@@ -62,4 +63,5 @@ def client_page(request: Request, token: str, db: Session = Depends(get_db)):
     groups = {}
     for i in items:
         groups.setdefault(i.category, []).append(i)
-    return render(request, "share/client.html", p=p, s=s, groups=groups, studio=get_settings(db), token=token)
+    return render(request, "share/client.html", p=p, s=s, groups=groups, studio=get_settings(db), token=token,
+                  plans=drawings.client_plans(p))

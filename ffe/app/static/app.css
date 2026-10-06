@@ -368,3 +368,25 @@ details summary{cursor:pointer;color:var(--ink);font-weight:600;margin:0}
 /* rooms.html, cartons.html, payments.html: grid cell that bottom-aligns the submit button with the inputs beside it (label + input stack) */
 .btn-cell{display:flex;align-items:flex-end}
 .btn-cell .btn{min-height:44px}
+
+/* floor plans: landscape, un-cropped, tag form under the picture */
+.gallery.plans img{width:220px;height:150px;object-fit:contain;background:#fff}
+.gallery.plans .g .cap,.gallery.plans .g form.tag{max-width:220px}
+.gallery .g form.tag{position:static;margin-top:6px;display:grid;gap:4px}
+.gallery .g form.tag .btn{justify-self:start}
+.gallery.plans.mini{margin-bottom:12px}.gallery.plans.mini img{width:150px;height:100px}
+.gallery.plans.mini a.g{text-decoration:none;color:inherit}
+.gallery.wide.plans img{width:260px;height:180px}
+.set-row{padding:8px 0;border-top:1px solid var(--line);gap:10px;flex-wrap:wrap}.set-row:first-child{border-top:0}
+.set-row>.row>div{min-width:0}.set-row .b,.wrap-any{overflow-wrap:anywhere}
+@media(max-width:480px){.gallery.plans img{width:calc(100vw - 72px);height:auto;max-height:240px}.gallery.plans.mini img{width:calc(50vw - 40px);height:auto}.gallery.plans .g .cap,.gallery.plans .g form.tag{max-width:none}.gallery.wide.plans img{width:100%}}
+/* PDF page picker */
+.pages{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+.pages .page{margin-bottom:0}
+.pages .page img{width:100%;height:auto;object-fit:contain;border:1px solid var(--line);border-radius:10px;background:#fff;display:block}
+.pages .page.done{opacity:.75}
+.pages .page label.check{display:flex;align-items:center;gap:8px;font-weight:600;cursor:pointer}
+.pages .page input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent)}
+.sticky-actions{position:sticky;bottom:8px;background:var(--bg);padding:10px 0;z-index:2}
+@media(max-width:959px){.sticky-actions{bottom:calc(var(--bottom-h) + 10px + env(safe-area-inset-bottom))}}
+@media(max-width:700px){.pages{grid-template-columns:1fr}}
