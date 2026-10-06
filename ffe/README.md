@@ -38,6 +38,9 @@ FastAPI + Jinja2 (server-rendered, mobile-first, no external CDN — works behin
 SQLAlchemy on Postgres (Neon) or SQLite for local dev, ReportLab for PDFs, Pillow for photo processing.
 Photos are shrunk on the phone (JavaScript) **and** on the server (max 1600 px, JPEG) so uploads work on
 factory Wi-Fi. Photo storage: Replit Object Storage, any S3-compatible bucket (Cloudflare R2), or local disk.
+On Replit the bucket is the default; a photo saved earlier on the server's own disk is copied into the bucket the
+first time it is opened, so it then shows on every computer. Optional: `pypdfium2` (in `requirements.txt`) renders
+PDF drawing sets; without it only JPG/PNG plans can be added.
 
 ## Run locally
 
@@ -56,7 +59,7 @@ Open http://localhost:8080 — SQLite database and photos are created under `./d
    deployment commands.
 3. **Tools → Secrets** — add:
    - `APP_PASSWORD` – the designer's login password
-   - `SECRET_KEY` – any long random string (signs the session cookie)
+   - `SECRET_KEY` (or `SESSION_SECRET`) – any long random string (signs the session cookie)
    - `DATABASE_URL` – a Neon Postgres connection string (`postgresql://…?sslmode=require`). Create a new
      Neon database for this app; tables are created automatically on first start.
    - `ANTHROPIC_API_KEY` – optional, turns on the Claude auto-fill (Console → API keys); `CLAUDE_MODEL` overrides the model
@@ -64,6 +67,7 @@ Open http://localhost:8080 — SQLite database and photos are created under `./d
      `S3_BUCKET`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` for Cloudflare R2.
      Do **not** use `local` on Replit deployments — the disk is not persistent.
    - optional `APP_NAME` – name shown in the top bar.
+   - optional `MAX_IMAGE_PX` (default 1600) and `PLAN_MAX_PX` (default 3200) – largest stored photo / floor-plan size.
 4. Press **Run** to test in the workspace, then **Deploy → Autoscale**. You get a `*.replit.app` URL;
    add a custom domain in Deployments if you want.
 5. In the app: **Settings** (studio name, phone, email — printed on PDFs and labels) → **New project** →
@@ -82,9 +86,11 @@ Pushing new commits to GitHub and re-deploying updates the app. The database and
 
 ```
 app/main.py           app start, login, settings, media
-app/models.py         tables: projects, rooms, items, photos, suppliers, supplier_links, payments, cartons, settings
+app/models.py         tables: projects, project_images (mood board + plans), plan_tags, drawing_sets, rooms, items,
+                      item_photos, suppliers, supplier_links, payments, cartons, settings
 app/routers/          projects, rooms, items, suppliers, payments, cartons, share (public links), exports, importer,
                       capture (quick capture + drafts), clip (Save from web bookmarklet + /clip page)
+app/storage.py        photos: replit | s3 | local backends, shrink on save, disk-to-bucket copy on first read
 app/drawings.py       floor plans: PDF page rendering (pypdfium2, optional) and floor matching between plans and rooms
 app/webimage.py       fetch a picture (+ page text) from a web link (direct image or a page's og:image / largest <img>)
 app/ai.py             Claude auto-fill: suggest_item() from page text + picture, apply_suggestion() onto an Item

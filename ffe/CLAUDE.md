@@ -27,7 +27,7 @@ openpyxl. Hosted on Replit (autoscale deployment, imports from GitHub).
 app/main.py            app, login/logout, /settings, /media/<key>
 app/config.py          env vars + constant lists (CATEGORIES, STATUSES, UNITS …)
 app/db.py              engine/session; create_all on startup (no migrations yet)
-app/models.py          Settings, Project, ProjectImage, Room, Supplier, SupplierLink, Item, ItemPhoto, Payment, Carton
+app/models.py          Settings, Project, ProjectImage, PlanTag, DrawingSet, Room, Supplier, SupplierLink, Item, ItemPhoto, Payment, Carton
                        Item.draft = quick-capture draft (no name/code yet); Project.live_items / Project.drafts split them
 app/common.py          templates, auth helpers, number filters, render()/redirect()
 app/services.py        summary() for dashboards, next_code(), carton_positions(), container_for()
@@ -78,6 +78,7 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
   there, never an icon font or CDN.
 - Yellow (`class="in"`) still means "the user types here". Use `.grid .g2/.g3/.g4` + `.span2…` instead of
   inline `grid-column`. The reusable `.fab` sits above the bottom tab bar (phone only: add `hide-d`).
+- The app top bar is styled as `header.top`, never bare `.top`: `.row.top` is a layout helper and would pick it up.
 - Navigation: sidebar/bottom bar/sheet are generated in base.html from the URL path; when you add a section,
   add it to the `project_links` or `studio_links` macro once and it appears everywhere.
 
@@ -137,6 +138,10 @@ ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;   -- quick ca
 - **Claude auto-fill.** `/clip` → "New item" fills the draft from the page text + picture (`ai.suggest_item`), and the
   item form has "Fill in with Claude" (`POST /p/<id>/items/<id>/suggest`, empty fields only). Model `claude-opus-5-5`
   (override `CLAUDE_MODEL`), effort low, JSON-schema output, server-side refusal fallback. Secrets: `ANTHROPIC_API_KEY`.
+
+- **Photos in Object Storage.** On Replit, `storage.py` defaults to the bucket; `read_image` copies a photo found only on
+  the server's disk into the bucket on first open (the published app's disk is wiped on restart, which is why photos
+  used to vanish on other computers). `/media/<key>` refuses keys that would leave `LOCAL_UPLOAD_DIR` (`..` paths).
 
 - **Items in several rooms.** No schema change: the same product in several rooms stays one `Item` row per room (own
   code, qty, status, cartons) and rows are grouped by name (`items.same_item_elsewhere`, case/space-insensitive).
