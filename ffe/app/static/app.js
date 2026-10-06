@@ -1,4 +1,4 @@
-// Shrinks photos on the phone before upload (max 1600px, JPEG 0.82) so uploads work on slow Wi-Fi.
+// Shrinks photos on the phone before upload (max 1600px, or the input's data-maxpx, JPEG 0.82) so uploads work on slow Wi-Fi.
 (function () {
   function compress(file, max) {
     return new Promise(function (resolve) {
@@ -27,15 +27,16 @@
     if (!(input instanceof HTMLInputElement) || input.type !== 'file' || !input.files || !input.files.length) return;
     if (input.dataset.compressed === '1') { input.dataset.compressed = ''; return; }
     var out = new DataTransfer(), changed = false;
+    var max = parseInt(input.dataset.maxpx || '1600', 10) || 1600;  // floor plans keep more pixels than photos
     for (var i = 0; i < input.files.length; i++) {
       var f = input.files[i];
-      var g = await compress(f, 1600);
+      var g = await compress(f, max);
       if (g !== f) changed = true;
       out.items.add(g);
     }
     if (changed) { input.dataset.compressed = '1'; input.files = out.files; input.dispatchEvent(new Event('change', { bubbles: true })); }
     var hint = input.parentElement && input.parentElement.querySelector('.filehint');
-    if (hint) hint.textContent = input.files.length + ' photo(s) ready';
+    if (hint) hint.textContent = input.files.length + ' file(s) ready';
   });
 
   // quick status change without leaving the list

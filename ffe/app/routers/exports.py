@@ -20,17 +20,22 @@ def pdf(data: bytes, name: str, inline=True):
 
 
 @router.get("/p/{project_id}/export/schedule.pdf", dependencies=[Depends(require_login)])
-def schedule_pdf(p: Project = Depends(get_project), db: Session = Depends(get_db), currency: str = "USD", prices: int = 1, photos: int = 1):
-    data = build_schedule(p, get_settings(db), currency=("CNY" if currency == "CNY" else "USD"), show_prices=bool(prices), include_photos=bool(photos))
-    return pdf(data, f"FFE-Schedule-{p.name}.pdf")
+def schedule_pdf(p: Project = Depends(get_project), db: Session = Depends(get_db), currency: str = "USD", prices: int = 1, photos: int = 1,
+                 layout: str = "category"):
+    by_floor = layout == "floor"
+    data = build_schedule(p, get_settings(db), currency=("CNY" if currency == "CNY" else "USD"), show_prices=bool(prices),
+                          include_photos=bool(photos), layout="floor" if by_floor else "category")
+    return pdf(data, f"FFE-Schedule-{p.name}{'-by-floor' if by_floor else ''}.pdf")
 
 
 @router.get("/c/{token}/schedule.pdf")
-def client_schedule_pdf(token: str, db: Session = Depends(get_db), currency: str = "USD"):
+def client_schedule_pdf(token: str, db: Session = Depends(get_db), currency: str = "USD", layout: str = "category"):
     p = db.query(Project).filter(Project.client_token == token).first()
     if not p:
         raise HTTPException(404)
-    return pdf(build_schedule(p, get_settings(db), currency=("CNY" if currency == "CNY" else "USD")), f"FFE-Schedule-{p.name}.pdf")
+    by_floor = layout == "floor"
+    data = build_schedule(p, get_settings(db), currency=("CNY" if currency == "CNY" else "USD"), layout="floor" if by_floor else "category")
+    return pdf(data, f"FFE-Schedule-{p.name}{'-by-floor' if by_floor else ''}.pdf")
 
 
 @router.get("/p/{project_id}/export/packing.pdf", dependencies=[Depends(require_login)])
@@ -68,6 +73,8 @@ def supplier_packing_pdf(token: str, db: Session = Depends(get_db)):
 @router.get("/p/{project_id}/export/room/{room_id}.pdf", dependencies=[Depends(require_login)])
 def room_pdf(room_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
     room = db.get(Room, room_id) if room_id else None
+    if room is not None and room.project_id != p.id:
+        raise HTTPException(404)
     return pdf(room_checklist(p, get_settings(db), room), f"Room-{room.code if room else 'ALL'}.pdf")
 
 

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Pick pages · {{ p.name }} · {{ APP_NAME }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/images">Images &amp; plans</a></div>
+    <h1>{{ set.name }} <span class="h-note">{{ set.pages }} page{{ '' if set.pages == 1 else 's' }}</span></h1>
+    <p class="sub">Tick the pages that are floor plans and say which floor each one shows. Untagged pages still work but print up front. Up to {{ PICK_MAX_PAGES }} pages per go.</p>
+  </div>
+</div>
+{% if err %}<div class="alert err">{{ err }}</div>{% endif %}
+<datalist id="floors">{% for f in floors %}<option value="{{ f }}">{% endfor %}</datalist>
+<form method="post" action="/p/{{ p.id }}/images/sets/{{ set.id }}/pick">
+  <div class="pages">
+  {% for k in pages %}{% set a = added.get(k) %}
+    <div class="card tight page{% if a %} done{% endif %}">
+      <a href="/media/{{ set.thumb_key(k) }}" target="_blank"><img src="/media/{{ set.thumb_key(k) }}" alt="Page {{ k }}" loading="lazy"></a>
+      {% if a %}
+      <div class="mt"><span class="pill sage"><svg class="ic"><use href="#i-check"/></svg>Added{% if a.floor %} · {{ plan_caption(a) }}{% endif %}</span></div>
+      {% else %}
+      <label class="check mt"><input type="checkbox" name="page_{{ k }}"> Page {{ k }} is a floor plan</label>
+      <div class="grid g2 stack mt">
+        <input class="in" type="text" name="floor_{{ k }}" list="floors" value="{{ floor }}" placeholder="Floor" aria-label="Floor for page {{ k }}" autocomplete="off">
+        <input class="in" type="text" name="sheet_{{ k }}" value="{{ sheet }}" placeholder="Sheet ref" aria-label="Sheet for page {{ k }}">
+      </div>
+      {% endif %}
+    </div>
+  {% endfor %}
+  </div>
+  <div class="form-actions sticky-actions">
+    <button class="btn lg"><svg class="ic"><use href="#i-check"/></svg>Add ticked pages</button>
+    <a class="btn ghost" href="/p/{{ p.id }}/images">Back</a>
+  </div>
+</form>
+{% endblock %}

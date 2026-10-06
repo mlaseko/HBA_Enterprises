@@ -15,6 +15,12 @@ S3_ENDPOINT = os.getenv("S3_ENDPOINT", "")
 S3_KEY = os.getenv("S3_ACCESS_KEY", "")
 S3_SECRET = os.getenv("S3_SECRET_KEY", "")
 MAX_IMAGE_PX = int(os.getenv("MAX_IMAGE_PX", "1600"))
+# Floor plans and PDF drawing sets. A3 at ~195 dpi keeps room names readable when zoomed; pages are previewed at MAX_IMAGE_PX.
+PLAN_MAX_PX = int(os.getenv("PLAN_MAX_PX", "3200"))
+PLAN_THUMB_PX = 480  # page-picker thumbnails
+MAX_PDF_MB = 40
+MAX_PDF_PAGES = 60  # thumbnails rendered per uploaded set
+PICK_MAX_PAGES = 12  # full-size pages rendered per "Add ticked pages"
 
 CATEGORIES = ["Paint", "Tiles", "Flooring", "Furniture", "Lighting", "Plumbing & Sanitary", "Cabinets",
               "Countertops", "Hardware", "Appliances", "Windows & Doors", "Electrical", "Curtains & Soft",

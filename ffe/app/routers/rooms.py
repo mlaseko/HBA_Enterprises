@@ -4,6 +4,7 @@ from ..db import get_db
 from ..models import Project, Room
 from ..common import render, redirect, require_login, get_project, ffloat, fint
 from ..services import summary
+from .. import drawings
 
 router = APIRouter(dependencies=[Depends(require_login)])
 
@@ -12,7 +13,7 @@ router = APIRouter(dependencies=[Depends(require_login)])
 def rooms(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db)):
     s = summary(db, p)
     stats = {r["key"]: r for r in s["by_room"]}
-    return render(request, "rooms.html", p=p, stats=stats)
+    return render(request, "rooms.html", p=p, stats=stats, groups=drawings.rooms_by_floor(p), floors=drawings.floor_order(p))
 
 
 @router.post("/p/{project_id}/rooms")

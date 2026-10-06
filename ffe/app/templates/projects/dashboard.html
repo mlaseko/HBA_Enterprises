@@ -74,10 +74,12 @@
 <div class="card" id="documents">
   <div class="row between top">
     <div><h2 class="mb-0">Documents</h2><div class="small muted">Generated live from the current items, rooms and cartons.</div></div>
-    <a class="small" href="/p/{{ p.id }}/images">Mood board &amp; cover</a>
+    <a class="small" href="/p/{{ p.id }}/images">Images &amp; floor plans</a>
   </div>
   <div class="docs mt">
     <a class="doc" href="/p/{{ p.id }}/export/schedule.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg><div><div class="t">Client schedule</div><div class="m">PDF · USD prices</div></div></a>
+    <a class="doc" href="/p/{{ p.id }}/export/schedule.pdf?layout=floor" target="_blank"><svg class="ic"><use href="#i-layout"/></svg><div><div class="t">Client schedule by floor</div><div class="m">PDF · each floor plan, then its rooms</div></div></a>
+    <a class="doc" href="/p/{{ p.id }}/export/schedule.pdf?layout=floor&amp;prices=0" target="_blank"><svg class="ic"><use href="#i-layout"/></svg><div><div class="t">Site schedule by floor</div><div class="m">PDF · no prices, for the site team</div></div></a>
     <a class="doc" href="/p/{{ p.id }}/export/schedule.pdf?currency=CNY" target="_blank"><svg class="ic"><use href="#i-file"/></svg><div><div class="t">Client schedule</div><div class="m">PDF · CNY prices</div></div></a>
     <a class="doc" href="/p/{{ p.id }}/export/schedule.pdf?prices=0" target="_blank"><svg class="ic"><use href="#i-file"/></svg><div><div class="t">Schedule without prices</div><div class="m">PDF · for site &amp; suppliers</div></div></a>
     <a class="doc" href="/p/{{ p.id }}/export/packing.pdf" target="_blank"><svg class="ic"><use href="#i-box"/></svg><div><div class="t">Packing list</div><div class="m">PDF · {{ s.cartons }} {{ 'box' if s.cartons == 1 else 'boxes' }}</div></div></a>

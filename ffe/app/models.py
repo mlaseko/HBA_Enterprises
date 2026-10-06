@@ -40,7 +40,8 @@ class Project(Base):
 
     rooms: Mapped[list["Room"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="Room.sort")
     items: Mapped[list["Item"]] = relationship(back_populates="project", cascade="all, delete-orphan")
-    images: Mapped[list["ProjectImage"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    images: Mapped[list["ProjectImage"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="ProjectImage.id")
+    drawing_sets: Mapped[list["DrawingSet"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="DrawingSet.id")
     payments: Mapped[list["Payment"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     cartons: Mapped[list["Carton"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     links: Mapped[list["SupplierLink"]] = relationship(back_populates="project", cascade="all, delete-orphan")
@@ -64,6 +65,58 @@ class ProjectImage(Base):
     file_key: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     project: Mapped["Project"] = relationship(back_populates="images")
+    # Floor plans only: which floor the plan shows, sheet reference, full-size copy. No row = untagged plan.
+    tag: Mapped["PlanTag | None"] = relationship(back_populates="image", cascade="all, delete-orphan", uselist=False)
+
+    @property
+    def floor(self) -> str:
+        return self.tag.floor if self.tag else ""
+
+    @property
+    def sheet(self) -> str:
+        return self.tag.sheet if self.tag else ""
+
+    @property
+    def hires_key(self) -> str:
+        return self.tag.hires_key if self.tag else ""
+
+    @property
+    def best_key(self) -> str:
+        """Full-size copy when there is one (PDF pages, plans), else the 1600 px preview."""
+        return self.hires_key or self.file_key
+
+    def ensure_tag(self) -> "PlanTag":
+        if self.tag is None:
+            self.tag = PlanTag()
+        return self.tag
+
+
+class PlanTag(Base):
+    """Floor-plan metadata for one ProjectImage(kind='floorplan'). Lives in its own table so adding it needs no ALTER."""
+    __tablename__ = "plan_tags"
+    image_id: Mapped[int] = mapped_column(ForeignKey("project_images.id"), primary_key=True)
+    floor: Mapped[str] = mapped_column(String(40), default="")  # matched to Room.floor (see drawings.floor_key)
+    sheet: Mapped[str] = mapped_column(String(60), default="")  # e.g. "A-104 Rev A"
+    hires_key: Mapped[str] = mapped_column(String(255), default="")  # PLAN_MAX_PX JPEG: PDFs and "open full size"
+    set_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # drawing_sets.id the page came from (nulled when the set is deleted)
+    page_no: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    image: Mapped["ProjectImage"] = relationship(back_populates="tag")
+
+
+class DrawingSet(Base):
+    """An uploaded PDF drawing set. Pages are picked into ProjectImage(kind='floorplan') rows; the PDF stays for re-picking."""
+    __tablename__ = "drawing_sets"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
+    name: Mapped[str] = mapped_column(String(200), default="")  # original file name
+    file_key: Mapped[str] = mapped_column(String(255))  # p{id}/sets/{hex}.pdf
+    thumb_prefix: Mapped[str] = mapped_column(String(255))  # p{id}/sets/{hex}/t  -> t001.jpg, t002.jpg ...
+    pages: Mapped[int] = mapped_column(Integer, default=0)  # pages thumbnailed (min(real pages, MAX_PDF_PAGES))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    project: Mapped["Project"] = relationship(back_populates="drawing_sets")
+
+    def thumb_key(self, n: int) -> str:
+        return f"{self.thumb_prefix}{n:03d}.jpg"
 
 
 class Room(Base):

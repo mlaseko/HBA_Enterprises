@@ -10,6 +10,7 @@
   <p>{{ p.name }}{% if p.address %} · {{ p.address }}{% endif %}</p>
   <div class="actions row mt">
     <a class="btn sec" href="/c/{{ token }}/schedule.pdf" target="_blank"><svg class="ic"><use href="#i-download"/></svg>Download PDF</a>
+    {% if plans %}<a class="btn sec" href="/c/{{ token }}/schedule.pdf?layout=floor" target="_blank"><svg class="ic"><use href="#i-layout"/></svg>PDF by floor</a>{% endif %}
   </div>
 </div>
 
@@ -25,6 +26,13 @@
 <div class="group-title"><h2>Mood board</h2><span class="n">{{ moods|length }} image{{ '' if moods|length == 1 else 's' }}</span></div>
 <div class="gallery wide">
   {% for im in moods %}<div class="g"><img src="/media/{{ im.file_key }}" alt="{{ im.caption }}">{% if im.caption %}<div class="cap">{{ im.caption }}</div>{% endif %}</div>{% endfor %}
+</div>
+{% endif %}
+
+{% if plans %}
+<div class="group-title"><h2>Floor plans</h2><span class="n">{{ plans|length }}</span></div>
+<div class="gallery wide plans">
+  {% for im in plans %}<div class="g"><a href="/media/{{ im.best_key }}" target="_blank" title="Open full size"><img src="/media/{{ im.file_key }}" alt="{{ plan_caption(im) or 'Floor plan' }}"></a><div class="cap">{{ plan_caption(im) or 'Floor plan' }}</div></div>{% endfor %}
 </div>
 {% endif %}
 

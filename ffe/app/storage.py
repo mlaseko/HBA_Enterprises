@@ -26,31 +26,45 @@ def _s3client():
     return _s3
 
 
-def process_image(data: bytes) -> bytes:
-    """Fix orientation, shrink to MAX_IMAGE_PX, re-encode as JPEG. Keeps uploads small on bad Wi-Fi."""
+def process_image(data: bytes, max_px: int | None = None) -> bytes:
+    """Fix orientation, shrink to max_px (default MAX_IMAGE_PX), re-encode as JPEG. Keeps uploads small on bad Wi-Fi."""
     img = Image.open(io.BytesIO(data))
     img = ImageOps.exif_transpose(img)
     if img.mode not in ("RGB", "L"):
         img = img.convert("RGB")
-    img.thumbnail((config.MAX_IMAGE_PX, config.MAX_IMAGE_PX))
+    px = max_px or config.MAX_IMAGE_PX
+    img.thumbnail((px, px))
     out = io.BytesIO()
     img.save(out, "JPEG", quality=82, optimize=True)
     return out.getvalue()
 
 
-def save_image(data: bytes, prefix: str = "img") -> str:
-    key = f"{prefix}/{uuid.uuid4().hex}.jpg"
-    body = process_image(data)
+def _content_type(key: str) -> str:
+    return "application/pdf" if key.endswith(".pdf") else "image/jpeg"
+
+
+def _put(key: str, body: bytes, content_type: str) -> None:
     backend = config.STORAGE_BACKEND
     if backend == "replit":
         _replit().upload_from_bytes(key, body)
     elif backend == "s3":
-        _s3client().put_object(Bucket=config.S3_BUCKET, Key=key, Body=body, ContentType="image/jpeg")
+        _s3client().put_object(Bucket=config.S3_BUCKET, Key=key, Body=body, ContentType=content_type)
     else:
         path = os.path.join(config.LOCAL_UPLOAD_DIR, key)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "wb") as f:
             f.write(body)
+
+
+def save_image(data: bytes, prefix: str = "img", max_px: int | None = None) -> str:
+    key = f"{prefix}/{uuid.uuid4().hex}.jpg"
+    _put(key, process_image(data, max_px), "image/jpeg")
+    return key
+
+
+def save_blob(data: bytes, key: str, content_type: str) -> str:
+    """Store bytes as they are (a PDF, or a JPEG already rendered at the right size) under an explicit key."""
+    _put(key, data, content_type)
     return key
 
 
@@ -76,10 +90,7 @@ def read_image(key: str) -> bytes | None:
     data = _read_local(key)
     if data is not None:
         try:
-            if backend == "replit":
-                _replit().upload_from_bytes(key, data)
-            else:
-                _s3client().put_object(Bucket=config.S3_BUCKET, Key=key, Body=data, ContentType="image/jpeg")
+            _put(key, data, _content_type(key))
         except Exception:
             pass
     return data
