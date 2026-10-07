@@ -85,6 +85,20 @@ Open http://localhost:8080 — SQLite database and photos are created under `./d
 
 Pushing new commits to GitHub and re-deploying updates the app. The database and photos are untouched.
 
+## Speed
+
+* Every item photo is stored twice: the full copy (`MAX_IMAGE_PX`, 1600 px) and a **small copy** (`THUMB_PX`, 640 px,
+  `ItemPhoto.thumb_key`) that lists, the plan dots, the room panel and the PDF tables use. Photos from before this version
+  get theirs from **Studio settings → Speed → Make small versions** (60 per press) and fall back to the full copy meanwhile.
+* `/media/<key>` keeps recently served pictures in memory (`MEDIA_CACHE_MB`, default 150) and sends them with a one-year
+  `immutable` cache header (keys never change content). PDFs prefetch their pictures in parallel (`storage.prefetch`).
+* Pages are gzip-compressed; `app.css` / `app.js` / `plan.js` carry a version stamp (`?v=`) and are cached for a year.
+* Relationships load eagerly (`lazy="joined"` for many-to-one, `lazy="selectin"` for collections), so the Overview and the
+  Items page run a handful of queries instead of one per item. On Neon that is the difference between seconds and
+  a fraction of a second.
+* What remains: Replit Autoscale starts the app on the first visit after a quiet spell and Neon wakes its compute;
+  an always-on (Reserved VM) deployment and a longer Neon autosuspend remove those seconds.
+
 ## Notes for use in China
 
 * No Google services are used anywhere (fonts, maps, auth, storage). Everything is served by the app.

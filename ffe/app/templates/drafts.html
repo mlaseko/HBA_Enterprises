@@ -20,7 +20,7 @@
     <form method="post" action="/p/{{ p.id }}/drafts/{{ d.id }}/discard" onsubmit="return confirmSubmit(this,'Discard this draft and delete its photo?')"><button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Discard</button></form>
   </div>
   <div class="row top">
-    {% if d.cover %}<a class="shot" href="/media/{{ d.cover.file_key }}" target="_blank"><img class="thumb lg" src="/media/{{ d.cover.file_key }}" alt=""></a>{% else %}<div class="shot"><div class="ph lg">no photo</div></div>{% endif %}
+    {% if d.cover %}<a class="shot" href="/media/{{ d.cover.file_key }}" target="_blank"><img class="thumb lg" src="/media/{{ d.cover.thumb }}" alt=""></a>{% else %}<div class="shot"><div class="ph lg">no photo</div></div>{% endif %}
     <form class="fields" method="post" action="/p/{{ p.id }}/drafts/{{ d.id }}">
       {% if err == d.id %}<div class="alert err">Give it a name to save it as an item.</div>{% endif %}
       {% if filled == d.id %}<div class="alert"><svg class="ic sm"><use href="#i-sparkle"/></svg> Claude filled this in from the page. Check it, then save.</div>{% endif %}

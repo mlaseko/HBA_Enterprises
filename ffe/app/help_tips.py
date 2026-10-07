@@ -172,8 +172,10 @@ TIPS = {
         what="What clients and suppliers see as the sender: printed on every PDF, label and share page.",
         steps=["Fill in the studio name, phone, email and website.",
                "Set the default exchange rate for new projects.",
-               "Upload a logo if you want it in the app, then press <b>Save</b>."],
-        tips=["Each project can still have its own exchange rate."]),
+               "Upload a logo if you want it in the app, then press <b>Save</b>.",
+               "Under <b>Speed</b>, press <b>Make small versions</b> until no older photo is left: lists and the plan then load a small copy of each photo instead of the full picture."],
+        tips=["Each project can still have its own exchange rate.",
+              "The first visit after a quiet spell is slow once: Replit starts the app and the database wakes up."]),
     "clip": dict(
         title="Save from web", anchor="web",
         what="Turn a supplier page, a Taobao or 1688 listing or a Pinterest pin into an item or a mood-board picture.",

@@ -103,7 +103,7 @@
   <div class="gallery">
   {% for ph in it.photos %}
     <div class="g">
-      <a href="/media/{{ ph.file_key }}" target="_blank"><img src="/media/{{ ph.file_key }}" alt=""></a>
+      <a href="/media/{{ ph.file_key }}" target="_blank"><img src="/media/{{ ph.thumb }}" alt=""></a>
       <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/photo/{{ ph.id }}/delete" onsubmit="return confirmSubmit(this,'Delete photo?')"><button class="btn sm icon danger" title="Delete photo" aria-label="Delete photo"><svg class="ic"><use href="#i-x"/></svg></button></form>
       {% if loop.index0 > 0 %}<form class="cover" method="post" action="/p/{{ p.id }}/items/{{ it.id }}/photo/{{ ph.id }}/cover"><button class="btn sm sec">Make cover</button></form>{% else %}<div class="cap"><svg class="ic sm"><use href="#i-check"/></svg> cover</div>{% endif %}
     </div>

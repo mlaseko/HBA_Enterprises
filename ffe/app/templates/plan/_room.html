@@ -33,7 +33,7 @@
     {% if i.category != ns.last %}<div class="cat">{{ i.category }}</div>{% set ns.last = i.category %}{% endif %}
     <div class="pi{{ ' placed' if q }}{{ ' hl' if sel_item == i.id }}" data-item="{{ i.id }}" data-pin="{{ q.id if q else '' }}" data-code="{{ i.code }}" data-name="{{ i.name }}">
       {% if ro %}
-      <div class="pic{{ '' if i.cover else ' empty' }}">{% if i.cover %}<img src="/media/{{ i.cover.file_key }}" loading="lazy" alt="">{% else %}no photo{% endif %}</div>
+      <div class="pic{{ '' if i.cover else ' empty' }}">{% if i.cover %}<img src="/media/{{ i.cover.thumb }}" loading="lazy" alt="">{% else %}no photo{% endif %}</div>
       <div class="body">
         <div class="t">{{ i.name }}</div>
         <div class="m">{{ i.qty|num }} {{ i.unit }}{% if i.brand %} · {{ i.brand }}{% endif %}{% if i.size %} · {{ i.size }}{% endif %}{% if i.finish %} · {{ i.finish }}{% endif %}{% if i.optional %} · optional{% endif %}</div>
@@ -41,7 +41,7 @@
       </div>
       {% if q %}<button type="button" class="btn ghost sm icon pinbtn" title="Show where it goes on the plan" aria-label="Show {{ i.name }} on the plan"><svg class="ic"><use href="#i-map"/></svg></button>{% endif %}
       {% else %}
-      <a class="pic{{ '' if i.cover else ' empty' }}" href="/p/{{ p.id }}/items/{{ i.id }}?next={{ here|urlencode }}">{% if i.cover %}<img src="/media/{{ i.cover.file_key }}" loading="lazy" alt="">{% else %}no photo{% endif %}</a>
+      <a class="pic{{ '' if i.cover else ' empty' }}" href="/p/{{ p.id }}/items/{{ i.id }}?next={{ here|urlencode }}">{% if i.cover %}<img src="/media/{{ i.cover.thumb }}" loading="lazy" alt="">{% else %}no photo{% endif %}</a>
       <div class="body">
         <a class="t" href="/p/{{ p.id }}/items/{{ i.id }}?next={{ here|urlencode }}">{{ i.name }}</a>
         <div class="m">{{ i.code }} · {{ i.qty|num }} {{ i.unit }}{% if i.unit_price %} · ¥{{ i.total|money }}{% endif %}{% if i.supplier %} · {{ i.supplier.name }}{% endif %}{% if i.optional %} · optional{% endif %}</div>

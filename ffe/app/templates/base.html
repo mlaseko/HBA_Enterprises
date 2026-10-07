@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{% block title %}{{ APP_NAME }}{% endblock %}</title>
-<link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/app.css?v={{ STATIC_V }}">
 <meta name="theme-color" content="#F6F3EE">
 <link rel="icon" type="image/png" href="/static/brand/favicon.png">
 <link rel="apple-touch-icon" href="/static/brand/touch-icon.png">
@@ -178,7 +178,7 @@
   </aside>
 </div>
 {% endif %}
-<script src="/static/app.js"></script>
+<script src="/static/app.js?v={{ STATIC_V }}"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

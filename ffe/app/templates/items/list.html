@@ -64,7 +64,7 @@
   <tbody>
   {% for i in items %}
   <tr id="item-{{ i.id }}">
-    <td>{% if i.cover %}<a href="/p/{{ p.id }}/items/{{ i.id }}"><img class="thumb sm" src="/media/{{ i.cover.file_key }}" alt=""></a>{% endif %}</td>
+    <td>{% if i.cover %}<a href="/p/{{ p.id }}/items/{{ i.id }}"><img class="thumb sm" src="/media/{{ i.cover.thumb }}" alt=""></a>{% endif %}</td>
     <td class="small muted nowrap">{{ i.code }}</td>
     <td><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a>{% if i.optional %} <span class="pill">optional</span>{% endif %}{% if i.size or i.finish %}<div class="small muted">{{ i.size }}{% if i.size and i.finish %} · {% endif %}{{ i.finish }}</div>{% endif %}</td>
     <td class="small">{{ i.room.name if i.room else '—' }}</td>
@@ -92,7 +92,7 @@
     {% set ns.last = grp %}{% set ns.open = true %}
   {% endif %}
   <div class="item-card" id="item-{{ i.id }}">
-    {% if i.cover %}<a class="pic" href="/p/{{ p.id }}/items/{{ i.id }}"><img src="/media/{{ i.cover.file_key }}" alt=""></a>{% else %}<a class="pic empty" href="/p/{{ p.id }}/items/{{ i.id }}">no photo</a>{% endif %}
+    {% if i.cover %}<a class="pic" href="/p/{{ p.id }}/items/{{ i.id }}"><img src="/media/{{ i.cover.thumb }}" alt=""></a>{% else %}<a class="pic empty" href="/p/{{ p.id }}/items/{{ i.id }}">no photo</a>{% endif %}
     <div class="body">
       <div class="t"><a href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a></div>
       <div class="m"><span class="pill">{{ i.room.name if i.room else 'Whole house' }}</span> {{ i.code }} · {{ i.qty|num }} {{ i.unit }}{% if i.unit_price %} · ¥{{ i.unit_price|money(2) }}/{{ i.unit }}{% endif %}</div>
