@@ -852,7 +852,7 @@ with TestClient(app) as c:
         k.save(); return b.getvalue()
     r=c.post(f"/p/{pid}/images/plans", data={}, files=[("files",("titled.pdf",pdf_titled([("GROUND FLOOR PLAN (FURNITURE LAYOUT)","A-105"),("FRONT ELEVATION","A-301"),("FIRST FLOOR PLAN","A-106")]),"application/pdf"))], follow_redirects=False)
     tsid=int(r.headers["location"].split("/sets/")[1].split("?")[0])
-    r=c.get(f"/p/{pid}/images/sets/{tsid}"); assert r.status_code==200 and "2 pages look like floor plans" in r.text
+    r=c.get(f"/p/{pid}/images/sets/{tsid}"); assert r.status_code==200 and "2 pages look like plan sheets" in r.text
     assert 'name="page_1" checked' in r.text and 'name="page_2">' in r.text and 'name="page_3" checked' in r.text
     sel=lambda h, name: re.search(r'name="%s".*?</select>' % name, h, re.S).group(0)
     assert 'value="furnishing" selected' in sel(r.text, "layer_1") and 'value="main" selected' in sel(r.text, "layer_3")  # Ground already has a main plan: the furniture layout is a layer of it
@@ -866,9 +866,10 @@ with TestClient(app) as c:
     r=c.post(f"/p/{pid_s}/images/plans", data={}, files=[("files",("solo.pdf",pdf_titled([("GROUND FLOOR PLAN (FURNITURE LAYOUT)","A-104"),("GROUND FLOOR ELECTRICAL LAYOUT","E-01")]),"application/pdf"))], follow_redirects=False)
     r=c.get(r.headers["location"]); h=r.text
     assert 'value="main" selected' in sel(h, "layer_1") and 'name="caption_1" value="Furniture Layout"' in h and 'value="electrical" selected' in sel(h, "layer_2"), sel(h, "layer_1")
+    assert "Add page 1 as a plan" in h and '<label for="layer_2">Shows</label>' in h and "main plan or a layer of it" in h  # the picker says what the tick and the Shows box do
     r=c.post(f"/p/{pid_s}/images/plans", data={"floor":"Ground","sheet":"A-100","caption":""}, files=[("files",("g.jpg",img("white"),"image/jpeg"))], follow_redirects=False)  # now a general plan exists ...
     r=c.get(f"/p/{pid_s}/images/sets/{c.get(f'/p/{pid_s}/images').text.split('/images/sets/')[1].split('\"')[0]}"); assert 'value="furnishing" selected' in sel(r.text, "layer_1") and 'name="caption_1" value=""' in r.text  # ... so the furniture layout is prefilled as its layer
-    r=c.get(f"/p/{pid}/images/sets/{tsid}"); assert "1 page looks like a floor plan and is ticked" in r.text  # page 3 still suggested, page 1 added
+    r=c.get(f"/p/{pid}/images/sets/{tsid}"); assert "1 page looks like a plan sheet and is ticked" in r.text  # page 3 still suggested, page 1 added
     r=c.post(f"/p/{pid}/images/sets/{tsid}/pick", data={"page_3":"on","floor_3":"First","sheet_3":"A-106"}, follow_redirects=False)
     r=c.get(f"/p/{pid}/images/sets/{tsid}"); assert "nothing more here looks like a floor plan" in r.text and "look like" not in r.text
     # a scanned set (no text layer) says so and prefills nothing

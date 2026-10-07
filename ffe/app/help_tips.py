@@ -61,9 +61,10 @@ TIPS = {
     "pdf_pages": dict(
         title="Pick the plan pages", anchor="plans",
         what="Which pages of this PDF are floor plans, and which floor each one shows.",
-        steps=["The pages whose title block says floor / roof / site plan are already ticked, with floor, sheet, caption and what the sheet shows (main plan, furniture layout, electrical, plumbing, ceiling, flooring) filled in from the title.",
+        steps=["The pages whose title block says floor / roof / site plan are already ticked, with floor, sheet, caption and <b>Shows</b> (main plan, furniture layout, electrical, plumbing, ceiling, flooring) filled in from the title.",
                "Check them: fix a floor or sheet, untick what you do not want, tick what was missed.",
-               "Press <b>Add ticked pages</b>. Each one becomes a floor plan of the project."],
+               "<b>A layer is just a ticked page with another Shows.</b> Give the electrical or plumbing sheet the same floor as the floor's main plan and choose its layer under Shows; it then sits under that floor's Sheet switch on the Plan page and borrows the room boxes.",
+               "Press <b>Add ticked pages</b>. Each one becomes a plan of its floor."],
         tips=["A scanned PDF has no text to read, so nothing is prefilled: tick and type yourself.",
               "Pages already added stay even if you delete the PDF later."]),
     "plan": dict(
