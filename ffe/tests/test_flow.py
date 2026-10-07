@@ -530,6 +530,39 @@ with TestClient(app) as c:
     r=c.post("/projects/new", data={"client_name":"Empty","name":"Empty house","rate":"7.1"}, follow_redirects=False); pid_e=r.headers["location"].split("/")[-1]
     assert 'href="#help"' in c.get(f"/p/{pid_e}/items").text and 'href="#help"' in c.get(f"/p/{pid_e}/plan").text and 'href="#help"' in c.get(f"/p/{pid_e}/drafts").text and 'href="#help"' in c.get(f"/p/{pid_e}/cartons").text and 'href="#help"' in c.get(f"/p/{pid_e}/payments").text
     print("prices in USD or CNY + help ok")
+    # quick picks on the room checklist, the phone-friendly photo field, and the import template round trip
+    from app.models import Room as _R
+    def _grp(code, name): return _R(code=code, name=name).group
+    assert _grp("FF-MBR", "Master bedroom")=="bedroom" and _grp("FF-MEN", "Master ensuite")=="bathroom" and _grp("GF-GBA", "Guest bathroom")=="bathroom" and _grp("GF-GST", "Guest bedroom")=="bedroom"
+    assert _grp("FF-BA1", "BA 1")=="bathroom" and _grp("FF-MBA", "MBA")=="bathroom" and _grp("FF-BR2", "Second")=="bedroom" and _grp("FF-BAL", "Balconies")=="" and _grp("GF-KIT", "Kitchen")=="" and _grp("GF-WC", "Downstairs WC")=="bathroom" and _grp("FF-NUR", "Nursery")=="bedroom"
+    r=c.post("/projects/new", data={"client_name":"Picks","name":"Picks house","rate":"7.1"}, follow_redirects=False); pid_p=r.headers["location"].split("/")[-1]
+    for code,name,floor,kind in (("GF-LIV","Living room","Ground","room"),("GF-GBA","Guest bathroom","Ground","room"),("GF-GST","Guest bedroom","Ground","room"),("FF-MBR","Master bedroom","First","room"),("FF-MEN","Master ensuite","First","room"),("FF-BR1","Bedroom 1","First","room"),("FF-BA1","Bathroom 1","First","room"),("GF-ENT","Entrance","Ground","area"),("FF-BAL","Balconies","First","area")):
+        c.post(f"/p/{pid_p}/rooms", data={"code":code,"name":name,"floor":floor,"kind":kind}, follow_redirects=False)
+    r=c.get(f"/p/{pid_p}/items/new"); h=r.text
+    assert 'data-pick="group:bedroom"' in h and 'All bedrooms <b>3</b>' in h and 'All bathrooms <b>3</b>' in h and 'data-pick="floor:Ground"' in h and 'data-pick="floor:First"' in h and 'data-pick="kind:room"' in h and 'data-pick="kind:area"' in h and 'data-pick="none"' in h
+    assert 'data-group="bathroom" data-floor="First" data-kind="room"' in h and 'capture=' not in h.split('name="photos"')[1][:120] and 'name="photos" accept="image/*" multiple' in h
+    db=SessionLocal(); mbr=db.query(Room).filter(Room.project_id==int(pid_p), Room.code=="FF-MBR").one().id; db.close()
+    r=c.post(f"/p/{pid_p}/items/new", data={"room_ids":[str(mbr)],"category":"Furniture","name":"Bedside lamp","qty":"2","unit":"pcs","unit_price":"300","status":"To buy"}, follow_redirects=False)
+    r=c.get(r.headers["location"]); assert 'name="add_room_ids"' in r.text and 'All bedrooms <b>2</b>' in r.text  # the other two bedrooms
+    r=c.get(f"/p/{pid_p}/import/template.xlsx"); assert r.status_code==200 and "spreadsheetml" in r.headers["content-type"] and "import_template.xlsx" in r.headers["content-disposition"]
+    wb=openpyxl.load_workbook(io.BytesIO(r.content)); assert wb.sheetnames==["How to","Rooms","Shopping List","Lists"]
+    ws=wb["Rooms"]; labels=[ws.cell(row=i, column=1).value for i in range(2, 12)]; assert "FF-MBR - Master bedroom" in labels and "GF-ENT - Entrance" in labels and [c_.value for c_ in ws[1]]==["Room","Floor","Kind","Floor area m²","Wall tile m²","Notes"]
+    assert ws.cell(row=labels.index("GF-ENT - Entrance")+2, column=3).value=="area" and len(ws.data_validations.dataValidation)==2
+    sl=wb["Shopping List"]; hdr=[c_.value for c_ in sl[1]]; assert hdr[:3]==["Room","Category","Item"] and "Qty" in hdr and "Price (CNY)" in hdr and "Optional" in hdr
+    dvs={str(d.sqref)[0]: d.formula1 for d in sl.data_validations.dataValidation}; assert dvs["A"]=="Rooms!$A$2:$A$401" and dvs["B"].startswith("Lists!$A$2") and "M" in dvs and "N" in dvs, dvs
+    assert "How to fill this in" in str(wb["How to"]["A1"].value) and wb["Lists"]["A2"].value=="Paint" and wb["Lists"]["D2"].value=="room"
+    ws.append(["SF-STU - Studio","Second","room",None,None,"new floor"]); ws.append(["SF-TER - Terrace","Second","area",None,None,None]); ws.append(["(example) ZZ - Ignore","Second","room",None,None,None])
+    sl.append(["SF-STU - Studio","Furniture","Day bed","Oak frame","","2000 mm","Oak",1,"pcs",3200,"New Supplier Co","4 weeks","Quoted","no",""])
+    sl.append(["SF-TER - Terrace","Lighting","Terrace wall light","IP65","","","Black",2,"pcs",310,"","","To buy","yes",""])
+    sl.append(["FF-BA1 - Bathroom 1","Tiles","Floor tile","R11","","600 x 600","Grey",8,"m²",190,"","","To buy","",""])
+    sl.append(["(example) FF-BA1 - Bathroom 1","Tiles","Should be skipped","","","","",1,"pcs",1,"","","","",""]); sl.append(["","Paint","(example) skipped too","","","","",1,"pcs",1,"","","","",""])
+    b=io.BytesIO(); wb.save(b); r=c.post(f"/p/{pid_p}/import", files={"file":("filled.xlsx", b.getvalue())}, data={}); assert "Imported 3 items, 2 new rooms, 1 new suppliers" in r.text, re.search(r"Imported[^<]*", r.text).group(0)
+    db=SessionLocal(); rs={x.code:x for x in db.query(Room).filter(Room.project_id==int(pid_p))}; its={i.name:i for i in db.query(Item).filter(Item.project_id==int(pid_p))}
+    assert len(rs)==12 and rs["SF-STU"].floor=="Second" and rs["SF-STU"].kind=="room" and rs["SF-TER"].kind=="area" and "ZZ" not in rs and rs["FF-MBR"].floor=="First"
+    assert its["Day bed"].room.code=="SF-STU" and its["Day bed"].status=="Quoted" and its["Day bed"].supplier.name=="New Supplier Co" and its["Terrace wall light"].optional and its["Floor tile"].room.code=="FF-BA1" and its["Floor tile"].code=="FF-BA1-01" and "Should be skipped" not in its and len(its)==4
+    db.close()
+    r=c.get(f"/p/{pid_p}/items/new"); assert 'data-pick="floor:Second"' in r.text and "Download the template" in c.get(f"/p/{pid_p}/import").text
+    print("quick picks + import template ok")
     # ---- review fixes: counts per room, drafts never get dots, client leak checks, dots follow rooms, PDFs with markup, scoping ----
     # the panel's "placed" count is this room's: a dot of another room on the same plan does not count
     db=SessionLocal(); kit_dots=sum(1 for q in db.query(ItemPin).filter(ItemPin.image_id==gid) if q.item.room_id==room.id); r2_item=[i.id for i in db.get(Room, r2.id).items if not i.draft][0]; db.close()

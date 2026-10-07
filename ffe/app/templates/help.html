@@ -90,7 +90,7 @@
     <ol>
       <li>On <b>Projects</b>, press <b>New project</b>. Type the client's name, the project name (the house), the delivery address, the exchange rate and, if you like, a budget in USD. Press <b>Create project</b>.</li>
       <li>You land on the project's <b>Overview</b>. The sidebar (or the <b>More</b> menu on a phone) now shows this project's pages.</li>
-      <li>Already have the procurement list as an Excel file? Open <b>Import</b>, choose the file, press <b>Import</b>. Rooms and items are created in one go. Otherwise carry on to stage 3 and add the rooms yourself.</li>
+      <li>Already have the list in Excel? Open <b>Import</b>, press <b>Download the template</b>, fill its Rooms and Shopping List sheets, choose the file and press <b>Import</b>. Rooms and items are created in one go. Otherwise carry on to stage 3 and add the rooms yourself.</li>
     </ol>
     <div class="shots">
       {{ shot('projects', 'Projects: one card per house, with items, total, received and boxes.') }}
@@ -132,7 +132,7 @@
     <h3>Items: build the schedule</h3>
     <p>There are three ways in, and you will use all three.</p>
     <ol>
-      <li><b>Type it.</b> On <b>Items</b> (or on a room in the plan) press <b>Add item</b>. Tick the rooms that get it, choose the category, type the name and the must-have spec, qty, unit and price (CNY or USD), pick the supplier if you know it, add photos. <b>Save</b>, or <b>Save &amp; add another</b>.</li>
+      <li><b>Type it.</b> On <b>Items</b> (or on a room in the plan) press <b>Add item</b>. Tick the rooms that get it (the chips tick all bedrooms, all bathrooms or a whole floor at once), choose the category, type the name and the must-have spec, qty, unit and price (CNY or USD), pick the supplier if you know it, add photos. <b>Save</b>, or <b>Save &amp; add another</b>.</li>
       <li><b>Shoot it.</b> In a showroom press <b>Quick capture</b>. Every photo becomes a draft at once; keep shooting. Later, on <b>Drafts</b>, give each one a name, room, qty and price and press <b>Save as item</b>.</li>
       <li><b>Save it from the web.</b> Paste a supplier page, Taobao listing or Pinterest pin into the item's web-link field, or use the one-click <b>Save from web</b> button. The picture is downloaded and stored with the item.</li>
     </ol>
@@ -248,12 +248,13 @@
   </ul>
   <h3>Import from Excel</h3>
   <ul>
-    <li>The file needs a <b>Shopping List</b> sheet and a <b>Rooms</b> sheet, or it can be an Excel exported from this app. Columns are matched by their headers (Room, Category, Item, Must-have spec, Size / Finish, Qty, Unit, Price (CNY), Supplier, Status, Notes); extra columns are ignored.</li>
-    <li>Rooms are matched by code and created when new. A <b>Kind</b> column is honoured; new rooms without one are classified by name.</li>
-    <li>Tick <b>Delete all existing items in this project first</b> only to re-import a corrected file. Photos on deleted items are lost.</li>
-    <li>Photos are not in Excel: after importing, open each item and add the sample photo, or use Quick capture.</li>
+    <li>Press <b>Download the template</b> on the Import page. Its <b>Rooms</b> sheet already lists this project's rooms and areas, so adding a floor, a room or an area is one new row: <i>CODE - Name</i>, the floor, and the kind (room or area). Its <b>Shopping List</b> sheet takes one row per item per room, with dropdowns for the room, category, unit, status and optional; a room you add on the Rooms sheet appears in the room dropdown at once. A <b>How to</b> sheet repeats these rules.</li>
+    <li>The Kinondoni list format and a file exported from this app import too. Columns are matched by their headers (Room, Category, Item, Must-have spec, Size, Finish, Qty, Unit, Price (CNY), Supplier, Lead time, Status, Optional, Notes); extra columns are ignored.</li>
+    <li>Rooms are matched by code and created when new, never duplicated. A <b>Kind</b> column is honoured; new rooms without one are classified by name.</li>
+    <li>Every item row is added as a new item; items are never merged. List only what you are adding, or tick <b>Delete all existing items in this project first</b> to start over. Photos on deleted items are lost.</li>
+    <li>Rows whose Room or Item starts with <i>(example)</i> are ignored. Photos are not in Excel: after importing, open each item and add the sample photo, or use Quick capture.</li>
   </ul>
-  {{ shot('import', 'Import from Excel: the recognised columns, and the option to start over.') }}
+  {{ shot('import', 'Import from Excel: download the template, fill it in, upload it here.') }}
 </section>
 
 <section class="card" id="rooms">
@@ -332,7 +333,7 @@
   <div class="tbl"><table>
     <thead><tr><th>Field</th><th>What it is for</th><th>Where it shows</th></tr></thead>
     <tbody>
-      <tr><td><b>Rooms &amp; areas</b></td><td>Tick every place that gets this item. None ticked = whole house. Each ticked place gets its own line with its own code, quantity and status.</td><td>Codes, labels, plan, every list</td></tr>
+      <tr><td><b>Rooms &amp; areas</b></td><td>Tick every place that gets this item. None ticked = whole house. Each ticked place gets its own line with its own code, quantity and status. The chips above the list tick a whole group at once: <b>All bedrooms</b>, <b>All bathrooms</b>, a floor, all rooms, all areas; press a chip again to untick its group.</td><td>Codes, labels, plan, every list</td></tr>
       <tr><td><b>Category</b></td><td>Paint, Tiles, Flooring, Furniture, Lighting, Plumbing &amp; Sanitary, Cabinets, Countertops, Hardware, Appliances, Windows &amp; Doors, Electrical, Curtains &amp; Soft, Water Treatment, Other.</td><td>The page of the client schedule it prints on; the groups on the Items page</td></tr>
       <tr><td><b>Item / product name</b></td><td>What it is, as the client should read it.</td><td>Everywhere</td></tr>
       <tr><td><b>Must-have spec</b></td><td>What the supplier must deliver: material, standard, fittings included. Write it so a factory can quote from it.</td><td>Schedule, purchase order, supplier link, checklist</td></tr>
@@ -342,7 +343,7 @@
       <tr><td><b>Status</b></td><td>Where the purchase is; see <a href="#statuses">statuses</a>.</td><td>Badges, Overview counts, client link</td></tr>
       <tr><td><b>Optional item</b></td><td>An alternative the client may or may not take. Counted separately in the totals.</td><td>"optional" pill</td></tr>
       <tr><td><b>Notes</b></td><td>For you. Never shown to the client.</td><td>Item, checklist</td></tr>
-      <tr><td><b>Photos / web link</b></td><td>Camera or gallery, several at once; or a link to a page or a picture, downloaded when you save. The first photo is the cover.</td><td>Cards, schedule, purchase order, dots on the plan</td></tr>
+      <tr><td><b>Photos / web link</b></td><td>Take a photo, or choose several from the gallery at once (the phone offers both); or paste a link to a page or a picture, downloaded when you save. The first photo is the cover; more photos can be added on the item page at any time.</td><td>Cards, schedule, purchase order, dots on the plan</td></tr>
     </tbody>
   </table></div>
   <h3>The list</h3>
@@ -358,7 +359,7 @@
   <h3>Editing an item</h3>
   <ul>
     <li><b>Apply to the other rooms</b> (ticked by default when the same product is in several rooms) copies the name, category, spec, size, finish, brand, price, unit, lead time and supplier to the other lines. Quantity, status, notes and photos always stay per room.</li>
-    <li><b>Add this item to more rooms</b> copies it into the ticked rooms, each with its own code and the status To buy.</li>
+    <li><b>Add this item to more rooms</b> copies it into the ticked rooms, each with its own code and the status To buy. The same chips are there: all bedrooms, all bathrooms, a floor.</li>
     <li>Photos: delete, or <b>Make cover</b>. With Claude turned on, <b>Fill in with Claude</b> fills the empty fields from the cover photo.</li>
     <li><b>Duplicate</b> makes a copy to tweak. <b>Delete item</b> removes the item and its photos; its code is not reused.</li>
     <li><b>Plan</b> / <b>On the plan</b> at the top opens the room on the drawing, with the item highlighted if it has a dot.</li>

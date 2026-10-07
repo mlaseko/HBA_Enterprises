@@ -668,3 +668,12 @@ tr.hl td,.item-card.hl{background:var(--accent-soft)!important;transition:backgr
   .help-body .tbl td{display:block;padding:2px 0;border:0;white-space:normal}
   .help-body .tbl td:first-child{font-weight:600;color:var(--ink)}
 }
+/* quick picks above a room checklist (_macros.html room_picks) */
+.pick-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px}
+.pick-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 11px;font:inherit;font-size:.78rem;font-weight:600;color:var(--ink-2);cursor:pointer;line-height:1.3}
+.pick-chip b{font-size:.7rem;color:var(--muted);font-weight:600}
+.pick-chip:hover{background:var(--surface-3)}
+.pick-chip[aria-pressed="true"]{background:var(--accent-soft);border-color:#E8C9BC;color:var(--accent-ink)}
+.pick-chip[aria-pressed="true"] b{color:var(--accent-ink)}
+.pick-chip.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+.pick-chip.ghost:hover{background:var(--surface-3)}

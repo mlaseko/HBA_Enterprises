@@ -7,7 +7,10 @@
     <h1>Import from Excel</h1>
     <p class="sub">Load the whole procurement list in one go. Rooms, items and suppliers are matched by their column headers.</p>
   </div>
-  <div class="actions"><a class="btn sec sm" href="/p/{{ p.id }}/items"><svg class="ic"><use href="#i-grid"/></svg>Items</a></div>
+  <div class="actions">
+    <a class="btn" href="/p/{{ p.id }}/import/template.xlsx"><svg class="ic"><use href="#i-download"/></svg>Download the template</a>
+    <a class="btn sec sm" href="/p/{{ p.id }}/items"><svg class="ic"><use href="#i-grid"/></svg>Items</a>
+  </div>
 </div>
 
 {% if result %}
@@ -18,8 +21,8 @@
 <form method="post" enctype="multipart/form-data" class="card">
   <div class="grid g2 stack">
     <div>
-      <h2>Upload the procurement Excel</h2>
-      <p class="small muted">Use the Kinondoni list format (sheets <b>Shopping List</b> and <b>Rooms</b>) or a file exported from this app. Columns are matched by their header names, so extra columns are simply ignored.</p>
+      <h2>Upload the Excel</h2>
+      <p class="small muted">Start from <b>Download the template</b>: its <b>Rooms</b> sheet already lists this project's rooms and areas, so you add a floor, a room or an area as a new row, and its <b>Shopping List</b> has dropdowns for the room, category, unit and status. The Kinondoni list format and a file exported from this app work too. Columns are matched by their header names, so extra columns are simply ignored.</p>
       <div class="eyebrow">Recognised columns</div>
       <div class="row mt">
         <span class="pill">Room</span><span class="pill">Category</span><span class="pill">Item</span><span class="pill">Must-have spec</span><span class="pill">Size / Finish</span><span class="pill">Qty</span><span class="pill">Unit</span><span class="pill">Price (CNY)</span><span class="pill">Supplier</span><span class="pill">Status</span><span class="pill">Notes</span>
@@ -28,7 +31,7 @@
     <div>
       <label>Excel file (.xlsx)</label>
       <input type="file" name="file" accept=".xlsx" required>
-      <div class="help">Rooms are created or updated first, then items. Existing rooms are matched by their code.</div>
+      <div class="help">Rooms are created or updated first (matched by their code, never duplicated), then every item row is added as a new item. List only what you are adding.</div>
       <label class="check"><input type="checkbox" name="replace" value="1"> Delete all existing items in this project first</label>
       <div class="help">Only tick this when re-importing a corrected file. Photos on deleted items are lost.</div>
     </div>

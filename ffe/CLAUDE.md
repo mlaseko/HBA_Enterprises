@@ -49,7 +49,7 @@ app/webimage.py        fetch_image(url): picture bytes from a direct image link 
 app/ai.py              Claude auto-fill (off without ANTHROPIC_API_KEY): suggest_item(image, page_text, url, rooms) → dict via
                        structured output, apply_suggestion(item, s, rooms, only_empty) fills fields; all failures → None
 app/routers/           projects, rooms, items, suppliers, payments, cartons, share (public /s/<token>, /c/<token>),
-                       exports (PDF + xlsx), importer (Excel import),
+                       exports (PDF + xlsx), importer (Excel import + GET /p/<id>/import/template.xlsx, the prefilled template),
                        capture (/p/<id>/capture camera page → draft items; /p/<id>/drafts complete or discard),
                        clip (/clip: "Save to HBA" bookmarklet + save-from-web form → draft item or mood-board image),
                        plan (/p/<id>/plan interactive plan + ?mode=mark, /plan/room/<id> panel fragment, /plan/pins and
@@ -228,6 +228,13 @@ ALTER TABLE rooms ADD COLUMN kind  VARCHAR(10) NOT NULL DEFAULT 'room';  -- room
   filtered by a room (`room_obj`, `zoom`) and inside each marked entry on the Rooms page (`zooms`); rows carry
   `id="item-<id>"` so a dot can highlight its item. `pdf/packing.room_checklist` page one = `render_room_crop` when the
   room has a box. A rough box is enough: the crop pads it and the dots are drawn from the item pins.
+
+- **Quick picks, phone photos, import template.** `Room.group` (bedroom | bathroom | "", from the name, else the code) feeds the
+  `room_picks` macro in `_macros.html`: the room checklist of the item form (new item and "add to more rooms") with chips that
+  tick all bedrooms / bathrooms / a floor / all rooms / all areas (`app.js`, `data-pick`). The item form's photo input lost
+  `capture="environment"` so phones offer camera *or* gallery with multi-select (Quick capture keeps camera-first). The Import
+  page downloads a template (`importer.import_template`): Rooms sheet prefilled with the project's entries, Shopping List with
+  dropdown validations (Lists sheet), How-to sheet; the importer skips rows whose Room or Item starts with "(example)".
 
 - **Help with pictures and help for this page.** The guide was rebuilt around a nine-stage walkthrough (stage = steps,
   screenshots, "done when"), a section per feature, a documents table, the statuses, phone tips and a questions page, with

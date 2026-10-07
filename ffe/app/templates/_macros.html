@@ -8,4 +8,28 @@
 {% if areas and proper %}</optgroup>{% endif %}
 {% if areas %}<optgroup label="Areas">{% for r in areas %}<option value="{{ r.id }}" {{ 'selected' if r.id|string == sel }}>{{ r.label }}</option>{% endfor %}</optgroup>{% endif %}
 {% endmacro %}
+{# room_picks: the checklist of rooms (rooms first, then areas) with quick-pick chips above it: All bedrooms, All bathrooms,
+   each floor, All rooms, All areas, Clear. Chips appear only when they would tick more than one entry; app.js toggles them. #}
+{% macro room_picks(rooms, name, checked=[]) %}
+{% set rs = rooms|list %}
+{% set proper = rs|rejectattr('is_area')|list %}
+{% set areas = rs|selectattr('is_area')|list %}
+{% set beds = rs|selectattr('group', 'equalto', 'bedroom')|list %}
+{% set baths = rs|selectattr('group', 'equalto', 'bathroom')|list %}
+{% set floors = rs|map(attribute='floor')|reject('equalto', '')|unique|list %}
+<div class="room-picks-wrap">
+{% if rs|length > 2 %}
+<div class="pick-chips" role="group" aria-label="Quick picks">
+  <span class="small muted">Tick:</span>
+  {% if beds|length > 1 %}<button type="button" class="pick-chip" data-pick="group:bedroom" aria-pressed="false">All bedrooms <b>{{ beds|length }}</b></button>{% endif %}
+  {% if baths|length > 1 %}<button type="button" class="pick-chip" data-pick="group:bathroom" aria-pressed="false">All bathrooms <b>{{ baths|length }}</b></button>{% endif %}
+  {% if floors|length > 1 %}{% for f in floors %}{% set n = rs|selectattr('floor', 'equalto', f)|list|length %}{% if n > 1 %}<button type="button" class="pick-chip" data-pick="floor:{{ f }}" aria-pressed="false">{{ f|floor_title }} <b>{{ n }}</b></button>{% endif %}{% endfor %}{% endif %}
+  {% if proper|length > 1 and areas %}<button type="button" class="pick-chip" data-pick="kind:room" aria-pressed="false">All rooms <b>{{ proper|length }}</b></button>{% endif %}
+  {% if areas|length > 1 %}<button type="button" class="pick-chip" data-pick="kind:area" aria-pressed="false">All areas <b>{{ areas|length }}</b></button>{% endif %}
+  <button type="button" class="pick-chip ghost" data-pick="none">Clear</button>
+</div>
+{% endif %}
+<div class="room-picks">{% for r in proper %}<label class="check"><input type="checkbox" name="{{ name }}" value="{{ r.id }}" data-group="{{ r.group }}" data-floor="{{ r.floor }}" data-kind="{{ r.kind }}" {{ 'checked' if r.id in checked }}> {{ r.label }}</label>{% endfor %}{% if areas %}<div class="picks-sub">Areas</div>{% for r in areas %}<label class="check"><input type="checkbox" name="{{ name }}" value="{{ r.id }}" data-group="{{ r.group }}" data-floor="{{ r.floor }}" data-kind="{{ r.kind }}" {{ 'checked' if r.id in checked }}> {{ r.label }}</label>{% endfor %}{% endif %}</div>
+</div>
+{% endmacro %}
 {% macro room_pill(r) %}<span class="pill {{ 'area' if r.is_area else 'accent' }}" title="{{ r.kind_title }}">{{ r.code }}</span>{% endmacro %}

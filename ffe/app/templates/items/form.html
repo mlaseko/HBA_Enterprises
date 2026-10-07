@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import room_options %}
+{% from "_macros.html" import room_options, room_picks %}
 {% block title %}{{ (item.name or 'Draft item') if item else 'New item' }} · {{ p.name }}{% endblock %}
 {% block content %}
 {% set it = item %}
@@ -27,8 +27,8 @@
     <div><label>Room or area</label><select name="room_id" class="in"><option value="">Whole house / not room-specific</option>{{ room_options(p.rooms, it.room_id) }}</select></div>
     {% else %}
     <div class="span2"><label>Rooms &amp; areas <span class="muted small">(tick every one that gets this item; none = whole house)</span></label>
-      <div class="room-picks">{% for r in p.rooms|rejectattr('is_area') %}<label class="check"><input type="checkbox" name="room_ids" value="{{ r.id }}" {{ 'checked' if pre_room == r.id }}> {{ r.label }}</label>{% endfor %}{% set areas = p.rooms|selectattr('is_area')|list %}{% if areas %}<div class="picks-sub">Areas</div>{% for r in areas %}<label class="check"><input type="checkbox" name="room_ids" value="{{ r.id }}" {{ 'checked' if pre_room == r.id }}> {{ r.label }}</label>{% endfor %}{% endif %}</div>
-      <div class="help">Each ticked room gets its own line with its own code, status and quantity. Qty below is per room; adjust any room afterwards.</div></div>
+      {{ room_picks(p.rooms, 'room_ids', [pre_room] if pre_room else []) }}
+      <div class="help">Each ticked room gets its own line with its own code, status and quantity. Qty below is per room; adjust any room afterwards. The chips tick a whole group at once (all bedrooms, all bathrooms, a floor); press one again to untick.</div></div>
     {% endif %}
     <div><label>Category (schedule)</label><select name="category" class="in">{% for c in CATEGORIES %}<option {{ 'selected' if (it and it.category == c) or (not it and pre_cat == c) }}>{{ c }}</option>{% endfor %}</select></div>
     <div class="span2"><label>Item / product name</label><input class="in" type="text" name="name" value="{{ it.name if it else '' }}" required placeholder="e.g. Wall-hung WC, rimless, soft-close seat"{% if it and it.draft %} autofocus{% endif %}></div>
@@ -67,8 +67,8 @@
     <div><label>Status</label><select name="status" class="in">{% for st in STATUSES %}<option {{ 'selected' if it and it.status == st }}>{{ st }}</option>{% endfor %}</select></div>
     <div><label>Options</label><label class="check"><input type="checkbox" name="optional" {{ 'checked' if it and it.optional }}> Optional item <span class="muted small">(shown separately in totals)</span></label></div>
     <div class="span2"><label>Notes</label><textarea class="in" name="notes">{{ it.notes if it else '' }}</textarea></div>
-    <div class="span2"><label>{{ 'Add photos' if it else 'Photos of sample' }} (camera or gallery, several at once)</label>
-      <input type="file" name="photos" accept="image/*" multiple capture="environment"><div class="filehint help"></div></div>
+    <div class="span2"><label>{{ 'Add photos' if it else 'Photos of sample' }}</label>
+      <input type="file" name="photos" accept="image/*" multiple><div class="filehint help">Take a photo, or choose several from the gallery at once. The first one becomes the cover; more can be added any time.</div></div>
     <div class="span2"><label>Or paste a web link (picture or product page: supplier site, Pinterest pin, Taobao…)</label>
       <input class="in" type="url" name="photo_url" inputmode="url" placeholder="https://…" autocomplete="off">
       <div class="help">The picture is downloaded and stored with the item when you save. <a href="/clip">Set up the one-click “Save from web” button</a>.</div></div>
@@ -83,8 +83,8 @@
   {% else %}<p class="muted small">This item is only used in this room.</p>{% endif %}
   {% if free_rooms %}
   <details class="mt"><summary>Add this item to more rooms</summary>
-    <div class="room-picks">{% for r in free_rooms|rejectattr('is_area') %}<label class="check"><input type="checkbox" name="add_room_ids" value="{{ r.id }}"> {{ r.label }}</label>{% endfor %}{% set free_areas = free_rooms|selectattr('is_area')|list %}{% if free_areas %}<div class="picks-sub">Areas</div>{% for r in free_areas %}<label class="check"><input type="checkbox" name="add_room_ids" value="{{ r.id }}"> {{ r.label }}</label>{% endfor %}{% endif %}</div>
-    <div class="help">Each ticked room gets a copy (same spec, qty and photos, status “To buy”) with its own code.</div>
+    {{ room_picks(free_rooms, 'add_room_ids') }}
+    <div class="help">Each ticked room gets a copy (same spec, qty and photos, status “To buy”) with its own code. The chips tick a whole group at once.</div>
   </details>
   {% endif %}
   {% endif %}
