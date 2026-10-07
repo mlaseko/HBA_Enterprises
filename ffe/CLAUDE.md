@@ -74,7 +74,8 @@ app/templates/         base.html = app shell (desktop sidebar, top bar + project
                        (projects, studio, drafts count) and `public` (login + share/* render without the shell)
 app/static/app.css     the design system (tokens, shell, cards, KPI tiles, buttons, forms, tables, badges, item cards)
 app/static/app.js      photo compression (also exposed as window.compressPhoto), quick status, copy link, toggleMore(),
-                       sortable tables (table.sortable + th[data-sort], cells may carry data-v), room-pick chips, help drawer
+                       sortable tables (table.sortable + th[data-sort], cells may carry data-v), room-pick chips, help drawer,
+                       filter bars that submit on a dropdown change (form.filters, GET)
 app/static/plan.js     Plan page + client plan: zoom, tap-a-room panel (fetches plan/_room.html), item dots (place / drag /
                        locate / remove), draw / move / resize room boxes in mark mode; reads data-base / data-room-base /
                        data-readonly from #plan so the same script serves /p/<id>/plan and /c/<token>

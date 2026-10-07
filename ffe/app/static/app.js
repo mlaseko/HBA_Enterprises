@@ -135,6 +135,14 @@
   document.addEventListener('change', function (e) { var wrap = e.target.closest && e.target.closest('.room-picks-wrap'); if (wrap) refreshChips(wrap); });
   document.querySelectorAll('.room-picks-wrap').forEach(refreshChips);
 
+  // filter bars (form.filters, GET): a dropdown applies as soon as you pick. The Filter button stays for the search box
+  // (Enter works too) and for browsers without JavaScript. The status dropdowns in the rows are not inside the form.
+  document.addEventListener('change', function (e) {
+    var sel = e.target, form = sel.closest && sel.closest('form.filters');
+    if (!form || !(sel instanceof HTMLSelectElement) || (form.getAttribute('method') || 'get').toLowerCase() !== 'get') return;
+    if (form.requestSubmit) form.requestSubmit(); else form.submit();
+  });
+
   // sortable tables: in a table.sortable, a header with data-sort="text|num" sorts the rows on click (A to Z or small to
   // large first, the other way on the next click). A number comes from the cell's data-v when it has one, else from its
   // text; a status dropdown sorts in purchase order (To buy first). Blank cells go last either way.
