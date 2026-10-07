@@ -139,7 +139,7 @@
     <p>Two rules worth knowing now: the <b>category</b> decides which page of the client schedule the item prints on, and the <b>status</b> starts at <span class="badge" style="--c:{{ STATUS_COLORS['To buy'] }}">To buy</span> and follows the purchase from there.</p>
     <div class="shots">
       {{ shot('item-new', 'New item: tick every room that gets it. Each ticked room gets its own line with its own code.') }}
-      {{ shot('items', 'Items filtered by one room: the room zoomed in on its plan at the top, with a numbered dot per placed item, then the cards.') }}
+      {{ shot('items', 'Items filtered by one room: the room zoomed in on its plan, then its item list.') }}
     </div>
     <div class="shots">
       {{ shot('phone-capture', 'Quick capture on the phone: tag the next photos if you like, then shoot.', 'phone') }}
@@ -357,7 +357,7 @@
   </table></div>
   <h3>The list</h3>
   <ul>
-    <li>Filter by room or area, category, status, supplier or a search word (name, code, spec, brand). Three views, all keeping the filters: <b>Cards</b> groups by category with photos; <b>Table</b> is the compact sheet, one line per room, with the status dropdown; <b>Item list</b> shows one line per item whatever the rooms: the same product in several rooms is counted once, with its rooms, the total quantity and value, its suppliers and a count per status.</li>
+    <li>Filter by room or area, category, status, supplier or a search word (name, code, spec, brand). Three views, all keeping the filters: the <b>Item list</b> (the page opens on it) shows one line per item whatever the rooms: the same product in several rooms is counted once, with its rooms, the total quantity and value, its suppliers and a count per status (an item in one room has the status dropdown right there); <b>Table</b> is the compact sheet, one line per room, with the status dropdown; <b>Cards</b> groups by category with photos.</li>
     <li><b>Sorting.</b> In the Table and the Item list, press a column heading to sort: text A to Z, numbers smallest first, Status in purchase order (To buy first), Rooms by how many. Press the heading again for the other way; blank cells go last.</li>
     <li>Filtered by one room, the top of the list shows that room <b>zoomed in on its plan</b> with a numbered dot per placed item. Tap a dot to jump to the item; tap the picture to open the plan. Rooms not yet marked show a link to mark them.</li>
     <li><b>Quick capture</b> and <b>Add item</b> from here keep the current room and category.</li>
@@ -365,7 +365,7 @@
   <div class="shots">
     {{ shot('items-table', 'Table view, filtered by category: the compact sheet with a status dropdown per row. Press a heading to sort.') }}
     {{ shot('items-list', 'Item list, sorted by rooms: the same product in several rooms is one line, with its rooms, the total quantity and a count per status.') }}
-    {{ shot('phone-items', 'The same room filter on a phone: the zoomed room first, then the cards.', 'phone') }}
+    {{ shot('phone-items', 'The same room filter on a phone: the zoomed room first, then the item list.', 'phone') }}
   </div>
   <h3>Editing an item</h3>
   <ul>
@@ -542,7 +542,7 @@
   <details><summary>The app feels slow.</summary><p>Three different things look the same. The <b>first page after a quiet spell</b> takes a few seconds and the next ones are quick: Replit starts the app and the database wakes up, which is normal; an always-on deployment removes it. <b>Pages with many photos</b> slow on a device that has not seen them yet: open Studio settings and press <b>Make small versions</b> until no older photo is left, so lists load small copies. <b>Every page slow, even without photos:</b> the database is far from the app or asleep; tell your developer.</p></details>
   <details><summary>The electrical plan shows no room boxes.</summary><p>Boxes are drawn on the floor's main plan and borrowed by the other sheets of that floor. Check that both sheets carry the same floor name, and that the general floor plan is set to show "Main plan (general floor plan)" under Images &amp; plans. An electrical sheet uploaded before layers existed usually sits under its own floor name ("Ground Electrical"): the Images &amp; plans page shows a yellow note on it with a one-press fix. If the electrical sheet is framed differently and the borrowed boxes sit off, press Mark rooms on it and copy the boxes to adjust them there.</p></details>
   <details><summary>Can I change many prices or statuses at once?</summary><p>Yes, in Excel. Import → <b>Export all items</b>, change the cells, import the file back. Rows are matched by their <b>Code</b>, so the items are updated rather than added again; blank cells leave a value alone and <b>-</b> clears one. Photos and plan dots stay.</p></details>
-  <details><summary>I want one line per item, not one per room.</summary><p>Open Items and choose <b>Item list</b> in the view switch at the right of the filters. The same product in several rooms is one line there, with its rooms, the total quantity and value and a count per status. Press a column heading to sort; the Table view sorts the same way.</p></details>
+  <details><summary>I want one line per item, not one per room.</summary><p>Open Items: it opens on the <b>Item list</b> (the view switch at the right of the filters brings it back). The same product in several rooms is one line there, with its rooms, the total quantity and value and a count per status. Press a column heading to sort; the Table view sorts the same way.</p></details>
   <details><summary>I uploaded the plan, but the room is not listed under it on the Plan page.</summary><p>The room's floor and the plan's floor must have the same name. Check the floor on the Rooms page and under the plan on Images &amp; plans ("Ground" and "Ground floor" count as the same; "GF" does not). In mark mode, rooms of other floors are in the folded list below, so you can still place them.</p></details>
   <details><summary>The PDF pages were not ticked in the page picker.</summary><p>The PDF has no readable text (a scan or a flattened export), so there was nothing to read. Tick the plan pages and type the floor and sheet yourself. Everything else works the same.</p></details>
   <details><summary>A photo upload failed.</summary><p>Usually the Wi-Fi. Take the photo again; Quick capture keeps the ones that went through. Photos are shrunk before upload, so one photo at a time nearly always goes through even on a slow connection.</p></details>

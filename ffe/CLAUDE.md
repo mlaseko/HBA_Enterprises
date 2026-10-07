@@ -291,7 +291,7 @@ ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';  
   that the page picker promotes a floor's only furniture layout to the main plan; `legacy_layer_hint` never suggests
   turning a floor's only sheet into a furniture layer. A plan from before layers filed as its own floor ("Ground
   Electrical") gets `drawings.legacy_layer_hint` → a yellow one-press form posting floor + layer to the existing
-  `POST /p/<id>/images/<image_id>`. The Items page has a three-way view switch (`?view=cards|table|list`, filters kept via
+  `POST /p/<id>/images/<image_id>`. The Items page has a three-way view switch (`?view=cards|table|list`, `list` is the default, filters kept via
   `qs`): the Table and the new Item list (`items.group_items`: one line per product name across rooms, qty / value summed,
   statuses counted, `status_rank` for sorting) are `table.sortable`; `app.js` sorts client-side on `th[data-sort="text|num"]`
   (cells may carry `data-v`; a status `<select>` sorts by its index, blanks last). Other tables can opt in the same way.

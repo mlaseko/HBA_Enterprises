@@ -4,13 +4,13 @@
 {% block content %}
 {% set qroom = f.room if f.room not in ('', 'none') else '' %}
 {% set filtering = f.room or f.category or f.status or f.supplier or f.q %}
-{% set view = f.view if f.view in ('table', 'list') else 'cards' %}
+{% set view = f.view if f.view in ('cards', 'table') else 'list' %}
 {% set qs_ = qs ~ '&' if qs else '' %}
 <div class="page-head">
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
     <h1>Items <span class="h-note">{% if view == 'list' %}{{ rows|length }} item{{ 's' if rows|length != 1 }} · {{ items|length }} room line{{ 's' if items|length != 1 }}{% else %}{{ items|length }}{% endif %} · ¥{{ total|money }} · ${{ (total/(p.rate or 1))|money }}</span></h1>
-    <p class="sub">{% if view == 'list' %}One line per item, whatever the rooms: the same product in several rooms is counted once, with its rooms and the total quantity. Press a column heading to sort, again for the other way.{% elif view == 'table' %}One line per room, the compact sheet. Press a column heading to sort, again for the other way; change a status right here.{% else %}The schedule for {{ p.name }}, grouped by category. Change a status right here; open an item for the full sheet and its photos.{% endif %}</p>
+    <p class="sub">{% if view == 'list' %}One line per item, whatever the rooms: the same product in several rooms is counted once, with its rooms and the total quantity. Press a column heading to sort, again for the other way; change a status right here.{% elif view == 'table' %}One line per room, the compact sheet. Press a column heading to sort, again for the other way; change a status right here.{% else %}The schedule for {{ p.name }}, grouped by category. Change a status right here; open an item for the full sheet and its photos.{% endif %}</p>
   </div>
   <div class="actions">
     {% if qroom %}<a class="btn sec" href="/p/{{ p.id }}/plan?room={{ qroom }}" title="Show this room on the floor plan"><svg class="ic"><use href="#i-map"/></svg>On the plan</a>{% endif %}
@@ -26,9 +26,9 @@
   <select name="status" class="in" aria-label="Status"><option value="">Any status</option>{% for st in STATUSES %}<option {{ 'selected' if f.status == st }}>{{ st }}</option>{% endfor %}</select>
   <select name="supplier" class="in" aria-label="Supplier"><option value="">Any supplier</option>{% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if f.supplier == s.id|string }}>{{ s.name }}</option>{% endfor %}</select>
   <span class="search"><svg class="ic"><use href="#i-search"/></svg><input class="in" type="text" name="q" value="{{ f.q }}" placeholder="Search name, code, spec, brand" aria-label="Search"></span>
-  {% if f.view %}<input type="hidden" name="view" value="{{ f.view }}">{% endif %}
+  {% if view != 'list' %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
   <button class="btn sm">Filter</button>
-  <a class="btn ghost sm" href="/p/{{ p.id }}/items{% if f.view %}?view={{ f.view }}{% endif %}">Clear</a>
+  <a class="btn ghost sm" href="/p/{{ p.id }}/items{% if view != 'list' %}?view={{ view }}{% endif %}">Clear</a>
   <span class="sp"></span>
   <nav class="seg" aria-label="View">
     <a href="/p/{{ p.id }}/items?{{ qs_ }}view=cards" class="{{ 'on' if view == 'cards' }}"{% if view == 'cards' %} aria-current="page"{% endif %} title="Cards grouped by category"><svg class="ic"><use href="#i-grid"/></svg>Cards</a>
@@ -90,7 +90,7 @@
   <thead><tr><th></th><th data-sort="text">Item</th><th data-sort="text">Category</th><th data-sort="num">Rooms</th><th class="num" data-sort="num">Qty</th><th class="num" data-sort="num">Unit CNY</th><th class="num" data-sort="num">Total CNY</th><th data-sort="text">Supplier</th><th data-sort="num">Status</th></tr></thead>
   <tbody>
   {% for g in rows %}{% set i = g.item %}
-  <tr id="group-{{ i.id }}">
+  <tr id="item-{{ i.id }}" data-items="{% for r in g.rows %}{{ r.id }}{% if not loop.last %} {% endif %}{% endfor %}">
     <td>{% if g.cover %}<a href="/p/{{ p.id }}/items/{{ i.id }}"><img class="thumb sm" src="/media/{{ g.cover.thumb }}" alt=""></a>{% endif %}</td>
     <td data-v="{{ i.name }}"><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a>{% if i.optional %} <span class="pill">optional</span>{% endif %}<div class="small muted">{{ g.codes }}{% if i.size or i.finish %} · {{ i.size }}{% if i.size and i.finish %} · {% endif %}{{ i.finish }}{% endif %}</div></td>
     <td class="small">{{ i.category }}</td>
@@ -100,7 +100,7 @@
     <td class="num" data-v="{{ g.price_min if g.price_min else '' }}">{% if g.price_min %}{{ g.price_min|money(2) }}{% if g.price_max != g.price_min %}–{{ g.price_max|money(2) }}{% endif %}{% endif %}</td>
     <td class="num" data-v="{{ g.total if g.total else '' }}">{{ g.total|money if g.total else '' }}</td>
     <td class="small nowrap">{% for s in g.suppliers %}{{ s.name }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
-    <td data-v="{{ g.status_rank }}" class="small nowrap">{% for s, n in g.statuses|dictsort(by='value', reverse=true) %}<span class="badge" style="--c:{{ STATUS_COLORS[s] }}">{{ s }}{% if g.statuses|length > 1 or n > 1 %} · {{ n }}{% endif %}</span> {% endfor %}</td>
+    <td data-v="{{ g.status_rank }}" class="small nowrap">{% if g.rows|length == 1 %}<select class="status-sel" data-url="/p/{{ p.id }}/items/{{ i.id }}/status" style="--c:{{ STATUS_COLORS[i.status] }}" aria-label="Status">{% for st in STATUSES %}<option {{ 'selected' if i.status == st }}>{{ st }}</option>{% endfor %}</select>{% else %}{% for s, n in g.statuses|dictsort(by='value', reverse=true) %}<span class="badge" style="--c:{{ STATUS_COLORS[s] }}">{{ s }} · {{ n }}</span> {% endfor %}{% endif %}</td>
   </tr>
   {% endfor %}
   </tbody>
