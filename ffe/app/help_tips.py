@@ -92,7 +92,7 @@ TIPS = {
         what="The schedule itself: one line per product per room, with spec, photo, quantity, price, supplier and status.",
         steps=["Press <b>Add item</b> to type one in, or <b>Quick capture</b> to shoot samples first and name them later.",
                "Change a <b>status</b> straight from the dropdown on a card or a table row.",
-               "Filter by room, category, status, supplier or a search word. The page opens on the <b>Item list</b> (one line per item across its rooms, with its rooms and the total quantity); switch to the <b>Table</b> (one line per room) or <b>Cards</b> (by category, with photos) at the right of the filters.",
+               "Filter by room, category, status or supplier: the list updates as soon as you pick. For a search word, type it and press <b>Filter</b> or Enter. The page opens on the <b>Item list</b> (one line per item across its rooms, with its rooms and the total quantity); switch to the <b>Table</b> (one line per room) or <b>Cards</b> (by category, with photos) at the right of the filters.",
                "In the Table and the Item list, press a <b>column heading</b> to sort: A to Z or smallest first, press again for the other way.",
                "Filtered by one room, the top shows that room zoomed in on the plan; tap a dot to jump to its item."],
         tips=["The status follows the purchase: To buy → Quoted → Ordered → Paid → Shipped → Received.",
