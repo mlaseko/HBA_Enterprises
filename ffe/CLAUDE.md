@@ -42,6 +42,7 @@ app/storage.py         save_image(max_px=)/save_blob/read_image/delete_image —
 app/drawings.py        floor plans: render_page()/page_count() via pypdfium2 (optional import), floor_key()/floor_title()
                        matching plans to Room.floor, rooms_by_floor(), plan_for_room(), client_plans();
                        interactive plan: rooms_for_plan(), pins_by_room(), plan_with_room(), default_plan(), clamp_box(), clamp_point();
+                       layers: main_plan(), plans_for_floor() (main first), borrowed_from(), pins_for(), layer_from_title(), layer_for_category();
                        rooms vs areas: split_kinds(), count_label(); PDF title blocks: page_text(), read_title_block();
                        zoomed room: crop_rect(), room_zoom() (card data), render_room_crop() (Pillow crop for the checklist PDF)
 app/webimage.py        fetch_image(url): picture bytes from a direct image link or a page (og:image / largest <img>);
@@ -49,7 +50,7 @@ app/webimage.py        fetch_image(url): picture bytes from a direct image link 
 app/ai.py              Claude auto-fill (off without ANTHROPIC_API_KEY): suggest_item(image, page_text, url, rooms) → dict via
                        structured output, apply_suggestion(item, s, rooms, only_empty) fills fields; all failures → None
 app/routers/           projects, rooms, items, suppliers, payments, cartons, share (public /s/<token>, /c/<token>),
-                       exports (PDF + xlsx), importer (Excel import),
+                       exports (PDF + xlsx), importer (Excel import + GET /p/<id>/import/template.xlsx, the prefilled template),
                        capture (/p/<id>/capture camera page → draft items; /p/<id>/drafts complete or discard),
                        clip (/clip: "Save to HBA" bookmarklet + save-from-web form → draft item or mood-board image),
                        plan (/p/<id>/plan interactive plan + ?mode=mark, /plan/room/<id> panel fragment, /plan/pins and
@@ -155,6 +156,12 @@ Deploy = push to GitHub, then in Replit pull the repo and redeploy. Secrets (Rep
 `APP_PASSWORD`, `SECRET_KEY`, `DATABASE_URL` (Neon), `ANTHROPIC_API_KEY` (optional), `STORAGE_BACKEND=replit` (+ Object Storage bucket) or
 `s3` with `S3_*`.
 
+- Plan layers: `ProjectImage.layer` (config.PLAN_LAYERS; furniture = the floor's main plan). Room boxes live on the main plan;
+  another sheet of the same floor shows them through `drawings.pins_for()` (borrowed) until it has `RoomPin`s of its own
+  (`POST /plan/pins/copy`). Always read boxes through `pins_for()` / `room_zoom()`, never `im.pins`, unless you mean "own boxes"
+  (the Images page count, `pins_by_room`, mark mode). Item dots (`ItemPin`) stay per sheet. `CATEGORY_LAYER` decides which
+  sheet a category's items are read from in the PDFs; keep the "never place anything automatically" rule.
+
 ## Schema changes so far
 
 Applied automatically at startup by `db.migrate()` from `db.COLUMN_MIGRATIONS` (nothing to run on Neon by hand):
@@ -162,6 +169,7 @@ Applied automatically at startup by `db.migrate()` from `db.COLUMN_MIGRATIONS` (
 ```sql
 ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;      -- quick capture drafts
 ALTER TABLE rooms ADD COLUMN kind  VARCHAR(10) NOT NULL DEFAULT 'room';  -- room | area
+ALTER TABLE project_images ADD COLUMN layer VARCHAR(20) NOT NULL DEFAULT 'furniture';  -- what a floor plan shows
 ```
 
 ## Done
@@ -228,6 +236,22 @@ ALTER TABLE rooms ADD COLUMN kind  VARCHAR(10) NOT NULL DEFAULT 'room';  -- room
   filtered by a room (`room_obj`, `zoom`) and inside each marked entry on the Rooms page (`zooms`); rows carry
   `id="item-<id>"` so a dot can highlight its item. `pdf/packing.room_checklist` page one = `render_room_crop` when the
   room has a box. A rough box is enough: the crop pads it and the dots are drawn from the item pins.
+
+- **Plan layers.** `ProjectImage.layer` (furniture | electrical | plumbing | ceiling | flooring, `config.PLAN_LAYERS`); the
+  Plan page has one tab per floor and a `plan-layers` switch for the floor's sheets (`stage_ctx` → `tabs`, `layers`,
+  `borrowed`); boxes are borrowed from the main plan (`drawings.pins_for`), "Mark rooms" on a borrowing sheet shows the
+  copy card (`copy_from`) and `POST /plan/pins/copy` copies them. Upload form, page picker (`layer_<k>`, prefilled by
+  `layer_from_title`) and the tag form carry the layer; `plan_caption` names non-furniture layers. The reader now accepts
+  electrical / plumbing / ceiling / flooring plan titles (`_PLAN_RE`) and rejects only structural / mechanical / fire
+  (`_NOT_PLAN_RE`). PDFs: the category schedule prints each floor's main plan in the overview and a category's layer
+  sheets before its table (`layer_for_category`); the room checklist adds a page per other sheet with the room's dots.
+
+- **Quick picks, phone photos, import template.** `Room.group` (bedroom | bathroom | "", from the name, else the code) feeds the
+  `room_picks` macro in `_macros.html`: the room checklist of the item form (new item and "add to more rooms") with chips that
+  tick all bedrooms / bathrooms / a floor / all rooms / all areas (`app.js`, `data-pick`). The item form's photo input lost
+  `capture="environment"` so phones offer camera *or* gallery with multi-select (Quick capture keeps camera-first). The Import
+  page downloads a template (`importer.import_template`): Rooms sheet prefilled with the project's entries, Shopping List with
+  dropdown validations (Lists sheet), How-to sheet; the importer skips rows whose Room or Item starts with "(example)".
 
 - **Help with pictures and help for this page.** The guide was rebuilt around a nine-stage walkthrough (stage = steps,
   screenshots, "done when"), a section per feature, a documents table, the statuses, phone tips and a questions page, with

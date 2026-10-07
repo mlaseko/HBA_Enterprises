@@ -1,13 +1,17 @@
 """Import rooms and items from an Excel file (the Kinondoni procurement list format or this app's own export)."""
 import io
 from fastapi import APIRouter, Request, Depends, UploadFile, File, Form
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
-from openpyxl import load_workbook
+from openpyxl import load_workbook, Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.datavalidation import DataValidation
 from ..db import get_db
 from ..models import Project, Room, Item, Supplier
-from ..common import render, redirect, require_login, get_project, ffloat
+from ..common import render, redirect, require_login, get_project, ffloat, content_disposition
 from ..services import next_code, guess_kind
-from .. import config
+from .. import config, drawings
 
 router = APIRouter(dependencies=[Depends(require_login)])
 
@@ -45,6 +49,101 @@ def import_page(request: Request, p: Project = Depends(get_project)):
     return render(request, "import.html", p=p, result=None)
 
 
+# ---- the template: what the import reads, prefilled with this project's rooms, with dropdowns for the fixed lists ------------
+ROOM_COLS = [("Room", 30), ("Floor", 14), ("Kind", 10), ("Floor area m²", 14), ("Wall tile m²", 14), ("Notes", 42)]
+ITEM_COLS = [("Room", 32), ("Category", 20), ("Item", 36), ("Must-have spec", 46), ("Brand", 16), ("Size", 18), ("Finish", 18),
+             ("Qty", 8), ("Unit", 8), ("Price (CNY)", 12), ("Supplier", 24), ("Lead time", 12), ("Status", 12), ("Optional", 10), ("Notes", 30)]
+HOW_TO = [
+    ("How to fill this in", True),
+    ("One row = one room or area on the Rooms sheet, one item in one room on the Shopping List. Yellow cells are yours to type; do not rename the header rows.", False),
+    ("", False),
+    ("Rooms sheet", True),
+    ("Room: CODE - Name, e.g. FF-BR2 - Bedroom 2. Short upper-case codes; GF for the ground floor, FF for the first floor is a good habit.", False),
+    ("Your existing rooms and areas are already listed. Leave them, or correct a floor or kind; they are matched by their code, never duplicated.", False),
+    ("Floor: Ground, First, Second, Roof, Site... It must match the floor you give the floor plans. Kind: room or area (entrance, corridors, stairs, balconies, carport, whole house).", False),
+    ("Floor area and wall tile m² are optional and only help with tile quantities.", False),
+    ("", False),
+    ("Shopping List sheet", True),
+    ("Room: pick from the dropdown. A room you add on the Rooms sheet appears in the list at once. Leave it empty, or pick ALL - Whole house, for an item that belongs to no room.", False),
+    ("Category decides which page of the client schedule the item prints on. Item is the name the client reads; Must-have spec is what the supplier must deliver.", False),
+    ("Qty and Unit are per room. Price (CNY) is the unit price. Supplier: a new name is created in your supplier book. Status: To buy, Quoted, Ordered, Paid, Shipped, Received. Optional: yes for an alternative the client may skip.", False),
+    ("", False),
+    ("Importing", True),
+    ("Import page → choose this file → Import. Rooms are matched by code and created when new; every item row is added as a new item.", False),
+    ("Items are never merged: list only the items you are adding, or tick \"Delete all existing items in this project first\" to start over. Photos are not in Excel: add them afterwards from the item page or Quick capture.", False),
+    ("Rows whose Room or Item starts with (example) are ignored, so you can keep notes to yourself in the sheet.", False),
+]
+YELLOW = PatternFill("solid", fgColor="FFF8E6")
+HEAD = PatternFill("solid", fgColor="1F3A5F")
+
+
+def _sheet(wb, title, cols, n_rows=400):
+    ws = wb.create_sheet(title)
+    for i, (name, width) in enumerate(cols, start=1):
+        c = ws.cell(row=1, column=i, value=name)
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = HEAD
+        c.alignment = Alignment(vertical="center")
+        ws.column_dimensions[get_column_letter(i)].width = width
+        for r in range(2, n_rows + 2):
+            ws.cell(row=r, column=i).fill = YELLOW
+    ws.freeze_panes = "A2"
+    ws.row_dimensions[1].height = 22
+    return ws
+
+
+def _list_validation(ws, col_letter, formula, rows=400):
+    dv = DataValidation(type="list", formula1=formula, allow_blank=True, showErrorMessage=False)
+    ws.add_data_validation(dv)
+    dv.add(f"{col_letter}2:{col_letter}{rows + 1}")
+
+
+@router.get("/p/{project_id}/import/template.xlsx")
+def import_template(p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """An Excel file the import reads back: a Rooms sheet prefilled with this project's rooms and areas, an empty Shopping
+    List with dropdowns for room, category, unit, status and optional, a Lists sheet behind the dropdowns, and a How-to."""
+    wb = Workbook()
+    how = wb.active
+    how.title = "How to"
+    how.column_dimensions["A"].width = 120
+    for i, (text, bold) in enumerate(HOW_TO, start=1):
+        c = how.cell(row=i, column=1, value=text)
+        c.font = Font(bold=bold, size=12 if bold else 11)
+        c.alignment = Alignment(wrap_text=True, vertical="top")
+    rooms = _sheet(wb, "Rooms", ROOM_COLS)
+    for i, r in enumerate(p.rooms, start=2):
+        for j, v in enumerate((r.label, r.floor, r.kind, r.floor_area or None, r.wall_area or None, r.notes or None), start=1):
+            rooms.cell(row=i, column=j, value=v)
+    items = _sheet(wb, "Shopping List", ITEM_COLS)
+    lists = wb.create_sheet("Lists")
+    floors = list(dict.fromkeys([f for f in drawings.floor_order(p) if f] + ["Ground", "First", "Second", "Roof", "Site", "All"]))
+    sups = [s.name for s in db.query(Supplier).order_by(Supplier.name)]
+    columns = [("Categories", config.CATEGORIES), ("Units", config.UNITS), ("Statuses", config.STATUSES), ("Kind", config.ROOM_KINDS),
+               ("Floors", floors), ("Suppliers", sups), ("Optional", ["yes", "no"])]
+    refs = {}
+    for j, (title, values) in enumerate(columns, start=1):
+        lists.cell(row=1, column=j, value=title).font = Font(bold=True)
+        for i, v in enumerate(values, start=2):
+            lists.cell(row=i, column=j, value=v)
+        lists.column_dimensions[get_column_letter(j)].width = 26
+        if values:
+            refs[title] = f"Lists!${get_column_letter(j)}$2:${get_column_letter(j)}${len(values) + 1}"
+    _list_validation(rooms, "B", refs["Floors"])
+    _list_validation(rooms, "C", refs["Kind"])
+    _list_validation(items, "A", "Rooms!$A$2:$A$401")
+    _list_validation(items, "B", refs["Categories"])
+    _list_validation(items, "I", refs["Units"])
+    _list_validation(items, "M", refs["Statuses"])
+    _list_validation(items, "N", refs["Optional"])
+    if "Suppliers" in refs:
+        _list_validation(items, "K", refs["Suppliers"])
+    buf = io.BytesIO()
+    wb.save(buf)
+    name = f"{p.name} - import template.xlsx"
+    return Response(content=buf.getvalue(), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers=content_disposition(name))
+
+
 @router.post("/p/{project_id}/import")
 async def do_import(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db),
                     file: UploadFile = File(...), replace: str = Form("")):
@@ -74,7 +173,7 @@ async def do_import(request: Request, p: Project = Depends(get_project), db: Ses
             sort = max([r.sort for r in p.rooms if r.code != "ALL"] + [0])
             for row in ws.iter_rows(min_row=hdr_row + 1, values_only=True):
                 label = str(col(h, row, "room") or "").strip()
-                if not label or label.upper().startswith("TOTAL"):
+                if not label or label.upper().startswith("TOTAL") or label.lower().startswith("(example)"):
                     continue
                 if " - " in label:
                     code, name = label.split(" - ", 1)
@@ -117,11 +216,13 @@ async def do_import(request: Request, p: Project = Depends(get_project), db: Ses
     hdr_row, h = find_header(ws)
     sups = {s.name.lower(): s for s in db.query(Supplier).all()}
     for row in ws.iter_rows(min_row=hdr_row + 1, values_only=True):
+        if not any(v not in (None, "") for v in row):
+            continue  # a blank row (the template carries hundreds of styled empty ones): not worth counting
         name = str(col(h, row, "item", "product", "product name") or "").strip()
-        if not name:
+        room_label = str(col(h, row, "room", "location") or "").strip()
+        if not name or name.lower().startswith("(example)") or room_label.lower().startswith("(example)"):
             result["skipped"] += 1
             continue
-        room_label = str(col(h, row, "room", "location") or "").strip()
         room = rooms_by_label.get(room_label.lower()) or rooms_by_code.get(room_label.split(" ")[0].lower()) if room_label else None
         if room and room.code == "ALL":
             room = None

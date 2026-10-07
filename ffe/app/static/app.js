@@ -106,6 +106,35 @@
     row.classList.add('hl'); row.scrollIntoView({ block: 'center', behavior: 'smooth' });
   });
 
+  // room checklists (_macros.html room_picks): a chip ticks every box of its group, again unticks; pressed = all ticked
+  function pickSet(wrap, pick) {
+    var boxes = [].slice.call(wrap.querySelectorAll('input[type=checkbox]')), i = pick.indexOf(':');
+    var kind = i > 0 ? pick.slice(0, i) : pick, val = i > 0 ? pick.slice(i + 1) : '';
+    return boxes.filter(function (b) {
+      if (kind === 'group') return b.dataset.group === val;
+      if (kind === 'floor') return b.dataset.floor === val;
+      if (kind === 'kind') return b.dataset.kind === val;
+      return true;
+    });
+  }
+  function refreshChips(wrap) {
+    wrap.querySelectorAll('.pick-chip[data-pick]').forEach(function (c) {
+      if (c.dataset.pick === 'none') return;
+      var set = pickSet(wrap, c.dataset.pick);
+      c.setAttribute('aria-pressed', set.length && set.every(function (b) { return b.checked; }) ? 'true' : 'false');
+    });
+  }
+  document.addEventListener('click', function (e) {
+    var chip = e.target.closest('.pick-chip'); if (!chip) return;
+    var wrap = chip.closest('.room-picks-wrap'); if (!wrap) return;
+    e.preventDefault();
+    if (chip.dataset.pick === 'none') { wrap.querySelectorAll('input[type=checkbox]').forEach(function (b) { b.checked = false; }); }
+    else { var set = pickSet(wrap, chip.dataset.pick), all = set.length && set.every(function (b) { return b.checked; }); set.forEach(function (b) { b.checked = !all; }); }
+    refreshChips(wrap);
+  });
+  document.addEventListener('change', function (e) { var wrap = e.target.closest && e.target.closest('.room-picks-wrap'); if (wrap) refreshChips(wrap); });
+  document.querySelectorAll('.room-picks-wrap').forEach(refreshChips);
+
   window.copyText = function (txt, btn) {
     navigator.clipboard.writeText(txt).then(function () { if (btn) { var o = btn.textContent; btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = o; }, 1200); } });
   };

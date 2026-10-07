@@ -34,6 +34,13 @@ PRICE_CURRENCIES = ["CNY", "USD"]  # a unit price can be typed in either; it is 
 # Rooms vs areas. Both carry a code and hold items and boxes; an area is a zone (entrance, corridors, stairs, balconies,
 # carport, whole house) rather than a room. Areas are listed after rooms everywhere and counted separately.
 ROOM_KINDS = ["room", "area"]
+# What a floor plan shows. One main plan per floor (the furniture layout) carries the room boxes; the other sheets of the
+# same floor are layers that borrow those boxes until they get their own. Items dots stay per layer.
+PLAN_LAYERS = [("furniture", "Furniture layout"), ("electrical", "Electrical & lighting"), ("plumbing", "Plumbing & sanitary"),
+               ("ceiling", "Ceiling"), ("flooring", "Flooring & tiles")]
+LAYER_TITLES = dict(PLAN_LAYERS)
+CATEGORY_LAYER = {"Lighting": "electrical", "Electrical": "electrical", "Plumbing & Sanitary": "plumbing", "Water Treatment": "plumbing",
+                  "Tiles": "flooring", "Flooring": "flooring"}  # every other category: the furniture layout
 AREA_WORDS = ["entrance", "entry", "foyer", "lobby", "hall", "corridor", "passage", "landing", "stair", "balcon", "verandah",
               "veranda", "terrace", "patio", "porch", "deck", "carport", "driveway", "parking", "garden", "yard", "outside",
               "exterior", "external", "site", "whole house", "doors", "plant", "pool", "compound", "fence", "gate"]

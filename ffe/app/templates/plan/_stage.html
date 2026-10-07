@@ -14,6 +14,7 @@
     <span class="hint small muted" id="plan-hint" data-default="{{ hint }}">{{ hint }}</span>
     <button type="button" class="btn sm soft" id="plan-cancel" hidden>Cancel</button>
     <span class="sp"></span>
+    {% if borrowed and not ro %}<span class="small muted" title="This sheet shows the room boxes of the floor's main plan">boxes from the {{ borrowed.layer_title|lower }}</span>{% endif %}
     {% if ro %}<a class="btn sec sm" href="/media/{{ plan.best_key }}" target="_blank" title="Open the drawing full size"><svg class="ic"><use href="#i-image"/></svg><span class="hide-m">Full size</span></a>
     {% else %}<span class="pill" id="plan-count" data-total="{{ floor_rooms|length }}">{{ pins|length }} of {{ floor_rooms|length }} placed</span>{% endif %}
   </div>

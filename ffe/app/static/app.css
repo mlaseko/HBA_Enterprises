@@ -668,3 +668,20 @@ tr.hl td,.item-card.hl{background:var(--accent-soft)!important;transition:backgr
   .help-body .tbl td{display:block;padding:2px 0;border:0;white-space:normal}
   .help-body .tbl td:first-child{font-weight:600;color:var(--ink)}
 }
+/* quick picks above a room checklist (_macros.html room_picks) */
+.pick-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px}
+.pick-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 11px;font:inherit;font-size:.78rem;font-weight:600;color:var(--ink-2);cursor:pointer;line-height:1.3}
+.pick-chip b{font-size:.7rem;color:var(--muted);font-weight:600}
+.pick-chip:hover{background:var(--surface-3)}
+.pick-chip[aria-pressed="true"]{background:var(--accent-soft);border-color:#E8C9BC;color:var(--accent-ink)}
+.pick-chip[aria-pressed="true"] b{color:var(--accent-ink)}
+.pick-chip.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+.pick-chip.ghost:hover{background:var(--surface-3)}
+/* the sheets (layers) of one floor on the Plan page */
+.plan-layers{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:-4px 2px 10px}
+.plan-layers a{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);font-size:.82rem;font-weight:600}
+.plan-layers a:hover{text-decoration:none;background:var(--surface-2)}
+.plan-layers a.on{background:var(--accent-soft);border-color:#E8C9BC;color:var(--accent-ink)}
+.plan-layers a .s{font-weight:500;color:var(--muted);font-size:.74rem}.plan-layers a.on .s{color:var(--accent-ink)}
+.plan-layers a .n{min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--surface-3);color:var(--ink-2);font-size:.66rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.plan-copy h2{font-family:var(--serif);font-weight:500;font-size:1.15rem;margin:.2rem 0 .4rem}

@@ -1,3 +1,4 @@
+import re
 import secrets
 from datetime import datetime, date
 from sqlalchemy import String, Integer, Float, Boolean, Text, DateTime, Date, ForeignKey, UniqueConstraint, false
@@ -64,6 +65,9 @@ class ProjectImage(Base):
     caption: Mapped[str] = mapped_column(String(200), default="")
     file_key: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    # Floor plans only: what the sheet shows (config.PLAN_LAYERS): furniture (the main plan of a floor, carries the room
+    # boxes) | electrical | plumbing | ceiling | flooring. Column added by db.COLUMN_MIGRATIONS on existing databases.
+    layer: Mapped[str] = mapped_column(String(20), default="furniture", server_default="furniture")
     project: Mapped["Project"] = relationship(back_populates="images")
     # Floor plans only: which floor the plan shows, sheet reference, full-size copy. No row = untagged plan.
     tag: Mapped["PlanTag | None"] = relationship(back_populates="image", cascade="all, delete-orphan", uselist=False)
@@ -87,6 +91,15 @@ class ProjectImage(Base):
     def best_key(self) -> str:
         """Full-size copy when there is one (PDF pages, plans), else the 1600 px preview."""
         return self.hires_key or self.file_key
+
+    @property
+    def layer_title(self) -> str:
+        from . import config
+        return config.LAYER_TITLES.get(self.layer or "furniture", "Furniture layout")
+
+    @property
+    def is_main_layer(self) -> bool:
+        return (self.layer or "furniture") == "furniture"
 
     def ensure_tag(self) -> "PlanTag":
         if self.tag is None:
@@ -170,6 +183,28 @@ class Room(Base):
     @property
     def kind_title(self) -> str:
         return "Area" if self.is_area else "Room"
+
+    @property
+    def group(self) -> str:
+        """'bathroom', 'bedroom' or '' for the quick picks on the item form ("All bedrooms", "All bathrooms"): read from the
+        name first (bathroom words win, so "Master ensuite" is a bathroom), else from the code (BA1, MBA, BR2, MBR)."""
+        n = (self.name or "").lower()
+        if _BATH_RE.search(n):
+            return "bathroom"
+        if _BED_RE.search(n):
+            return "bedroom"
+        for seg in (self.code or "").upper().replace("_", "-").split("-"):
+            if _CODE_BATH.fullmatch(seg):
+                return "bathroom"
+            if _CODE_BED.fullmatch(seg):
+                return "bedroom"
+        return ""
+
+
+_BATH_RE = re.compile(r"\b(bath(room)?s?|en-?\s?suites?|wc|toilets?|showers?|washrooms?|powder|cloakrooms?|lavatory|restrooms?)\b")
+_BED_RE = re.compile(r"\b(bed(room)?s?|nursery)\b")
+_CODE_BATH = re.compile(r"M?BA\d*|BTH\d*|WC\d*|ENS\d*")
+_CODE_BED = re.compile(r"M?BR\d*|BED\d*|BDR\d*")
 
 
 class RoomPin(Base):

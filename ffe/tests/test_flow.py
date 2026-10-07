@@ -530,6 +530,75 @@ with TestClient(app) as c:
     r=c.post("/projects/new", data={"client_name":"Empty","name":"Empty house","rate":"7.1"}, follow_redirects=False); pid_e=r.headers["location"].split("/")[-1]
     assert 'href="#help"' in c.get(f"/p/{pid_e}/items").text and 'href="#help"' in c.get(f"/p/{pid_e}/plan").text and 'href="#help"' in c.get(f"/p/{pid_e}/drafts").text and 'href="#help"' in c.get(f"/p/{pid_e}/cartons").text and 'href="#help"' in c.get(f"/p/{pid_e}/payments").text
     print("prices in USD or CNY + help ok")
+    # quick picks on the room checklist, the phone-friendly photo field, and the import template round trip
+    from app.models import Room as _R
+    def _grp(code, name): return _R(code=code, name=name).group
+    assert _grp("FF-MBR", "Master bedroom")=="bedroom" and _grp("FF-MEN", "Master ensuite")=="bathroom" and _grp("GF-GBA", "Guest bathroom")=="bathroom" and _grp("GF-GST", "Guest bedroom")=="bedroom"
+    assert _grp("FF-BA1", "BA 1")=="bathroom" and _grp("FF-MBA", "MBA")=="bathroom" and _grp("FF-BR2", "Second")=="bedroom" and _grp("FF-BAL", "Balconies")=="" and _grp("GF-KIT", "Kitchen")=="" and _grp("GF-WC", "Downstairs WC")=="bathroom" and _grp("FF-NUR", "Nursery")=="bedroom"
+    r=c.post("/projects/new", data={"client_name":"Picks","name":"Picks house","rate":"7.1"}, follow_redirects=False); pid_p=r.headers["location"].split("/")[-1]
+    for code,name,floor,kind in (("GF-LIV","Living room","Ground","room"),("GF-GBA","Guest bathroom","Ground","room"),("GF-GST","Guest bedroom","Ground","room"),("FF-MBR","Master bedroom","First","room"),("FF-MEN","Master ensuite","First","room"),("FF-BR1","Bedroom 1","First","room"),("FF-BA1","Bathroom 1","First","room"),("GF-ENT","Entrance","Ground","area"),("FF-BAL","Balconies","First","area")):
+        c.post(f"/p/{pid_p}/rooms", data={"code":code,"name":name,"floor":floor,"kind":kind}, follow_redirects=False)
+    r=c.get(f"/p/{pid_p}/items/new"); h=r.text
+    assert 'data-pick="group:bedroom"' in h and 'All bedrooms <b>3</b>' in h and 'All bathrooms <b>3</b>' in h and 'data-pick="floor:Ground"' in h and 'data-pick="floor:First"' in h and 'data-pick="kind:room"' in h and 'data-pick="kind:area"' in h and 'data-pick="none"' in h
+    assert 'data-group="bathroom" data-floor="First" data-kind="room"' in h and 'capture=' not in h.split('name="photos"')[1][:120] and 'name="photos" accept="image/*" multiple' in h
+    db=SessionLocal(); mbr=db.query(Room).filter(Room.project_id==int(pid_p), Room.code=="FF-MBR").one().id; db.close()
+    r=c.post(f"/p/{pid_p}/items/new", data={"room_ids":[str(mbr)],"category":"Furniture","name":"Bedside lamp","qty":"2","unit":"pcs","unit_price":"300","status":"To buy"}, follow_redirects=False)
+    r=c.get(r.headers["location"]); assert 'name="add_room_ids"' in r.text and 'All bedrooms <b>2</b>' in r.text  # the other two bedrooms
+    r=c.get(f"/p/{pid_p}/import/template.xlsx"); assert r.status_code==200 and "spreadsheetml" in r.headers["content-type"] and "import_template.xlsx" in r.headers["content-disposition"]
+    wb=openpyxl.load_workbook(io.BytesIO(r.content)); assert wb.sheetnames==["How to","Rooms","Shopping List","Lists"]
+    ws=wb["Rooms"]; labels=[ws.cell(row=i, column=1).value for i in range(2, 12)]; assert "FF-MBR - Master bedroom" in labels and "GF-ENT - Entrance" in labels and [c_.value for c_ in ws[1]]==["Room","Floor","Kind","Floor area m²","Wall tile m²","Notes"]
+    assert ws.cell(row=labels.index("GF-ENT - Entrance")+2, column=3).value=="area" and len(ws.data_validations.dataValidation)==2
+    sl=wb["Shopping List"]; hdr=[c_.value for c_ in sl[1]]; assert hdr[:3]==["Room","Category","Item"] and "Qty" in hdr and "Price (CNY)" in hdr and "Optional" in hdr
+    dvs={str(d.sqref)[0]: d.formula1 for d in sl.data_validations.dataValidation}; assert dvs["A"]=="Rooms!$A$2:$A$401" and dvs["B"].startswith("Lists!$A$2") and "M" in dvs and "N" in dvs, dvs
+    assert "How to fill this in" in str(wb["How to"]["A1"].value) and wb["Lists"]["A2"].value=="Paint" and wb["Lists"]["D2"].value=="room"
+    ws.append(["SF-STU - Studio","Second","room",None,None,"new floor"]); ws.append(["SF-TER - Terrace","Second","area",None,None,None]); ws.append(["(example) ZZ - Ignore","Second","room",None,None,None])
+    sl.append(["SF-STU - Studio","Furniture","Day bed","Oak frame","","2000 mm","Oak",1,"pcs",3200,"New Supplier Co","4 weeks","Quoted","no",""])
+    sl.append(["SF-TER - Terrace","Lighting","Terrace wall light","IP65","","","Black",2,"pcs",310,"","","To buy","yes",""])
+    sl.append(["FF-BA1 - Bathroom 1","Tiles","Floor tile","R11","","600 x 600","Grey",8,"m²",190,"","","To buy","",""])
+    sl.append(["(example) FF-BA1 - Bathroom 1","Tiles","Should be skipped","","","","",1,"pcs",1,"","","","",""]); sl.append(["","Paint","(example) skipped too","","","","",1,"pcs",1,"","","","",""])
+    b=io.BytesIO(); wb.save(b); r=c.post(f"/p/{pid_p}/import", files={"file":("filled.xlsx", b.getvalue())}, data={}); assert "Imported 3 items, 2 new rooms, 1 new suppliers" in r.text, re.search(r"Imported[^<]*", r.text).group(0)
+    db=SessionLocal(); rs={x.code:x for x in db.query(Room).filter(Room.project_id==int(pid_p))}; its={i.name:i for i in db.query(Item).filter(Item.project_id==int(pid_p))}
+    assert len(rs)==12 and rs["SF-STU"].floor=="Second" and rs["SF-STU"].kind=="room" and rs["SF-TER"].kind=="area" and "ZZ" not in rs and rs["FF-MBR"].floor=="First"
+    assert its["Day bed"].room.code=="SF-STU" and its["Day bed"].status=="Quoted" and its["Day bed"].supplier.name=="New Supplier Co" and its["Terrace wall light"].optional and its["Floor tile"].room.code=="FF-BA1" and its["Floor tile"].code=="FF-BA1-01" and "Should be skipped" not in its and len(its)==4
+    db.close()
+    r=c.get(f"/p/{pid_p}/items/new"); assert 'data-pick="floor:Second"' in r.text and "Download the template" in c.get(f"/p/{pid_p}/import").text
+    print("quick picks + import template ok")
+    # plan layers: several sheets of one floor; the furniture layout carries the boxes, the others borrow them
+    from app import drawings as _dr2
+    from app.models import RoomPin, Project as _P
+    r=c.post("/projects/new", data={"client_name":"Layers","name":"Layered house","rate":"7.1"}, follow_redirects=False); pid_l=r.headers["location"].split("/")[-1]
+    for code,name in (("GF-KIT","Kitchen"),("GF-LIV","Living room"),("GF-ENT","Entrance")): c.post(f"/p/{pid_l}/rooms", data={"code":code,"name":name,"floor":"Ground","kind":"auto"}, follow_redirects=False)
+    c.post(f"/p/{pid_l}/images/plans", data={"floor":"Ground","sheet":"A-101","caption":"Furniture Layout"}, files=[("files",("g.jpg",img("white"),"image/jpeg"))], follow_redirects=False)
+    c.post(f"/p/{pid_l}/images/plans", data={"floor":"Ground","sheet":"E-01","layer":"electrical"}, files=[("files",("e.jpg",img("blue"),"image/jpeg"))], follow_redirects=False)
+    c.post(f"/p/{pid_l}/images/plans", data={"floor":"Roof","sheet":"A-103","layer":"bogus"}, files=[("files",("r.jpg",img("gray"),"image/jpeg"))], follow_redirects=False)
+    db=SessionLocal(); lp={im.sheet:im for im in db.query(ProjectImage).filter(ProjectImage.project_id==int(pid_l))}; lr={x.code:x.id for x in db.query(Room).filter(Room.project_id==int(pid_l))}
+    assert lp["E-01"].layer=="electrical" and lp["A-101"].layer=="furniture" and lp["A-103"].layer=="furniture" and _dr2.plan_caption(lp["E-01"])=="Ground floor · Electrical & lighting · E-01" and _dr2.plan_caption(lp["A-101"])=="Ground floor · A-101 · Furniture Layout"
+    gid_l,eid_l=lp["A-101"].id,lp["E-01"].id; db.close()
+    for code,box in (("GF-KIT",(0.1,0.1,0.3,0.3)),("GF-LIV",(0.5,0.1,0.4,0.3))): c.post(f"/p/{pid_l}/plan/pins", data={"image_id":gid_l,"room_id":lr[code],"x":box[0],"y":box[1],"w":box[2],"h":box[3]}, headers={"Accept":"application/json"})
+    r=c.get(f"/p/{pid_l}/plan"); h=r.text; assert h.count('<span class="t">Ground floor</span>')==1 and '<span class="t">Roof</span>' in h and 'class="plan-layers"' in h and "Furniture layout" in h and "Electrical &amp; lighting" in h and "2 sheets" in h and f'data-plan="{gid_l}"' in h
+    r=c.get(f"/p/{pid_l}/plan?plan={eid_l}"); h=r.text; assert len(re.findall(r'class="pin[" ]', h))==2 and "boxes from the furniture layout" in h and "2 of 3 placed" in h and f'data-plan="{eid_l}"' in h  # borrowed boxes
+    r=c.get(f"/p/{pid_l}/plan?plan={eid_l}&mode=mark"); h=r.text; assert "Boxes borrowed from the furniture layout" in h and "Copy the 2 boxes here" in h and 'data-mode=""' in h and "Done marking" not in h
+    c.post(f"/p/{pid_l}/items/new", data={"room_ids":[str(lr["GF-KIT"])],"category":"Lighting","name":"Pendant","qty":"1","unit":"pcs","unit_price":"500","status":"To buy"}, follow_redirects=False)
+    c.post(f"/p/{pid_l}/items/new", data={"room_ids":[str(lr["GF-KIT"])],"category":"Furniture","name":"Stool","qty":"2","unit":"pcs","unit_price":"200","status":"To buy"}, follow_redirects=False)
+    db=SessionLocal(); li={i.name:i.id for i in db.query(Item).filter(Item.project_id==int(pid_l))}; db.close()
+    assert c.post(f"/p/{pid_l}/plan/item-pins", data={"image_id":eid_l,"item_id":li["Pendant"],"x":0.2,"y":0.2}, headers={"Accept":"application/json"}).json()["ok"]
+    assert c.post(f"/p/{pid_l}/plan/item-pins", data={"image_id":gid_l,"item_id":li["Stool"],"x":0.25,"y":0.25}, headers={"Accept":"application/json"}).json()["ok"]
+    r=c.get(f"/p/{pid_l}/plan?plan={eid_l}&room={lr['GF-KIT']}"); assert "Not placed on this plan yet" not in r.text and re.search(r'data-placed>1</span> of 2', r.text)  # the room's box is borrowed; one dot on this sheet
+    db=SessionLocal(); prl=db.get(_P,int(pid_l)); kit_l=db.get(Room, lr["GF-KIT"])
+    z=_dr2.room_zoom(prl, kit_l); assert z["plan"].id==gid_l and [d["code"] for d in z["dots"]]==["GF-KIT-02"]  # the main plan, with the furniture dot
+    z2=_dr2.room_zoom(prl, kit_l, plan=db.get(ProjectImage, eid_l)); assert z2["plan"].id==eid_l and [d["code"] for d in z2["dots"]]==["GF-KIT-01"] and z2["pin"].image_id==gid_l  # borrowed box, this sheet's dots
+    assert _dr2.plan_for_room(prl, kit_l).id==gid_l and _dr2.default_plan(prl).id==gid_l and [im.id for im in _dr2.plans_for_floor(prl, "ground")]==[gid_l, eid_l]; db.close()
+    tx=pdf_text(c.get(f"/p/{pid_l}/export/room/{lr['GF-KIT']}.pdf").content); assert "ON THE PLAN" in tx and "ON THE ELECTRICAL & LIGHTING PLAN" in tx
+    ts=pdf_text(c.get(f"/p/{pid_l}/export/schedule.pdf").content); assert "FLOOR PLAN OVERVIEW" in ts and "LIGHTING — ELECTRICAL & LIGHTING PLAN" in ts and ts.count("Ground floor · A-101 · Furniture Layout")==1 and ts.count("Ground floor · Electrical & lighting · E-01")==1
+    r=c.post(f"/p/{pid_l}/plan/pins/copy", data={"image_id":eid_l}, follow_redirects=False); assert r.status_code==303 and r.headers["location"].endswith(f"plan={eid_l}&mode=mark")
+    db=SessionLocal(); assert db.query(RoomPin).filter(RoomPin.image_id==eid_l).count()==2; db.close()
+    r=c.get(f"/p/{pid_l}/plan?plan={eid_l}&mode=mark"); assert "Done marking" in r.text and "Boxes borrowed" not in r.text  # own boxes now
+    assert c.post(f"/p/{pid_l}/plan/pins/copy", data={"image_id":eid_l}, headers={"Accept":"application/json"}).status_code==404  # nothing left to borrow
+    r=c.get(f"/p/{pid_l}/images"); assert r.text.count('name="layer"')==4 and "Ground floor · Electrical &amp; lighting · E-01" in r.text
+    c.post(f"/p/{pid_l}/images/{eid_l}", data={"floor":"Ground","sheet":"E-01","caption":"","layer":"ceiling"}, follow_redirects=False); db=SessionLocal(); assert db.get(ProjectImage, eid_l).layer=="ceiling"; ltok=db.get(_P,int(pid_l)).client_token; db.close()
+    r=c2.get(f"/c/{ltok}"); assert 'class="plan-layers"' in r.text and "Ceiling" in r.text and r.text.count('<span class="t">Ground floor</span>')==1
+    r=c.get(f"/p/{pid_l}/rooms"); assert r.status_code==200 and f"plan={gid_l}&amp;room=" in r.text
+    print("plan layers ok")
     # ---- review fixes: counts per room, drafts never get dots, client leak checks, dots follow rooms, PDFs with markup, scoping ----
     # the panel's "placed" count is this room's: a dot of another room on the same plan does not count
     db=SessionLocal(); kit_dots=sum(1 for q in db.query(ItemPin).filter(ItemPin.image_id==gid) if q.item.room_id==room.id); r2_item=[i.id for i in db.get(Room, r2.id).items if not i.draft][0]; db.close()
@@ -586,9 +655,11 @@ with TestClient(app) as c:
     with _eng.begin() as cn:
         cn.execute(_text("CREATE TABLE rooms (id INTEGER PRIMARY KEY, code VARCHAR(20), name VARCHAR(120))"))
         cn.execute(_text("CREATE TABLE items (id INTEGER PRIMARY KEY, name VARCHAR(200))"))
+        cn.execute(_text("CREATE TABLE project_images (id INTEGER PRIMARY KEY, kind VARCHAR(20))"))
         cn.execute(_text("INSERT INTO rooms (code, name) VALUES ('X', 'Old room')"))
-    assert _migrate(_eng)==["items.draft", "rooms.kind"] and _migrate(_eng)==[]
-    with _eng.connect() as cn: assert cn.execute(_text("SELECT kind FROM rooms")).scalar()=="room"
+        cn.execute(_text("INSERT INTO project_images (kind) VALUES ('floorplan')"))
+    assert _migrate(_eng)==["items.draft", "rooms.kind", "project_images.layer"] and _migrate(_eng)==[]
+    with _eng.connect() as cn: assert cn.execute(_text("SELECT kind FROM rooms")).scalar()=="room" and cn.execute(_text("SELECT layer FROM project_images")).scalar()=="furniture"
     # the guess: zones are areas, everything else a room
     for nm, fl, k in [("Entrance","Ground","area"),("Hall & Corridors","Ground","area"),("Living Room","Ground","room"),("Store Room","Ground","room"),
                       ("Carport","Ground","area"),("Kitchen Verandah","Ground","area"),("Stairs Ground to First","Ground","area"),("Landing & Corridor","First","area"),
@@ -644,7 +715,10 @@ with TestClient(app) as c:
     # the caption suggestion keeps only what plan_caption would not print anyway
     assert _dr2.caption_from_title("Ground Floor Plan (Furniture Layout)")=="Furniture Layout" and _dr2.caption_from_title("Site Layout Plan")=="" and _dr2.caption_from_title("Roof Plan")=="" and _dr2.caption_from_title("Lower Ground Floor Plan (Dimension Details)")=="Dimension Details"
     assert _dr2.read_title_block("FRONT ELEVATION\n1:100\nA-201")=={"title":"","sheet":"A-201","floor":"","is_plan":False}
-    assert _dr2.read_title_block("ELECTRICAL LAYOUT PLAN - GROUND FLOOR\nE-01")["is_plan"] is False
+    tb=_dr2.read_title_block("ELECTRICAL LAYOUT PLAN - GROUND FLOOR\nE-01"); assert tb["is_plan"] is True and tb["floor"]=="Ground" and tb["sheet"]=="E-01" and _dr2.layer_from_title(tb["title"])=="electrical", tb  # a layer of its floor
+    assert _dr2.layer_from_title("Reflected Ceiling Plan - First Floor")=="ceiling" and _dr2.layer_from_title("Floor Finishes Plan")=="flooring" and _dr2.layer_from_title("Plumbing & Drainage Layout Plan")=="plumbing" and _dr2.layer_from_title("Ground Floor Plan (Furniture Layout)")=="furniture" and _dr2.layer_from_title("")=="furniture"
+    assert _dr2.caption_from_title("Electrical Layout Plan - Ground Floor")=="" and _dr2.caption_from_title("Reflected Ceiling Plan - First Floor")==""
+    assert _dr2.read_title_block("STRUCTURAL FRAMING PLAN - GROUND FLOOR\nS-01")["is_plan"] is False and _dr2.read_title_block("HVAC LAYOUT PLAN\nM-01")["is_plan"] is False and _dr2.read_title_block("REFLECTED CEILING PLAN - FIRST FLOOR\nA-401")=={"title":"Reflected Ceiling Plan - First Floor","sheet":"A-401","floor":"First","is_plan":True}
     assert _dr2.read_title_block("SITE LAYOUT PLAN\nA-100")=={"title":"Site Layout Plan","sheet":"A-100","floor":"Site","is_plan":True}
     assert _dr2.read_title_block("ROOF PLAN\nSHEET A-104")["floor"]=="Roof" and _dr2.read_title_block("FIRST FLOOR PLAN (FURNITURE LAYOUT)\nA4\nA-103")["sheet"]=="A-103"
     assert _dr2.read_title_block("")=={"title":"","sheet":"","floor":"","is_plan":False}

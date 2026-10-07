@@ -1,6 +1,13 @@
-{# Floor tabs, one per plan. Needs: tabs, base, mode, anchor. #}
+{# Floor tabs, one per floor (its main plan), then the whole-house and untagged plans; under them the layer switch when the
+   floor has more than one sheet. Needs: tabs, layers, base, mode, anchor. #}
 {% if tabs|length > 1 %}
 <nav class="plan-tabs" aria-label="Floor plans">
-  {% for t in tabs %}<a class="{{ 'on' if t.on }}" href="{{ base }}?plan={{ t.im.id }}{% if mode == 'mark' %}&amp;mode=mark{% endif %}{{ anchor }}" {% if t.on %}aria-current="page"{% endif %}><span class="t">{{ t.title }}</span><span class="s">{{ t.sheet or (t.im.caption if t.im.caption != t.title else '') or '&nbsp;'|safe }}</span><span class="n" title="Rooms placed">{{ t.n }}</span></a>{% endfor %}
+  {% for t in tabs %}<a class="{{ 'on' if t.on }}" href="{{ base }}?plan={{ t.im.id }}{% if mode == 'mark' %}&amp;mode=mark{% endif %}{{ anchor }}" {% if t.on %}aria-current="page"{% endif %}><span class="t">{{ t.title }}</span><span class="s">{{ t.sheet or (t.im.caption if t.im.caption != t.title else '') or '&nbsp;'|safe }}{% if t.layers > 1 %} · {{ t.layers }} sheets{% endif %}</span><span class="n" title="Rooms placed">{{ t.n }}</span></a>{% endfor %}
+</nav>
+{% endif %}
+{% if layers|length > 1 %}
+<nav class="plan-layers" aria-label="Sheets of this floor">
+  <span class="small muted">Sheet:</span>
+  {% for l in layers %}<a class="{{ 'on' if l.on }}" href="{{ base }}?plan={{ l.im.id }}{% if mode == 'mark' %}&amp;mode=mark{% endif %}{{ anchor }}" {% if l.on %}aria-current="page"{% endif %} title="{{ plan_caption(l.im) }}">{{ l.title }}{% if l.sheet %} <span class="s">{{ l.sheet }}</span>{% endif %}{% if l.n %} <span class="n" title="Item dots on this sheet">{{ l.n }}</span>{% endif %}</a>{% endfor %}
 </nav>
 {% endif %}

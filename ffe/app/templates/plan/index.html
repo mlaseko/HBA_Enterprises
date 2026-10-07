@@ -72,6 +72,14 @@
       {% if not p.rooms %}<div class="empty small"><p>No rooms yet. <a href="/p/{{ p.id }}/rooms">Add the rooms</a> first, then mark them here.</p></div>{% endif %}
       <div class="small muted mt noscript-note">Marking rooms and areas needs JavaScript.</div>
     </div>
+    {% elif copy_from %}
+    <div class="card tight plan-copy">
+      <div class="eyebrow">{{ plan.layer_title }}</div>
+      <h2>Boxes borrowed from the {{ copy_from.layer_title|lower }}</h2>
+      <p class="small muted">This sheet shows the room boxes drawn on the {{ copy_from.layer_title|lower }}{% if copy_from.sheet %} ({{ copy_from.sheet }}){% endif %}, so there is nothing to mark twice. If this sheet is framed differently and the boxes sit off, copy them here and adjust them; from then on this sheet keeps its own.</p>
+      <form method="post" action="/p/{{ p.id }}/plan/pins/copy"><input type="hidden" name="image_id" value="{{ plan.id }}"><button class="btn"><svg class="ic"><use href="#i-copy"/></svg>Copy the {{ copy_from.pins|length }} boxes here to adjust them</button></form>
+      <div class="row mt"><a class="btn sec sm" href="{{ base }}?plan={{ copy_from.id }}&amp;mode=mark"><svg class="ic"><use href="#i-edit"/></svg>Mark rooms on the {{ copy_from.layer_title|lower }} instead</a><a class="btn ghost sm" href="{{ base }}?plan={{ plan.id }}">Back</a></div>
+    </div>
     {% elif room %}
     {% include "plan/_room.html" %}
     {% else %}

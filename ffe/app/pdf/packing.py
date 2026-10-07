@@ -110,6 +110,21 @@ def room_checklist(p, studio, room) -> bytes:
                   Paragraph(escape(f"{drawings.plan_caption(zoom['plan']) or 'Floor plan'}. The outline is {room.label}; "
                                    f"each dot carries the number of the item code it stands for."), S["grey"]),
                   img_flowable_bytes(crop, W, doc.height - 26 * mm), PageBreak()]
+        ids = {i.id for i in items}
+        for layer_im in drawings.plans_for_floor(p, room.floor):  # the other sheets of the floor the room has dots on
+            if layer_im.id == zoom["plan"].id or not any(q.item_id in ids for q in layer_im.item_pins):
+                continue
+            z2 = drawings.room_zoom(p, room, items, plan=layer_im)
+            data2 = storage.read_image(layer_im.best_key) if z2 else None
+            if not data2:
+                continue
+            try:
+                crop2 = drawings.render_room_crop(data2, z2)
+            except Exception:
+                continue
+            story += [Paragraph(f"ON THE {escape(layer_im.layer_title.upper())} PLAN &mdash; {escape(room.label)}", S["h1"]),
+                      Paragraph(escape(f"{drawings.plan_caption(layer_im)}. The dots are this room's items placed on this sheet."), S["grey"]),
+                      img_flowable_bytes(crop2, W, doc.height - 26 * mm), PageBreak()]
     elif plan:  # page 1: the whole floor plan the room is on, so the site team finds the room before unpacking
         story += [Paragraph(f"FLOOR PLAN &mdash; {escape(room.label)}", S["h1"]),
                   Paragraph(escape(f"Find {room.label} on: {drawings.plan_caption(plan) or 'floor plan'}"), S["grey"]),

@@ -43,7 +43,7 @@
 {% elif g.key != 'whole' %}
 <div class="small muted mb">No plan for this floor yet. <a href="/p/{{ p.id }}/images#plans">Add one</a> tagged "{{ g.floor }}" and mark its rooms on <a href="/p/{{ p.id }}/plan">the plan</a>.</div>
 {% endif %}
-{% set fp = g.plans[0] if (g.key != 'whole' and g.plans) else none %}
+{% set fp = g.plans[0] if (g.key != 'whole' and g.plans) else none %}{# plans_for_floor: the main plan first #}
 {% for r in g.rooms + g.areas %}
 {% if r.is_area and (loop.first or not loop.previtem.is_area) %}<div class="sub-title"><span>Areas</span><span class="muted small">zones with a code, items and boxes, but not rooms</span></div>{% endif %}
 {% set st = stats.get(r.id) %}

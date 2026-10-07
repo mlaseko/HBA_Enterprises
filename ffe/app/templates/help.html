@@ -90,7 +90,7 @@
     <ol>
       <li>On <b>Projects</b>, press <b>New project</b>. Type the client's name, the project name (the house), the delivery address, the exchange rate and, if you like, a budget in USD. Press <b>Create project</b>.</li>
       <li>You land on the project's <b>Overview</b>. The sidebar (or the <b>More</b> menu on a phone) now shows this project's pages.</li>
-      <li>Already have the procurement list as an Excel file? Open <b>Import</b>, choose the file, press <b>Import</b>. Rooms and items are created in one go. Otherwise carry on to stage 3 and add the rooms yourself.</li>
+      <li>Already have the list in Excel? Open <b>Import</b>, press <b>Download the template</b>, fill its Rooms and Shopping List sheets, choose the file and press <b>Import</b>. Rooms and items are created in one go. Otherwise carry on to stage 3 and add the rooms yourself.</li>
     </ol>
     <div class="shots">
       {{ shot('projects', 'Projects: one card per house, with items, total, received and boxes.') }}
@@ -117,7 +117,7 @@
     <ol>
       <li>Open <b>Images &amp; plans</b>. Under <b>Add floor plans</b>, choose the architect's PDF (or JPG / PNG pictures of the plans) and press <b>Upload</b>.</li>
       <li>For a PDF, the <b>page picker</b> opens. The app has read the title block of every page: the pages titled floor plan, roof plan or site plan are ticked, with floor, sheet number and caption filled in. Check them, fix what is wrong, untick elevations or sections if any slipped through, then press <b>Add ticked pages</b>.</li>
-      <li>Open <b>Plan</b> and press <b>Mark rooms</b>. Pick a room in the list, drag a box over it on the drawing. It saves at once and the list moves on to the next room. A rough box is enough. Press <b>Done marking</b> when the list is green.</li>
+      <li>Open <b>Plan</b> and press <b>Mark rooms</b> on the furniture layout. Pick a room in the list, drag a box over it on the drawing. It saves at once and the list moves on to the next room. A rough box is enough. Press <b>Done marking</b> when the list is green. Electrical, plumbing and other sheets of the same floor borrow these boxes, so they are drawn once.</li>
     </ol>
     <div class="shots">
       {{ shot('pdf-pages', 'The page picker after a PDF upload: plan pages ticked and prefilled from their title blocks; the cover sheet is not.') }}
@@ -132,7 +132,7 @@
     <h3>Items: build the schedule</h3>
     <p>There are three ways in, and you will use all three.</p>
     <ol>
-      <li><b>Type it.</b> On <b>Items</b> (or on a room in the plan) press <b>Add item</b>. Tick the rooms that get it, choose the category, type the name and the must-have spec, qty, unit and price (CNY or USD), pick the supplier if you know it, add photos. <b>Save</b>, or <b>Save &amp; add another</b>.</li>
+      <li><b>Type it.</b> On <b>Items</b> (or on a room in the plan) press <b>Add item</b>. Tick the rooms that get it (the chips tick all bedrooms, all bathrooms or a whole floor at once), choose the category, type the name and the must-have spec, qty, unit and price (CNY or USD), pick the supplier if you know it, add photos. <b>Save</b>, or <b>Save &amp; add another</b>.</li>
       <li><b>Shoot it.</b> In a showroom press <b>Quick capture</b>. Every photo becomes a draft at once; keep shooting. Later, on <b>Drafts</b>, give each one a name, room, qty and price and press <b>Save as item</b>.</li>
       <li><b>Save it from the web.</b> Paste a supplier page, Taobao listing or Pinterest pin into the item's web-link field, or use the one-click <b>Save from web</b> button. The picture is downloaded and stored with the item.</li>
     </ol>
@@ -248,12 +248,13 @@
   </ul>
   <h3>Import from Excel</h3>
   <ul>
-    <li>The file needs a <b>Shopping List</b> sheet and a <b>Rooms</b> sheet, or it can be an Excel exported from this app. Columns are matched by their headers (Room, Category, Item, Must-have spec, Size / Finish, Qty, Unit, Price (CNY), Supplier, Status, Notes); extra columns are ignored.</li>
-    <li>Rooms are matched by code and created when new. A <b>Kind</b> column is honoured; new rooms without one are classified by name.</li>
-    <li>Tick <b>Delete all existing items in this project first</b> only to re-import a corrected file. Photos on deleted items are lost.</li>
-    <li>Photos are not in Excel: after importing, open each item and add the sample photo, or use Quick capture.</li>
+    <li>Press <b>Download the template</b> on the Import page. Its <b>Rooms</b> sheet already lists this project's rooms and areas, so adding a floor, a room or an area is one new row: <i>CODE - Name</i>, the floor, and the kind (room or area). Its <b>Shopping List</b> sheet takes one row per item per room, with dropdowns for the room, category, unit, status and optional; a room you add on the Rooms sheet appears in the room dropdown at once. A <b>How to</b> sheet repeats these rules.</li>
+    <li>The Kinondoni list format and a file exported from this app import too. Columns are matched by their headers (Room, Category, Item, Must-have spec, Size, Finish, Qty, Unit, Price (CNY), Supplier, Lead time, Status, Optional, Notes); extra columns are ignored.</li>
+    <li>Rooms are matched by code and created when new, never duplicated. A <b>Kind</b> column is honoured; new rooms without one are classified by name.</li>
+    <li>Every item row is added as a new item; items are never merged. List only what you are adding, or tick <b>Delete all existing items in this project first</b> to start over. Photos on deleted items are lost.</li>
+    <li>Rows whose Room or Item starts with <i>(example)</i> are ignored. Photos are not in Excel: after importing, open each item and add the sample photo, or use Quick capture.</li>
   </ul>
-  {{ shot('import', 'Import from Excel: the recognised columns, and the option to start over.') }}
+  {{ shot('import', 'Import from Excel: download the template, fill it in, upload it here.') }}
 </section>
 
 <section class="card" id="rooms">
@@ -293,9 +294,10 @@
     <li>Check, correct, untick, and press <b>Add ticked pages</b>. Nothing is added until you do.</li>
     <li>A <b>scanned PDF</b> has no text to read, so nothing is prefilled: tick the plan pages and type the floor yourself.</li>
   </ul>
-  <h3>Tagging</h3>
+  <h3>Tagging, and several sheets for one floor</h3>
   <ul>
-    <li>Every plan carries a <b>floor</b>, a <b>sheet</b> reference and a <b>caption</b>; change them under the picture and press <b>Save</b>. The caption prints with the plan ("Ground floor · A-101 · Furniture Layout").</li>
+    <li>Every plan carries a <b>floor</b>, a <b>sheet</b> reference, a <b>caption</b> and what it <b>shows</b>; change them under the picture and press <b>Save</b>. The caption prints with the plan ("Ground floor · A-101 · Furniture Layout").</li>
+    <li><b>What a sheet shows:</b> Furniture layout, Electrical &amp; lighting, Plumbing &amp; sanitary, Ceiling, or Flooring &amp; tiles. The furniture layout is a floor's <b>main plan</b>: it carries the room boxes, prints in the schedule and is where rooms are marked. The other sheets of the same floor are <b>layers</b> of it: they appear under a Sheet switch on the Plan page, borrow the room boxes, and hold their own item dots. The page picker reads this from the title block ("Electrical Layout Plan" becomes an electrical layer of its floor).</li>
     <li>A plan without a floor prints up front in the schedule and does not join a floor's tab on the Plan page.</li>
     <li>"n rooms marked · mark rooms" under a plan jumps to mark mode for that plan.</li>
   </ul>
@@ -317,6 +319,8 @@
     <li><b>Act on the spot.</b> Change a status, press <b>Add item</b> or <b>Capture</b> for that room, <b>List</b> to open it in the item list, <b>PDF</b> for its checklist, or open an item. Saving brings you back to the plan. The room's own details (code, name, floor, kind, notes) are in the fold at the bottom of the panel.</li>
     <li><b>Place an item.</b> Tap the pin <svg class="ic sm"><use href="#i-map"/></svg> on an item, then the spot on the drawing where it goes. The dot shows the item's photo and its status colour. Drag a dot to move it, tap the pin again to find it, press <b>×</b> twice to remove it. An item that moves to another room loses its dot so you can place it again.</li>
     <li><b>Read the drawing.</b> Use <b>−</b> / <b>Fit</b> / <b>+</b>, pinch on a phone, or double-tap. <b>Items</b> hides and shows the dots. <b>Full size</b> opens the drawing on its own.</li>
+    <li><b>Switch sheets.</b> A floor with more than one sheet shows a <b>Sheet</b> switch under the floor tabs: Furniture layout, Electrical &amp; lighting, Plumbing &amp; sanitary… The room boxes are the furniture layout's, shown on every sheet, so tapping a room works everywhere. Dots are placed per sheet: put a pendant's dot on the electrical sheet while you look at it, a sofa's on the furniture layout. The small number on a sheet is its dot count.</li>
+    <li><b>Marking on a layer.</b> Press Mark rooms on an electrical or plumbing sheet and it offers to <b>copy</b> the furniture layout's boxes to that sheet; do that only when the sheet is framed differently and the borrowed boxes sit off. From then on the sheet keeps its own boxes.</li>
     <li>Each box shows the room code and name, a count of its items and a thin ring that fills as items arrive. Dashed boxes are areas.</li>
   </ul>
   <div class="shots">
@@ -332,7 +336,7 @@
   <div class="tbl"><table>
     <thead><tr><th>Field</th><th>What it is for</th><th>Where it shows</th></tr></thead>
     <tbody>
-      <tr><td><b>Rooms &amp; areas</b></td><td>Tick every place that gets this item. None ticked = whole house. Each ticked place gets its own line with its own code, quantity and status.</td><td>Codes, labels, plan, every list</td></tr>
+      <tr><td><b>Rooms &amp; areas</b></td><td>Tick every place that gets this item. None ticked = whole house. Each ticked place gets its own line with its own code, quantity and status. The chips above the list tick a whole group at once: <b>All bedrooms</b>, <b>All bathrooms</b>, a floor, all rooms, all areas; press a chip again to untick its group.</td><td>Codes, labels, plan, every list</td></tr>
       <tr><td><b>Category</b></td><td>Paint, Tiles, Flooring, Furniture, Lighting, Plumbing &amp; Sanitary, Cabinets, Countertops, Hardware, Appliances, Windows &amp; Doors, Electrical, Curtains &amp; Soft, Water Treatment, Other.</td><td>The page of the client schedule it prints on; the groups on the Items page</td></tr>
       <tr><td><b>Item / product name</b></td><td>What it is, as the client should read it.</td><td>Everywhere</td></tr>
       <tr><td><b>Must-have spec</b></td><td>What the supplier must deliver: material, standard, fittings included. Write it so a factory can quote from it.</td><td>Schedule, purchase order, supplier link, checklist</td></tr>
@@ -342,7 +346,7 @@
       <tr><td><b>Status</b></td><td>Where the purchase is; see <a href="#statuses">statuses</a>.</td><td>Badges, Overview counts, client link</td></tr>
       <tr><td><b>Optional item</b></td><td>An alternative the client may or may not take. Counted separately in the totals.</td><td>"optional" pill</td></tr>
       <tr><td><b>Notes</b></td><td>For you. Never shown to the client.</td><td>Item, checklist</td></tr>
-      <tr><td><b>Photos / web link</b></td><td>Camera or gallery, several at once; or a link to a page or a picture, downloaded when you save. The first photo is the cover.</td><td>Cards, schedule, purchase order, dots on the plan</td></tr>
+      <tr><td><b>Photos / web link</b></td><td>Take a photo, or choose several from the gallery at once (the phone offers both); or paste a link to a page or a picture, downloaded when you save. The first photo is the cover; more photos can be added on the item page at any time.</td><td>Cards, schedule, purchase order, dots on the plan</td></tr>
     </tbody>
   </table></div>
   <h3>The list</h3>
@@ -358,7 +362,7 @@
   <h3>Editing an item</h3>
   <ul>
     <li><b>Apply to the other rooms</b> (ticked by default when the same product is in several rooms) copies the name, category, spec, size, finish, brand, price, unit, lead time and supplier to the other lines. Quantity, status, notes and photos always stay per room.</li>
-    <li><b>Add this item to more rooms</b> copies it into the ticked rooms, each with its own code and the status To buy.</li>
+    <li><b>Add this item to more rooms</b> copies it into the ticked rooms, each with its own code and the status To buy. The same chips are there: all bedrooms, all bathrooms, a floor.</li>
     <li>Photos: delete, or <b>Make cover</b>. With Claude turned on, <b>Fill in with Claude</b> fills the empty fields from the cover photo.</li>
     <li><b>Duplicate</b> makes a copy to tweak. <b>Delete item</b> removes the item and its photos; its code is not reused.</li>
     <li><b>Plan</b> / <b>On the plan</b> at the top opens the room on the drawing, with the item highlighted if it has a dot.</li>
@@ -450,9 +454,9 @@
   <div class="tbl"><table>
     <thead><tr><th>Document</th><th>What is in it</th><th>For whom</th><th>Where</th></tr></thead>
     <tbody>
-      <tr><td><b>Client schedule</b></td><td>Cover, contents, floor plans, mood board, one table per category (photo, code, product and must-haves, finish, size, supplier, lead time, price, total), summary by room and area. USD or CNY, with or without prices.</td><td>Client</td><td>Overview › Documents; Images &amp; plans; the client link</td></tr>
+      <tr><td><b>Client schedule</b></td><td>Cover, contents, each floor's main plan, mood board, one table per category (photo, code, product and must-haves, finish, size, supplier, lead time, price, total), summary by room and area. A category read from another sheet prints that sheet first: the electrical plans before the Lighting schedule, the plumbing plans before Plumbing &amp; Sanitary, the flooring plans before Tiles and Flooring. USD or CNY, with or without prices.</td><td>Client</td><td>Overview › Documents; Images &amp; plans; the client link</td></tr>
       <tr><td><b>Schedule by floor</b></td><td>Each floor's plan, then its rooms in one table with a sub-header per room, then the whole-house items and a summary by floor.</td><td>Client, or the site team without prices</td><td>Overview › Documents</td></tr>
-      <tr><td><b>Room checklist</b></td><td>Page one: the room zoomed in on its plan with numbered dots. Then its items with photos, must-haves, quantities and a tick box each. Areas get an "Area checklist".</td><td>Installers</td><td>Rooms page, item list filtered by room, plan panel, Overview by room</td></tr>
+      <tr><td><b>Room checklist</b></td><td>Page one: the room zoomed in on its plan with numbered dots; one more page per other sheet of the floor the room has dots on (the electrical sheet with the lighting dots, say). Then its items with photos, must-haves, quantities and a tick box each. Areas get an "Area checklist".</td><td>Installers</td><td>Rooms page, item list filtered by room, plan panel, Overview by room</td></tr>
       <tr><td><b>Purchase order</b></td><td>One supplier's items with codes, specs, photos, room, qty and CNY prices; total, paid and balance; your contact and the delivery address.</td><td>Supplier</td><td>Supplier page inside the project</td></tr>
       <tr><td><b>Packing list</b></td><td>Every box with room, contents, codes, size, volume and weight; total volume and container. The supplier's link prints their own.</td><td>Forwarder, site</td><td>Overview › Documents; Packing; supplier link</td></tr>
       <tr><td><b>Box labels</b></td><td>Six per A4 page, one per box, to stick on the cartons.</td><td>Supplier, site</td><td>Packing; Rooms page (one room); supplier link</td></tr>
@@ -527,6 +531,7 @@
 
 <section class="card faq" id="faq">
   <h2>Questions &amp; problems</h2>
+  <details><summary>The electrical plan shows no room boxes.</summary><p>Boxes are drawn on the floor's furniture layout and borrowed by the other sheets of that floor. Check that both sheets carry the same floor name, and that the furniture layout is set to show "Furniture layout" under Images &amp; plans. If the electrical sheet is framed differently and the borrowed boxes sit off, press Mark rooms on it and copy the boxes to adjust them there.</p></details>
   <details><summary>I uploaded the plan, but the room is not listed under it on the Plan page.</summary><p>The room's floor and the plan's floor must have the same name. Check the floor on the Rooms page and under the plan on Images &amp; plans ("Ground" and "Ground floor" count as the same; "GF" does not). In mark mode, rooms of other floors are in the folded list below, so you can still place them.</p></details>
   <details><summary>The PDF pages were not ticked in the page picker.</summary><p>The PDF has no readable text (a scan or a flattened export), so there was nothing to read. Tick the plan pages and type the floor and sheet yourself. Everything else works the same.</p></details>
   <details><summary>A photo upload failed.</summary><p>Usually the Wi-Fi. Take the photo again; Quick capture keeps the ones that went through. Photos are shrunk before upload, so one photo at a time nearly always goes through even on a slow connection.</p></details>

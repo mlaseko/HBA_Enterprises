@@ -55,17 +55,30 @@ def stage_ctx(db: Session, p: Project, im: ProjectImage | None, *, sel_room: Roo
     (`/p/<id>/plan` or `/c/<token>`), `anchor` an optional '#plan' so a no-JS tap scrolls back to the plan."""
     s = summary(db, p)
     stats = {r["key"]: r for r in s["by_room"]}
-    pins = sorted(im.pins, key=lambda x: (x.room.sort, x.room.code)) if im is not None else []
+    borrowed = drawings.borrowed_from(p, im)  # another layer of the floor shows the main plan's boxes until it has its own
+    pins = sorted(drawings.pins_for(p, im), key=lambda x: (x.room.sort, x.room.code)) if im is not None else []
     ipins = live_item_pins(im) if im is not None else []
     pinned = {x.room_id for x in pins}
     floor_rooms = drawings.rooms_for_plan(p, im) if im is not None else []
     unplaced = [r for r in floor_rooms if r.id not in pinned]
     other_rooms = [r for r in p.rooms if r.id not in pinned and r not in floor_rooms]
-    tabs = []
-    for x in drawings.client_plans(p):  # tagged floors in order, then whole-house and untagged plans
-        title = drawings.floor_title(x.floor) or (x.caption or "Plan")
-        tabs.append({"im": x, "title": title, "sheet": x.sheet, "n": len(x.pins), "on": im is not None and x.id == im.id})
-    return dict(p=p, plan=im, pins=pins, ipins=ipins, stats=stats, tabs=tabs, mode=mode, unplaced=unplaced,
+    tabs, layers, seen = [], [], set()
+    for x in drawings.client_plans(p):  # one tab per tagged floor (its main plan), then whole-house and untagged plans
+        k = drawings.floor_key(x.floor)
+        if k and not drawings.is_pseudo(k):
+            if k in seen:
+                continue
+            seen.add(k)
+            fl = drawings.plans_for_floor(p, x.floor)
+            on = im is not None and drawings.floor_key(im.floor) == k
+            tabs.append({"im": fl[0], "title": drawings.floor_title(x.floor), "sheet": fl[0].sheet, "n": len(drawings.pins_for(p, fl[0])), "on": on,
+                         "layers": len(fl)})
+            if on and len(fl) > 1:
+                layers = [{"im": y, "title": y.layer_title, "sheet": y.sheet, "on": y.id == im.id, "n": len(live_item_pins(y))} for y in fl]
+        else:
+            tabs.append({"im": x, "title": drawings.floor_title(x.floor) or (x.caption or "Plan"), "sheet": x.sheet, "n": len(x.pins),
+                         "on": im is not None and x.id == im.id, "layers": 1})
+    return dict(p=p, plan=im, pins=pins, ipins=ipins, stats=stats, tabs=tabs, layers=layers, borrowed=borrowed, mode=mode, unplaced=unplaced,
                 other_rooms=other_rooms, floor_rooms=floor_rooms, sel_room=sel_room, sel_item=sel_item, base=base, anchor=anchor)
 
 
@@ -76,7 +89,7 @@ def room_ctx(db: Session, p: Project, room: Room, im: ProjectImage | None, *, se
     s = summary(db, p)
     st = next((r for r in s["by_room"] if r["key"] == room.id), None)
     items = sort_items([i for i in room.items if not i.draft], p)
-    pin = next((x for x in im.pins if x.room_id == room.id), None) if im is not None else None
+    pin = next((x for x in drawings.pins_for(p, im) if x.room_id == room.id), None) if im is not None else None
     ids = {i.id for i in items}
     ipin_of = {q.item_id: q for q in live_item_pins(im) if q.item_id in ids} if im is not None else {}  # this room's dots only
     here = f"{base}?" + (f"plan={im.id}&" if im is not None else "") + f"room={room.id}{anchor}"
@@ -110,7 +123,11 @@ def plan_page(request: Request, p: Project = Depends(get_project), db: Session =
         sel_room = it.room if it is not None and it.project_id == p.id and it.room is not None else None
     im = pick_plan(p, fint(plan), sel_room)
     base = f"/p/{p.id}/plan"
+    copy_from = drawings.borrowed_from(p, im) if mode == "mark" else None
+    if copy_from is not None:
+        mode = ""  # a layer with borrowed boxes cannot be marked until it has its own: the panel offers to copy them
     ctx = stage_ctx(db, p, im, sel_room=sel_room, sel_item=sel_item, mode=mode, base=base)
+    ctx["copy_from"] = copy_from
     ctx["room"] = None
     if sel_room is not None:
         ctx.update(room_ctx(db, p, sel_room, im, sel_item=sel_item, base=base))  # inline panel: deep link / no JavaScript
@@ -147,6 +164,21 @@ def save_pin(request: Request, p: Project = Depends(get_project), db: Session = 
     if wants_json(request):
         return JSONResponse({"ok": True, "pin": {"id": pin.id, "image_id": pin.image_id, "room_id": pin.room_id, "x": pin.x,
                                                  "y": pin.y, "w": pin.w, "h": pin.h, "style": pin.style}})
+    return redirect(f"/p/{p.id}/plan?plan={im.id}&mode=mark")
+
+
+@router.post("/p/{project_id}/plan/pins/copy")
+def copy_pins(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), image_id: str = Form("")):
+    """Give a layer its own room boxes: copy the ones it borrows from the floor's main plan, so they can be adjusted here."""
+    im = find_plan(p, fint(image_id))
+    src = drawings.borrowed_from(p, im) if im is not None else None
+    if im is None or src is None:
+        return _fail(request, p, "Nothing to copy: that plan has its own boxes or no main plan to borrow from", 404)
+    for q in src.pins:
+        db.add(RoomPin(image_id=im.id, room_id=q.room_id, x=q.x, y=q.y, w=q.w, h=q.h))
+    db.commit()
+    if wants_json(request):
+        return JSONResponse({"ok": True, "copied": len(src.pins)})
     return redirect(f"/p/{p.id}/plan?plan={im.id}&mode=mark")
 
 

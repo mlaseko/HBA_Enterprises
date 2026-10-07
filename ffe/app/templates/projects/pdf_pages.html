@@ -5,7 +5,7 @@
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/images">Images &amp; plans</a></div>
     <h1 class="wrap-any">{{ set.name }} <span class="h-note">{{ set.pages }} page{{ '' if set.pages == 1 else 's' }}</span></h1>
-    <p class="sub">Tick the pages that are floor plans and say which floor each one shows. Untagged pages still work but print up front. Up to {{ PICK_MAX_PAGES }} pages per go.</p>
+    <p class="sub">Tick the pages that are floor plans and say which floor each one shows, and what it shows: the furniture layout is a floor's main plan; electrical, plumbing, ceiling and flooring sheets of the same floor become its layers. Untagged pages still work but print up front. Up to {{ PICK_MAX_PAGES }} pages per go.</p>
   </div>
 </div>
 {% if err %}<div class="alert err">{{ err }}</div>{% endif %}
@@ -26,7 +26,8 @@
       <div class="grid g2 stack mt">
         <input class="in" type="text" name="floor_{{ k }}" list="floors" value="{{ (m.floor if m and m.floor else floor) }}" placeholder="Floor" aria-label="Floor for page {{ k }}" autocomplete="off">
         <input class="in" type="text" name="sheet_{{ k }}" value="{{ (m.sheet if m and m.sheet else sheet) }}" placeholder="Sheet ref" aria-label="Sheet for page {{ k }}">
-        <input class="in span2" type="text" name="caption_{{ k }}" value="{{ captions.get(k, '') if m else '' }}" placeholder="Caption (optional)" aria-label="Caption for page {{ k }}">
+        <input class="in" type="text" name="caption_{{ k }}" value="{{ captions.get(k, '') if m else '' }}" placeholder="Caption (optional)" aria-label="Caption for page {{ k }}">
+        <select class="in" name="layer_{{ k }}" aria-label="What page {{ k }} shows">{% set lk = layers.get(k, 'furniture') if m else 'furniture' %}{% for key, title in PLAN_LAYERS %}<option value="{{ key }}" {{ 'selected' if lk == key }}>{{ title }}</option>{% endfor %}</select>
       </div>
       {% endif %}
     </div>
