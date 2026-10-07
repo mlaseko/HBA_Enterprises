@@ -4,11 +4,13 @@
 {% block content %}
 {% set qroom = f.room if f.room not in ('', 'none') else '' %}
 {% set filtering = f.room or f.category or f.status or f.supplier or f.q %}
+{% set view = f.view if f.view in ('table', 'list') else 'cards' %}
+{% set qs_ = qs ~ '&' if qs else '' %}
 <div class="page-head">
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
-    <h1>Items <span class="h-note">{{ items|length }} · ¥{{ total|money }} · ${{ (total/(p.rate or 1))|money }}</span></h1>
-    <p class="sub">The schedule for {{ p.name }}. Change a status right here; open an item for the full sheet and its photos.</p>
+    <h1>Items <span class="h-note">{% if view == 'list' %}{{ rows|length }} item{{ 's' if rows|length != 1 }} · {{ items|length }} room line{{ 's' if items|length != 1 }}{% else %}{{ items|length }}{% endif %} · ¥{{ total|money }} · ${{ (total/(p.rate or 1))|money }}</span></h1>
+    <p class="sub">{% if view == 'list' %}One line per item, whatever the rooms: the same product in several rooms is counted once, with its rooms and the total quantity. Press a column heading to sort, again for the other way.{% elif view == 'table' %}One line per room, the compact sheet. Press a column heading to sort, again for the other way; change a status right here.{% else %}The schedule for {{ p.name }}, grouped by category. Change a status right here; open an item for the full sheet and its photos.{% endif %}</p>
   </div>
   <div class="actions">
     {% if qroom %}<a class="btn sec" href="/p/{{ p.id }}/plan?room={{ qroom }}" title="Show this room on the floor plan"><svg class="ic"><use href="#i-map"/></svg>On the plan</a>{% endif %}
@@ -26,9 +28,13 @@
   <span class="search"><svg class="ic"><use href="#i-search"/></svg><input class="in" type="text" name="q" value="{{ f.q }}" placeholder="Search name, code, spec, brand" aria-label="Search"></span>
   {% if f.view %}<input type="hidden" name="view" value="{{ f.view }}">{% endif %}
   <button class="btn sm">Filter</button>
-  <a class="btn ghost sm" href="/p/{{ p.id }}/items">Clear</a>
+  <a class="btn ghost sm" href="/p/{{ p.id }}/items{% if f.view %}?view={{ f.view }}{% endif %}">Clear</a>
   <span class="sp"></span>
-  <a class="btn sec sm" href="/p/{{ p.id }}/items?{{ request.url.query|replace('view=table','')|replace('view=cards','') }}&view={{ 'cards' if f.view == 'table' else 'table' }}"><svg class="ic"><use href="#i-{{ 'grid' if f.view == 'table' else 'layout' }}"/></svg>{{ 'Card view' if f.view == 'table' else 'Table view' }}</a>
+  <nav class="seg" aria-label="View">
+    <a href="/p/{{ p.id }}/items?{{ qs_ }}view=cards" class="{{ 'on' if view == 'cards' }}"{% if view == 'cards' %} aria-current="page"{% endif %} title="Cards grouped by category"><svg class="ic"><use href="#i-grid"/></svg>Cards</a>
+    <a href="/p/{{ p.id }}/items?{{ qs_ }}view=table" class="{{ 'on' if view == 'table' }}"{% if view == 'table' %} aria-current="page"{% endif %} title="One line per room, sortable"><svg class="ic"><use href="#i-layout"/></svg>Table</a>
+    <a href="/p/{{ p.id }}/items?{{ qs_ }}view=list" class="{{ 'on' if view == 'list' }}"{% if view == 'list' %} aria-current="page"{% endif %} title="One line per item across its rooms"><svg class="ic"><use href="#i-tag"/></svg>Item list</a>
+  </nav>
 </form>
 
 {% if room_obj %}
@@ -58,22 +64,43 @@
   {% if not filtering %}<a class="btn ghost" href="#help"><svg class="ic"><use href="#i-help"/></svg>How this works</a>{% endif %}
 </div>
 
-{% elif f.view == 'table' %}
-<div class="tbl"><table>
-  <thead><tr><th></th><th>Code</th><th>Item</th><th>Room</th><th>Category</th><th class="num">Qty</th><th class="num">Unit CNY</th><th class="num">Total CNY</th><th>Supplier</th><th>Status</th></tr></thead>
+{% elif view == 'table' %}
+<div class="tbl"><table class="sortable">
+  <thead><tr><th></th><th data-sort="text">Code</th><th data-sort="text">Item</th><th data-sort="text">Room</th><th data-sort="text">Category</th><th class="num" data-sort="num">Qty</th><th class="num" data-sort="num">Unit CNY</th><th class="num" data-sort="num">Total CNY</th><th data-sort="text">Supplier</th><th data-sort="num">Status</th></tr></thead>
   <tbody>
   {% for i in items %}
   <tr id="item-{{ i.id }}">
     <td>{% if i.cover %}<a href="/p/{{ p.id }}/items/{{ i.id }}"><img class="thumb sm" src="/media/{{ i.cover.thumb }}" alt=""></a>{% endif %}</td>
     <td class="small muted nowrap">{{ i.code }}</td>
-    <td><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a>{% if i.optional %} <span class="pill">optional</span>{% endif %}{% if i.size or i.finish %}<div class="small muted">{{ i.size }}{% if i.size and i.finish %} · {% endif %}{{ i.finish }}</div>{% endif %}</td>
-    <td class="small">{{ i.room.name if i.room else '—' }}</td>
+    <td data-v="{{ i.name }}"><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a>{% if i.optional %} <span class="pill">optional</span>{% endif %}{% if i.size or i.finish %}<div class="small muted">{{ i.size }}{% if i.size and i.finish %} · {% endif %}{{ i.finish }}</div>{% endif %}</td>
+    <td class="small" data-v="{{ i.room.name if i.room else '' }}">{{ i.room.name if i.room else '—' }}</td>
     <td class="small">{{ i.category }}</td>
-    <td class="num">{{ i.qty|num }} {{ i.unit }}</td>
-    <td class="num">{{ i.unit_price|money(2) if i.unit_price else '' }}</td>
-    <td class="num">{{ i.total|money if i.unit_price else '' }}</td>
+    <td class="num" data-v="{{ i.qty }}">{{ i.qty|num }} {{ i.unit }}</td>
+    <td class="num" data-v="{{ i.unit_price if i.unit_price else '' }}">{{ i.unit_price|money(2) if i.unit_price else '' }}</td>
+    <td class="num" data-v="{{ i.total if i.unit_price else '' }}">{{ i.total|money if i.unit_price else '' }}</td>
     <td class="small nowrap">{{ i.supplier.name if i.supplier else '' }}</td>
     <td><select class="status-sel" data-url="/p/{{ p.id }}/items/{{ i.id }}/status" style="--c:{{ STATUS_COLORS[i.status] }}" aria-label="Status">{% for st in STATUSES %}<option {{ 'selected' if i.status == st }}>{{ st }}</option>{% endfor %}</select></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+
+{% elif view == 'list' %}
+<div class="tbl"><table class="sortable">
+  <thead><tr><th></th><th data-sort="text">Item</th><th data-sort="text">Category</th><th data-sort="num">Rooms</th><th class="num" data-sort="num">Qty</th><th class="num" data-sort="num">Unit CNY</th><th class="num" data-sort="num">Total CNY</th><th data-sort="text">Supplier</th><th data-sort="num">Status</th></tr></thead>
+  <tbody>
+  {% for g in rows %}{% set i = g.item %}
+  <tr id="group-{{ i.id }}">
+    <td>{% if g.cover %}<a href="/p/{{ p.id }}/items/{{ i.id }}"><img class="thumb sm" src="/media/{{ g.cover.thumb }}" alt=""></a>{% endif %}</td>
+    <td data-v="{{ i.name }}"><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a>{% if i.optional %} <span class="pill">optional</span>{% endif %}<div class="small muted">{{ g.codes }}{% if i.size or i.finish %} · {{ i.size }}{% if i.size and i.finish %} · {% endif %}{{ i.finish }}{% endif %}</div></td>
+    <td class="small">{{ i.category }}</td>
+    <td class="rooms" data-v="{{ g.rooms|length }}">{% set names = [] %}{% for r in g.rooms %}{% set _ = names.append(r.name if r else 'Whole house') %}{% endfor %}
+      {% if names|length == 1 %}{{ names[0] }}{% else %}<a class="n" href="/p/{{ p.id }}/items?q={{ i.name|urlencode }}&amp;view=table" title="{{ names|join(', ') }}">{{ names|length }} rooms</a> · {{ names[:3]|join(', ') }}{% if names|length > 3 %} <span class="more" title="{{ names[3:]|join(', ') }}">+{{ names|length - 3 }} more</span>{% endif %}{% endif %}</td>
+    <td class="num" data-v="{{ g.qty }}">{{ g.qty|num }} {{ g.unit }}</td>
+    <td class="num" data-v="{{ g.price_min if g.price_min else '' }}">{% if g.price_min %}{{ g.price_min|money(2) }}{% if g.price_max != g.price_min %}–{{ g.price_max|money(2) }}{% endif %}{% endif %}</td>
+    <td class="num" data-v="{{ g.total if g.total else '' }}">{{ g.total|money if g.total else '' }}</td>
+    <td class="small nowrap">{% for s in g.suppliers %}{{ s.name }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+    <td data-v="{{ g.status_rank }}" class="small nowrap">{% for s, n in g.statuses|dictsort(by='value', reverse=true) %}<span class="badge" style="--c:{{ STATUS_COLORS[s] }}">{{ s }}{% if g.statuses|length > 1 or n > 1 %} · {{ n }}{% endif %}</span> {% endfor %}</td>
   </tr>
   {% endfor %}
   </tbody>

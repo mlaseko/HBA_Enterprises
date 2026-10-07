@@ -41,6 +41,8 @@ ROOM_KINDS = ["room", "area"]
 PLAN_LAYERS = [("furniture", "Furniture layout"), ("electrical", "Electrical & lighting"), ("plumbing", "Plumbing & sanitary"),
                ("ceiling", "Ceiling"), ("flooring", "Flooring & tiles")]
 LAYER_TITLES = dict(PLAN_LAYERS)
+# The "Shows" select on Images & plans and in the page picker: the furniture layout is named as the main plan there.
+LAYER_OPTIONS = [(k, t + (" (main plan)" if k == "furniture" else "")) for k, t in PLAN_LAYERS]
 CATEGORY_LAYER = {"Lighting": "electrical", "Electrical": "electrical", "Plumbing & Sanitary": "plumbing", "Water Treatment": "plumbing",
                   "Tiles": "flooring", "Flooring": "flooring"}  # every other category: the furniture layout
 AREA_WORDS = ["entrance", "entry", "foyer", "lobby", "hall", "corridor", "passage", "landing", "stair", "balcon", "verandah",

@@ -144,9 +144,11 @@ def plans_by_floor(p) -> dict[str, list]:
 
 
 def plans_for_floor(p, floor) -> list:
-    """The plans of a floor, the main one (furniture layout) first, then the other layers in id order."""
+    """The plans of a floor, the main one first, then the other layers in id order. The main plan is the furniture
+    layout; with two furniture layouts on one floor (a dimension plan and a furniture plan, say) the one that carries
+    room boxes comes first, so the sheet the designer marked is the one the others borrow from."""
     fl = plans_by_floor(p).get(floor_key(floor), [])
-    return sorted(fl, key=lambda im: (not im.is_main_layer, im.id))
+    return sorted(fl, key=lambda im: (not im.is_main_layer, not im.pins, im.id))
 
 
 def main_plan(p, floor):
@@ -172,6 +174,40 @@ def pins_for(p, im) -> list:
         return []
     src = borrowed_from(p, im)
     return list(src.pins) if src is not None else list(im.pins)
+
+
+def plan_role(p, im) -> str:
+    """What a floor plan is to its floor, for the Images & plans page: 'main' (the plan the others borrow boxes from),
+    'twin' (another furniture layout of a floor that already has a main plan), 'layer' (electrical, plumbing, ceiling,
+    flooring), '' (untagged or a whole-house / outside plan)."""
+    if im is None or not im.floor or is_pseudo(im.floor):
+        return ""
+    if not im.is_main_layer:
+        return "layer"
+    main = main_plan(p, im.floor)
+    return "main" if main is None or main.id == im.id else "twin"
+
+
+def legacy_layer_hint(p, im) -> dict | None:
+    """Plans from before layers existed were filed as separate floors: "Ground Electrical", "First Floor Plumbing", or
+    floor "Ground" with the caption "Lighting layout". For such a plan, still marked as a furniture layout, the floor and
+    layer it should probably carry: {"floor": "Ground", "layer": "electrical"}. None when nothing suggests a layer.
+    The floor spelling follows the project's own (rooms first) when the stripped name matches one."""
+    if im is None or im.kind != "floorplan" or not im.is_main_layer or not im.floor or is_pseudo(im.floor):
+        return None
+    layer = layer_from_title(im.floor)
+    floor = im.floor
+    if layer != "furniture":
+        floor = _FLOOR_NOISE_RE.sub(" ", _LAYER_CAPTION_RE.sub(" ", im.floor))
+        floor = " ".join(floor.split()).strip(" -:;,·/&")
+    else:
+        layer = layer_from_title(im.caption)
+    if layer == "furniture" or not floor or is_pseudo(floor):
+        return None
+    k = floor_key(floor)
+    floor = next((f for f in floor_order(p) if floor_key(f) == k), floor)
+    return {"floor": floor, "layer": layer, "title": config.LAYER_TITLES[layer], "floor_title": floor_title(floor),
+            "has_main": any(x.id != im.id and x.is_main_layer for x in plans_for_floor(p, floor))}
 
 
 def plan_for_room(p, room):
@@ -307,6 +343,8 @@ _NOT_PLAN_RE = _re.compile(r"SEWER|STRUCT|FOUNDATION|FOOTING|BEAM|SLAB|COLUMN|FR
 _LAYER_WORDS = [("electrical", _re.compile(r"ELECTRIC|LIGHTING|POWER|SOCKET|SWITCH")), ("plumbing", _re.compile(r"PLUMB|SANIT|DRAIN|WATER\s+SUPPLY")),
                 ("ceiling", _re.compile(r"CEILING|REFLECTED|\bRCP\b")), ("flooring", _re.compile(r"FLOOR\s+FINISH|FLOORING|\bTIL(?:E|ES|ING)\b"))]
 _LAYER_CAPTION_RE = _re.compile(r"(?i)\b(electrical|lighting|power|plumbing|sanitary|drainage|water supply|ceiling|reflected|flooring|floor finish(?:es)?|tiles?|tiling|layout)\b")
+# What a legacy floor name may carry besides the floor and the layer word: "Ground Electrical Plan" -> "Ground".
+_FLOOR_NOISE_RE = _re.compile(r"(?i)\b(plan|plans|sheet|drawing|dwg|layout)\b")
 # Longer names first: "LOWER GROUND" must win over "GROUND".
 _FLOORS = [("LOWER GROUND", "Lower ground"), ("UPPER GROUND", "Upper ground"), ("GROUND", "Ground"), ("FIRST", "First"),
            ("SECOND", "Second"), ("THIRD", "Third"), ("FOURTH", "Fourth"), ("BASEMENT", "Basement"), ("MEZZANINE", "Mezzanine"),

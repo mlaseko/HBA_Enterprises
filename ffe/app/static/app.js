@@ -135,6 +135,39 @@
   document.addEventListener('change', function (e) { var wrap = e.target.closest && e.target.closest('.room-picks-wrap'); if (wrap) refreshChips(wrap); });
   document.querySelectorAll('.room-picks-wrap').forEach(refreshChips);
 
+  // sortable tables: in a table.sortable, a header with data-sort="text|num" sorts the rows on click (A to Z or small to
+  // large first, the other way on the next click). A number comes from the cell's data-v when it has one, else from its
+  // text; a status dropdown sorts in purchase order (To buy first). Blank cells go last either way.
+  function cellKey(td, kind) {
+    if (!td) return kind === 'num' ? NaN : '';
+    var sel = td.querySelector('select');
+    if (sel) return kind === 'num' ? sel.selectedIndex : (sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '').toLowerCase();
+    if (td.dataset.v !== undefined) return kind === 'num' ? parseFloat(td.dataset.v) : td.dataset.v.toLowerCase();
+    var t = td.textContent.trim();
+    if (kind === 'num') { var m = t.replace(/,/g, '').match(/-?\d+(\.\d+)?/); return m ? parseFloat(m[0]) : NaN; }
+    return t.toLowerCase();
+  }
+  document.addEventListener('click', function (e) {
+    var th = e.target.closest('table.sortable th[data-sort]'); if (!th) return;
+    var table = th.closest('table'), tbody = table.tBodies[0]; if (!tbody) return;
+    var idx = [].indexOf.call(th.parentNode.children, th), kind = th.dataset.sort;
+    var dir = th.getAttribute('aria-sort') === 'ascending' ? -1 : 1;
+    table.querySelectorAll('th[aria-sort]').forEach(function (x) { x.removeAttribute('aria-sort'); });
+    th.setAttribute('aria-sort', dir === 1 ? 'ascending' : 'descending');
+    var rows = [].slice.call(tbody.rows).map(function (r, i) { return { r: r, i: i, k: cellKey(r.cells[idx], kind) }; });
+    rows.sort(function (a, b) {
+      var x = a.k, y = b.k, c;
+      if (kind === 'num') { var xn = isNaN(x), yn = isNaN(y); c = xn && yn ? 0 : xn ? 1 : yn ? -1 : (x - y) * dir; }
+      else { c = x === '' && y === '' ? 0 : x === '' ? 1 : y === '' ? -1 : x.localeCompare(y, undefined, { numeric: true, sensitivity: 'base' }) * dir; }
+      return c || a.i - b.i;
+    });
+    rows.forEach(function (x) { tbody.appendChild(x.r); });
+  });
+  document.querySelectorAll('table.sortable th[data-sort]').forEach(function (th) {
+    th.tabIndex = 0; th.setAttribute('role', 'button'); th.title = 'Sort by ' + th.textContent.trim() + ' (press again for the other way)';
+    th.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); th.click(); } });
+  });
+
   window.copyText = function (txt, btn) {
     navigator.clipboard.writeText(txt).then(function () { if (btn) { var o = btn.textContent; btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = o; }, 1200); } });
   };

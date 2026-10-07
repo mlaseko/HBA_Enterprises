@@ -1,6 +1,7 @@
 """Regenerate the user guide's screenshots: app/static/help/*.webp and shots.json (their sizes).
 
     cd ffe && python tools/help_shots.py          # dev machine only: needs Chromium and Playwright for Node
+    HELP_SHOTS_ONLY=items-table,items-list python tools/help_shots.py   # just these pictures; shots.json keeps the rest
 
 Nothing here touches the real database. A fictional demo project ("Msasani Villa") is seeded into a SQLite file in a temp
 directory, uvicorn is started on 127.0.0.1:8777 against it, tools/help_shots.js drives Chromium through the pages, the PDFs
@@ -397,6 +398,17 @@ def seed() -> dict:
             if room:
                 data["room_ids"] = [str(rooms[room])]
             c.post(f"/p/{pid}/items/new", data=data, files=[("photos", ("sample.jpg", swatch(kind, colour), "image/jpeg"))], follow_redirects=False)
+        # the same product in several rooms: one line per room in the schedule, one line on the Item list view
+        db = SessionLocal()
+        beds = [x.id for x in db.query(Room).filter(Room.project_id == pid) if x.group == "bedroom"]
+        baths = [x.id for x in db.query(Room).filter(Room.project_id == pid) if x.group == "bathroom"]
+        db.close()
+        for room_ids, cat, name, spec, size, finish, qty, price, sup, (kind, colour) in (
+                (beds, "Lighting", "Bedside wall light", "7 W LED 2700 K, swing arm, switch on the base", "350 mm", "Brushed brass", 2, 420, "Guangzhou Lighting Market", ("lamp", "#B08D57")),
+                (baths, "Plumbing & Sanitary", "Heated towel rail", "Electric, 60 W, with timer", "1200 x 500 mm", "Brushed brass", 1, 980, "Kaiping Sanitary Ware", ("metal", "#C8B98F"))):
+            c.post(f"/p/{pid}/items/new", data={"room_ids": [str(x) for x in room_ids], "category": cat, "name": name, "spec": spec, "size": size, "finish": finish, "qty": str(qty),
+                                               "unit": "pcs", "unit_price": str(price), "price_currency": "CNY", "supplier_id": str(sups.get(sup, "")), "status": "Quoted", "lead_time": "3 weeks", "notes": ""},
+                   files=[("photos", ("sample.jpg", swatch(kind, colour), "image/jpeg"))], follow_redirects=False)
         db = SessionLocal()
         items = db.query(Item).filter(Item.project_id == pid, Item.draft == False).order_by(Item.id).all()  # noqa: E712
         by_code = {i.code: i.id for i in items}
@@ -525,6 +537,12 @@ def start_server():
 def to_webp():
     os.makedirs(OUT, exist_ok=True)
     sizes = {}
+    if os.environ.get("HELP_SHOTS_ONLY"):  # a partial run keeps the sizes of the pictures it did not take
+        try:
+            with open(os.path.join(OUT, "shots.json")) as f:
+                sizes = json.load(f)
+        except OSError:
+            pass
     for f in sorted(os.listdir(PNG)):
         if not f.endswith(".png"):
             continue

@@ -27,7 +27,7 @@
         <input class="in" type="text" name="floor_{{ k }}" list="floors" value="{{ (m.floor if m and m.floor else floor) }}" placeholder="Floor" aria-label="Floor for page {{ k }}" autocomplete="off">
         <input class="in" type="text" name="sheet_{{ k }}" value="{{ (m.sheet if m and m.sheet else sheet) }}" placeholder="Sheet ref" aria-label="Sheet for page {{ k }}">
         <input class="in" type="text" name="caption_{{ k }}" value="{{ captions.get(k, '') if m else '' }}" placeholder="Caption (optional)" aria-label="Caption for page {{ k }}">
-        <select class="in" name="layer_{{ k }}" aria-label="What page {{ k }} shows">{% set lk = layers.get(k, 'furniture') if m else 'furniture' %}{% for key, title in PLAN_LAYERS %}<option value="{{ key }}" {{ 'selected' if lk == key }}>{{ title }}</option>{% endfor %}</select>
+        <select class="in" name="layer_{{ k }}" aria-label="What page {{ k }} shows">{% set lk = layers.get(k, 'furniture') if m else 'furniture' %}{% for key, title in LAYER_OPTIONS %}<option value="{{ key }}" {{ 'selected' if lk == key }}>{{ title }}</option>{% endfor %}</select>
       </div>
       {% endif %}
     </div>
