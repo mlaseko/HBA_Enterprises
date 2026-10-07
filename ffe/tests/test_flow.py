@@ -661,8 +661,10 @@ with TestClient(app) as c:
     assert '<table class="sortable">' in h and '<th data-sort="text">Code</th>' in h and '<th class="num" data-sort="num">Total CNY</th>' in h and '<th data-sort="num">Status</th>' in h
     assert h.count('data-v="Reading light"')==3 and 'data-v="150.0"' in h and f'href="/p/{pid_p}/items?category=Lighting&amp;view=list"' in h and 'aria-current="page" title="One line per room' in h and f'href="/p/{pid_p}/items?view=table">Clear</a>' in h
     r=c.get(f"/p/{pid_p}/items?view=list&q=Reading"); h=r.text
-    assert h.count('<tr id="group-')==1 and '>3 rooms</a>' in h and '6 pcs</td>' in h and 'data-v="900.0">900</td>' in h and "1 item · 3 room lines" in h and 'To buy · 3</span>' in h and '<th data-sort="num">Rooms</th>' in h
-    assert '<tr id="item-' not in h and "Press a column heading to sort" in h and c.get(f"/p/{pid_p}/items?view=list").text.count('<tr id="group-')>=5
+    assert h.count('<tr id="item-')==1 and re.search(r'data-items="\d+ \d+ \d+"', h) and '>3 rooms</a>' in h and '6 pcs</td>' in h and 'data-v="900.0">900</td>' in h and "1 item · 3 room lines" in h and 'To buy · 3</span>' in h and '<th data-sort="num">Rooms</th>' in h
+    assert "status-sel" not in h and "Press a column heading to sort" in h and c.get(f"/p/{pid_p}/items?view=list").text.count('<tr id="item-')>=5
+    h=c.get(f"/p/{pid_p}/items").text; assert 'aria-current="page" title="One line per item' in h and h.count('<tr id="item-')>=5 and 'name="view"' not in h  # the Item list is the default view
+    h=c.get(f"/p/{pid_p}/items?q=Bedside lamp").text; assert h.count('<tr id="item-')==1 and 'class="status-sel"' in h  # one room: the status dropdown right there
     db=SessionLocal(); prp=db.get(_P,int(pid_p)); gs={g["item"].name:g for g in _gi(_si(list(prp.live_items), prp))}; db.close()
     assert len(gs["Reading light"]["rows"])==3 and gs["Reading light"]["qty"]==6 and gs["Reading light"]["total"]==900 and gs["Reading light"]["status_text"]=="To buy" and gs["Reading light"]["unit"]=="pcs" and len(gs["Reading light"]["rooms"])==3
     assert len(gs["Bedside lamp"]["rows"])==1 and gs["Bedside lamp"]["rooms"][0].code=="FF-MBR" and gs["Bedside lamp"]["codes"]=="FF-MBR-01"
@@ -670,7 +672,7 @@ with TestClient(app) as c:
     c.post(f"/p/{pid_p}/items/{rl_id}/status", data={"status":"Ordered"}, headers={"Accept":"application/json"})
     db=SessionLocal(); prp=db.get(_P,int(pid_p)); g=[g for g in _gi(_si(list(prp.live_items), prp)) if g["item"].name=="Reading light"][0]; db.close()
     assert g["status_text"]=="2 To buy, 1 Ordered" and g["status_rank"]==0 and g["price_min"]==g["price_max"]==150
-    h=c.get(f"/p/{pid_p}/items?view=list&q=Reading").text; assert 'To buy · 2</span>' in h and 'Ordered · 1</span>' in h and '<td data-v="0" class="small nowrap">' in h  # sorts by the least advanced status
+    h=c.get(f"/p/{pid_p}/items?view=list&q=Reading").text; assert 'To buy · 2</span>' in h and 'Ordered · 1</span>' in h and '<td data-v="0" class="small nowrap">' in h  and "status-sel" not in h  # sorts by the least advanced status
     print("item list + sorting ok")
     # speed: small copies of photos, the picture cache and headers, compression, static versioning, few queries per page
     from app.models import ItemPhoto as _IP

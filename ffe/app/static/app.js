@@ -100,7 +100,7 @@
   document.addEventListener('toggle', function (e) { if (e.target && e.target.tagName === 'DETAILS') fitZooms(e.target); }, true);
   document.addEventListener('click', function (e) {  // a dot jumps to its item on the page instead of opening the plan
     var d = e.target.closest('.rz-dot'); if (!d || !d.dataset.item) return;
-    var row = document.getElementById('item-' + d.dataset.item); if (!row) return;
+    var row = document.getElementById('item-' + d.dataset.item) || document.querySelector('[data-items~="' + d.dataset.item + '"]'); if (!row) return;
     e.preventDefault(); e.stopPropagation();
     document.querySelectorAll('.hl').forEach(function (x) { x.classList.remove('hl'); });
     row.classList.add('hl'); row.scrollIntoView({ block: 'center', behavior: 'smooth' });
