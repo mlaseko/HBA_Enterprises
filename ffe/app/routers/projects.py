@@ -81,11 +81,13 @@ def reset_client_link(p: Project = Depends(get_project), db: Session = Depends(g
 
 # ---- presentation images (cover / mood board) and floor plans ----
 def _plan_sets_ctx(p: Project) -> dict:
-    added = {}
+    added, roles, hints = {}, {}, {}
     for im in drawings.plans(p):
         if im.tag and im.tag.set_id:
             added[im.tag.set_id] = added.get(im.tag.set_id, 0) + 1
-    return dict(floors=drawings.floor_order(p), sets=p.drawing_sets, added_count=added, pdf_ok=drawings.available())
+        roles[im.id] = drawings.plan_role(p, im)  # main plan of its floor, a layer, or a second furniture layout
+        hints[im.id] = drawings.legacy_layer_hint(p, im)  # "Ground Electrical" filed as a floor: offer to make it a layer
+    return dict(floors=drawings.floor_order(p), sets=p.drawing_sets, added_count=added, pdf_ok=drawings.available(), roles=roles, hints=hints)
 
 
 @router.get("/p/{project_id}/images")

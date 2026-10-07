@@ -298,6 +298,8 @@
   <h3>Tagging, and several sheets for one floor</h3>
   <ul>
     <li>Every plan carries a <b>floor</b>, a <b>sheet</b> reference, a <b>caption</b> and what it <b>shows</b>; change them under the picture and press <b>Save</b>. The caption prints with the plan ("Ground floor · A-101 · Furniture Layout").</li>
+    <li><b>Which plan is the main plan?</b> The sheet set to <b>Furniture layout (main plan)</b>. Under every plan the page says <b>Main plan</b> of its floor or <b>Layer</b> of it. With two furniture layouts on one floor (a dimension plan and a furniture plan, say), the one that carries room boxes is the main plan.</li>
+    <li><b>Plans from before layers existed</b> were filed as separate floors ("Ground Electrical"). Such a plan shows a yellow note: press <b>Make it a layer of Ground floor</b> and it moves under that floor as its electrical sheet, keeping any boxes it already has. Or set the floor and <b>Shows</b> by hand and press Save.</li>
     <li><b>What a sheet shows:</b> Furniture layout, Electrical &amp; lighting, Plumbing &amp; sanitary, Ceiling, or Flooring &amp; tiles. The furniture layout is a floor's <b>main plan</b>: it carries the room boxes, prints in the schedule and is where rooms are marked. The other sheets of the same floor are <b>layers</b> of it: they appear under a Sheet switch on the Plan page, borrow the room boxes, and hold their own item dots. The page picker reads this from the title block ("Electrical Layout Plan" becomes an electrical layer of its floor).</li>
     <li>A plan without a floor prints up front in the schedule and does not join a floor's tab on the Plan page.</li>
     <li>"n rooms marked · mark rooms" under a plan jumps to mark mode for that plan.</li>
@@ -352,12 +354,14 @@
   </table></div>
   <h3>The list</h3>
   <ul>
-    <li>Filter by room or area, category, status, supplier or a search word (name, code, spec, brand). <b>Card view</b> groups by category with photos; <b>Table view</b> is the compact sheet. Both have the status dropdown.</li>
+    <li>Filter by room or area, category, status, supplier or a search word (name, code, spec, brand). Three views, all keeping the filters: <b>Cards</b> groups by category with photos; <b>Table</b> is the compact sheet, one line per room, with the status dropdown; <b>Item list</b> shows one line per item whatever the rooms: the same product in several rooms is counted once, with its rooms, the total quantity and value, its suppliers and a count per status.</li>
+    <li><b>Sorting.</b> In the Table and the Item list, press a column heading to sort: text A to Z, numbers smallest first, Status in purchase order (To buy first), Rooms by how many. Press the heading again for the other way; blank cells go last.</li>
     <li>Filtered by one room, the top of the list shows that room <b>zoomed in on its plan</b> with a numbered dot per placed item. Tap a dot to jump to the item; tap the picture to open the plan. Rooms not yet marked show a link to mark them.</li>
     <li><b>Quick capture</b> and <b>Add item</b> from here keep the current room and category.</li>
   </ul>
   <div class="shots">
-    {{ shot('items-table', 'Table view, filtered by category: the compact sheet with a status dropdown per row.') }}
+    {{ shot('items-table', 'Table view, filtered by category: the compact sheet with a status dropdown per row. Press a heading to sort.') }}
+    {{ shot('items-list', 'Item list, sorted by rooms: the same product in several rooms is one line, with its rooms, the total quantity and a count per status.') }}
     {{ shot('phone-items', 'The same room filter on a phone: the zoomed room first, then the cards.', 'phone') }}
   </div>
   <h3>Editing an item</h3>
@@ -533,7 +537,8 @@
 <section class="card faq" id="faq">
   <h2>Questions &amp; problems</h2>
   <details><summary>The app feels slow.</summary><p>Three different things look the same. The <b>first page after a quiet spell</b> takes a few seconds and the next ones are quick: Replit starts the app and the database wakes up, which is normal; an always-on deployment removes it. <b>Pages with many photos</b> slow on a device that has not seen them yet: open Studio settings and press <b>Make small versions</b> until no older photo is left, so lists load small copies. <b>Every page slow, even without photos:</b> the database is far from the app or asleep; tell your developer.</p></details>
-  <details><summary>The electrical plan shows no room boxes.</summary><p>Boxes are drawn on the floor's furniture layout and borrowed by the other sheets of that floor. Check that both sheets carry the same floor name, and that the furniture layout is set to show "Furniture layout" under Images &amp; plans. If the electrical sheet is framed differently and the borrowed boxes sit off, press Mark rooms on it and copy the boxes to adjust them there.</p></details>
+  <details><summary>The electrical plan shows no room boxes.</summary><p>Boxes are drawn on the floor's furniture layout and borrowed by the other sheets of that floor. Check that both sheets carry the same floor name, and that the furniture layout is set to show "Furniture layout (main plan)" under Images &amp; plans. An electrical sheet uploaded before layers existed usually sits under its own floor name ("Ground Electrical"): the Images &amp; plans page shows a yellow note on it with a one-press fix. If the electrical sheet is framed differently and the borrowed boxes sit off, press Mark rooms on it and copy the boxes to adjust them there.</p></details>
+  <details><summary>I want one line per item, not one per room.</summary><p>Open Items and choose <b>Item list</b> in the view switch at the right of the filters. The same product in several rooms is one line there, with its rooms, the total quantity and value and a count per status. Press a column heading to sort; the Table view sorts the same way.</p></details>
   <details><summary>I uploaded the plan, but the room is not listed under it on the Plan page.</summary><p>The room's floor and the plan's floor must have the same name. Check the floor on the Rooms page and under the plan on Images &amp; plans ("Ground" and "Ground floor" count as the same; "GF" does not). In mark mode, rooms of other floors are in the folded list below, so you can still place them.</p></details>
   <details><summary>The PDF pages were not ticked in the page picker.</summary><p>The PDF has no readable text (a scan or a flattened export), so there was nothing to read. Tick the plan pages and type the floor and sheet yourself. Everything else works the same.</p></details>
   <details><summary>A photo upload failed.</summary><p>Usually the Wi-Fi. Take the photo again; Quick capture keeps the ones that went through. Photos are shrunk before upload, so one photo at a time nearly always goes through even on a slow connection.</p></details>

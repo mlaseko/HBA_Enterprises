@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
 from fastapi.responses import JSONResponse
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 import re
 from sqlalchemy.orm import Session
 from ..db import get_db
@@ -28,6 +28,44 @@ def item_query(db: Session, p: Project, room: str = "", category: str = "", stat
     return qs
 
 
+def _status_rank(status: str) -> int:
+    return config.STATUSES.index(status) if status in config.STATUSES else len(config.STATUSES)
+
+
+def group_items(items: list[Item]) -> list[dict]:
+    """The Item list view: one line per product. The rows of the same name across rooms (same rule as
+    same_item_elsewhere) become one entry with its rooms, the quantity and value summed, the statuses counted.
+    Keeps the schedule order of the first row of each product."""
+    groups: dict[str, dict] = {}
+    for i in items:
+        k = _key(i.name) or f"#{i.id}"
+        g = groups.get(k)
+        if g is None:
+            g = groups[k] = dict(item=i, rows=[], rooms=[], qty=0.0, units=[], prices=[], total=0.0, suppliers=[], statuses={}, cover=None)
+        g["rows"].append(i)
+        if i.room not in g["rooms"]:
+            g["rooms"].append(i.room)  # None = whole house
+        g["qty"] += i.qty or 0
+        if (i.unit or "") not in g["units"]:
+            g["units"].append(i.unit or "")
+        if i.unit_price and round(i.unit_price, 2) not in g["prices"]:
+            g["prices"].append(round(i.unit_price, 2))
+        g["total"] += i.total
+        if i.supplier is not None and i.supplier not in g["suppliers"]:
+            g["suppliers"].append(i.supplier)
+        g["statuses"][i.status] = g["statuses"].get(i.status, 0) + 1
+        if g["cover"] is None and i.cover:
+            g["cover"] = i.cover
+    for g in groups.values():
+        g["unit"] = g["units"][0] if len(g["units"]) == 1 else "mixed"
+        g["price_min"], g["price_max"] = (min(g["prices"]), max(g["prices"])) if g["prices"] else (0, 0)
+        g["status_rank"] = min(_status_rank(s) for s in g["statuses"])  # the least advanced status: sorts "still to buy" first
+        by_rank = sorted(g["statuses"].items(), key=lambda x: _status_rank(x[0]))
+        g["status_text"] = by_rank[0][0] if len(by_rank) == 1 else ", ".join(f"{n} {s}" for s, n in by_rank)
+        g["codes"] = ", ".join(r.code for r in g["rows"])
+    return list(groups.values())
+
+
 @router.get("/p/{project_id}/items")
 def list_items(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), room: str = "",
                category: str = "", status: str = "", supplier: str = "", q: str = "", view: str = ""):
@@ -37,8 +75,11 @@ def list_items(request: Request, p: Project = Depends(get_project), db: Session 
     drafts = db.query(Item).filter(Item.project_id == p.id, Item.draft == True).count()  # noqa: E712
     room_obj = next((r for r in p.rooms if r.id == fint(room)), None) if room and room != "none" else None
     zoom = drawings.room_zoom(p, room_obj, items) if room_obj is not None else None  # the room on the plan, zoomed, with its dots
+    f = dict(room=room, category=category, status=status, supplier=supplier, q=q, view=view)
+    qs = urlencode({k: v for k, v in f.items() if v and k != "view"})  # the filters, for the view switch links
+    rows = group_items(items) if view == "list" else None  # the Item list view: one line per product across its rooms
     return render(request, "items/list.html", p=p, items=items, suppliers=suppliers, total=total, drafts=drafts, room_obj=room_obj, zoom=zoom,
-                  f=dict(room=room, category=category, status=status, supplier=supplier, q=q, view=view))
+                  f=f, qs=qs, rows=rows)
 
 
 @router.get("/p/{project_id}/items/new")

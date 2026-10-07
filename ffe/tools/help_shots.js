@@ -20,6 +20,7 @@ const DESKTOP = [
   ['plan-mark', `/p/${pid}/plan?plan=${ground}&mode=mark`],
   ['items', `/p/${pid}/items?room=${kit}`],
   ['items-table', `/p/${pid}/items?view=table&category=Tiles`],
+  ['items-list', `/p/${pid}/items?view=list`, async p => { await p.click('th[data-sort]:has-text("Rooms")'); await p.click('th[data-sort]:has-text("Rooms")'); await p.waitForTimeout(200); }],
   ['item-new', `/p/${pid}/items/new?room=${liv}`],
   ['item-edit', `/p/${pid}/items/${ids.sofa}`],
   ['suppliers', `/p/${pid}/suppliers`],
@@ -54,8 +55,10 @@ const PHONE = [
     await page.evaluate(() => { try { for (const k of Object.keys(localStorage)) if (k.startsWith('help.seen.')) localStorage.setItem(k, '1'); } catch (e) {} });
     return { ctx, page };
   }
+  const only = (process.env.HELP_SHOTS_ONLY || '').split(',').map(x => x.trim()).filter(Boolean);  // regenerate just these pictures
   async function shoot(page, list) {
     for (const [name, path, act] of list) {
+      if (only.length && !only.includes(name)) continue;
       await page.goto(base + path); await page.waitForLoadState('networkidle'); await page.waitForTimeout(350);
       await page.evaluate(() => { const n = document.getElementById('help-nudge'); if (n) n.hidden = true; });  // no nudge in the pictures
       if (act) await act(page);

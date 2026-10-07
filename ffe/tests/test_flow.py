@@ -599,6 +599,53 @@ with TestClient(app) as c:
     r=c2.get(f"/c/{ltok}"); assert 'class="plan-layers"' in r.text and "Ceiling" in r.text and r.text.count('<span class="t">Ground floor</span>')==1
     r=c.get(f"/p/{pid_l}/rooms"); assert r.status_code==200 and f"plan={gid_l}&amp;room=" in r.text
     print("plan layers ok")
+    # existing plans adopted into layers: a plan filed as its own floor ("Ground Electrical") is offered as a layer in one press
+    c.post(f"/p/{pid_l}/images/plans", data={"floor":"Ground Electrical","sheet":"BS4449"}, files=[("files",("ge.jpg",img("white"),"image/jpeg"))], follow_redirects=False)
+    db=SessionLocal(); lp={im.sheet:im for im in db.query(ProjectImage).filter(ProjectImage.project_id==int(pid_l))}; prl=db.get(_P,int(pid_l)); leg=lp["BS4449"]; leg_id=leg.id
+    hint=_dr2.legacy_layer_hint(prl, leg); assert hint and hint["floor"]=="Ground" and hint["layer"]=="electrical" and hint["has_main"] and hint["floor_title"]=="Ground floor", hint
+    assert _dr2.legacy_layer_hint(prl, lp["A-101"]) is None and _dr2.legacy_layer_hint(prl, lp["E-01"]) is None and _dr2.plan_role(prl, lp["A-101"])=="main" and _dr2.plan_role(prl, lp["E-01"])=="layer" and _dr2.plan_role(prl, leg)=="main"
+    db.close()
+    r=c.get(f"/p/{pid_l}/images"); h=r.text
+    assert "Furniture layout (main plan)" in h and 'Looks like the <b>electrical &amp; lighting</b> sheet of <b>Ground floor</b>.' in h and f'action="/p/{pid_l}/images/{leg_id}" class="plan-hint"' in h and h.count('class="plan-hint"')==1
+    assert 'name="floor" value="Ground"><input type="hidden" name="sheet" value="BS4449"><input type="hidden" name="caption" value=""><input type="hidden" name="layer" value="electrical">' in h and "Make it a layer of Ground floor" in h
+    assert h.count('<span class="pill accent">Main plan</span> Ground floor')==1 and '<span class="pill">Layer</span> of Ground floor' in h and "Main plan</span> Ground Electrical" in h
+    r=c.post(f"/p/{pid_l}/images/{leg_id}", data={"floor":"Ground","sheet":"BS4449","caption":"","layer":"electrical"}, follow_redirects=False); assert r.status_code==303
+    db=SessionLocal(); prl=db.get(_P,int(pid_l)); leg=db.get(ProjectImage, leg_id); assert leg.layer=="electrical" and leg.floor=="Ground" and _dr2.legacy_layer_hint(prl, leg) is None and _dr2.plan_role(prl, leg)=="layer"
+    assert [im.id for im in _dr2.plans_for_floor(prl, "Ground")]==[gid_l, eid_l, leg_id]; db.close()
+    r=c.get(f"/p/{pid_l}/plan"); h=r.text; assert h.count('<span class="t">Ground floor</span>')==1 and "3 sheets" in h
+    r=c.get(f"/p/{pid_l}/images"); assert 'class="plan-hint"' not in r.text and "Ground floor · Electrical &amp; lighting · BS4449" in r.text
+    # two furniture layouts on one floor: the one with room boxes is the main plan, the other says so
+    r=c.post("/projects/new", data={"client_name":"Twins","name":"Twin plans","rate":"7.1"}, follow_redirects=False); pid_t=r.headers["location"].split("/")[-1]
+    c.post(f"/p/{pid_t}/rooms", data={"code":"GF-KIT","name":"Kitchen","floor":"Ground","kind":"auto"}, follow_redirects=False)
+    c.post(f"/p/{pid_t}/images/plans", data={"floor":"Ground","sheet":"A-100","caption":"Dimensions"}, files=[("files",("d.jpg",img("white"),"image/jpeg"))], follow_redirects=False)
+    c.post(f"/p/{pid_t}/images/plans", data={"floor":"Ground","sheet":"A-101","caption":"Furniture"}, files=[("files",("f.jpg",img("gray"),"image/jpeg"))], follow_redirects=False)
+    db=SessionLocal(); tp={im.sheet:im.id for im in db.query(ProjectImage).filter(ProjectImage.project_id==int(pid_t))}; tk=db.query(Room).filter(Room.project_id==int(pid_t), Room.code=="GF-KIT").one().id; prt=db.get(_P,int(pid_t))
+    assert _dr2.main_plan(prt,"Ground").id==tp["A-100"] and _dr2.plan_role(prt, db.get(ProjectImage, tp["A-101"]))=="twin" and _dr2.plan_role(prt, db.get(ProjectImage, tp["A-100"]))=="main"; db.close()  # no boxes yet: the first sheet
+    c.post(f"/p/{pid_t}/plan/pins", data={"image_id":tp["A-101"],"room_id":tk,"x":0.1,"y":0.1,"w":0.3,"h":0.3}, headers={"Accept":"application/json"})
+    db=SessionLocal(); prt=db.get(_P,int(pid_t)); assert _dr2.main_plan(prt,"Ground").id==tp["A-101"] and _dr2.plan_role(prt, db.get(ProjectImage, tp["A-100"]))=="twin" and _dr2.plan_for_room(prt, db.get(Room, tk)).id==tp["A-101"]; db.close()  # the marked sheet is the main plan
+    r=c.get(f"/p/{pid_t}/images"); h=r.text; assert '<span class="pill">Not the main plan</span> another furniture layout of Ground floor carries the boxes' in h and h.count('<span class="pill accent">Main plan</span> Ground floor')==1
+    print("legacy layers + main plan ok")
+    # the Items page: sortable table columns, and the Item list (one line per product across its rooms)
+    from app.routers.items import group_items as _gi
+    from app.services import sort_items as _si
+    db=SessionLocal(); beds=[x.id for x in db.query(Room).filter(Room.project_id==int(pid_p)) if x.group=="bedroom"]; db.close(); assert len(beds)==3
+    r=c.post(f"/p/{pid_p}/items/new", data={"room_ids":[str(x) for x in beds],"category":"Lighting","name":"Reading light","qty":"2","unit":"pcs","unit_price":"150","status":"To buy"}, follow_redirects=False)
+    assert r.headers["location"]==f"/p/{pid_p}/items?q=Reading%20light"
+    r=c.get(f"/p/{pid_p}/items?view=table&category=Lighting"); h=r.text
+    assert '<table class="sortable">' in h and '<th data-sort="text">Code</th>' in h and '<th class="num" data-sort="num">Total CNY</th>' in h and '<th data-sort="num">Status</th>' in h
+    assert h.count('data-v="Reading light"')==3 and 'data-v="150.0"' in h and f'href="/p/{pid_p}/items?category=Lighting&amp;view=list"' in h and 'aria-current="page" title="One line per room' in h and f'href="/p/{pid_p}/items?view=table">Clear</a>' in h
+    r=c.get(f"/p/{pid_p}/items?view=list&q=Reading"); h=r.text
+    assert h.count('<tr id="group-')==1 and '>3 rooms</a>' in h and '6 pcs</td>' in h and 'data-v="900.0">900</td>' in h and "1 item · 3 room lines" in h and 'To buy · 3</span>' in h and '<th data-sort="num">Rooms</th>' in h
+    assert '<tr id="item-' not in h and "Press a column heading to sort" in h and c.get(f"/p/{pid_p}/items?view=list").text.count('<tr id="group-')>=5
+    db=SessionLocal(); prp=db.get(_P,int(pid_p)); gs={g["item"].name:g for g in _gi(_si(list(prp.live_items), prp))}; db.close()
+    assert len(gs["Reading light"]["rows"])==3 and gs["Reading light"]["qty"]==6 and gs["Reading light"]["total"]==900 and gs["Reading light"]["status_text"]=="To buy" and gs["Reading light"]["unit"]=="pcs" and len(gs["Reading light"]["rooms"])==3
+    assert len(gs["Bedside lamp"]["rows"])==1 and gs["Bedside lamp"]["rooms"][0].code=="FF-MBR" and gs["Bedside lamp"]["codes"]=="FF-MBR-01"
+    db=SessionLocal(); rl_id=db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Reading light").first().id; db.close()
+    c.post(f"/p/{pid_p}/items/{rl_id}/status", data={"status":"Ordered"}, headers={"Accept":"application/json"})
+    db=SessionLocal(); prp=db.get(_P,int(pid_p)); g=[g for g in _gi(_si(list(prp.live_items), prp)) if g["item"].name=="Reading light"][0]; db.close()
+    assert g["status_text"]=="2 To buy, 1 Ordered" and g["status_rank"]==0 and g["price_min"]==g["price_max"]==150
+    h=c.get(f"/p/{pid_p}/items?view=list&q=Reading").text; assert 'To buy · 2</span>' in h and 'Ordered · 1</span>' in h and '<td data-v="0" class="small nowrap">' in h  # sorts by the least advanced status
+    print("item list + sorting ok")
     # speed: small copies of photos, the picture cache and headers, compression, static versioning, few queries per page
     from app.models import ItemPhoto as _IP
     from app import storage as _st

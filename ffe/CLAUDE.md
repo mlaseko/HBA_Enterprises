@@ -44,7 +44,8 @@ app/storage.py         save_image(max_px=)/save_blob/read_image/delete_image —
 app/drawings.py        floor plans: render_page()/page_count() via pypdfium2 (optional import), floor_key()/floor_title()
                        matching plans to Room.floor, rooms_by_floor(), plan_for_room(), client_plans();
                        interactive plan: rooms_for_plan(), pins_by_room(), plan_with_room(), default_plan(), clamp_box(), clamp_point();
-                       layers: main_plan(), plans_for_floor() (main first), borrowed_from(), pins_for(), layer_from_title(), layer_for_category();
+                       layers: main_plan(), plans_for_floor() (main first: the furniture layout with boxes), borrowed_from(), pins_for(),
+                       layer_from_title(), layer_for_category(), plan_role() (main | twin | layer), legacy_layer_hint() ("Ground Electrical" → layer);
                        rooms vs areas: split_kinds(), count_label(); PDF title blocks: page_text(), read_title_block();
                        zoomed room: crop_rect(), room_zoom() (card data), render_room_crop() (Pillow crop for the checklist PDF)
 app/webimage.py        fetch_image(url): picture bytes from a direct image link or a page (og:image / largest <img>);
@@ -71,7 +72,8 @@ app/templates/         base.html = app shell (desktop sidebar, top bar + project
                        render() in common.py injects `nav`
                        (projects, studio, drafts count) and `public` (login + share/* render without the shell)
 app/static/app.css     the design system (tokens, shell, cards, KPI tiles, buttons, forms, tables, badges, item cards)
-app/static/app.js      photo compression (also exposed as window.compressPhoto), quick status, copy link, toggleMore()
+app/static/app.js      photo compression (also exposed as window.compressPhoto), quick status, copy link, toggleMore(),
+                       sortable tables (table.sortable + th[data-sort], cells may carry data-v), room-pick chips, help drawer
 app/static/plan.js     Plan page + client plan: zoom, tap-a-room panel (fetches plan/_room.html), item dots (place / drag /
                        locate / remove), draw / move / resize room boxes in mark mode; reads data-base / data-room-base /
                        data-readonly from #plan so the same script serves /p/<id>/plan and /c/<token>
@@ -268,6 +270,16 @@ ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';  
   `capture="environment"` so phones offer camera *or* gallery with multi-select (Quick capture keeps camera-first). The Import
   page downloads a template (`importer.import_template`): Rooms sheet prefilled with the project's entries, Shopping List with
   dropdown validations (Lists sheet), How-to sheet; the importer skips rows whose Room or Item starts with "(example)".
+
+- **Plan roles, legacy layers, the Item list and sorting.** Images & plans names each plan's role under its picture
+  (`drawings.plan_role`: main | twin | layer; `plans_for_floor` now puts the furniture layout that carries boxes first, so the
+  sheet the designer marked is the main plan even with two furniture layouts on a floor) and the "Shows" select calls the
+  furniture layout "(main plan)" (`config.LAYER_OPTIONS`). A plan from before layers filed as its own floor ("Ground
+  Electrical") gets `drawings.legacy_layer_hint` → a yellow one-press form posting floor + layer to the existing
+  `POST /p/<id>/images/<image_id>`. The Items page has a three-way view switch (`?view=cards|table|list`, filters kept via
+  `qs`): the Table and the new Item list (`items.group_items`: one line per product name across rooms, qty / value summed,
+  statuses counted, `status_rank` for sorting) are `table.sortable`; `app.js` sorts client-side on `th[data-sort="text|num"]`
+  (cells may carry `data-v`; a status `<select>` sorts by its index, blanks last). Other tables can opt in the same way.
 
 - **Help with pictures and help for this page.** The guide was rebuilt around a nine-stage walkthrough (stage = steps,
   screenshots, "done when"), a section per feature, a documents table, the statuses, phone tips and a questions page, with

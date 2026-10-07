@@ -203,6 +203,19 @@ tbody tr:hover td,tr:hover td{background:var(--surface-2)}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 td.nowrap{white-space:nowrap}
 .tbl table td:first-child,.tbl table th:first-child{padding-left:16px}.tbl table td:last-child,.tbl table th:last-child{padding-right:16px}
+/* sortable tables (app.js): a header with data-sort is a button; the small arrow shows the current order */
+table.sortable th[data-sort]{cursor:pointer;user-select:none}
+table.sortable th[data-sort]:hover,table.sortable th[aria-sort]{color:var(--ink)}
+table.sortable th[data-sort]::after{content:"";display:inline-block;width:0;height:0;margin-left:6px;border:4px solid transparent;border-top-color:var(--muted-2);vertical-align:1px;opacity:.7}
+table.sortable th[aria-sort=ascending]::after{border-top-color:transparent;border-bottom-color:var(--ink);vertical-align:3px;opacity:1}
+table.sortable th[aria-sort=descending]::after{border-top-color:var(--ink);opacity:1}
+table.sortable th[data-sort]:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+/* the view switch on the Items page: Cards, Table, Item list */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:2px;background:var(--surface)}
+.seg a{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:999px;font-size:.8rem;font-weight:600;color:var(--ink-2);text-decoration:none;white-space:nowrap}
+.seg a .ic{width:15px;height:15px}.seg a.on{background:var(--ink);color:#fff}
+/* the Item list view: one line per product, its rooms listed */
+td.rooms{font-size:.8rem;max-width:280px}td.rooms .n{font-weight:600;color:var(--ink)}td.rooms .more{color:var(--muted)}
 
 /* ---------- badges / pills ---------- */
 .badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:.73rem;font-weight:600;white-space:nowrap;line-height:1.4;
@@ -374,6 +387,11 @@ details summary{cursor:pointer;color:var(--ink);font-weight:600;margin:0}
 .gallery.plans .g .cap,.gallery.plans .g form.tag{max-width:220px}
 .gallery .g form.tag{position:static;margin-top:6px;display:grid;gap:4px}
 .gallery .g form.tag .btn{justify-self:start}
+.gallery.plans .g .cap.role{color:var(--ink-2);display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-height:22px}
+/* Images & plans: a plan filed as its own floor before layers existed ("Ground Electrical") gets a one-press fix */
+.gallery .g form.plan-hint{position:static;margin-top:6px;display:grid;gap:6px;max-width:220px;padding:8px 10px;border-radius:12px;background:var(--gold-soft);border:1px solid #EBDDAE;color:var(--gold-ink)}
+.gallery .g form.plan-hint .btn{justify-self:start}
+@media(max-width:480px){.gallery .g form.plan-hint{max-width:none}}
 .gallery.plans.mini{margin-bottom:12px}.gallery.plans.mini img{width:150px;height:100px}
 .gallery.plans.mini a.g{text-decoration:none;color:inherit}
 .gallery.wide.plans img{width:260px;height:180px}
