@@ -53,7 +53,8 @@ app/webimage.py        fetch_image(url): picture bytes from a direct image link 
 app/ai.py              Claude auto-fill (off without ANTHROPIC_API_KEY): suggest_item(image, page_text, url, rooms) → dict via
                        structured output, apply_suggestion(item, s, rooms, only_empty) fills fields; all failures → None
 app/routers/           projects, rooms, items, suppliers, payments, cartons, share (public /s/<token>, /c/<token>),
-                       exports (PDF + xlsx), importer (Excel import + GET /p/<id>/import/template.xlsx, the prefilled template),
+                       exports (PDF + xlsx; items.xlsx = importer.build_workbook filled), importer (Excel import: new rows, multi-room
+                       rows via rooms_from_cell(), updates by Code; GET /p/<id>/import/template.xlsx = build_workbook empty),
                        capture (/p/<id>/capture camera page → draft items; /p/<id>/drafts complete or discard),
                        clip (/clip: "Save to HBA" bookmarklet + save-from-web form → draft item or mood-board image),
                        plan (/p/<id>/plan interactive plan + ?mode=mark, /plan/room/<id> panel fragment, /plan/pins and
@@ -270,6 +271,14 @@ ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';  
   `capture="environment"` so phones offer camera *or* gallery with multi-select (Quick capture keeps camera-first). The Import
   page downloads a template (`importer.import_template`): Rooms sheet prefilled with the project's entries, Shopping List with
   dropdown validations (Lists sheet), How-to sheet; the importer skips rows whose Room or Item starts with "(example)".
+
+- **Excel round trip.** `importer.build_workbook(p, db, items=None)` builds the template (How to, Rooms, Shopping List, Lists);
+  `exports.items_xlsx` calls it with every live item so the export is the template filled in, Code first, plus read-only Total
+  columns. The Rooms sheet starts with quick-pick rows (kind `pick`: All rooms / areas / bedrooms / bathrooms / All on <floor>);
+  the importer skips them (`is_pick`) and `rooms_from_cell()` expands them, a label, a code, a name or a `;`-separated list into
+  the target rooms (one new `Item` per room, like the form). A row whose Code matches a live item updates it in place
+  (`apply_update`: filled cells change, blank stay, `-` clears, prices through `set_price`, a changed room clears `item.pins`);
+  only rows that actually changed count as updated. Codes are never rewritten by an update.
 
 - **Plan roles, legacy layers, the Item list and sorting.** Images & plans names each plan's role under its picture
   (`drawings.plan_role`: main | twin | layer; `plans_for_floor` now puts the furniture layout that carries boxes first, so the

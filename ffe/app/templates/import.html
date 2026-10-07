@@ -5,35 +5,38 @@
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
     <h1>Import from Excel</h1>
-    <p class="sub">Load the whole procurement list in one go. Rooms, items and suppliers are matched by their column headers.</p>
+    <p class="sub">Add rooms and items in one go, or export the existing items, change them in Excel and import the file back: a row with an item's code updates that item.</p>
   </div>
   <div class="actions">
     <a class="btn" href="/p/{{ p.id }}/import/template.xlsx"><svg class="ic"><use href="#i-download"/></svg>Download the template</a>
+    <a class="btn sec" href="/p/{{ p.id }}/export/items.xlsx"><svg class="ic"><use href="#i-download"/></svg>Export all items</a>
     <a class="btn sec sm" href="/p/{{ p.id }}/items"><svg class="ic"><use href="#i-grid"/></svg>Items</a>
   </div>
 </div>
 
 {% if result %}
   {% if result.error %}<div class="alert err">{{ result.error }}</div>{% else %}
-  <div class="alert">Imported {{ result['items'] }} items, {{ result.rooms }} new rooms, {{ result.suppliers }} new suppliers. Skipped {{ result.skipped }} empty rows. <a href="/p/{{ p.id }}/items">Open items →</a></div>{% endif %}
+  <div class="alert">Imported {{ result['items'] }} new item{{ 's' if result['items'] != 1 }}{% if result.updated %} and updated {{ result.updated }}{% endif %}, {{ result.rooms }} new room{{ 's' if result.rooms != 1 }}, {{ result.suppliers }} new supplier{{ 's' if result.suppliers != 1 }}. Skipped {{ result.skipped }} row{{ 's' if result.skipped != 1 }}. <a href="/p/{{ p.id }}/items">Open items →</a>
+    {% if result.warnings %}<ul class="mt mb-0">{% for w in result.warnings %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}</div>{% endif %}
 {% endif %}
 
 <form method="post" enctype="multipart/form-data" class="card">
   <div class="grid g2 stack">
     <div>
       <h2>Upload the Excel</h2>
-      <p class="small muted">Start from <b>Download the template</b>: its <b>Rooms</b> sheet already lists this project's rooms and areas, so you add a floor, a room or an area as a new row, and its <b>Shopping List</b> has dropdowns for the room, category, unit and status. The Kinondoni list format and a file exported from this app work too. Columns are matched by their header names, so extra columns are simply ignored.</p>
+      <p class="small muted"><b>Adding:</b> start from <b>Download the template</b>. Its <b>Rooms</b> sheet lists this project's rooms and areas (add a floor, a room or an area as a new row) and its <b>Shopping List</b> has dropdowns for the room, category, unit and status. The Room dropdown also offers <b>All bedrooms</b>, <b>All bathrooms</b>, <b>All rooms</b>, <b>All areas</b> and <b>All on Ground floor</b>; several rooms can be typed with <b>;</b> between them. One row then becomes one item per room, each with its own code.</p>
+      <p class="small muted"><b>Updating:</b> press <b>Export all items</b>, change what you need in Excel and import the file. A row whose <b>Code</b> is an existing item's code updates that item: only the cells you fill in change, a <b>-</b> clears a cell, and the code never changes. Rows without a code are added as new items.</p>
       <div class="eyebrow">Recognised columns</div>
       <div class="row mt">
-        <span class="pill">Room</span><span class="pill">Category</span><span class="pill">Item</span><span class="pill">Must-have spec</span><span class="pill">Size / Finish</span><span class="pill">Qty</span><span class="pill">Unit</span><span class="pill">Price (CNY)</span><span class="pill">Supplier</span><span class="pill">Status</span><span class="pill">Notes</span>
+        <span class="pill">Code</span><span class="pill">Room</span><span class="pill">Category</span><span class="pill">Item</span><span class="pill">Must-have spec</span><span class="pill">Brand</span><span class="pill">Size / Finish</span><span class="pill">Qty</span><span class="pill">Unit</span><span class="pill">Price (CNY)</span><span class="pill">Supplier</span><span class="pill">Lead time</span><span class="pill">Status</span><span class="pill">Optional</span><span class="pill">Notes</span>
       </div>
     </div>
     <div>
       <label>Excel file (.xlsx)</label>
       <input type="file" name="file" accept=".xlsx" required>
-      <div class="help">Rooms are created or updated first (matched by their code, never duplicated), then every item row is added as a new item. List only what you are adding.</div>
+      <div class="help">Rooms are created or updated first (matched by their code, never duplicated). Then each item row: a code that matches an existing item updates it, anything else is added as a new item. The Kinondoni list format imports too; columns are matched by their headers and extra columns are ignored.</div>
       <label class="check"><input type="checkbox" name="replace" value="1"> Delete all existing items in this project first</label>
-      <div class="help">Only tick this when re-importing a corrected file. Photos on deleted items are lost.</div>
+      <div class="help">Only tick this to start over from a corrected file. Photos on deleted items are lost; updating by code keeps them.</div>
     </div>
   </div>
   <div class="form-actions"><button class="btn"><svg class="ic"><use href="#i-upload"/></svg>Import</button></div>
@@ -44,7 +47,7 @@
     <svg class="ic"><use href="#i-camera"/></svg>
     <div>
       <div class="b">Tip: photos are not in Excel.</div>
-      <div class="muted small">After importing, open each item and add the sample photo from your phone.</div>
+      <div class="muted small">After importing new items, open each one and add the sample photo from your phone, or use Quick capture. An update by code keeps the photos an item already has.</div>
     </div>
   </div>
 </div>

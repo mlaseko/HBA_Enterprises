@@ -84,7 +84,7 @@
     <a class="doc" href="/p/{{ p.id }}/export/schedule.pdf?prices=0" target="_blank"><svg class="ic"><use href="#i-file"/></svg><div><div class="t">Schedule without prices</div><div class="m">PDF · for site &amp; suppliers</div></div></a>
     <a class="doc" href="/p/{{ p.id }}/export/packing.pdf" target="_blank"><svg class="ic"><use href="#i-box"/></svg><div><div class="t">Packing list</div><div class="m">PDF · {{ s.cartons }} {{ 'box' if s.cartons == 1 else 'boxes' }}</div></div></a>
     <a class="doc" href="/p/{{ p.id }}/export/labels.pdf" target="_blank"><svg class="ic"><use href="#i-tag"/></svg><div><div class="t">Box labels</div><div class="m">PDF · one per carton</div></div></a>
-    <a class="doc" href="/p/{{ p.id }}/export/items.xlsx"><svg class="ic"><use href="#i-download"/></svg><div><div class="t">Excel export</div><div class="m">XLSX · all items</div></div></a>
+    <a class="doc" href="/p/{{ p.id }}/export/items.xlsx"><svg class="ic"><use href="#i-download"/></svg><div><div class="t">Excel export</div><div class="m">XLSX · all items · edit and import back</div></div></a>
   </div>
 </div>
 

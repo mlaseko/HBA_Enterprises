@@ -157,7 +157,7 @@ with TestClient(app) as c:
     r=c.get(f"/p/{pid}"); assert "Drafts (2)" in r.text and f'/items/{d1}"' not in r.text and f'/items/{d2id}"' not in r.text
     r=c.get(f"/p/{pid}/items"); assert "Drafts (2)" in r.text and f'/items/{d1}"' not in r.text and d2key not in r.text
     r=c.get(f"/p/{pid}/items?view=table"); assert d2key not in r.text
-    r=c.get(f"/p/{pid}/export/items.xlsx"); assert load_workbook(io.BytesIO(r.content))["Shopping List"].max_row==before["items"]+1
+    r=c.get(f"/p/{pid}/export/items.xlsx"); assert sum(1 for row_ in load_workbook(io.BytesIO(r.content))["Shopping List"].iter_rows(min_row=2, values_only=True) if row_[0])==before["items"]  # one filled row per item (the sheet carries styled blank rows too)
     r=c2.get(f"/c/{ctok}"); assert d2key not in r.text and f">{before['items']}<" in r.text
     r=c.get(f"/p/{pid}/export/schedule.pdf"); assert r.status_code==200 and len(r.content)==sched_len, (len(r.content), sched_len)
     r=c.get(f"/p/{pid}/export/room/{room.id}.pdf"); assert r.status_code==200 and len(r.content)==room_len
@@ -546,22 +546,48 @@ with TestClient(app) as c:
     r=c.get(r.headers["location"]); assert 'name="add_room_ids"' in r.text and 'All bedrooms <b>2</b>' in r.text  # the other two bedrooms
     r=c.get(f"/p/{pid_p}/import/template.xlsx"); assert r.status_code==200 and "spreadsheetml" in r.headers["content-type"] and "import_template.xlsx" in r.headers["content-disposition"]
     wb=openpyxl.load_workbook(io.BytesIO(r.content)); assert wb.sheetnames==["How to","Rooms","Shopping List","Lists"]
-    ws=wb["Rooms"]; labels=[ws.cell(row=i, column=1).value for i in range(2, 12)]; assert "FF-MBR - Master bedroom" in labels and "GF-ENT - Entrance" in labels and [c_.value for c_ in ws[1]]==["Room","Floor","Kind","Floor area m²","Wall tile m²","Notes"]
+    ws=wb["Rooms"]; labels=[ws.cell(row=i, column=1).value for i in range(2, 30)]
+    assert labels[:4]==["All rooms","All areas","All bedrooms","All bathrooms"] and "All on Ground floor" in labels and "All on First floor" in labels and ws.cell(row=2, column=3).value=="pick"  # quick picks first
+    assert "FF-MBR - Master bedroom" in labels and "GF-ENT - Entrance" in labels and [c_.value for c_ in ws[1]]==["Room","Floor","Kind","Floor area m²","Wall tile m²","Notes"]
     assert ws.cell(row=labels.index("GF-ENT - Entrance")+2, column=3).value=="area" and len(ws.data_validations.dataValidation)==2
-    sl=wb["Shopping List"]; hdr=[c_.value for c_ in sl[1]]; assert hdr[:3]==["Room","Category","Item"] and "Qty" in hdr and "Price (CNY)" in hdr and "Optional" in hdr
-    dvs={str(d.sqref)[0]: d.formula1 for d in sl.data_validations.dataValidation}; assert dvs["A"]=="Rooms!$A$2:$A$401" and dvs["B"].startswith("Lists!$A$2") and "M" in dvs and "N" in dvs, dvs
+    sl=wb["Shopping List"]; hdr=[c_.value for c_ in sl[1]]; assert hdr[:4]==["Code","Room","Category","Item"] and "Qty" in hdr and "Price (CNY)" in hdr and "Optional" in hdr and "Total CNY" not in hdr
+    dvs={str(d.sqref)[0]: d.formula1 for d in sl.data_validations.dataValidation}; assert dvs["B"]=="Rooms!$A$2:$A$401" and dvs["C"].startswith("Lists!$A$2") and "N" in dvs and "O" in dvs and "A" not in dvs, dvs
     assert "How to fill this in" in str(wb["How to"]["A1"].value) and wb["Lists"]["A2"].value=="Paint" and wb["Lists"]["D2"].value=="room"
     ws.append(["SF-STU - Studio","Second","room",None,None,"new floor"]); ws.append(["SF-TER - Terrace","Second","area",None,None,None]); ws.append(["(example) ZZ - Ignore","Second","room",None,None,None])
-    sl.append(["SF-STU - Studio","Furniture","Day bed","Oak frame","","2000 mm","Oak",1,"pcs",3200,"New Supplier Co","4 weeks","Quoted","no",""])
-    sl.append(["SF-TER - Terrace","Lighting","Terrace wall light","IP65","","","Black",2,"pcs",310,"","","To buy","yes",""])
-    sl.append(["FF-BA1 - Bathroom 1","Tiles","Floor tile","R11","","600 x 600","Grey",8,"m²",190,"","","To buy","",""])
-    sl.append(["(example) FF-BA1 - Bathroom 1","Tiles","Should be skipped","","","","",1,"pcs",1,"","","","",""]); sl.append(["","Paint","(example) skipped too","","","","",1,"pcs",1,"","","","",""])
-    b=io.BytesIO(); wb.save(b); r=c.post(f"/p/{pid_p}/import", files={"file":("filled.xlsx", b.getvalue())}, data={}); assert "Imported 3 items, 2 new rooms, 1 new suppliers" in r.text, re.search(r"Imported[^<]*", r.text).group(0)
+    sl.append(["","SF-STU - Studio","Furniture","Day bed","Oak frame","","2000 mm","Oak",1,"pcs",3200,"New Supplier Co","4 weeks","Quoted","no",""])
+    sl.append(["","SF-TER - Terrace","Lighting","Terrace wall light","IP65","","","Black",2,"pcs",310,"","","To buy","yes",""])
+    sl.append(["","FF-BA1 - Bathroom 1","Tiles","Floor tile","R11","","600 x 600","Grey",8,"m²",190,"","","To buy","",""])
+    sl.append(["","All bedrooms","Lighting","Bedside sconce","","","","Brass",1,"pcs",260,"","","To buy","",""])  # three bedrooms
+    sl.append(["","GF-LIV - Living room; FF-BR1 - Bedroom 1","Furniture","Side table","","","450 mm","Oak",1,"pcs",700,"","","To buy","",""])  # two rooms, typed
+    sl.append(["","All on Second","Paint","Ceiling paint","","","","White",2,"pcs",180,"","","To buy","",""])  # the two rooms added above
+    sl.append(["ZZ-99","GF-LIV - Living room","Lighting","Mystery lamp","","","","",1,"pcs",90,"","","To buy","",""])  # an unknown code: a new item that keeps it
+    sl.append(["","Kitchn","Other","Typo room item","","","","",1,"pcs",10,"","","To buy","",""])  # an unknown room: whole house, with a warning
+    sl.append(["(example) X","FF-BA1 - Bathroom 1","Tiles","Should be skipped","","","","",1,"pcs",1,"","","","",""]); sl.append(["","","Paint","(example) skipped too","","","","",1,"pcs",1,"","","","",""])
+    b=io.BytesIO(); wb.save(b); r=c.post(f"/p/{pid_p}/import", files={"file":("filled.xlsx", b.getvalue())}, data={}); msg=re.search(r"Imported[^<]*", r.text).group(0)
+    assert msg.startswith("Imported 12 new items, 2 new rooms, 1 new supplier.") and "Skipped 2 rows" in msg and 'Room &#34;Kitchn&#34; not found' in r.text, msg
     db=SessionLocal(); rs={x.code:x for x in db.query(Room).filter(Room.project_id==int(pid_p))}; its={i.name:i for i in db.query(Item).filter(Item.project_id==int(pid_p))}
-    assert len(rs)==12 and rs["SF-STU"].floor=="Second" and rs["SF-STU"].kind=="room" and rs["SF-TER"].kind=="area" and "ZZ" not in rs and rs["FF-MBR"].floor=="First"
-    assert its["Day bed"].room.code=="SF-STU" and its["Day bed"].status=="Quoted" and its["Day bed"].supplier.name=="New Supplier Co" and its["Terrace wall light"].optional and its["Floor tile"].room.code=="FF-BA1" and its["Floor tile"].code=="FF-BA1-01" and "Should be skipped" not in its and len(its)==4
+    assert len(rs)==12 and rs["SF-STU"].floor=="Second" and rs["SF-STU"].kind=="room" and rs["SF-TER"].kind=="area" and "ZZ" not in rs and rs["FF-MBR"].floor=="First" and not any(x.name.startswith("All ") for x in rs.values())
+    assert its["Day bed"].room.code=="SF-STU" and its["Day bed"].status=="Quoted" and its["Day bed"].supplier.name=="New Supplier Co" and its["Terrace wall light"].optional and its["Floor tile"].room.code=="FF-BA1" and its["Floor tile"].code=="FF-BA1-01" and "Should be skipped" not in its
+    by_name=lambda n: sorted(i.room.code for i in db.query(Item).filter(Item.project_id==int(pid_p), Item.name==n))
+    assert by_name("Bedside sconce")==["FF-BR1","FF-MBR","GF-GST"] and by_name("Side table")==["FF-BR1","GF-LIV"] and by_name("Ceiling paint")==["SF-STU","SF-TER"]
+    assert its["Mystery lamp"].code=="ZZ-99" and its["Typo room item"].room_id is None and db.query(Item).filter(Item.project_id==int(pid_p)).count()==13  # 12 new + the bedside lamp
     db.close()
-    r=c.get(f"/p/{pid_p}/items/new"); assert 'data-pick="floor:Second"' in r.text and "Download the template" in c.get(f"/p/{pid_p}/import").text
+    # export → edit → import: rows are matched by their code and updated in place; nothing is added twice
+    r=c.get(f"/p/{pid_p}/export/items.xlsx"); assert r.status_code==200 and "items.xlsx" in r.headers["content-disposition"]
+    wb2=openpyxl.load_workbook(io.BytesIO(r.content)); sl2=wb2["Shopping List"]; hdr2=[c_.value for c_ in sl2[1]]
+    assert hdr2[:4]==["Code","Room","Category","Item"] and hdr2[-2:]==["Total CNY","Total USD"] and wb2["Rooms"]["A2"].value=="All rooms" and len(sl2.data_validations.dataValidation)>=5
+    rows={sl2.cell(row=i, column=4).value: i for i in range(2, 40) if sl2.cell(row=i, column=1).value}; assert len(rows)>=9 and sl2.cell(row=rows["Day bed"], column=1).value=="SF-STU-01" and sl2.cell(row=rows["Day bed"], column=11).value==3200 and sl2.cell(row=rows["Day bed"], column=17).value==3200
+    i_=rows["Day bed"]; sl2.cell(row=i_, column=11, value=3500); sl2.cell(row=i_, column=14, value="Ordered"); sl2.cell(row=i_, column=5, value="-"); sl2.cell(row=i_, column=9, value=2); sl2.cell(row=i_, column=2, value="SF-TER - Terrace")
+    sl2.cell(row=rows["Floor tile"], column=6, value="Marazzi")
+    b=io.BytesIO(); wb2.save(b); r=c.post(f"/p/{pid_p}/import", files={"file":("edited.xlsx", b.getvalue())}, data={}); msg=re.search(r"Imported[^<]*", r.text).group(0)
+    assert msg.startswith("Imported 0 new items and updated 2, 0 new rooms, 0 new suppliers."), msg
+    db=SessionLocal(); its={i.name:i for i in db.query(Item).filter(Item.project_id==int(pid_p))}; d=its["Day bed"]
+    assert d.code=="SF-STU-01" and d.room.code=="SF-TER" and d.unit_price==3500 and d.status=="Ordered" and d.spec=="" and d.qty==2 and d.supplier.name=="New Supplier Co" and d.size=="2000 mm" and d.finish=="Oak"  # blanks kept, "-" cleared, code kept
+    assert its["Floor tile"].brand=="Marazzi" and its["Floor tile"].qty==8 and db.query(Item).filter(Item.project_id==int(pid_p)).count()==13; db.close()
+    from app.routers.importer import RoomIndex as _RI
+    db=SessionLocal(); ri=_RI(db.get(_P,int(pid_p)))
+    assert sorted(x.code for x in ri.from_cell("All bathrooms"))==["FF-BA1","FF-MEN","GF-GBA"] and ri.from_cell("")==[None] and ri.from_cell("ALL - Whole house")==[None] and ri.from_cell("Nowhere") is None
+    assert [x.code for x in ri.from_cell("Kitchn, Living room")]==["GF-LIV"] and [x.code for x in ri.from_cell("First floor")]==[x.code for x in ri.from_cell("All on First floor")] and len(ri.from_cell("all on first floor"))==5 and ri.from_cell("All bathrooms; GF-ENT")[-1].code=="GF-ENT"; db.close()
     print("quick picks + import template ok")
     # plan layers: several sheets of one floor; the furniture layout carries the boxes, the others borrow them
     from app import drawings as _dr2

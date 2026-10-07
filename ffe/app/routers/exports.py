@@ -1,11 +1,9 @@
-import io
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment
 from ..db import get_db
 from ..models import Project, Supplier, Room, Payment
+from . import importer
 from ..common import require_login, get_project, get_settings, content_disposition
 from ..pdf.schedule import build_schedule
 from ..pdf.packing import packing_list, labels, room_checklist, purchase_order
@@ -89,26 +87,7 @@ def po_pdf(supplier_id: int, p: Project = Depends(get_project), db: Session = De
 
 @router.get("/p/{project_id}/export/items.xlsx", dependencies=[Depends(require_login)])
 def items_xlsx(p: Project = Depends(get_project), db: Session = Depends(get_db)):
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Shopping List"
-    heads = ["Code", "Room", "Category", "Item", "Brand", "Spec", "Size", "Finish", "Qty", "Unit", "Unit price CNY", "Total CNY",
-             "Total USD", "Supplier", "Lead time", "Status", "Optional", "Notes"]
-    ws.append(heads)
-    for c in ws[1]:
-        c.font = Font(bold=True, color="FFFFFF"); c.fill = PatternFill("solid", fgColor="1F3A5F")
-    for i in sort_items(p.live_items, p):
-        ws.append([i.code, i.room.label if i.room else "", i.category, i.name, i.brand, i.spec, i.size, i.finish, i.qty, i.unit,
-                   i.unit_price, i.total, round(i.total / (p.rate or 1), 2), i.supplier.name if i.supplier else "", i.lead_time,
-                   i.status, "Yes" if i.optional else "", i.notes])
-    for col, w in zip("ABCDEFGHIJKLMNOPQR", [12, 26, 16, 36, 14, 44, 20, 18, 7, 6, 12, 12, 12, 20, 10, 10, 8, 30]):
-        ws.column_dimensions[col].width = w
-    ws.freeze_panes = "A2"
-    ws2 = wb.create_sheet("Rooms")
-    ws2.append(["Room", "Floor", "Kind", "Floor area m²", "Wall tile m²", "Notes"])
-    for r in p.rooms:
-        ws2.append([r.label, r.floor, r.kind, r.floor_area, r.wall_area, r.notes])
-    buf = io.BytesIO()
-    wb.save(buf)
-    return Response(content=buf.getvalue(), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    headers=content_disposition(f"{p.name}-items.xlsx"))
+    """Every live item in the import template's own layout (Code first, dropdowns, a Rooms sheet, read-only totals), so the
+    file can be changed in Excel and imported back: rows are matched by code and updated."""
+    data = importer.build_workbook(p, db, items=sort_items(p.live_items, p))
+    return Response(content=data, media_type=importer.XLSX, headers=content_disposition(f"{p.name}-items.xlsx"))
