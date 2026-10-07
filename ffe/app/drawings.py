@@ -96,7 +96,23 @@ def floor_title(s) -> str:
 
 
 def plan_caption(im) -> str:
-    return " · ".join(x for x in [floor_title(im.floor), im.sheet, im.caption] if x)
+    """'Ground floor · A-101 · Furniture Layout'; a layer other than the furniture layout names itself after the floor."""
+    layer = "" if im.is_main_layer else im.layer_title
+    return " · ".join(x for x in [floor_title(im.floor), layer, im.sheet, im.caption] if x)
+
+
+def layer_from_title(title: str) -> str:
+    """Which layer a drawing title describes: 'Electrical Layout Plan' -> electrical, 'Reflected Ceiling Plan' -> ceiling,
+    'Floor Finishes Plan' -> flooring, anything else -> furniture (the main plan)."""
+    t = (title or "").upper()
+    for key, rx in _LAYER_WORDS:
+        if rx.search(t):
+            return key
+    return "furniture"
+
+
+def layer_for_category(category: str) -> str:
+    return config.CATEGORY_LAYER.get(category or "", "furniture")
 
 
 def plans(p) -> list:
@@ -128,15 +144,41 @@ def plans_by_floor(p) -> dict[str, list]:
 
 
 def plans_for_floor(p, floor) -> list:
-    return plans_by_floor(p).get(floor_key(floor), [])
+    """The plans of a floor, the main one (furniture layout) first, then the other layers in id order."""
+    fl = plans_by_floor(p).get(floor_key(floor), [])
+    return sorted(fl, key=lambda im: (not im.is_main_layer, im.id))
+
+
+def main_plan(p, floor):
+    """The main plan of a floor: its furniture layout, else its first plan. None without a plan on that floor."""
+    fl = plans_for_floor(p, floor)
+    return fl[0] if fl else None
+
+
+def borrowed_from(p, im):
+    """The plan whose room boxes `im` shows: another layer of the same floor borrows the main plan's boxes while it has
+    none of its own (the architect's sheets of one floor share the same frame). None = own boxes (or nothing to borrow)."""
+    if im is None or im.pins or not im.floor or is_pseudo(im.floor):
+        return None
+    for other in plans_for_floor(p, im.floor):
+        if other.id != im.id and other.pins:
+            return other
+    return None
+
+
+def pins_for(p, im) -> list:
+    """The room boxes to show on a plan: its own, else the ones borrowed from the floor's main plan."""
+    if im is None:
+        return []
+    src = borrowed_from(p, im)
+    return list(src.pins) if src is not None else list(im.pins)
 
 
 def plan_for_room(p, room):
-    """The plan to print with a room: the first plan tagged with the room's floor, if any."""
+    """The plan to print with a room: the main plan of the room's floor, if any."""
     if room is None or is_pseudo(room.floor):
         return None
-    fl = plans_for_floor(p, room.floor)
-    return fl[0] if fl else None
+    return main_plan(p, room.floor)
 
 
 def split_kinds(rooms) -> tuple[list, list]:
@@ -156,7 +198,7 @@ def rooms_by_floor(p) -> list[dict]:
 
     for f in floor_order(p):
         k = floor_key(f)
-        groups.append(group(k, floor_title(f), f, [r for r in p.rooms if floor_key(r.floor) == k], by.get(k, [])))
+        groups.append(group(k, floor_title(f), f, [r for r in p.rooms if floor_key(r.floor) == k], plans_for_floor(p, f)))
     whole_rooms = [r for r in p.rooms if is_pseudo(r.floor)]
     whole_plans = [im for k, v in by.items() if k and k in PSEUDO for im in v]
     if whole_rooms or whole_plans:
@@ -202,7 +244,8 @@ def pins_by_room(p) -> dict[int, list]:
 
 
 def plan_with_room(p, room):
-    """The plan to open for a room: the first plan the room is marked on, else the plan of its floor, else None."""
+    """The plan to open for a room: the first plan the room is marked on (a floor's main plan first), else the main plan
+    of its floor, else None."""
     if room is None:
         return None
     for im in client_plans(p):
@@ -252,12 +295,18 @@ def clamp_point(x, y) -> tuple[float, float] | None:
 # ---- drawing sets: what the title block of a page says -------------------------------------------------------------
 import re as _re
 
-_PLAN_RE = _re.compile(r"\b(FLOOR\s+PLAN|ROOF\s+PLAN|SITE\s+(?:LAYOUT\s+)?PLAN|SITE\s+LAYOUT|FURNITURE\s+(?:LAYOUT|PLAN)|LAYOUT\s+PLAN)\b")
-# Other disciplines' plans are not floor plans. "Detail" and "section" are not in this list on purpose: architects title plan
-# sheets "Ground Floor Plan (Dimension Details)". Tested on the cut title segment, not the whole line: title blocks often
-# list the consultants ("STRUCTURAL ENGINEER: ...") on the same text line as the title, and _CUT_RE ends the title there.
-_NOT_PLAN_RE = _re.compile(r"ELECTRIC|PLUMB|DRAIN|SANIT|SEWER|STRUCT|FOUNDATION|FOOTING|BEAM|SLAB|COLUMN|CEILING|REFLECTED|FRAMING|TRUSS|"
-                           r"LIGHTING\s+LAYOUT|POWER\s+LAYOUT|HVAC|MECHANICAL|FIRE\s+(?:FIGHTING|PROTECTION|ALARM)")
+_PLAN_RE = _re.compile(r"\b(FLOOR\s+PLAN|ROOF\s+PLAN|SITE\s+(?:LAYOUT\s+)?PLAN|SITE\s+LAYOUT|FURNITURE\s+(?:LAYOUT|PLAN)|LAYOUT\s+PLAN|"
+                       r"(?:ELECTRICAL|LIGHTING|POWER|PLUMBING|SANITARY|DRAINAGE|WATER\s+SUPPLY|CEILING|FLOOR\s+FINISH(?:ES)?|FLOORING|TILE|TILING)\s+"
+                       r"(?:LAYOUT\s+PLAN|LAYOUT|PLAN)|REFLECTED\s+CEILING\s+PLAN)\b")
+# Structural, mechanical and fire drawings are not plans the designer works on. Electrical, plumbing, ceiling and flooring
+# plans are: they become layers of their floor (layer_from_title). "Detail" and "section" are not in this list on purpose:
+# architects title plan sheets "Ground Floor Plan (Dimension Details)". Tested on the cut title segment, not the whole line:
+# title blocks often list the consultants ("STRUCTURAL ENGINEER: ...") on the same text line as the title.
+_NOT_PLAN_RE = _re.compile(r"SEWER|STRUCT|FOUNDATION|FOOTING|BEAM|SLAB|COLUMN|FRAMING|TRUSS|REINFORC|HVAC|MECHANICAL|DUCT|"
+                           r"FIRE\s+(?:FIGHTING|PROTECTION|ALARM)")
+_LAYER_WORDS = [("electrical", _re.compile(r"ELECTRIC|LIGHTING|POWER|SOCKET|SWITCH")), ("plumbing", _re.compile(r"PLUMB|SANIT|DRAIN|WATER\s+SUPPLY")),
+                ("ceiling", _re.compile(r"CEILING|REFLECTED|\bRCP\b")), ("flooring", _re.compile(r"FLOOR\s+FINISH|FLOORING|\bTIL(?:E|ES|ING)\b"))]
+_LAYER_CAPTION_RE = _re.compile(r"(?i)\b(electrical|lighting|power|plumbing|sanitary|drainage|water supply|ceiling|reflected|flooring|floor finish(?:es)?|tiles?|tiling|layout)\b")
 # Longer names first: "LOWER GROUND" must win over "GROUND".
 _FLOORS = [("LOWER GROUND", "Lower ground"), ("UPPER GROUND", "Upper ground"), ("GROUND", "Ground"), ("FIRST", "First"),
            ("SECOND", "Second"), ("THIRD", "Third"), ("FOURTH", "Fourth"), ("BASEMENT", "Basement"), ("MEZZANINE", "Mezzanine"),
@@ -373,6 +422,8 @@ def caption_from_title(title: str) -> str:
     t = title or ""
     t = _re.sub(r"(?i)\b(lower|upper)?\s*(ground|first|second|third|fourth|basement|mezzanine|penthouse|roof|site)\b", " ", t)
     t = _re.sub(r"(?i)\b(floor|plan)\b", " ", t)
+    if layer_from_title(title) != "furniture":
+        t = _LAYER_CAPTION_RE.sub(" ", t)  # the layer label already says "Electrical & lighting"; no need to repeat it
     t = t.replace("(", " ").replace(")", " ")
     t = " ".join(t.split()).strip(" -:;,")
     if t.lower() in ("layout", "plan", "floor", "layout plan"):
@@ -400,15 +451,17 @@ def crop_rect(pin, pad: float = 0.25, min_frac: float = 0.22) -> tuple[float, fl
     return x0, y0, round(x1 - x0, 4), round(y1 - y0, 4)
 
 
-def room_zoom(p, room, items=None) -> dict | None:
+def room_zoom(p, room, items=None, plan=None) -> dict | None:
     """What the zoomed-room card and the checklist page need: {plan, pin, rect, dots}. None when the room has no box.
-    dots = this room's live items that have a dot on that plan, labelled with the number part of their code."""
+    dots = this room's live items that have a dot on that plan, labelled with the number part of their code.
+    `plan` picks another layer of the room's floor (its boxes may be borrowed from the main plan); default: the plan the
+    room is marked on."""
     if room is None:
         return None
-    im = plan_with_room(p, room)
+    im = plan if plan is not None else plan_with_room(p, room)
     if im is None:
         return None
-    pin = next((x for x in im.pins if x.room_id == room.id), None)
+    pin = next((x for x in pins_for(p, im) if x.room_id == room.id), None)
     if pin is None:
         return None
     its = items if items is not None else [i for i in room.items if not i.draft]

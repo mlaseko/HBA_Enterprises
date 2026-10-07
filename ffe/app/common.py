@@ -110,7 +110,7 @@ templates.env.filters["floor_title"] = drawings.floor_title
 templates.env.globals.update(AI_ENABLED=lambda: bool(__import__('os').getenv('ANTHROPIC_API_KEY')), APP_NAME=config.APP_NAME, CATEGORIES=config.CATEGORIES, UNITS=config.UNITS,
                              STATUSES=config.STATUSES, STATUS_COLORS=config.STATUS_COLORS,
                              PAYMENT_KINDS=config.PAYMENT_KINDS, PRICE_CURRENCIES=config.PRICE_CURRENCIES, plan_caption=drawings.plan_caption,
-                             count_label=drawings.count_label, help_shots=help_tips.shots,
+                             count_label=drawings.count_label, help_shots=help_tips.shots, PLAN_LAYERS=config.PLAN_LAYERS,
                              PLAN_MAX_PX=config.PLAN_MAX_PX, MAX_PDF_MB=config.MAX_PDF_MB, MAX_PDF_PAGES=config.MAX_PDF_PAGES,
                              PICK_MAX_PAGES=config.PICK_MAX_PAGES)
 

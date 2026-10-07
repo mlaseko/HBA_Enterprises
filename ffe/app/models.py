@@ -65,6 +65,9 @@ class ProjectImage(Base):
     caption: Mapped[str] = mapped_column(String(200), default="")
     file_key: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    # Floor plans only: what the sheet shows (config.PLAN_LAYERS): furniture (the main plan of a floor, carries the room
+    # boxes) | electrical | plumbing | ceiling | flooring. Column added by db.COLUMN_MIGRATIONS on existing databases.
+    layer: Mapped[str] = mapped_column(String(20), default="furniture", server_default="furniture")
     project: Mapped["Project"] = relationship(back_populates="images")
     # Floor plans only: which floor the plan shows, sheet reference, full-size copy. No row = untagged plan.
     tag: Mapped["PlanTag | None"] = relationship(back_populates="image", cascade="all, delete-orphan", uselist=False)
@@ -88,6 +91,15 @@ class ProjectImage(Base):
     def best_key(self) -> str:
         """Full-size copy when there is one (PDF pages, plans), else the 1600 px preview."""
         return self.hires_key or self.file_key
+
+    @property
+    def layer_title(self) -> str:
+        from . import config
+        return config.LAYER_TITLES.get(self.layer or "furniture", "Furniture layout")
+
+    @property
+    def is_main_layer(self) -> bool:
+        return (self.layer or "furniture") == "furniture"
 
     def ensure_tag(self) -> "PlanTag":
         if self.tag is None:

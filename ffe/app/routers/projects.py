@@ -93,8 +93,13 @@ def images(request: Request, p: Project = Depends(get_project), err: str = "", o
     return render(request, "projects/images.html", p=p, err=err[:200], ok=ok[:200], **_plan_sets_ctx(p))
 
 
+def _layer(value) -> str:
+    v = str(value or "").strip().lower()
+    return v if v in config.LAYER_TITLES else "furniture"
+
+
 def _add_plan(db: Session, p: Project, floor: str, sheet: str, caption: str, *, data: bytes | None = None,
-              hires: bytes | None = None, set_id: int | None = None, page_no: int | None = None) -> ProjectImage:
+              hires: bytes | None = None, set_id: int | None = None, page_no: int | None = None, layer: str = "furniture") -> ProjectImage:
     """One floor plan = 1600 px preview (file_key) + full-size copy (tag.hires_key).
     Pass `data` (any image upload) or `hires` (a JPEG already rendered at PLAN_MAX_PX, stored as is)."""
     if hires is None:
@@ -103,7 +108,7 @@ def _add_plan(db: Session, p: Project, floor: str, sheet: str, caption: str, *, 
     else:
         hires_key = storage.save_blob(hires, f"p{p.id}/{uuid.uuid4().hex}.jpg", "image/jpeg")
         prev_key = storage.save_image(hires, f"p{p.id}")
-    im = ProjectImage(project_id=p.id, kind="floorplan", caption=caption.strip()[:200], file_key=prev_key)
+    im = ProjectImage(project_id=p.id, kind="floorplan", caption=caption.strip()[:200], file_key=prev_key, layer=_layer(layer))
     t = im.ensure_tag()
     t.floor, t.sheet, t.hires_key, t.set_id, t.page_no = floor.strip()[:40], sheet.strip()[:60], hires_key, set_id, page_no
     db.add(im)
@@ -143,7 +148,7 @@ async def upload_images(p: Project = Depends(get_project), db: Session = Depends
 
 @router.post("/p/{project_id}/images/plans")
 async def upload_plans(p: Project = Depends(get_project), db: Session = Depends(get_db), floor: str = Form(""),
-                       sheet: str = Form(""), caption: str = Form(""), files: list[UploadFile] = File(...)):
+                       sheet: str = Form(""), caption: str = Form(""), layer: str = Form("furniture"), files: list[UploadFile] = File(...)):
     """Floor plans: JPG/PNG are added at once (tagged); a PDF becomes a drawing set whose pages are picked next.
 
     One bad file never loses the others: every file is tried, what worked is committed, and the errors are shown together.
@@ -183,7 +188,7 @@ async def upload_plans(p: Project = Depends(get_project), db: Session = Depends(
             first_set = first_set or ds.id
             continue
         try:
-            _add_plan(db, p, floor, sheet, caption, data=data)
+            _add_plan(db, p, floor, sheet, caption, data=data, layer=layer)
             added += 1
         except Exception:
             bad += 1
@@ -222,7 +227,8 @@ def pick_pages(request: Request, set_id: int, p: Project = Depends(get_project),
     added = {im.tag.page_no: im for im in drawings.plans(p) if im.tag and im.tag.set_id == ds.id}
     meta = {m.page_no: m for m in ds.page_meta}
     captions = {k: drawings.caption_from_title(m.title) for k, m in meta.items()}
-    return render(request, "projects/pdf_pages.html", p=p, set=ds, pages=range(1, ds.pages + 1), added=added, meta=meta, captions=captions,
+    layers = {k: drawings.layer_from_title(m.title) for k, m in meta.items()}  # which layer each page's title says it is
+    return render(request, "projects/pdf_pages.html", p=p, set=ds, pages=range(1, ds.pages + 1), added=added, meta=meta, captions=captions, layers=layers,
                   floors=drawings.floor_order(p), floor=floor[:40], sheet=sheet[:60], err=err[:200],
                   n_suggested=sum(1 for k, m in meta.items() if m.is_plan and k not in added))
 
@@ -248,7 +254,7 @@ async def pick_pages_save(request: Request, set_id: int, p: Project = Depends(ge
             db.commit()
             return redirect(f"{back}?err={quote(str(e))}")
         _add_plan(db, p, str(form.get(f"floor_{k}", "")), str(form.get(f"sheet_{k}", "")), str(form.get(f"caption_{k}", "")),
-                  hires=jpeg, set_id=ds.id, page_no=k)
+                  hires=jpeg, set_id=ds.id, page_no=k, layer=str(form.get(f"layer_{k}", "furniture")))
     db.commit()
     return redirect(f"/p/{p.id}/images?ok={quote(f'{len(picked)} page(s) added as floor plans')}#plans")
 
@@ -267,7 +273,7 @@ def delete_set(set_id: int, p: Project = Depends(get_project), db: Session = Dep
 
 @router.post("/p/{project_id}/images/{image_id}")
 def edit_image(image_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), floor: str = Form(""),
-               sheet: str = Form(""), caption: str = Form("")):
+               sheet: str = Form(""), caption: str = Form(""), layer: str = Form("")):
     im = db.get(ProjectImage, image_id)
     if not im or im.project_id != p.id:
         raise HTTPException(404)
@@ -275,6 +281,8 @@ def edit_image(image_id: int, p: Project = Depends(get_project), db: Session = D
     if im.kind == "floorplan":
         t = im.ensure_tag()
         t.floor, t.sheet = floor.strip()[:40], sheet.strip()[:60]
+        if layer:
+            im.layer = _layer(layer)
     db.commit()
     return redirect(f"/p/{p.id}/images#img-{im.id}")
 

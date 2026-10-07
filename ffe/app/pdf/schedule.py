@@ -252,12 +252,19 @@ def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=T
         toc(titles)
         if plans:
             story.append(Paragraph("FLOOR PLAN OVERVIEW", S["h1"]))
-            for im in plans:
-                story += _plan_pages(im, W, H)
+            for im in drawings.client_plans(p):  # each floor's main plan (and the whole-house / untagged ones); layers print with their category
+                if im.is_main_layer:
+                    story += _plan_pages(im, W, H)
         story += _mood_pages(moods, W, H)
         for c in cats:
             items = [i for i in all_items if i.category == c]
             items.sort(key=lambda i: (room_order.get(i.room_id, 9999), i.code))
+            layer = drawings.layer_for_category(c)
+            layer_plans = [im for im in drawings.client_plans(p) if im.layer == layer] if layer != "furniture" else []
+            if layer_plans:  # the sheets this category is read from: the electrical plans before the lighting schedule, and so on
+                story.append(Paragraph(f"{escape(c.upper())} &mdash; {escape(layer_plans[0].layer_title.upper())} PLAN{'S' if len(layer_plans) > 1 else ''}", S["h1"]))
+                for im in layer_plans:
+                    story += _plan_pages(im, W, H)
             story.append(Paragraph(f"{escape(c.upper())} SCHEDULE", S["h1"]))
             story.append(_schedule_table(items, W, currency, rate, show_prices, include_photos))
             story.append(PageBreak())

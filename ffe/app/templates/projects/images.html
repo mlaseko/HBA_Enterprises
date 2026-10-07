@@ -36,8 +36,9 @@
   <div class="grid g3 stack">
     <div><label for="fp-floor">Floor</label><input id="fp-floor" class="in" type="text" name="floor" list="floors" placeholder="Ground" autocomplete="off"></div>
     <div><label for="fp-sheet">Sheet ref (optional)</label><input id="fp-sheet" class="in" type="text" name="sheet" placeholder="A-104 Rev A"></div>
-    <div><label for="fp-cap">Caption (optional)</label><input id="fp-cap" class="in" type="text" name="caption" placeholder="e.g. Furniture layout"></div>
-    <div class="span3"><label for="fp-files">Plan images or a PDF drawing set</label><input id="fp-files" type="file" name="files" accept="image/*,application/pdf,.pdf" data-maxpx="{{ PLAN_MAX_PX }}" multiple required><div class="filehint help"></div></div>
+    <div><label for="fp-cap">Caption (optional)</label><input id="fp-cap" class="in" type="text" name="caption" placeholder="e.g. Rev B"></div>
+    <div><label for="fp-layer">Shows</label><select id="fp-layer" name="layer" class="in">{% for key, title in PLAN_LAYERS %}<option value="{{ key }}">{{ title }}</option>{% endfor %}</select><div class="help">The furniture layout is a floor's main plan and carries the room boxes; an electrical or plumbing sheet of the same floor becomes a layer of it.</div></div>
+    <div class="span2"><label for="fp-files">Plan images or a PDF drawing set</label><input id="fp-files" type="file" name="files" accept="image/*,application/pdf,.pdf" data-maxpx="{{ PLAN_MAX_PX }}" multiple required><div class="filehint help"></div></div>
   </div>
   <div class="form-actions">
     <button class="btn"><svg class="ic"><use href="#i-upload"/></svg>Upload</button>
@@ -95,10 +96,11 @@
         <input class="in" type="text" name="floor" list="floors" value="{{ im.floor }}" placeholder="Floor" aria-label="Floor" autocomplete="off">
         <input class="in" type="text" name="sheet" value="{{ im.sheet }}" placeholder="Sheet, e.g. A-104 Rev A" aria-label="Sheet">
         <input class="in" type="text" name="caption" value="{{ im.caption }}" placeholder="Caption" aria-label="Caption">
+        <select class="in" name="layer" aria-label="What this sheet shows">{% for key, title in PLAN_LAYERS %}<option value="{{ key }}" {{ 'selected' if im.layer == key }}>{{ title }}</option>{% endfor %}</select>
         <button class="btn sm sec"><svg class="ic"><use href="#i-check"/></svg>Save</button>
       </form>
       <div class="cap">{% if im.floor %}{{ plan_caption(im) }}{% else %}<span class="pill red">Untagged</span> prints up front{% endif %}{% if im.tag and im.tag.set_id %} · p.{{ im.tag.page_no }}{% endif %}</div>
-      <div class="cap"><a href="/p/{{ p.id }}/plan?plan={{ im.id }}&amp;mode=mark"><svg class="ic sm"><use href="#i-map"/></svg> {{ im.pins|length }} room{{ 's' if im.pins|length != 1 }} marked · mark rooms</a></div>
+      <div class="cap">{% if im.is_main_layer or im.pins %}<a href="/p/{{ p.id }}/plan?plan={{ im.id }}&amp;mode=mark"><svg class="ic sm"><use href="#i-map"/></svg> {{ im.pins|length }} room{{ 's' if im.pins|length != 1 }} marked · mark rooms</a>{% else %}<a href="/p/{{ p.id }}/plan?plan={{ im.id }}"><svg class="ic sm"><use href="#i-map"/></svg> layer · boxes from the floor's main plan</a>{% endif %}</div>
     </div>
   {% else %}
     <div class="ph lg">No floor plans yet</div>
