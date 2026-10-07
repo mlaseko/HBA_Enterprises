@@ -96,23 +96,25 @@ def floor_title(s) -> str:
 
 
 def plan_caption(im) -> str:
-    """'Ground floor · A-101 · Furniture Layout'; a layer other than the furniture layout names itself after the floor."""
+    """'Ground floor · A-101 · Rev B'; a layer other than the main plan names itself after the floor ("Ground floor · Electrical
+    & lighting · E-01")."""
     layer = "" if im.is_main_layer else im.layer_title
     return " · ".join(x for x in [floor_title(im.floor), layer, im.sheet, im.caption] if x)
 
 
 def layer_from_title(title: str) -> str:
-    """Which layer a drawing title describes: 'Electrical Layout Plan' -> electrical, 'Reflected Ceiling Plan' -> ceiling,
-    'Floor Finishes Plan' -> flooring, anything else -> furniture (the main plan)."""
+    """Which layer a drawing title describes: 'Ground Floor Plan (Furniture Layout)' -> furnishing, 'Electrical Layout Plan'
+    -> electrical, 'Reflected Ceiling Plan' -> ceiling, 'Floor Finishes Plan' -> flooring, anything else -> main (the
+    general floor plan)."""
     t = (title or "").upper()
     for key, rx in _LAYER_WORDS:
         if rx.search(t):
             return key
-    return "furniture"
+    return config.MAIN_LAYER
 
 
 def layer_for_category(category: str) -> str:
-    return config.CATEGORY_LAYER.get(category or "", "furniture")
+    return config.CATEGORY_LAYER.get(category or "", config.MAIN_LAYER)
 
 
 def plans(p) -> list:
@@ -144,15 +146,16 @@ def plans_by_floor(p) -> dict[str, list]:
 
 
 def plans_for_floor(p, floor) -> list:
-    """The plans of a floor, the main one first, then the other layers in id order. The main plan is the furniture
-    layout; with two furniture layouts on one floor (a dimension plan and a furniture plan, say) the one that carries
-    room boxes comes first, so the sheet the designer marked is the one the others borrow from."""
+    """The plans of a floor, the main one first, then the other layers in id order. The main plan is the sheet set to
+    "Main plan" (the general floor plan); with two of them on one floor the one that carries room boxes comes first, so
+    the sheet the designer marked is the one the others borrow from. A floor with only layers (a lone furniture layout)
+    gets its first layer as the stand-in main plan."""
     fl = plans_by_floor(p).get(floor_key(floor), [])
     return sorted(fl, key=lambda im: (not im.is_main_layer, not im.pins, im.id))
 
 
 def main_plan(p, floor):
-    """The main plan of a floor: its furniture layout, else its first plan. None without a plan on that floor."""
+    """The main plan of a floor: its general floor plan, else its first sheet. None without a plan on that floor."""
     fl = plans_for_floor(p, floor)
     return fl[0] if fl else None
 
@@ -177,37 +180,40 @@ def pins_for(p, im) -> list:
 
 
 def plan_role(p, im) -> str:
-    """What a floor plan is to its floor, for the Images & plans page: 'main' (the plan the others borrow boxes from),
-    'twin' (another furniture layout of a floor that already has a main plan), 'layer' (electrical, plumbing, ceiling,
-    flooring), '' (untagged or a whole-house / outside plan)."""
+    """What a floor plan is to its floor, for the Images & plans page: 'main' (the plan the others borrow boxes from; a lone
+    furniture layout stands in), 'twin' (a second general plan of a floor that already has a main plan), 'layer'
+    (furniture layout, electrical, plumbing, ceiling, flooring), '' (untagged or a whole-house / outside plan)."""
     if im is None or not im.floor or is_pseudo(im.floor):
         return ""
-    if not im.is_main_layer:
-        return "layer"
     main = main_plan(p, im.floor)
-    return "main" if main is None or main.id == im.id else "twin"
+    if main is not None and main.id == im.id:
+        return "main"
+    return "layer" if not im.is_main_layer else "twin"
 
 
 def legacy_layer_hint(p, im) -> dict | None:
     """Plans from before layers existed were filed as separate floors: "Ground Electrical", "First Floor Plumbing", or
-    floor "Ground" with the caption "Lighting layout". For such a plan, still marked as a furniture layout, the floor and
-    layer it should probably carry: {"floor": "Ground", "layer": "electrical"}. None when nothing suggests a layer.
-    The floor spelling follows the project's own (rooms first) when the stripped name matches one."""
+    floor "Ground" with the caption "Lighting layout". For such a plan, still set as a main plan, the floor and layer it
+    should probably carry: {"floor": "Ground", "layer": "electrical"}. None when nothing suggests a layer, and for a
+    furniture layout that would leave its floor without a main plan. The floor spelling follows the project's own
+    (rooms first) when the stripped name matches one."""
     if im is None or im.kind != "floorplan" or not im.is_main_layer or not im.floor or is_pseudo(im.floor):
         return None
     layer = layer_from_title(im.floor)
     floor = im.floor
-    if layer != "furniture":
+    if layer != config.MAIN_LAYER:
         floor = _FLOOR_NOISE_RE.sub(" ", _LAYER_CAPTION_RE.sub(" ", im.floor))
         floor = " ".join(floor.split()).strip(" -:;,·/&")
     else:
         layer = layer_from_title(im.caption)
-    if layer == "furniture" or not floor or is_pseudo(floor):
+    if layer == config.MAIN_LAYER or not floor or is_pseudo(floor):
         return None
     k = floor_key(floor)
     floor = next((f for f in floor_order(p) if floor_key(f) == k), floor)
-    return {"floor": floor, "layer": layer, "title": config.LAYER_TITLES[layer], "floor_title": floor_title(floor),
-            "has_main": any(x.id != im.id and x.is_main_layer for x in plans_for_floor(p, floor))}
+    has_main = any(x.id != im.id and x.is_main_layer for x in plans_for_floor(p, floor))
+    if layer == "furnishing" and not has_main:
+        return None
+    return {"floor": floor, "layer": layer, "title": config.LAYER_TITLES[layer], "floor_title": floor_title(floor), "has_main": has_main}
 
 
 def plan_for_room(p, room):
@@ -340,9 +346,10 @@ _PLAN_RE = _re.compile(r"\b(FLOOR\s+PLAN|ROOF\s+PLAN|SITE\s+(?:LAYOUT\s+)?PLAN|S
 # title blocks often list the consultants ("STRUCTURAL ENGINEER: ...") on the same text line as the title.
 _NOT_PLAN_RE = _re.compile(r"SEWER|STRUCT|FOUNDATION|FOOTING|BEAM|SLAB|COLUMN|FRAMING|TRUSS|REINFORC|HVAC|MECHANICAL|DUCT|"
                            r"FIRE\s+(?:FIGHTING|PROTECTION|ALARM)")
-_LAYER_WORDS = [("electrical", _re.compile(r"ELECTRIC|LIGHTING|POWER|SOCKET|SWITCH")), ("plumbing", _re.compile(r"PLUMB|SANIT|DRAIN|WATER\s+SUPPLY")),
+_LAYER_WORDS = [("furnishing", _re.compile(r"FURNITURE|FURNISH")),
+                ("electrical", _re.compile(r"ELECTRIC|LIGHTING|POWER|SOCKET|SWITCH")), ("plumbing", _re.compile(r"PLUMB|SANIT|DRAIN|WATER\s+SUPPLY")),
                 ("ceiling", _re.compile(r"CEILING|REFLECTED|\bRCP\b")), ("flooring", _re.compile(r"FLOOR\s+FINISH|FLOORING|\bTIL(?:E|ES|ING)\b"))]
-_LAYER_CAPTION_RE = _re.compile(r"(?i)\b(electrical|lighting|power|plumbing|sanitary|drainage|water supply|ceiling|reflected|flooring|floor finish(?:es)?|tiles?|tiling|layout)\b")
+_LAYER_CAPTION_RE = _re.compile(r"(?i)\b(furniture|furnishings?|electrical|lighting|power|plumbing|sanitary|drainage|water supply|ceiling|reflected|flooring|floor finish(?:es)?|tiles?|tiling|layout)\b")
 # What a legacy floor name may carry besides the floor and the layer word: "Ground Electrical Plan" -> "Ground".
 _FLOOR_NOISE_RE = _re.compile(r"(?i)\b(plan|plans|sheet|drawing|dwg|layout)\b")
 # Longer names first: "LOWER GROUND" must win over "GROUND".
@@ -454,13 +461,15 @@ def read_title_block(text: str) -> dict:
     return {"title": title, "sheet": _sheet_from(up).replace(" ", "-")[:60], "floor": floor, "is_plan": is_plan}
 
 
-def caption_from_title(title: str) -> str:
+def caption_from_title(title: str, layer: str | None = None) -> str:
     """What is worth keeping as the plan's caption: the title without the floor and the words plan/layout, since
-    plan_caption() already prints the floor and the sheet. 'Ground Floor Plan (Furniture Layout)' -> 'Furniture Layout'."""
+    plan_caption() already prints the floor and the sheet. 'Ground Floor Plan (Dimension Details)' -> 'Dimension Details'.
+    For a sheet that becomes a layer (`layer`, else what the title says) the layer words go too: the layer label already
+    reads "Furniture layout" or "Electrical & lighting"."""
     t = title or ""
     t = _re.sub(r"(?i)\b(lower|upper)?\s*(ground|first|second|third|fourth|basement|mezzanine|penthouse|roof|site)\b", " ", t)
     t = _re.sub(r"(?i)\b(floor|plan)\b", " ", t)
-    if layer_from_title(title) != "furniture":
+    if (layer or layer_from_title(title)) != config.MAIN_LAYER:
         t = _LAYER_CAPTION_RE.sub(" ", t)  # the layer label already says "Electrical & lighting"; no need to repeat it
     t = t.replace("(", " ").replace(")", " ")
     t = " ".join(t.split()).strip(" -:;,")

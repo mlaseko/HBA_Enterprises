@@ -35,13 +35,21 @@ def get_db():
 COLUMN_MIGRATIONS = [
     ("items", "draft", "BOOLEAN NOT NULL DEFAULT FALSE"),           # quick-capture drafts
     ("rooms", "kind", "VARCHAR(10) NOT NULL DEFAULT 'room'"),       # room | area
-    ("project_images", "layer", "VARCHAR(20) NOT NULL DEFAULT 'furniture'"),  # what a floor plan shows (config.PLAN_LAYERS)
+    ("project_images", "layer", "VARCHAR(20) NOT NULL DEFAULT 'main'"),  # what a floor plan shows (config.PLAN_LAYERS)
     ("item_photos", "thumb_key", "VARCHAR(255) NOT NULL DEFAULT ''"),  # the small copy of a photo ('' = not made yet, '-' = cannot be made)
+]
+
+# Data fixes for rows written by an older version. Each must be idempotent (safe to run at every start, by several instances):
+# the main plan of a floor used to be stored as "furniture"; that key now belongs to no layer (the furniture layout is
+# "furnishing"), so relabelling it matches nothing new.
+DATA_MIGRATIONS = [
+    ("project_images", "layer", "UPDATE project_images SET layer = 'main' WHERE layer = 'furniture'"),
 ]
 
 
 def migrate(eng=None) -> list[str]:
-    """Add the columns in COLUMN_MIGRATIONS that the database does not have yet. Returns what was added."""
+    """Add the columns in COLUMN_MIGRATIONS that the database does not have yet, then apply DATA_MIGRATIONS.
+    Returns what was added or changed."""
     eng = eng or engine
     insp = inspect(eng)
     tables = set(insp.get_table_names())
@@ -60,4 +68,11 @@ def migrate(eng=None) -> list[str]:
                 raise
             continue
         added.append(f"{table}.{column}")
+    for table, column, sql in DATA_MIGRATIONS:
+        if table not in tables or column not in {c["name"] for c in inspect(eng).get_columns(table)}:
+            continue
+        with eng.begin() as conn:
+            n = conn.execute(text(sql)).rowcount
+        if n and n > 0:
+            added.append(f"{table}.{column}: {n} rows relabelled")
     return added

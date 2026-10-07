@@ -44,7 +44,7 @@ app/storage.py         save_image(max_px=)/save_blob/read_image/delete_image —
 app/drawings.py        floor plans: render_page()/page_count() via pypdfium2 (optional import), floor_key()/floor_title()
                        matching plans to Room.floor, rooms_by_floor(), plan_for_room(), client_plans();
                        interactive plan: rooms_for_plan(), pins_by_room(), plan_with_room(), default_plan(), clamp_box(), clamp_point();
-                       layers: main_plan(), plans_for_floor() (main first: the furniture layout with boxes), borrowed_from(), pins_for(),
+                       layers: main_plan(), plans_for_floor() (main first: the general plan with boxes; a lone layer stands in), borrowed_from(), pins_for(),
                        layer_from_title(), layer_for_category(), plan_role() (main | twin | layer), legacy_layer_hint() ("Ground Electrical" → layer);
                        rooms vs areas: split_kinds(), count_label(); PDF title blocks: page_text(), read_title_block();
                        zoomed room: crop_rect(), room_zoom() (card data), render_room_crop() (Pillow crop for the checklist PDF)
@@ -167,7 +167,8 @@ Deploy = push to GitHub, then in Replit pull the repo and redeploy. Secrets (Rep
 `APP_PASSWORD`, `SECRET_KEY`, `DATABASE_URL` (Neon), `ANTHROPIC_API_KEY` (optional), `STORAGE_BACKEND=replit` (+ Object Storage bucket) or
 `s3` with `S3_*`.
 
-- Plan layers: `ProjectImage.layer` (config.PLAN_LAYERS; furniture = the floor's main plan). Room boxes live on the main plan;
+- Plan layers: `ProjectImage.layer` (config.PLAN_LAYERS; `main` = the floor's general floor plan, `furnishing` = a furniture
+  layout, then electrical / plumbing / ceiling / flooring; `config.MAIN_LAYER`). Room boxes live on the main plan;
   another sheet of the same floor shows them through `drawings.pins_for()` (borrowed) until it has `RoomPin`s of its own
   (`POST /plan/pins/copy`). Always read boxes through `pins_for()` / `room_zoom()`, never `im.pins`, unless you mean "own boxes"
   (the Images page count, `pins_by_room`, mark mode). Item dots (`ItemPin`) stay per sheet. `CATEGORY_LAYER` decides which
@@ -180,7 +181,8 @@ Applied automatically at startup by `db.migrate()` from `db.COLUMN_MIGRATIONS` (
 ```sql
 ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;      -- quick capture drafts
 ALTER TABLE rooms ADD COLUMN kind  VARCHAR(10) NOT NULL DEFAULT 'room';  -- room | area
-ALTER TABLE project_images ADD COLUMN layer VARCHAR(20) NOT NULL DEFAULT 'furniture';  -- what a floor plan shows
+ALTER TABLE project_images ADD COLUMN layer VARCHAR(20) NOT NULL DEFAULT 'main';       -- what a floor plan shows
+UPDATE project_images SET layer = 'main' WHERE layer = 'furniture';                      -- db.DATA_MIGRATIONS: the main plan's old name
 ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';           -- the small copy of a photo
 ```
 
@@ -256,11 +258,12 @@ ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';  
   Project collections stay lazy because the project switcher loads every project on every page). Measured on the Kinondoni
   import with 40 photos: Overview 49 → 20 queries, Items 220 → 16, client link 256 → 23, schedule PDF 218 → 18.
 
-- **Plan layers.** `ProjectImage.layer` (furniture | electrical | plumbing | ceiling | flooring, `config.PLAN_LAYERS`); the
+- **Plan layers.** `ProjectImage.layer` (main | furnishing | electrical | plumbing | ceiling | flooring, `config.PLAN_LAYERS`; the
+  main plan was first stored as "furniture", relabelled by `db.DATA_MIGRATIONS`); the
   Plan page has one tab per floor and a `plan-layers` switch for the floor's sheets (`stage_ctx` → `tabs`, `layers`,
   `borrowed`); boxes are borrowed from the main plan (`drawings.pins_for`), "Mark rooms" on a borrowing sheet shows the
   copy card (`copy_from`) and `POST /plan/pins/copy` copies them. Upload form, page picker (`layer_<k>`, prefilled by
-  `layer_from_title`) and the tag form carry the layer; `plan_caption` names non-furniture layers. The reader now accepts
+  `layer_from_title`) and the tag form carry the layer; `plan_caption` names the non-main layers. The reader now accepts
   electrical / plumbing / ceiling / flooring plan titles (`_PLAN_RE`) and rejects only structural / mechanical / fire
   (`_NOT_PLAN_RE`). PDFs: the category schedule prints each floor's main plan in the overview and a category's layer
   sheets before its table (`layer_for_category`); the room checklist adds a page per other sheet with the room's dots.
@@ -281,9 +284,12 @@ ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';  
   only rows that actually changed count as updated. Codes are never rewritten by an update.
 
 - **Plan roles, legacy layers, the Item list and sorting.** Images & plans names each plan's role under its picture
-  (`drawings.plan_role`: main | twin | layer; `plans_for_floor` now puts the furniture layout that carries boxes first, so the
-  sheet the designer marked is the main plan even with two furniture layouts on a floor) and the "Shows" select calls the
-  furniture layout "(main plan)" (`config.LAYER_OPTIONS`). A plan from before layers filed as its own floor ("Ground
+  (`drawings.plan_role`: main | twin | layer; `plans_for_floor` puts the general plan that carries boxes first, so the sheet
+  the designer marked is the main plan even with two general plans on a floor; a floor with only layers uses its first one
+  as the stand-in main plan) and the "Shows" select reads "Main plan (general floor plan)" (`config.LAYER_OPTIONS`).
+  The furniture layout is its own layer (`furnishing`): the title-block reader maps "Furniture Layout" titles to it, except
+  that the page picker promotes a floor's only furniture layout to the main plan; `legacy_layer_hint` never suggests
+  turning a floor's only sheet into a furniture layer. A plan from before layers filed as its own floor ("Ground
   Electrical") gets `drawings.legacy_layer_hint` → a yellow one-press form posting floor + layer to the existing
   `POST /p/<id>/images/<image_id>`. The Items page has a three-way view switch (`?view=cards|table|list`, filters kept via
   `qs`): the Table and the new Item list (`items.group_items`: one line per product name across rooms, qty / value summed,

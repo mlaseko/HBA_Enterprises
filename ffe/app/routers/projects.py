@@ -85,7 +85,7 @@ def _plan_sets_ctx(p: Project) -> dict:
     for im in drawings.plans(p):
         if im.tag and im.tag.set_id:
             added[im.tag.set_id] = added.get(im.tag.set_id, 0) + 1
-        roles[im.id] = drawings.plan_role(p, im)  # main plan of its floor, a layer, or a second furniture layout
+        roles[im.id] = drawings.plan_role(p, im)  # main plan of its floor, a layer, or a second general plan
         hints[im.id] = drawings.legacy_layer_hint(p, im)  # "Ground Electrical" filed as a floor: offer to make it a layer
     return dict(floors=drawings.floor_order(p), sets=p.drawing_sets, added_count=added, pdf_ok=drawings.available(), roles=roles, hints=hints)
 
@@ -97,11 +97,11 @@ def images(request: Request, p: Project = Depends(get_project), err: str = "", o
 
 def _layer(value) -> str:
     v = str(value or "").strip().lower()
-    return v if v in config.LAYER_TITLES else "furniture"
+    return v if v in config.LAYER_TITLES else config.MAIN_LAYER  # unknown (an old "furniture" form, say) = the main plan
 
 
 def _add_plan(db: Session, p: Project, floor: str, sheet: str, caption: str, *, data: bytes | None = None,
-              hires: bytes | None = None, set_id: int | None = None, page_no: int | None = None, layer: str = "furniture") -> ProjectImage:
+              hires: bytes | None = None, set_id: int | None = None, page_no: int | None = None, layer: str = config.MAIN_LAYER) -> ProjectImage:
     """One floor plan = 1600 px preview (file_key) + full-size copy (tag.hires_key).
     Pass `data` (any image upload) or `hires` (a JPEG already rendered at PLAN_MAX_PX, stored as is)."""
     if hires is None:
@@ -150,7 +150,7 @@ async def upload_images(p: Project = Depends(get_project), db: Session = Depends
 
 @router.post("/p/{project_id}/images/plans")
 async def upload_plans(p: Project = Depends(get_project), db: Session = Depends(get_db), floor: str = Form(""),
-                       sheet: str = Form(""), caption: str = Form(""), layer: str = Form("furniture"), files: list[UploadFile] = File(...)):
+                       sheet: str = Form(""), caption: str = Form(""), layer: str = Form(config.MAIN_LAYER), files: list[UploadFile] = File(...)):
     """Floor plans: JPG/PNG are added at once (tagged); a PDF becomes a drawing set whose pages are picked next.
 
     One bad file never loses the others: every file is tried, what worked is committed, and the errors are shown together.
@@ -228,8 +228,17 @@ def pick_pages(request: Request, set_id: int, p: Project = Depends(get_project),
     ds = _get_set(db, p, set_id)
     added = {im.tag.page_no: im for im in drawings.plans(p) if im.tag and im.tag.set_id == ds.id}
     meta = {m.page_no: m for m in ds.page_meta}
-    captions = {k: drawings.caption_from_title(m.title) for k, m in meta.items()}
     layers = {k: drawings.layer_from_title(m.title) for k, m in meta.items()}  # which layer each page's title says it is
+    # A floor whose only plan pages are furniture layouts gets the first of them as its main plan: nothing else would carry
+    # the room boxes. With a plain floor plan on the floor (in this PDF or already added) the furniture layout stays a layer.
+    for k, m in sorted(meta.items()):
+        if k in added or not m.is_plan or layers[k] != "furnishing" or not m.floor or drawings.is_pseudo(m.floor):
+            continue
+        fk = drawings.floor_key(m.floor)
+        in_pdf = any(layers[j] == config.MAIN_LAYER and meta[j].is_plan and j not in added and drawings.floor_key(meta[j].floor) == fk for j in meta)
+        if not in_pdf and not any(im.is_main_layer for im in drawings.plans_for_floor(p, m.floor)):
+            layers[k] = config.MAIN_LAYER
+    captions = {k: drawings.caption_from_title(m.title, layers[k]) for k, m in meta.items()}
     return render(request, "projects/pdf_pages.html", p=p, set=ds, pages=range(1, ds.pages + 1), added=added, meta=meta, captions=captions, layers=layers,
                   floors=drawings.floor_order(p), floor=floor[:40], sheet=sheet[:60], err=err[:200],
                   n_suggested=sum(1 for k, m in meta.items() if m.is_plan and k not in added))
@@ -256,7 +265,7 @@ async def pick_pages_save(request: Request, set_id: int, p: Project = Depends(ge
             db.commit()
             return redirect(f"{back}?err={quote(str(e))}")
         _add_plan(db, p, str(form.get(f"floor_{k}", "")), str(form.get(f"sheet_{k}", "")), str(form.get(f"caption_{k}", "")),
-                  hires=jpeg, set_id=ds.id, page_no=k, layer=str(form.get(f"layer_{k}", "furniture")))
+                  hires=jpeg, set_id=ds.id, page_no=k, layer=str(form.get(f"layer_{k}", config.MAIN_LAYER)))
     db.commit()
     return redirect(f"/p/{p.id}/images?ok={quote(f'{len(picked)} page(s) added as floor plans')}#plans")
 

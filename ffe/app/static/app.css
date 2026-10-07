@@ -203,6 +203,9 @@ tbody tr:hover td,tr:hover td{background:var(--surface-2)}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 td.nowrap{white-space:nowrap}
 .tbl table td:first-child,.tbl table th:first-child{padding-left:16px}.tbl table td:last-child,.tbl table th:last-child{padding-right:16px}
+/* the page picker: the Shows select gets a label of its own, so main plan vs layer is a visible choice */
+.pages .page .shows{display:grid;gap:4px}
+.pages .page .shows label{font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 /* sortable tables (app.js): a header with data-sort is a button; the small arrow shows the current order */
 table.sortable th[data-sort]{cursor:pointer;user-select:none}
 table.sortable th[data-sort]:hover,table.sortable th[aria-sort]{color:var(--ink)}
