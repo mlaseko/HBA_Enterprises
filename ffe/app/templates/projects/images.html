@@ -37,7 +37,7 @@
     <div><label for="fp-floor">Floor</label><input id="fp-floor" class="in" type="text" name="floor" list="floors" placeholder="Ground" autocomplete="off"></div>
     <div><label for="fp-sheet">Sheet ref (optional)</label><input id="fp-sheet" class="in" type="text" name="sheet" placeholder="A-104 Rev A"></div>
     <div><label for="fp-cap">Caption (optional)</label><input id="fp-cap" class="in" type="text" name="caption" placeholder="e.g. Rev B"></div>
-    <div><label for="fp-layer">Shows</label><select id="fp-layer" name="layer" class="in">{% for key, title in LAYER_OPTIONS %}<option value="{{ key }}">{{ title }}</option>{% endfor %}</select><div class="help">The furniture layout is a floor's main plan and carries the room boxes; an electrical or plumbing sheet with the same floor name becomes a layer of it.</div></div>
+    <div><label for="fp-layer">Shows</label><select id="fp-layer" name="layer" class="in">{% for key, title in LAYER_OPTIONS %}<option value="{{ key }}">{{ title }}</option>{% endfor %}</select><div class="help">The <b>main plan</b> is the architect's general floor plan of the floor: it carries the room boxes. A furniture layout, electrical or plumbing sheet with the same floor name becomes a layer on top of it.</div></div>
     <div class="span2"><label for="fp-files">Plan images or a PDF drawing set</label><input id="fp-files" type="file" name="files" accept="image/*,application/pdf,.pdf" data-maxpx="{{ PLAN_MAX_PX }}" multiple required><div class="filehint help"></div></div>
   </div>
   <div class="form-actions">
@@ -79,7 +79,7 @@
 </form>
 
 <div class="moodboard">
-{% for kind, title, hint in [('cover', 'Cover', 'The first page of the client schedule.'), ('floorplan', 'Floor plans', 'Tag each plan with its floor and what it shows. The furniture layout is the main plan of its floor and carries the room boxes; an electrical, plumbing, ceiling or flooring sheet with the same floor name is a layer of it. Untagged plans print up front.'), ('mood', 'Mood board', 'Six images per page, with captions.')] %}
+{% for kind, title, hint in [('cover', 'Cover', 'The first page of the client schedule.'), ('floorplan', 'Floor plans', 'Tag each plan with its floor and what it shows. One sheet per floor is the main plan (the general floor plan) and carries the room boxes; a furniture layout, electrical, plumbing, ceiling or flooring sheet with the same floor name is a layer of it. Untagged plans print up front.'), ('mood', 'Mood board', 'Six images per page, with captions.')] %}
 {% set imgs = p.images|selectattr('kind', 'equalto', kind)|list %}
 <div class="card">
   <div class="row between top">
@@ -101,12 +101,12 @@
       </form>
       <div class="cap">{% if im.floor %}{{ plan_caption(im) }}{% else %}<span class="pill red">Untagged</span> prints up front{% endif %}{% if im.tag and im.tag.set_id %} · p.{{ im.tag.page_no }}{% endif %}</div>
       {% set role = roles.get(im.id, '') %}{% set hint = hints.get(im.id) %}
-      <div class="cap role">{% if role == 'main' %}<span class="pill accent">Main plan</span> {{ im.floor|floor_title }}{% elif role == 'twin' %}<span class="pill">Not the main plan</span> another furniture layout of {{ im.floor|floor_title }} carries the boxes{% elif role == 'layer' %}<span class="pill">Layer</span> of {{ im.floor|floor_title }}{% endif %}</div>
+      <div class="cap role">{% if role == 'main' %}<span class="pill accent">Main plan</span> {{ im.floor|floor_title }}{% elif role == 'twin' %}<span class="pill">Not the main plan</span> another sheet of {{ im.floor|floor_title }} is the main plan and carries the boxes{% elif role == 'layer' %}<span class="pill">Layer</span> of {{ im.floor|floor_title }}{% endif %}</div>
       <div class="cap">{% if im.is_main_layer or im.pins %}<a href="/p/{{ p.id }}/plan?plan={{ im.id }}&amp;mode=mark"><svg class="ic sm"><use href="#i-map"/></svg> {{ im.pins|length }} room{{ 's' if im.pins|length != 1 }} marked · mark rooms</a>{% else %}<a href="/p/{{ p.id }}/plan?plan={{ im.id }}"><svg class="ic sm"><use href="#i-map"/></svg> boxes from the floor's main plan</a>{% endif %}</div>
       {% if hint %}
       <form method="post" action="/p/{{ p.id }}/images/{{ im.id }}" class="plan-hint">
         <input type="hidden" name="floor" value="{{ hint.floor }}"><input type="hidden" name="sheet" value="{{ im.sheet }}"><input type="hidden" name="caption" value="{{ im.caption }}"><input type="hidden" name="layer" value="{{ hint.layer }}">
-        <div class="small">Looks like the <b>{{ hint.title|lower }}</b> sheet of <b>{{ hint.floor_title }}</b>{% if not hint.has_main %}, which has no furniture layout yet{% endif %}. One press files it as a layer there: floor "{{ hint.floor }}", shows {{ hint.title|lower }}.</div>
+        <div class="small">Looks like the <b>{{ hint.title|lower }}</b> sheet of <b>{{ hint.floor_title }}</b>{% if not hint.has_main %}, which has no main plan yet{% endif %}. One press files it as a layer there: floor "{{ hint.floor }}", shows {{ hint.title|lower }}.</div>
         <button class="btn sm"><svg class="ic"><use href="#i-sparkle"/></svg>Make it a layer of {{ hint.floor_title }}</button>
       </form>
       {% endif %}

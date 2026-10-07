@@ -598,12 +598,12 @@ with TestClient(app) as c:
     c.post(f"/p/{pid_l}/images/plans", data={"floor":"Ground","sheet":"E-01","layer":"electrical"}, files=[("files",("e.jpg",img("blue"),"image/jpeg"))], follow_redirects=False)
     c.post(f"/p/{pid_l}/images/plans", data={"floor":"Roof","sheet":"A-103","layer":"bogus"}, files=[("files",("r.jpg",img("gray"),"image/jpeg"))], follow_redirects=False)
     db=SessionLocal(); lp={im.sheet:im for im in db.query(ProjectImage).filter(ProjectImage.project_id==int(pid_l))}; lr={x.code:x.id for x in db.query(Room).filter(Room.project_id==int(pid_l))}
-    assert lp["E-01"].layer=="electrical" and lp["A-101"].layer=="furniture" and lp["A-103"].layer=="furniture" and _dr2.plan_caption(lp["E-01"])=="Ground floor · Electrical & lighting · E-01" and _dr2.plan_caption(lp["A-101"])=="Ground floor · A-101 · Furniture Layout"
+    assert lp["E-01"].layer=="electrical" and lp["A-101"].layer=="main" and lp["A-103"].layer=="main" and _dr2.plan_caption(lp["E-01"])=="Ground floor · Electrical & lighting · E-01" and _dr2.plan_caption(lp["A-101"])=="Ground floor · A-101 · Furniture Layout"
     gid_l,eid_l=lp["A-101"].id,lp["E-01"].id; db.close()
     for code,box in (("GF-KIT",(0.1,0.1,0.3,0.3)),("GF-LIV",(0.5,0.1,0.4,0.3))): c.post(f"/p/{pid_l}/plan/pins", data={"image_id":gid_l,"room_id":lr[code],"x":box[0],"y":box[1],"w":box[2],"h":box[3]}, headers={"Accept":"application/json"})
-    r=c.get(f"/p/{pid_l}/plan"); h=r.text; assert h.count('<span class="t">Ground floor</span>')==1 and '<span class="t">Roof</span>' in h and 'class="plan-layers"' in h and "Furniture layout" in h and "Electrical &amp; lighting" in h and "2 sheets" in h and f'data-plan="{gid_l}"' in h
-    r=c.get(f"/p/{pid_l}/plan?plan={eid_l}"); h=r.text; assert len(re.findall(r'class="pin[" ]', h))==2 and "boxes from the furniture layout" in h and "2 of 3 placed" in h and f'data-plan="{eid_l}"' in h  # borrowed boxes
-    r=c.get(f"/p/{pid_l}/plan?plan={eid_l}&mode=mark"); h=r.text; assert "Boxes borrowed from the furniture layout" in h and "Copy the 2 boxes here" in h and 'data-mode=""' in h and "Done marking" not in h
+    r=c.get(f"/p/{pid_l}/plan"); h=r.text; assert h.count('<span class="t">Ground floor</span>')==1 and '<span class="t">Roof</span>' in h and 'class="plan-layers"' in h and "Main plan" in h and "Electrical &amp; lighting" in h and "2 sheets" in h and f'data-plan="{gid_l}"' in h
+    r=c.get(f"/p/{pid_l}/plan?plan={eid_l}"); h=r.text; assert len(re.findall(r'class="pin[" ]', h))==2 and "boxes from the main plan" in h and "2 of 3 placed" in h and f'data-plan="{eid_l}"' in h  # borrowed boxes
+    r=c.get(f"/p/{pid_l}/plan?plan={eid_l}&mode=mark"); h=r.text; assert "Boxes borrowed from the main plan" in h and "Copy the 2 boxes here" in h and 'data-mode=""' in h and "Done marking" not in h
     c.post(f"/p/{pid_l}/items/new", data={"room_ids":[str(lr["GF-KIT"])],"category":"Lighting","name":"Pendant","qty":"1","unit":"pcs","unit_price":"500","status":"To buy"}, follow_redirects=False)
     c.post(f"/p/{pid_l}/items/new", data={"room_ids":[str(lr["GF-KIT"])],"category":"Furniture","name":"Stool","qty":"2","unit":"pcs","unit_price":"200","status":"To buy"}, follow_redirects=False)
     db=SessionLocal(); li={i.name:i.id for i in db.query(Item).filter(Item.project_id==int(pid_l))}; db.close()
@@ -632,7 +632,7 @@ with TestClient(app) as c:
     assert _dr2.legacy_layer_hint(prl, lp["A-101"]) is None and _dr2.legacy_layer_hint(prl, lp["E-01"]) is None and _dr2.plan_role(prl, lp["A-101"])=="main" and _dr2.plan_role(prl, lp["E-01"])=="layer" and _dr2.plan_role(prl, leg)=="main"
     db.close()
     r=c.get(f"/p/{pid_l}/images"); h=r.text
-    assert "Furniture layout (main plan)" in h and 'Looks like the <b>electrical &amp; lighting</b> sheet of <b>Ground floor</b>.' in h and f'action="/p/{pid_l}/images/{leg_id}" class="plan-hint"' in h and h.count('class="plan-hint"')==1
+    assert "Main plan (general floor plan)" in h and 'Looks like the <b>electrical &amp; lighting</b> sheet of <b>Ground floor</b>.' in h and f'action="/p/{pid_l}/images/{leg_id}" class="plan-hint"' in h and h.count('class="plan-hint"')==1
     assert 'name="floor" value="Ground"><input type="hidden" name="sheet" value="BS4449"><input type="hidden" name="caption" value=""><input type="hidden" name="layer" value="electrical">' in h and "Make it a layer of Ground floor" in h
     assert h.count('<span class="pill accent">Main plan</span> Ground floor')==1 and '<span class="pill">Layer</span> of Ground floor' in h and "Main plan</span> Ground Electrical" in h
     r=c.post(f"/p/{pid_l}/images/{leg_id}", data={"floor":"Ground","sheet":"BS4449","caption":"","layer":"electrical"}, follow_redirects=False); assert r.status_code==303
@@ -649,7 +649,7 @@ with TestClient(app) as c:
     assert _dr2.main_plan(prt,"Ground").id==tp["A-100"] and _dr2.plan_role(prt, db.get(ProjectImage, tp["A-101"]))=="twin" and _dr2.plan_role(prt, db.get(ProjectImage, tp["A-100"]))=="main"; db.close()  # no boxes yet: the first sheet
     c.post(f"/p/{pid_t}/plan/pins", data={"image_id":tp["A-101"],"room_id":tk,"x":0.1,"y":0.1,"w":0.3,"h":0.3}, headers={"Accept":"application/json"})
     db=SessionLocal(); prt=db.get(_P,int(pid_t)); assert _dr2.main_plan(prt,"Ground").id==tp["A-101"] and _dr2.plan_role(prt, db.get(ProjectImage, tp["A-100"]))=="twin" and _dr2.plan_for_room(prt, db.get(Room, tk)).id==tp["A-101"]; db.close()  # the marked sheet is the main plan
-    r=c.get(f"/p/{pid_t}/images"); h=r.text; assert '<span class="pill">Not the main plan</span> another furniture layout of Ground floor carries the boxes' in h and h.count('<span class="pill accent">Main plan</span> Ground floor')==1
+    r=c.get(f"/p/{pid_t}/images"); h=r.text; assert '<span class="pill">Not the main plan</span> another sheet of Ground floor is the main plan and carries the boxes' in h and h.count('<span class="pill accent">Main plan</span> Ground floor')==1
     print("legacy layers + main plan ok")
     # the Items page: sortable table columns, and the Item list (one line per product across its rooms)
     from app.routers.items import group_items as _gi
@@ -778,7 +778,10 @@ with TestClient(app) as c:
         cn.execute(_text("INSERT INTO project_images (kind) VALUES ('floorplan')"))
         cn.execute(_text("INSERT INTO item_photos (file_key) VALUES ('p1/old.jpg')"))
     assert _migrate(_eng)==["items.draft", "rooms.kind", "project_images.layer", "item_photos.thumb_key"] and _migrate(_eng)==[]
-    with _eng.connect() as cn: assert cn.execute(_text("SELECT kind FROM rooms")).scalar()=="room" and cn.execute(_text("SELECT layer FROM project_images")).scalar()=="furniture" and cn.execute(_text("SELECT thumb_key FROM item_photos")).scalar()==""
+    with _eng.begin() as cn: cn.execute(_text("INSERT INTO project_images (kind, layer) VALUES ('floorplan', 'furniture')")); cn.execute(_text("INSERT INTO project_images (kind, layer) VALUES ('floorplan', 'furnishing')"))
+    assert _migrate(_eng)==["project_images.layer: 1 rows relabelled"] and _migrate(_eng)==[]  # the old name of the main plan; a furniture layout stays
+    with _eng.connect() as cn: assert sorted(r[0] for r in cn.execute(_text("SELECT layer FROM project_images")))==["furnishing", "main", "main"]
+    with _eng.connect() as cn: assert cn.execute(_text("SELECT kind FROM rooms")).scalar()=="room" and cn.execute(_text("SELECT layer FROM project_images")).scalar()=="main" and cn.execute(_text("SELECT thumb_key FROM item_photos")).scalar()==""
     # the guess: zones are areas, everything else a room
     for nm, fl, k in [("Entrance","Ground","area"),("Hall & Corridors","Ground","area"),("Living Room","Ground","room"),("Store Room","Ground","room"),
                       ("Carport","Ground","area"),("Kitchen Verandah","Ground","area"),("Stairs Ground to First","Ground","area"),("Landing & Corridor","First","area"),
@@ -832,10 +835,10 @@ with TestClient(app) as c:
     tb=_dr2.read_title_block("FRONT ELEVATION\nALL DIMENSIONS TO BE CHECKED ON SITE\nGROUND FLOOR LEVEL +0.000\nA-201"); assert tb["floor"]=="" and tb["is_plan"] is False and tb["title"]=="", tb
     assert _dr2.read_title_block("LOWER GROUND FLOOR PLAN\nA-100")["floor"]=="Lower ground" and _dr2.read_title_block("UPPER GROUND FLOOR PLAN (FURNITURE LAYOUT)\nA-104")["floor"]=="Upper ground"
     # the caption suggestion keeps only what plan_caption would not print anyway
-    assert _dr2.caption_from_title("Ground Floor Plan (Furniture Layout)")=="Furniture Layout" and _dr2.caption_from_title("Site Layout Plan")=="" and _dr2.caption_from_title("Roof Plan")=="" and _dr2.caption_from_title("Lower Ground Floor Plan (Dimension Details)")=="Dimension Details"
+    assert _dr2.caption_from_title("Ground Floor Plan (Furniture Layout)")=="" and _dr2.caption_from_title("Ground Floor Plan (Furniture Layout)", "main")=="Furniture Layout" and _dr2.caption_from_title("Site Layout Plan")=="" and _dr2.caption_from_title("Roof Plan")=="" and _dr2.caption_from_title("Lower Ground Floor Plan (Dimension Details)")=="Dimension Details"
     assert _dr2.read_title_block("FRONT ELEVATION\n1:100\nA-201")=={"title":"","sheet":"A-201","floor":"","is_plan":False}
     tb=_dr2.read_title_block("ELECTRICAL LAYOUT PLAN - GROUND FLOOR\nE-01"); assert tb["is_plan"] is True and tb["floor"]=="Ground" and tb["sheet"]=="E-01" and _dr2.layer_from_title(tb["title"])=="electrical", tb  # a layer of its floor
-    assert _dr2.layer_from_title("Reflected Ceiling Plan - First Floor")=="ceiling" and _dr2.layer_from_title("Floor Finishes Plan")=="flooring" and _dr2.layer_from_title("Plumbing & Drainage Layout Plan")=="plumbing" and _dr2.layer_from_title("Ground Floor Plan (Furniture Layout)")=="furniture" and _dr2.layer_from_title("")=="furniture"
+    assert _dr2.layer_from_title("Reflected Ceiling Plan - First Floor")=="ceiling" and _dr2.layer_from_title("Floor Finishes Plan")=="flooring" and _dr2.layer_from_title("Plumbing & Drainage Layout Plan")=="plumbing" and _dr2.layer_from_title("Ground Floor Plan (Furniture Layout)")=="furnishing" and _dr2.layer_from_title("")=="main" and _dr2.layer_from_title("Ground Floor Plan")=="main"
     assert _dr2.caption_from_title("Electrical Layout Plan - Ground Floor")=="" and _dr2.caption_from_title("Reflected Ceiling Plan - First Floor")==""
     assert _dr2.read_title_block("STRUCTURAL FRAMING PLAN - GROUND FLOOR\nS-01")["is_plan"] is False and _dr2.read_title_block("HVAC LAYOUT PLAN\nM-01")["is_plan"] is False and _dr2.read_title_block("REFLECTED CEILING PLAN - FIRST FLOOR\nA-401")=={"title":"Reflected Ceiling Plan - First Floor","sheet":"A-401","floor":"First","is_plan":True}
     assert _dr2.read_title_block("SITE LAYOUT PLAN\nA-100")=={"title":"Site Layout Plan","sheet":"A-100","floor":"Site","is_plan":True}
@@ -851,11 +854,20 @@ with TestClient(app) as c:
     tsid=int(r.headers["location"].split("/sets/")[1].split("?")[0])
     r=c.get(f"/p/{pid}/images/sets/{tsid}"); assert r.status_code==200 and "2 pages look like floor plans" in r.text
     assert 'name="page_1" checked' in r.text and 'name="page_2">' in r.text and 'name="page_3" checked' in r.text
-    assert 'name="floor_1" list="floors" value="Ground"' in r.text and 'name="sheet_1" value="A-105"' in r.text and 'name="caption_1" value="Furniture Layout"' in r.text and "Ground Floor Plan (Furniture Layout) · A-105" in r.text
+    sel=lambda h, name: re.search(r'name="%s".*?</select>' % name, h, re.S).group(0)
+    assert 'value="furnishing" selected' in sel(r.text, "layer_1") and 'value="main" selected' in sel(r.text, "layer_3")  # Ground already has a main plan: the furniture layout is a layer of it
+    assert 'name="floor_1" list="floors" value="Ground"' in r.text and 'name="sheet_1" value="A-105"' in r.text and 'name="caption_1" value=""' in r.text and "Ground Floor Plan (Furniture Layout) · A-105" in r.text
     assert 'name="sheet_2" value="A-301"' in r.text and 'name="floor_2" list="floors" value=""' in r.text and 'name="floor_3" list="floors" value="First"' in r.text
     r=c.post(f"/p/{pid}/images/sets/{tsid}/pick", data={"page_1":"on","floor_1":"Ground","sheet_1":"A-105","caption_1":"Furniture Layout"}, follow_redirects=False); assert r.status_code==303
     db=SessionLocal(); newp=db.query(ProjectImage).filter(ProjectImage.project_id==int(pid), ProjectImage.kind=="floorplan").order_by(ProjectImage.id.desc()).first()
     assert newp.caption=="Furniture Layout" and newp.sheet=="A-105" and newp.floor=="Ground" and newp.tag.set_id==tsid and _dr2.plan_caption(newp)=="Ground floor · A-105 · Furniture Layout"; db.close()
+    # a floor whose only plan page is a furniture layout: the picker promotes it to the main plan and keeps the caption
+    r=c.post("/projects/new", data={"client_name":"Solo","name":"Solo layout","rate":"7.1"}, follow_redirects=False); pid_s=r.headers["location"].split("/")[-1]
+    r=c.post(f"/p/{pid_s}/images/plans", data={}, files=[("files",("solo.pdf",pdf_titled([("GROUND FLOOR PLAN (FURNITURE LAYOUT)","A-104"),("GROUND FLOOR ELECTRICAL LAYOUT","E-01")]),"application/pdf"))], follow_redirects=False)
+    r=c.get(r.headers["location"]); h=r.text
+    assert 'value="main" selected' in sel(h, "layer_1") and 'name="caption_1" value="Furniture Layout"' in h and 'value="electrical" selected' in sel(h, "layer_2"), sel(h, "layer_1")
+    r=c.post(f"/p/{pid_s}/images/plans", data={"floor":"Ground","sheet":"A-100","caption":""}, files=[("files",("g.jpg",img("white"),"image/jpeg"))], follow_redirects=False)  # now a general plan exists ...
+    r=c.get(f"/p/{pid_s}/images/sets/{c.get(f'/p/{pid_s}/images').text.split('/images/sets/')[1].split('\"')[0]}"); assert 'value="furnishing" selected' in sel(r.text, "layer_1") and 'name="caption_1" value=""' in r.text  # ... so the furniture layout is prefilled as its layer
     r=c.get(f"/p/{pid}/images/sets/{tsid}"); assert "1 page looks like a floor plan and is ticked" in r.text  # page 3 still suggested, page 1 added
     r=c.post(f"/p/{pid}/images/sets/{tsid}/pick", data={"page_3":"on","floor_3":"First","sheet_3":"A-106"}, follow_redirects=False)
     r=c.get(f"/p/{pid}/images/sets/{tsid}"); assert "nothing more here looks like a floor plan" in r.text and "look like" not in r.text

@@ -8,7 +8,7 @@ from reportlab.lib import colors
 from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, Spacer, Table, TableStyle, PageBreak
 from .common import S, P, img_flowable, money, num, make_doc, footer_factory, base_table_style, today, LIGHT
-from ..config import CATEGORIES
+from ..config import CATEGORIES, MAIN_LAYER
 from .. import drawings, storage
 
 
@@ -255,15 +255,17 @@ def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=T
         toc(titles)
         if plans:
             story.append(Paragraph("FLOOR PLAN OVERVIEW", S["h1"]))
+            tagged = [im for im in drawings.client_plans(p) if im.floor and not drawings.is_pseudo(im.floor)]
+            mains = {drawings.main_plan(p, im.floor).id for im in tagged}  # one sheet per floor (a lone furniture layout stands in)
             for im in drawings.client_plans(p):  # each floor's main plan (and the whole-house / untagged ones); layers print with their category
-                if im.is_main_layer:
+                if im.id in mains or im not in tagged:
                     story += _plan_pages(im, W, H)
         story += _mood_pages(moods, W, H)
         for c in cats:
             items = [i for i in all_items if i.category == c]
             items.sort(key=lambda i: (room_order.get(i.room_id, 9999), i.code))
             layer = drawings.layer_for_category(c)
-            layer_plans = [im for im in drawings.client_plans(p) if im.layer == layer] if layer != "furniture" else []
+            layer_plans = [im for im in drawings.client_plans(p) if im.layer == layer and im.id not in mains] if layer != MAIN_LAYER else []
             if layer_plans:  # the sheets this category is read from: the electrical plans before the lighting schedule, and so on
                 story.append(Paragraph(f"{escape(c.upper())} &mdash; {escape(layer_plans[0].layer_title.upper())} PLAN{'S' if len(layer_plans) > 1 else ''}", S["h1"]))
                 for im in layer_plans:

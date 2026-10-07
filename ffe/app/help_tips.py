@@ -53,7 +53,7 @@ TIPS = {
         what="The cover and mood board of the client schedule, and the floor plans that power the Plan page.",
         steps=["Under <b>Add floor plans</b>, choose the architect's PDF (or JPG / PNG pictures) and press <b>Upload</b>.",
                "For a PDF you then <b>pick the pages</b>: the plan pages arrive ticked with floor, sheet and what they show filled in from the title block.",
-               "Give every plan its <b>floor</b> and what it <b>shows</b> (furniture layout = the main plan, electrical, plumbing, ceiling, flooring) and press <b>Save</b> on it. Then open the plan and <b>mark rooms</b> on the furniture layout.",
+               "Give every plan its <b>floor</b> and what it <b>shows</b>: <b>Main plan</b> for the general floor plan of the floor; Furniture layout, Electrical, Plumbing, Ceiling or Flooring for the other sheets of that floor. Press <b>Save</b> on it. Then open the plan and <b>mark rooms</b> on the main plan.",
                "Under each plan the page says what it is: <b>Main plan</b> of its floor or a <b>Layer</b> of it. A plan from before layers that was filed as its own floor (\"Ground Electrical\") gets a yellow note: one press makes it a layer of that floor.",
                "<b>Add images</b> uploads the cover and the mood board; a web link works too."],
         tips=["Drawings are a reference only: rooms and items are never created from them.",
@@ -61,7 +61,7 @@ TIPS = {
     "pdf_pages": dict(
         title="Pick the plan pages", anchor="plans",
         what="Which pages of this PDF are floor plans, and which floor each one shows.",
-        steps=["The pages whose title block says floor / roof / site plan are already ticked, with floor, sheet, caption and what the sheet shows (furniture layout, electrical, plumbing, ceiling, flooring) filled in.",
+        steps=["The pages whose title block says floor / roof / site plan are already ticked, with floor, sheet, caption and what the sheet shows (main plan, furniture layout, electrical, plumbing, ceiling, flooring) filled in from the title.",
                "Check them: fix a floor or sheet, untick what you do not want, tick what was missed.",
                "Press <b>Add ticked pages</b>. Each one becomes a floor plan of the project."],
         tips=["A scanned PDF has no text to read, so nothing is prefilled: tick and type yourself.",
@@ -75,7 +75,7 @@ TIPS = {
                "Switch floors with the tabs. Zoom with <b>−</b> / <b>Fit</b> / <b>+</b> or pinch."],
         tips=["No boxes yet? Press <b>Mark rooms</b> and drag a box over each room once.",
               "A dot carries the item's photo and status colour. Tap it to open its room with the item highlighted.",
-              "A floor with several sheets (furniture layout, electrical, plumbing…) shows a <b>Sheet</b> switch under the tabs. The room boxes are drawn once, on the furniture layout, and the other sheets borrow them; dots are placed per sheet."]),
+              "A floor with several sheets (main plan, furniture layout, electrical, plumbing…) shows a <b>Sheet</b> switch under the tabs. The room boxes are drawn once, on the main plan, and the other sheets borrow them; dots are placed per sheet."]),
     "plan_mark": dict(
         title="Mark the rooms", anchor="plan",
         what="Tell the plan where each room sits. Done once per plan; a rough box is enough.",
@@ -85,7 +85,7 @@ TIPS = {
                "Press <b>Done marking</b> when you finish."],
         tips=["Rooms of other floors are in the folded list below, in case the floor names do not match.",
               "The box feeds the zoomed view on the Rooms page, the item list and page one of the room checklist PDF.",
-              "Mark the rooms on the floor's furniture layout only. An electrical or plumbing sheet of the same floor borrows those boxes; copy them to that sheet only if it is framed differently."]),
+              "Mark the rooms on the floor's main plan only. A furniture layout, electrical or plumbing sheet of the same floor borrows those boxes; copy them to that sheet only if it is framed differently."]),
     "items": dict(
         title="Items", anchor="items",
         what="The schedule itself: one line per product per room, with spec, photo, quantity, price, supplier and status.",
