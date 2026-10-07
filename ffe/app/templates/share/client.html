@@ -51,7 +51,7 @@
 <div class="cards">
   {% for i in items %}
   <div class="item-card">
-    {% if i.cover %}<div class="pic"><img src="/media/{{ i.cover.file_key }}" alt="{{ i.name }}"></div>{% else %}<div class="pic empty">no photo</div>{% endif %}
+    {% if i.cover %}<div class="pic"><img src="/media/{{ i.cover.thumb }}" alt="{{ i.name }}"></div>{% else %}<div class="pic empty">no photo</div>{% endif %}
     <div class="body">
       <div class="t">{{ i.name }}</div>
       <div class="m">{{ i.room.name if i.room else 'Whole house' }} · {{ i.qty|num }} {{ i.unit }}{% if i.brand %} · {{ i.brand }}{% endif %}{% if i.size %} · {{ i.size }}{% endif %}{% if i.finish %} · {{ i.finish }}{% endif %}</div>
@@ -76,4 +76,4 @@
   <span>{% if studio.studio_phone %}{{ studio.studio_phone }}{% endif %}{% if studio.studio_email %} · {{ studio.studio_email }}{% endif %}{% if studio.studio_website %} · {{ studio.studio_website }}{% endif %}</span>
 </div>
 {% endblock %}
-{% block scripts %}{% if plan %}<script src="/static/plan.js"></script>{% endif %}{% endblock %}
+{% block scripts %}{% if plan %}<script src="/static/plan.js?v={{ STATIC_V }}"></script>{% endif %}{% endblock %}

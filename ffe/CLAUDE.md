@@ -38,7 +38,9 @@ app/services.py        summary() for dashboards (by_room rows carry kind), sort_
                        next_code(), guess_kind() (room | area from the name),
                        set_price()/copy_price() (CNY storage, USD entry), carton_positions(), container_for()
 app/storage.py         save_image(max_px=)/save_blob/read_image/delete_image — backends: local | replit | s3 (replit is the
-                       default when REPL_ID is set; read_image copies a photo found only on local disk into the bucket)
+                       default when REPL_ID is set; read_image copies a photo found only on local disk into the bucket);
+                       save_photo() = full + small copy (thumb_key), save_thumb(), delete_photo(), prefetch() (parallel warm-up),
+                       an in-memory LRU of served pictures (MEDIA_CACHE_MB) that read_image() fills and delete_image() drops
 app/drawings.py        floor plans: render_page()/page_count() via pypdfium2 (optional import), floor_key()/floor_title()
                        matching plans to Room.floor, rooms_by_floor(), plan_for_room(), client_plans();
                        interactive plan: rooms_for_plan(), pins_by_room(), plan_with_room(), default_plan(), clamp_box(), clamp_point();
@@ -126,7 +128,13 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
 - Share links are random tokens (`SupplierLink.token`, `Project.client_token`); public routes live only in
   `routers/share.py` and the `/s/… /c/…` PDF routes in `exports.py`. Never expose other routes without login.
 - Photos: compressed in the browser (`app.js`) and again server-side (`storage.process_image`, max 1600 px JPEG).
-  Always go through `storage.py`; never write files directly.
+  Always go through `storage.py`; never write files directly. An item photo is made with `storage.save_photo()` (full copy +
+  small copy, `ItemPhoto.thumb_key`) and removed with `storage.delete_photo(ph)`; anywhere a photo is a thumbnail (lists,
+  dots, the room panel, PDF tables) use `ph.thumb`, and `ph.file_key` only to open the full picture.
+- Loading: relationships are eager (`lazy="joined"` many-to-one, `lazy="selectin"` collections) so a page runs a handful of
+  queries on Neon; keep new relationships in that style, and never loop over rows issuing one query each.
+- Pictures are served with a one-year `immutable` cache header because keys are unique and never change content: never
+  overwrite a file under an existing key; save a new one and point the row at it.
 - Schema changes: a new table needs only `models.py` (`create_all`). A new column on an existing table needs
   `models.py` **and** a line in `db.COLUMN_MIGRATIONS` (table, column, SQL type/default); `migrate()` adds it at startup
   on SQLite and Neon, so nothing is run by hand. Still prefer a new table when the data is optional (e.g. `plan_tags`).
@@ -170,6 +178,7 @@ Applied automatically at startup by `db.migrate()` from `db.COLUMN_MIGRATIONS` (
 ALTER TABLE items ADD COLUMN draft BOOLEAN NOT NULL DEFAULT FALSE;      -- quick capture drafts
 ALTER TABLE rooms ADD COLUMN kind  VARCHAR(10) NOT NULL DEFAULT 'room';  -- room | area
 ALTER TABLE project_images ADD COLUMN layer VARCHAR(20) NOT NULL DEFAULT 'furniture';  -- what a floor plan shows
+ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';           -- the small copy of a photo
 ```
 
 ## Done
@@ -236,6 +245,13 @@ ALTER TABLE project_images ADD COLUMN layer VARCHAR(20) NOT NULL DEFAULT 'furnit
   filtered by a room (`room_obj`, `zoom`) and inside each marked entry on the Rooms page (`zooms`); rows carry
   `id="item-<id>"` so a dot can highlight its item. `pdf/packing.room_checklist` page one = `render_room_crop` when the
   room has a box. A rough box is enough: the crop pads it and the dots are drawn from the item pins.
+
+- **Speed.** Small copies of item photos (`save_photo`, `thumb_key`, `ph.thumb`; Settings → Speed backfills older photos 60
+  at a time via `POST /settings/thumbs`), an in-memory picture cache in `storage.py` with `prefetch()` for the PDFs, a
+  one-year `immutable` header on `/media`, gzip for pages, a `?v=` stamp (`common.STATIC_V`) and a year of caching for the
+  static files (`main.cache_headers`), and eager loading on the models (many-to-one joined, collections selectin; the
+  Project collections stay lazy because the project switcher loads every project on every page). Measured on the Kinondoni
+  import with 40 photos: Overview 49 → 20 queries, Items 220 → 16, client link 256 → 23, schedule PDF 218 → 18.
 
 - **Plan layers.** `ProjectImage.layer` (furniture | electrical | plumbing | ceiling | flooring, `config.PLAN_LAYERS`); the
   Plan page has one tab per floor and a `plan-layers` switch for the floor's sheets (`stage_ctx` → `tabs`, `layers`,

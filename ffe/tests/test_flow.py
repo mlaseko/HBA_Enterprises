@@ -599,6 +599,50 @@ with TestClient(app) as c:
     r=c2.get(f"/c/{ltok}"); assert 'class="plan-layers"' in r.text and "Ceiling" in r.text and r.text.count('<span class="t">Ground floor</span>')==1
     r=c.get(f"/p/{pid_l}/rooms"); assert r.status_code==200 and f"plan={gid_l}&amp;room=" in r.text
     print("plan layers ok")
+    # speed: small copies of photos, the picture cache and headers, compression, static versioning, few queries per page
+    from app.models import ItemPhoto as _IP
+    from app import storage as _st
+    from sqlalchemy import event as _ev2
+    from app.db import engine as _eng3
+    c.post(f"/p/{pid}/items/{iid}/photo", files=[("photos",("a.jpg",img("teal"),"image/jpeg")),("photos",("b.jpg",img("navy"),"image/jpeg"))], follow_redirects=False)
+    db=SessionLocal(); phs=db.query(_IP).filter(_IP.item_id==int(iid)).order_by(_IP.id).all(); keys=[(x.file_key, x.thumb_key) for x in phs]; db.close()
+    assert len(keys)>=2 and all(tk==_st.thumb_key_for(fk) and tk.endswith("_t.jpg") for fk,tk in keys[-2:])
+    fk,tk=keys[-1]; up=os.environ["LOCAL_UPLOAD_DIR"]
+    assert os.path.exists(f"{up}/{fk}") and os.path.exists(f"{up}/{tk}") and os.path.getsize(f"{up}/{tk}") < os.path.getsize(f"{up}/{fk}")
+    assert Image.open(f"{up}/{tk}").size[0] <= 640 and Image.open(f"{up}/{fk}").size[0] > 640
+    r=c.get(f"/media/{tk}"); assert r.status_code==200 and r.headers["cache-control"]=="public, max-age=31536000, immutable" and r.headers.get("content-encoding")=="identity"
+    assert c.get("/media/nope/zzz.jpg").status_code==404
+    r=c.get(f"/p/{pid}/items"); assert f"/media/{keys[0][1] or keys[0][0]}" in r.text and "_t.jpg" in r.text  # lists show the small copy
+    r=c.get(f"/p/{pid}/items/{iid}"); assert f'src="/media/{tk}"' in r.text and f'href="/media/{fk}"' in r.text  # gallery: small picture, full on tap
+    r=c.get(f"/p/{pid}/items", headers={"Accept-Encoding":"gzip"}); assert r.headers.get("content-encoding")=="gzip" and "Items" in r.text
+    assert c.get("/static/app.css?v=abc").headers["cache-control"]=="public, max-age=31536000, immutable" and c.get("/static/app.css").headers["cache-control"]=="public, max-age=3600"
+    from app.common import STATIC_V as _SV; assert len(_SV)==10 and f'/static/app.css?v={_SV}' in r.text and f'/static/app.js?v={_SV}' in r.text
+    assert f'plan.js?v={_SV}' in c.get(f"/p/{pid}/plan").text and f'plan.js?v={_SV}' in c2.get(f"/c/{ctok}").text
+    # make cover swaps both copies; deleting a photo removes both files
+    last=phs[-1].id; first_fk=keys[0][0]
+    c.post(f"/p/{pid}/items/{iid}/photo/{last}/cover", follow_redirects=False)
+    db=SessionLocal(); phs2=db.query(_IP).filter(_IP.item_id==int(iid)).order_by(_IP.id).all(); assert phs2[0].file_key==fk and phs2[0].thumb_key==tk and phs2[-1].file_key==first_fk; victim=phs2[-1]; vk,vt=victim.file_key,victim.thumb_key; db.close()
+    c.post(f"/p/{pid}/items/{iid}/photo/{victim.id}/delete", follow_redirects=False)
+    assert not os.path.exists(f"{up}/{vk}") and (not vt or not os.path.exists(f"{up}/{vt}"))
+    # settings: older photos without a small copy are counted and made in batches
+    db=SessionLocal(); old_ph=db.query(_IP).filter(_IP.item_id==int(iid)).first(); old_ph.thumb_key=""; db.commit(); okey=old_ph.file_key; db.close()
+    r=c.get("/settings"); assert 'id="speed"' in r.text and "Make small versions of 1 older photo" in r.text
+    r=c.post("/settings/thumbs", follow_redirects=False); assert r.headers["location"]=="/settings?thumbs=1&left=0"
+    db=SessionLocal(); old_ph=db.query(_IP).filter(_IP.file_key==okey).one(); assert old_ph.thumb_key==_st.thumb_key_for(okey) and os.path.exists(f"{up}/{old_ph.thumb_key}"); db.close()
+    assert "Every photo has a small version" in c.get("/settings?thumbs=1&left=0").text
+    # a photo whose original is gone is marked and not retried
+    db=SessionLocal(); gone=_IP(item_id=int(iid), file_key="p1/missing.jpg", thumb_key=""); db.add(gone); db.commit(); db.close()
+    c.post("/settings/thumbs", follow_redirects=False); db=SessionLocal(); g2=db.query(_IP).filter(_IP.file_key=="p1/missing.jpg").one(); assert g2.thumb_key=="-" and g2.thumb=="p1/missing.jpg"; db.delete(g2); db.commit(); db.close()
+    # queries per page stay small on the imported project (lazy loading used to cost one query per item)
+    qn={"n":0}
+    def _cnt(conn, cursor, statement, parameters, context, executemany): qn["n"]+=1
+    _ev2.listen(_eng3, "before_cursor_execute", _cnt)
+    try:
+        for url,limit in ((f"/p/{pid}",30),(f"/p/{pid}/items",30),(f"/p/{pid}/items?view=table",30),(f"/p/{pid}/plan",40),(f"/c/{ctok}",40),(f"/p/{pid}/export/schedule.pdf",45)):
+            qn["n"]=0; r=c.get(url) if not url.startswith("/c/") else c2.get(url); assert r.status_code==200 and qn["n"]<=limit, (url, qn["n"])
+    finally:
+        _ev2.remove(_eng3, "before_cursor_execute", _cnt)
+    print("speed ok")
     # ---- review fixes: counts per room, drafts never get dots, client leak checks, dots follow rooms, PDFs with markup, scoping ----
     # the panel's "placed" count is this room's: a dot of another room on the same plan does not count
     db=SessionLocal(); kit_dots=sum(1 for q in db.query(ItemPin).filter(ItemPin.image_id==gid) if q.item.room_id==room.id); r2_item=[i.id for i in db.get(Room, r2.id).items if not i.draft][0]; db.close()
@@ -656,10 +700,12 @@ with TestClient(app) as c:
         cn.execute(_text("CREATE TABLE rooms (id INTEGER PRIMARY KEY, code VARCHAR(20), name VARCHAR(120))"))
         cn.execute(_text("CREATE TABLE items (id INTEGER PRIMARY KEY, name VARCHAR(200))"))
         cn.execute(_text("CREATE TABLE project_images (id INTEGER PRIMARY KEY, kind VARCHAR(20))"))
+        cn.execute(_text("CREATE TABLE item_photos (id INTEGER PRIMARY KEY, file_key VARCHAR(255))"))
         cn.execute(_text("INSERT INTO rooms (code, name) VALUES ('X', 'Old room')"))
         cn.execute(_text("INSERT INTO project_images (kind) VALUES ('floorplan')"))
-    assert _migrate(_eng)==["items.draft", "rooms.kind", "project_images.layer"] and _migrate(_eng)==[]
-    with _eng.connect() as cn: assert cn.execute(_text("SELECT kind FROM rooms")).scalar()=="room" and cn.execute(_text("SELECT layer FROM project_images")).scalar()=="furniture"
+        cn.execute(_text("INSERT INTO item_photos (file_key) VALUES ('p1/old.jpg')"))
+    assert _migrate(_eng)==["items.draft", "rooms.kind", "project_images.layer", "item_photos.thumb_key"] and _migrate(_eng)==[]
+    with _eng.connect() as cn: assert cn.execute(_text("SELECT kind FROM rooms")).scalar()=="room" and cn.execute(_text("SELECT layer FROM project_images")).scalar()=="furniture" and cn.execute(_text("SELECT thumb_key FROM item_photos")).scalar()==""
     # the guess: zones are areas, everything else a room
     for nm, fl, k in [("Entrance","Ground","area"),("Hall & Corridors","Ground","area"),("Living Room","Ground","room"),("Store Room","Ground","room"),
                       ("Carport","Ground","area"),("Kitchen Verandah","Ground","area"),("Stairs Ground to First","Ground","area"),("Landing & Corridor","First","area"),

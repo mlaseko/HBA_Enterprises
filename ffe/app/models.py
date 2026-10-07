@@ -39,6 +39,8 @@ class Project(Base):
     client_token: Mapped[str] = mapped_column(String(60), default=token)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
 
+    # Loaded on first use (not eagerly): the project switcher lists every project on every page, and eager collections
+    # here would drag every project's rooms and items along. The rows below load their own relations eagerly instead.
     rooms: Mapped[list["Room"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="Room.sort")
     items: Mapped[list["Item"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     images: Mapped[list["ProjectImage"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="ProjectImage.id")
@@ -70,10 +72,10 @@ class ProjectImage(Base):
     layer: Mapped[str] = mapped_column(String(20), default="furniture", server_default="furniture")
     project: Mapped["Project"] = relationship(back_populates="images")
     # Floor plans only: which floor the plan shows, sheet reference, full-size copy. No row = untagged plan.
-    tag: Mapped["PlanTag | None"] = relationship(back_populates="image", cascade="all, delete-orphan", uselist=False)
+    tag: Mapped["PlanTag | None"] = relationship(back_populates="image", cascade="all, delete-orphan", uselist=False, lazy="joined")
     # Floor plans only: where each room sits on this plan (the interactive Plan page). Deleted with the plan.
-    pins: Mapped[list["RoomPin"]] = relationship(back_populates="image", cascade="all, delete-orphan", order_by="RoomPin.id")
-    item_pins: Mapped[list["ItemPin"]] = relationship(back_populates="image", cascade="all, delete-orphan", order_by="ItemPin.id")
+    pins: Mapped[list["RoomPin"]] = relationship(back_populates="image", cascade="all, delete-orphan", order_by="RoomPin.id", lazy="selectin")
+    item_pins: Mapped[list["ItemPin"]] = relationship(back_populates="image", cascade="all, delete-orphan", order_by="ItemPin.id", lazy="selectin")
 
     @property
     def floor(self) -> str:
@@ -169,8 +171,8 @@ class Room(Base):
     # stairs, balconies, carport, whole house). Column added by db.COLUMN_MIGRATIONS on existing databases.
     kind: Mapped[str] = mapped_column(String(10), default="room", server_default="room")
     project: Mapped["Project"] = relationship(back_populates="rooms")
-    items: Mapped[list["Item"]] = relationship(back_populates="room")
-    pins: Mapped[list["RoomPin"]] = relationship(back_populates="room", cascade="all, delete-orphan", order_by="RoomPin.id")
+    items: Mapped[list["Item"]] = relationship(back_populates="room", lazy="selectin")
+    pins: Mapped[list["RoomPin"]] = relationship(back_populates="room", cascade="all, delete-orphan", order_by="RoomPin.id", lazy="selectin")
 
     @property
     def label(self):
@@ -222,7 +224,7 @@ class RoomPin(Base):
     h: Mapped[float] = mapped_column(Float, default=0.1)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     image: Mapped["ProjectImage"] = relationship(back_populates="pins")
-    room: Mapped["Room"] = relationship(back_populates="pins")
+    room: Mapped["Room"] = relationship(back_populates="pins", lazy="joined")
 
     @property
     def style(self) -> str:
@@ -243,7 +245,7 @@ class ItemPin(Base):
     y: Mapped[float] = mapped_column(Float, default=0.5)  # fraction of the image height
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     image: Mapped["ProjectImage"] = relationship(back_populates="item_pins")
-    item: Mapped["Item"] = relationship(back_populates="pins")
+    item: Mapped["Item"] = relationship(back_populates="pins", lazy="joined")
 
     @property
     def style(self) -> str:
@@ -305,10 +307,10 @@ class Item(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
 
     project: Mapped["Project"] = relationship(back_populates="items")
-    room: Mapped["Room | None"] = relationship(back_populates="items")
-    supplier: Mapped["Supplier | None"] = relationship(back_populates="items")
-    photos: Mapped[list["ItemPhoto"]] = relationship(back_populates="item", cascade="all, delete-orphan", order_by="ItemPhoto.id")
-    pins: Mapped[list["ItemPin"]] = relationship(back_populates="item", cascade="all, delete-orphan", order_by="ItemPin.id")
+    room: Mapped["Room | None"] = relationship(back_populates="items", lazy="joined")
+    supplier: Mapped["Supplier | None"] = relationship(back_populates="items", lazy="joined")
+    photos: Mapped[list["ItemPhoto"]] = relationship(back_populates="item", cascade="all, delete-orphan", order_by="ItemPhoto.id", lazy="selectin")
+    pins: Mapped[list["ItemPin"]] = relationship(back_populates="item", cascade="all, delete-orphan", order_by="ItemPin.id", lazy="selectin")
     # Unit prices are stored in CNY (unit_price). When the designer typed the price in USD this row keeps what was typed,
     # so the form shows "$120" again instead of "¥852". No row = entered in CNY.
     price_entry: Mapped["ItemPrice | None"] = relationship(back_populates="item", cascade="all, delete-orphan", uselist=False)
@@ -346,9 +348,17 @@ class ItemPhoto(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     item_id: Mapped[int] = mapped_column(ForeignKey("items.id"))
     file_key: Mapped[str] = mapped_column(String(255))
+    # The small copy (config.THUMB_PX) shown in lists, on the plan dots and in PDF tables; made with the photo. '' = an old
+    # photo without one yet (Settings → "Make small versions"), '-' = the original could not be read. Added by db.COLUMN_MIGRATIONS.
+    thumb_key: Mapped[str] = mapped_column(String(255), default="", server_default="")
     caption: Mapped[str] = mapped_column(String(200), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     item: Mapped["Item"] = relationship(back_populates="photos")
+
+    @property
+    def thumb(self) -> str:
+        """The key to show where a small picture will do; the full photo while the small copy does not exist."""
+        return self.thumb_key if self.thumb_key and self.thumb_key != "-" else self.file_key
 
 
 class Payment(Base):
@@ -363,7 +373,7 @@ class Payment(Base):
     note: Mapped[str] = mapped_column(String(255), default="")
     receipt_key: Mapped[str] = mapped_column(String(255), default="")
     project: Mapped["Project"] = relationship(back_populates="payments")
-    supplier: Mapped["Supplier | None"] = relationship()
+    supplier: Mapped["Supplier | None"] = relationship(lazy="joined")
 
 
 class Carton(Base):
@@ -386,8 +396,8 @@ class Carton(Base):
     notes: Mapped[str] = mapped_column(String(255), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     project: Mapped["Project"] = relationship(back_populates="cartons")
-    supplier: Mapped["Supplier | None"] = relationship()
-    room: Mapped["Room | None"] = relationship()
+    supplier: Mapped["Supplier | None"] = relationship(lazy="joined")
+    room: Mapped["Room | None"] = relationship(lazy="joined")
 
     @property
     def cbm(self):

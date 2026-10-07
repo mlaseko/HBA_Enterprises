@@ -225,6 +225,7 @@
     <li>The <b>default exchange rate</b> is used for new projects. Each project keeps its own rate in Project settings.</li>
     <li>The <b>logo</b> replaces the house glyph in the app. A square PNG or JPG looks best. The PDFs keep their own layout.</li>
     <li>The app password, the database and the photo storage are set up on the server, not here.</li>
+    <li><b>Speed.</b> Lists, the plan dots and the PDF tables show a <b>small copy</b> of each photo instead of the full picture, so the Items page and the plan load several times faster. Photos taken from now on get their small copy at once; for photos from before, press <b>Make small versions</b> under Speed until none are left. The card also shows how many pictures the server keeps in memory for the next visitor.</li>
   </ul>
 </section>
 
@@ -531,6 +532,7 @@
 
 <section class="card faq" id="faq">
   <h2>Questions &amp; problems</h2>
+  <details><summary>The app feels slow.</summary><p>Three different things look the same. The <b>first page after a quiet spell</b> takes a few seconds and the next ones are quick: Replit starts the app and the database wakes up, which is normal; an always-on deployment removes it. <b>Pages with many photos</b> slow on a device that has not seen them yet: open Studio settings and press <b>Make small versions</b> until no older photo is left, so lists load small copies. <b>Every page slow, even without photos:</b> the database is far from the app or asleep; tell your developer.</p></details>
   <details><summary>The electrical plan shows no room boxes.</summary><p>Boxes are drawn on the floor's furniture layout and borrowed by the other sheets of that floor. Check that both sheets carry the same floor name, and that the furniture layout is set to show "Furniture layout" under Images &amp; plans. If the electrical sheet is framed differently and the borrowed boxes sit off, press Mark rooms on it and copy the boxes to adjust them there.</p></details>
   <details><summary>I uploaded the plan, but the room is not listed under it on the Plan page.</summary><p>The room's floor and the plan's floor must have the same name. Check the floor on the Rooms page and under the plan on Images &amp; plans ("Ground" and "Ground floor" count as the same; "GF" does not). In mark mode, rooms of other floors are in the folded list below, so you can still place them.</p></details>
   <details><summary>The PDF pages were not ticked in the page picker.</summary><p>The PDF has no readable text (a scan or a flattened export), so there was nothing to read. Tick the plan pages and type the floor and sheet yourself. Everything else works the same.</p></details>

@@ -90,4 +90,4 @@
 {% if not marking %}<template id="plan-intro-tpl">{% include "plan/_intro.html" %}</template>{% endif %}
 {% endif %}
 {% endblock %}
-{% block scripts %}<script src="/static/plan.js"></script>{% endblock %}
+{% block scripts %}<script src="/static/plan.js?v={{ STATIC_V }}"></script>{% endblock %}

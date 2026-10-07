@@ -116,11 +116,17 @@ def _fetch_url(url: str) -> tuple[bytes | None, str]:
         return None, str(e)
 
 
+def new_photo(item_id: int, data: bytes, p: Project, caption: str = "") -> ItemPhoto:
+    """Store a photo (full copy + small copy) and return the row to add."""
+    fk, tk = storage.save_photo(data, f"p{p.id}")
+    return ItemPhoto(item_id=item_id, file_key=fk, thumb_key=tk, caption=caption)
+
+
 def _photo_from_url(item: Item, db: Session, p: Project, url: str, caption: str = "") -> str:
     """Fetch a picture from a web link and attach it. Returns "" or an error message for the page."""
     data, err = _fetch_url(url)
     if data:
-        db.add(ItemPhoto(item_id=item.id, file_key=storage.save_image(data, f"p{p.id}"), caption=caption))
+        db.add(new_photo(item.id, data, p, caption))
     return err
 
 
@@ -141,7 +147,7 @@ async def create_item(request: Request, p: Project = Depends(get_project), db: S
     web, err = _fetch_url(form.get("photo_url", ""))
     for item in created:  # each room's row keeps its own copy, so deleting a photo in one room leaves the others
         for data in [d for d in photos if d] + ([web] if web else []):
-            db.add(ItemPhoto(item_id=item.id, file_key=storage.save_image(data, f"p{p.id}")))
+            db.add(new_photo(item.id, data, p))
     db.commit()
     item = created[0]
     if err:
@@ -189,7 +195,7 @@ async def update_item(request: Request, item_id: int, p: Project = Depends(get_p
         if hasattr(f, "read"):
             data = await f.read()
             if data:
-                db.add(ItemPhoto(item_id=item.id, file_key=storage.save_image(data, f"p{p.id}")))
+                db.add(new_photo(item.id, data, p))
     err = _photo_from_url(item, db, p, form.get("photo_url", ""))
     db.flush()
     db.expire(item, ["photos"])  # include the photos just added
@@ -197,7 +203,7 @@ async def update_item(request: Request, item_id: int, p: Project = Depends(get_p
         for ph in item.photos:
             data = storage.read_image(ph.file_key)
             if data:
-                db.add(ItemPhoto(item_id=new.id, file_key=storage.save_image(data, f"p{p.id}"), caption=ph.caption))
+                db.add(new_photo(new.id, data, p, ph.caption))
     db.commit()
     nxt = safe_next(form.get("next"), "")
     if err:
@@ -225,7 +231,7 @@ async def add_photo(item_id: int, p: Project = Depends(get_project), db: Session
         for f in photos:
             data = await f.read()
             if data:
-                db.add(ItemPhoto(item_id=item.id, file_key=storage.save_image(data, f"p{p.id}"), caption=caption))
+                db.add(new_photo(item.id, data, p, caption))
         db.commit()
     return redirect(f"/p/{p.id}/items/{item_id}")
 
@@ -269,7 +275,7 @@ def add_photo_url(item_id: int, p: Project = Depends(get_project), db: Session =
 def delete_photo(item_id: int, photo_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
     ph = db.get(ItemPhoto, photo_id)
     if ph and ph.item_id == item_id and ph.item.project_id == p.id:
-        storage.delete_image(ph.file_key)
+        storage.delete_photo(ph)
         db.delete(ph)
         db.commit()
     return redirect(f"/p/{p.id}/items/{item_id}")
@@ -283,6 +289,7 @@ def make_cover(item_id: int, photo_id: int, p: Project = Depends(get_project), d
         first = ph.item.photos[0]
         if first.id != ph.id:
             first.file_key, ph.file_key = ph.file_key, first.file_key
+            first.thumb_key, ph.thumb_key = ph.thumb_key, first.thumb_key
             first.caption, ph.caption = ph.caption, first.caption
             db.commit()
     return redirect(f"/p/{p.id}/items/{item_id}")
@@ -293,7 +300,7 @@ def delete_item(item_id: int, p: Project = Depends(get_project), db: Session = D
     item = db.get(Item, item_id)
     if item and item.project_id == p.id:
         for ph in item.photos:
-            storage.delete_image(ph.file_key)
+            storage.delete_photo(ph)
         db.delete(item)
         db.commit()
     return redirect(f"/p/{p.id}/items")

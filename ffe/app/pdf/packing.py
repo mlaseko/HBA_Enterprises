@@ -95,6 +95,7 @@ def room_checklist(p, studio, room) -> bytes:
     W = doc.width
     items = sort_items([i for i in p.live_items if (i.room_id == (room.id if room else None))], p)
     story = []
+    storage.prefetch([i.cover.thumb for i in items if i.cover])
     zoom = drawings.room_zoom(p, room, items) if room else None
     crop = None
     if zoom:  # page 1: the room cut out of its plan, its outline and the item dots numbered like the codes below
@@ -136,7 +137,7 @@ def room_checklist(p, studio, room) -> bytes:
     widths = [w / sum(widths) * W for w in widths]
     rows = [_hdr(cols)]
     for i in items:
-        img = img_flowable(i.cover.file_key, widths[0] - 4, 30) if i.cover else ""
+        img = img_flowable(i.cover.thumb, widths[0] - 4, 30) if i.cover else ""
         rows.append([img, P(i.code), P(f"<b>{i.name}</b>"), P(i.spec), P(" / ".join(x for x in [i.size, i.finish] if x)),
                      P(f"{num(i.qty)} {i.unit}"), P(i.supplier.name if i.supplier else ""), P(i.status), P("[  ]"), P("[  ]"), P("[  ]")])
     t = Table(rows, colWidths=widths, repeatRows=1)
@@ -148,6 +149,7 @@ def room_checklist(p, studio, room) -> bytes:
 
 def purchase_order(p, studio, supplier, items, payments) -> bytes:
     buf = io.BytesIO()
+    storage.prefetch([i.cover.thumb for i in items if i.cover])
     doc = make_doc(buf, f"PO - {supplier.name}")
     W = doc.width
     story = [Paragraph(f"PURCHASE ORDER &mdash; {escape(supplier.name)}", S["h1"]),
@@ -162,7 +164,7 @@ def purchase_order(p, studio, supplier, items, payments) -> bytes:
     total = 0.0
     for i in items:
         total += i.total
-        img = img_flowable(i.cover.file_key, widths[0] - 4, 30) if i.cover else ""
+        img = img_flowable(i.cover.thumb, widths[0] - 4, 30) if i.cover else ""
         rows.append([img, P(i.code), P(f"<b>{i.name}</b>" + (f"<br/>{i.brand}" if i.brand else "")), P(i.spec),
                      P(" / ".join(x for x in [i.size, i.finish] if x)), P(i.room.label if i.room else "Whole house"),
                      P(f"{num(i.qty)} {i.unit}"), P(money(i.unit_price, 2)), P(money(i.total, 2)), P(i.lead_time)])

@@ -138,7 +138,7 @@
     <div class="mt">
     {% for i in recent %}
     <div class="item">
-      <a href="/p/{{ p.id }}/items/{{ i.id }}">{% if i.cover %}<img class="thumb" src="/media/{{ i.cover.file_key }}" alt="">{% else %}<div class="ph">no photo</div>{% endif %}</a>
+      <a href="/p/{{ p.id }}/items/{{ i.id }}">{% if i.cover %}<img class="thumb" src="/media/{{ i.cover.thumb }}" alt="">{% else %}<div class="ph">no photo</div>{% endif %}</a>
       <div class="body">
         <div class="t"><a href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a></div>
         <div class="m">{{ i.code }} · {{ i.room.name if i.room else 'Whole house' }} · {{ i.category }}</div>

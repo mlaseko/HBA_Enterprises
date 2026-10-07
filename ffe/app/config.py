@@ -15,6 +15,8 @@ S3_ENDPOINT = os.getenv("S3_ENDPOINT", "")
 S3_KEY = os.getenv("S3_ACCESS_KEY", "")
 S3_SECRET = os.getenv("S3_SECRET_KEY", "")
 MAX_IMAGE_PX = int(os.getenv("MAX_IMAGE_PX", "1600"))
+THUMB_PX = int(os.getenv("THUMB_PX", "640"))  # the small copy of every item photo: lists, dots, the room panel, PDF tables
+MEDIA_CACHE_MB = int(os.getenv("MEDIA_CACHE_MB", "150"))  # pictures recently served, kept in this process's memory
 # Floor plans and PDF drawing sets. A3 at ~195 dpi keeps room names readable when zoomed; pages are previewed at MAX_IMAGE_PX.
 PLAN_MAX_PX = int(os.getenv("PLAN_MAX_PX", "3200"))
 PLAN_THUMB_PX = 480  # page-picker thumbnails

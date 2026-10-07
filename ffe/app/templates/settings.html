@@ -69,6 +69,23 @@
   </div>
 </div>
 
+<div class="card" id="speed">
+  <h2>Speed</h2>
+  {% if thumbs_done or thumbs_left %}<div class="alert">Made {{ thumbs_done|int }} small version{{ 's' if thumbs_done|int != 1 }}.{% if thumbs_left|int %} {{ thumbs_left }} to go: press the button again.{% else %} Every photo has one now.{% endif %}</div>{% endif %}
+  <p class="small muted">Lists, the plan dots and the PDF tables show a small copy of each photo instead of the full picture, which makes the Items page and the plan several times lighter. Photos taken with this version get their small copy at once.</p>
+  {% if thumbs_missing %}
+  <form method="post" action="/settings/thumbs" class="row">
+    <button class="btn"><svg class="ic"><use href="#i-sparkle"/></svg>Make small versions of {{ [thumbs_missing, 60]|min }} older photo{{ 's' if thumbs_missing != 1 }}</button>
+    <span class="small muted">{{ thumbs_missing }} photo{{ 's' if thumbs_missing != 1 }} from before this version still {{ 'has' if thumbs_missing == 1 else 'have' }} no small copy. Each press does up to 60; repeat until none are left.</span>
+  </form>
+  {% else %}<p class="small"><span class="pill green"><svg class="ic sm"><use href="#i-check"/></svg>Every photo has a small version</span></p>{% endif %}
+  <div class="divider"></div>
+  <dl class="kv small">
+    <dt>Pictures in memory</dt><dd>{{ cache[0] }} ({{ (cache[1] / 1048576)|round(1) }} MB), kept for the next visitor so the bucket is asked once</dd>
+    <dt>First visit after a quiet spell</dt><dd>Replit starts the app and Neon wakes the database: a few seconds, once. An always-on deployment on Replit and a longer sleep setting on Neon remove it.</dd>
+  </dl>
+</div>
+
 <div class="card soft small muted">
   The app password, database and photo storage are set in Replit Secrets (see README). Nothing else to configure.
 </div>

@@ -106,7 +106,7 @@ def item_pin_dict(pin: ItemPin) -> dict:
     i = pin.item
     return {"id": pin.id, "image_id": pin.image_id, "item_id": pin.item_id, "room_id": i.room_id, "x": pin.x, "y": pin.y,
             "style": pin.style, "code": i.code, "name": i.name, "status": i.status,
-            "color": config.STATUS_COLORS.get(i.status, "#857C72"), "photo": i.cover.file_key if i.cover else "",
+            "color": config.STATUS_COLORS.get(i.status, "#857C72"), "photo": i.cover.thumb if i.cover else "",
             "initial": (i.category or "?")[:1]}
 
 

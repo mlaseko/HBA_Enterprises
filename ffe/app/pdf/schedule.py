@@ -9,7 +9,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, Spacer, Table, TableStyle, PageBreak
 from .common import S, P, img_flowable, money, num, make_doc, footer_factory, base_table_style, today, LIGHT
 from ..config import CATEGORIES
-from .. import drawings
+from .. import drawings, storage
 
 
 def _schedule_table(items, W, currency, rate, show_prices, include_photos, location_col="Location", room_headers=None):
@@ -37,7 +37,7 @@ def _schedule_table(items, W, currency, rate, show_prices, include_photos, locat
             unit = i.unit_price / rate if currency == "USD" else i.unit_price
             tot = i.total / rate if currency == "USD" else i.total
             cat_total += tot
-            img = img_flowable(i.cover.file_key, widths[0] - 4, 34) if (include_photos and i.cover) else ""
+            img = img_flowable(i.cover.thumb, widths[0] - 4, 34) if (include_photos and i.cover) else ""
             where = i.category if location_col == "Category" else (i.room.name if i.room else "Whole house")
             r = [img, P(i.code), P(f"<b>{i.name}</b>" + (f"<br/>{i.spec}" if i.spec else ""), "cell"), P(i.brand),
                  P(i.finish), P(i.size), P(i.supplier.name if i.supplier else ""), P(where), P(i.lead_time)]
@@ -165,6 +165,9 @@ def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=T
     rate = p.rate or 1.0
     all_items = p.live_items
     story = []
+    covers = [i for i in p.images if i.kind == "cover"]
+    storage.prefetch([c.file_key for c in covers] + [im.best_key for im in drawings.plans(p)] + [m.file_key for m in p.images if m.kind == "mood"]
+                     + ([i.cover.thumb for i in all_items if i.cover] if include_photos else []))  # one parallel pass instead of a round trip per picture
 
     # ---- cover ----
     covers = [i for i in p.images if i.kind == "cover"]

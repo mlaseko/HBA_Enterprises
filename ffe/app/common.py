@@ -12,6 +12,22 @@ from .db import get_db, SessionLocal
 from .models import Project, Settings, Item
 
 templates = Jinja2Templates(directory="app/templates")
+
+
+def _static_version() -> str:
+    """A short stamp of app.css / app.js / plan.js (size + mtime): appended as ?v= so a deploy changes the URL."""
+    import hashlib
+    h = hashlib.md5()
+    for name in ("app.css", "app.js", "plan.js"):
+        try:
+            st = __import__("os").stat(__import__("os").path.join("app", "static", name))
+            h.update(f"{name}:{st.st_size}:{int(st.st_mtime)};".encode())
+        except OSError:
+            h.update(name.encode())
+    return h.hexdigest()[:10]
+
+
+STATIC_V = _static_version()
 signer = URLSafeSerializer(config.SECRET_KEY, salt="session")
 COOKIE = "ffe_session"
 
@@ -110,7 +126,7 @@ templates.env.filters["floor_title"] = drawings.floor_title
 templates.env.globals.update(AI_ENABLED=lambda: bool(__import__('os').getenv('ANTHROPIC_API_KEY')), APP_NAME=config.APP_NAME, CATEGORIES=config.CATEGORIES, UNITS=config.UNITS,
                              STATUSES=config.STATUSES, STATUS_COLORS=config.STATUS_COLORS,
                              PAYMENT_KINDS=config.PAYMENT_KINDS, PRICE_CURRENCIES=config.PRICE_CURRENCIES, plan_caption=drawings.plan_caption,
-                             count_label=drawings.count_label, help_shots=help_tips.shots, PLAN_LAYERS=config.PLAN_LAYERS,
+                             count_label=drawings.count_label, help_shots=help_tips.shots, PLAN_LAYERS=config.PLAN_LAYERS, STATIC_V=STATIC_V,
                              PLAN_MAX_PX=config.PLAN_MAX_PX, MAX_PDF_MB=config.MAX_PDF_MB, MAX_PDF_PAGES=config.MAX_PDF_PAGES,
                              PICK_MAX_PAGES=config.PICK_MAX_PAGES)
 

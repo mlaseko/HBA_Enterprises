@@ -51,8 +51,8 @@ async def capture_save(request: Request, p: Project = Depends(get_project), db: 
     item = Item(project_id=p.id, name="", code="", draft=True, room_id=room.id if room else None, category=_category(category))
     db.add(item)
     db.flush()
-    key = storage.save_image(data, f"p{p.id}")
-    db.add(ItemPhoto(item_id=item.id, file_key=key))
+    key, tkey = storage.save_photo(data, f"p{p.id}")
+    db.add(ItemPhoto(item_id=item.id, file_key=key, thumb_key=tkey))
     db.commit()
     drafts = len(_drafts(db, p))
     if _wants_json(request):
@@ -91,7 +91,7 @@ def discard_draft(item_id: int, p: Project = Depends(get_project), db: Session =
     item = db.get(Item, item_id)
     if item and item.project_id == p.id and item.draft:
         for ph in item.photos:
-            storage.delete_image(ph.file_key)
+            storage.delete_photo(ph)
         db.delete(item)
         db.commit()
     return redirect(f"/p/{p.id}/drafts")

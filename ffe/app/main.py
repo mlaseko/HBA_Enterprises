@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request, Depends, Form, UploadFile, File
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import RedirectResponse, Response, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -6,13 +7,30 @@ from sqlalchemy import text, inspect
 
 from . import config, storage
 from .db import engine, Base, get_db, migrate
-from .models import Project, Settings
+from .models import Project, Settings, ItemPhoto
 from .common import (render, redirect, require_login, LoginRequired, make_session_cookie, check_password, COOKIE,
                      get_settings, is_logged_in, ffloat)
 from .routers import projects, rooms, items, suppliers, payments, cartons, share, exports, importer, capture, clip, plan
 
 app = FastAPI(title=config.APP_NAME)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+
+@app.middleware("http")
+async def cache_headers(request: Request, call_next):
+    """Static files: a year when the URL carries the version stamp (?v=, see common.STATIC_V), an hour otherwise.
+    Pictures and PDFs are marked identity-encoded so the gzip layer below leaves them alone (they are compressed already)."""
+    resp = await call_next(request)
+    path = request.url.path
+    if path.startswith("/static/"):
+        resp.headers["Cache-Control"] = "public, max-age=31536000, immutable" if "v" in request.query_params else "public, max-age=3600"
+    ct = resp.headers.get("content-type", "")
+    if (ct.startswith("image/") or ct == "application/pdf") and "content-encoding" not in resp.headers:
+        resp.headers["Content-Encoding"] = "identity"
+    return resp
+
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)  # pages with hundreds of cards shrink about tenfold on the wire
 
 
 @app.on_event("startup")
@@ -58,15 +76,37 @@ def logout():
 
 @app.get("/media/{key:path}")
 def media(key: str):
-    data = storage.read_image(key)
+    data = storage.read_image(key)  # memory cache first, then the bucket
     if data is None:
         return Response(status_code=404)
-    return Response(content=data, media_type=storage.content_type(key), headers={"Cache-Control": "public, max-age=604800"})
+    # keys are unique file names whose content never changes, so the browser may keep a picture for a year
+    return Response(content=data, media_type=storage.content_type(key), headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 @app.get("/settings", dependencies=[Depends(require_login)])
-def settings_page(request: Request, db: Session = Depends(get_db)):
-    return render(request, "settings.html", s=get_settings(db))
+def settings_page(request: Request, db: Session = Depends(get_db), thumbs: str = "", left: str = ""):
+    missing = db.query(ItemPhoto).filter(ItemPhoto.thumb_key == "").count()  # photos from before the small copies existed
+    return render(request, "settings.html", s=get_settings(db), thumbs_missing=missing, thumbs_done=ffloat(thumbs, 0), thumbs_left=left,
+                  cache=storage.cache_info())
+
+
+@app.post("/settings/thumbs", dependencies=[Depends(require_login)])
+def settings_thumbs(db: Session = Depends(get_db)):
+    """Make the small copies of photos saved before this version, a batch at a time (the page says how many are left)."""
+    done = 0
+    for ph in db.query(ItemPhoto).filter(ItemPhoto.thumb_key == "").order_by(ItemPhoto.id).limit(60).all():
+        data = storage.read_image(ph.file_key)
+        if data:
+            try:
+                ph.thumb_key = storage.save_thumb(data, ph.file_key)
+                done += 1
+                continue
+            except Exception:
+                pass
+        ph.thumb_key = "-"  # the original is gone or unreadable: the full picture keeps being used, and we stop retrying
+    db.commit()
+    left = db.query(ItemPhoto).filter(ItemPhoto.thumb_key == "").count()
+    return redirect(f"/settings?thumbs={done}&left={left}")
 
 
 @app.get("/help", dependencies=[Depends(require_login)])
