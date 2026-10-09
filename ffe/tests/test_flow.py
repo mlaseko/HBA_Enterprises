@@ -550,19 +550,19 @@ with TestClient(app) as c:
     assert labels[:4]==["All rooms","All areas","All bedrooms","All bathrooms"] and "All on Ground floor" in labels and "All on First floor" in labels and ws.cell(row=2, column=3).value=="pick"  # quick picks first
     assert "FF-MBR - Master bedroom" in labels and "GF-ENT - Entrance" in labels and [c_.value for c_ in ws[1]]==["Room","Floor","Kind","Floor area m²","Wall tile m²","Notes"]
     assert ws.cell(row=labels.index("GF-ENT - Entrance")+2, column=3).value=="area" and len(ws.data_validations.dataValidation)==2
-    sl=wb["Shopping List"]; hdr=[c_.value for c_ in sl[1]]; assert hdr[:4]==["Code","Room","Category","Item"] and "Qty" in hdr and "Price (CNY)" in hdr and "Optional" in hdr and "Total CNY" not in hdr
-    dvs={str(d.sqref)[0]: d.formula1 for d in sl.data_validations.dataValidation}; assert dvs["B"]=="Rooms!$A$2:$A$401" and dvs["C"].startswith("Lists!$A$2") and "N" in dvs and "O" in dvs and "A" not in dvs, dvs
+    sl=wb["Shopping List"]; hdr=[c_.value for c_ in sl[1]]; assert hdr[:5]==["Code","Room","Category","Item","Photo"] and "Qty" in hdr and "Price (CNY)" in hdr and "Optional" in hdr and "Total CNY" not in hdr
+    dvs={str(d.sqref)[0]: d.formula1 for d in sl.data_validations.dataValidation}; assert dvs["B"]=="Rooms!$A$2:$A$401" and dvs["C"].startswith("Lists!$A$2") and "O" in dvs and "P" in dvs and "A" not in dvs and "E" not in dvs, dvs
     assert "How to fill this in" in str(wb["How to"]["A1"].value) and wb["Lists"]["A2"].value=="Paint" and wb["Lists"]["D2"].value=="room"
     ws.append(["SF-STU - Studio","Second","room",None,None,"new floor"]); ws.append(["SF-TER - Terrace","Second","area",None,None,None]); ws.append(["(example) ZZ - Ignore","Second","room",None,None,None])
-    sl.append(["","SF-STU - Studio","Furniture","Day bed","Oak frame","","2000 mm","Oak",1,"pcs",3200,"New Supplier Co","4 weeks","Quoted","no",""])
-    sl.append(["","SF-TER - Terrace","Lighting","Terrace wall light","IP65","","","Black",2,"pcs",310,"","","To buy","yes",""])
-    sl.append(["","FF-BA1 - Bathroom 1","Tiles","Floor tile","R11","","600 x 600","Grey",8,"m²",190,"","","To buy","",""])
-    sl.append(["","All bedrooms","Lighting","Bedside sconce","","","","Brass",1,"pcs",260,"","","To buy","",""])  # three bedrooms
-    sl.append(["","GF-LIV - Living room; FF-BR1 - Bedroom 1","Furniture","Side table","","","450 mm","Oak",1,"pcs",700,"","","To buy","",""])  # two rooms, typed
-    sl.append(["","All on Second","Paint","Ceiling paint","","","","White",2,"pcs",180,"","","To buy","",""])  # the two rooms added above
-    sl.append(["ZZ-99","GF-LIV - Living room","Lighting","Mystery lamp","","","","",1,"pcs",90,"","","To buy","",""])  # an unknown code: a new item that keeps it
-    sl.append(["","Kitchn","Other","Typo room item","","","","",1,"pcs",10,"","","To buy","",""])  # an unknown room: whole house, with a warning
-    sl.append(["(example) X","FF-BA1 - Bathroom 1","Tiles","Should be skipped","","","","",1,"pcs",1,"","","","",""]); sl.append(["","","Paint","(example) skipped too","","","","",1,"pcs",1,"","","","",""])
+    sl.append(["","SF-STU - Studio","Furniture","Day bed","","Oak frame","","2000 mm","Oak",1,"pcs",3200,"New Supplier Co","4 weeks","Quoted","no",""])
+    sl.append(["","SF-TER - Terrace","Lighting","Terrace wall light","","IP65","","","Black",2,"pcs",310,"","","To buy","yes",""])
+    sl.append(["","FF-BA1 - Bathroom 1","Tiles","Floor tile","","R11","","600 x 600","Grey",8,"m²",190,"","","To buy","",""])
+    sl.append(["","All bedrooms","Lighting","Bedside sconce","","","","","Brass",1,"pcs",260,"","","To buy","",""])  # three bedrooms
+    sl.append(["","GF-LIV - Living room; FF-BR1 - Bedroom 1","Furniture","Side table","","","","450 mm","Oak",1,"pcs",700,"","","To buy","",""])  # two rooms, typed
+    sl.append(["","All on Second","Paint","Ceiling paint","","","","","White",2,"pcs",180,"","","To buy","",""])  # the two rooms added above
+    sl.append(["ZZ-99","GF-LIV - Living room","Lighting","Mystery lamp","","","","","",1,"pcs",90,"","","To buy","",""])  # an unknown code: a new item that keeps it
+    sl.append(["","Kitchn","Other","Typo room item","","","","","",1,"pcs",10,"","","To buy","",""])  # an unknown room: whole house, with a warning
+    sl.append(["(example) X","FF-BA1 - Bathroom 1","Tiles","Should be skipped","","","","","",1,"pcs",1,"","","","",""]); sl.append(["","","Paint","(example) skipped too","","","","","",1,"pcs",1,"","","","",""])
     b=io.BytesIO(); wb.save(b); r=c.post(f"/p/{pid_p}/import", files={"file":("filled.xlsx", b.getvalue())}, data={"apply":"1"}); msg=re.search(r"Imported[^<]*", r.text).group(0)
     assert msg.startswith("Imported 12 new items, 2 new rooms, 1 new supplier.") and "Skipped 2 rows" in msg and 'Room &#34;Kitchn&#34; not found' in r.text, msg
     db=SessionLocal(); rs={x.code:x for x in db.query(Room).filter(Room.project_id==int(pid_p))}; its={i.name:i for i in db.query(Item).filter(Item.project_id==int(pid_p))}
@@ -576,9 +576,9 @@ with TestClient(app) as c:
     r=c.get(f"/p/{pid_p}/export/items.xlsx"); assert r.status_code==200 and "items.xlsx" in r.headers["content-disposition"]
     wb2=openpyxl.load_workbook(io.BytesIO(r.content)); sl2=wb2["Shopping List"]; hdr2=[c_.value for c_ in sl2[1]]
     assert hdr2[:4]==["Code","Room","Category","Item"] and hdr2[-2:]==["Total CNY","Total USD"] and wb2["Rooms"]["A2"].value=="All rooms" and len(sl2.data_validations.dataValidation)>=5
-    rows={sl2.cell(row=i, column=4).value: i for i in range(2, 40) if sl2.cell(row=i, column=1).value}; assert len(rows)>=9 and sl2.cell(row=rows["Day bed"], column=1).value=="SF-STU-01" and sl2.cell(row=rows["Day bed"], column=11).value==3200 and sl2.cell(row=rows["Day bed"], column=17).value==3200
-    i_=rows["Day bed"]; sl2.cell(row=i_, column=11, value=3500); sl2.cell(row=i_, column=14, value="Ordered"); sl2.cell(row=i_, column=5, value="-"); sl2.cell(row=i_, column=9, value=2); sl2.cell(row=i_, column=2, value="SF-TER - Terrace")
-    sl2.cell(row=rows["Floor tile"], column=6, value="Marazzi")
+    rows={sl2.cell(row=i, column=4).value: i for i in range(2, 40) if sl2.cell(row=i, column=1).value}; assert len(rows)>=9 and sl2.cell(row=rows["Day bed"], column=1).value=="SF-STU-01" and sl2.cell(row=rows["Day bed"], column=12).value==3200 and sl2.cell(row=rows["Day bed"], column=18).value==3200
+    i_=rows["Day bed"]; sl2.cell(row=i_, column=12, value=3500); sl2.cell(row=i_, column=15, value="Ordered"); sl2.cell(row=i_, column=6, value="-"); sl2.cell(row=i_, column=10, value=2); sl2.cell(row=i_, column=2, value="SF-TER - Terrace")
+    sl2.cell(row=rows["Floor tile"], column=7, value="Marazzi")
     b=io.BytesIO(); wb2.save(b); r=c.post(f"/p/{pid_p}/import", files={"file":("edited.xlsx", b.getvalue())}, data={"apply":"1"}); msg=re.search(r"Imported[^<]*", r.text).group(0)
     assert msg.startswith("Imported 0 new items and updated 2, 0 new rooms, 0 new suppliers."), msg
     db=SessionLocal(); its={i.name:i for i in db.query(Item).filter(Item.project_id==int(pid_p))}; d=its["Day bed"]
@@ -586,8 +586,8 @@ with TestClient(app) as c:
     assert its["Floor tile"].brand=="Marazzi" and its["Floor tile"].qty==8 and db.query(Item).filter(Item.project_id==int(pid_p)).count()==13; db.close()
     # preview: the plan is shown and nothing is saved until "Apply"; the kept file is removed afterwards
     from app import storage as _stx
-    i_=rows["Day bed"]; sl2.cell(row=i_, column=11, value=3600); sl2.cell(row=i_, column=14, value="Bought")  # an unknown status: a warning, the status stays
-    sl2.append(["", "GF-LIV - Living room", "Furniture", "Preview stool", "", "", "", "", 1, "pcs", 120, "", "", "To buy", "", ""])
+    i_=rows["Day bed"]; sl2.cell(row=i_, column=12, value=3600); sl2.cell(row=i_, column=15, value="Bought")  # an unknown status: a warning, the status stays
+    sl2.append(["", "GF-LIV - Living room", "Furniture", "Preview stool","", "", "", "", "", 1, "pcs", 120, "", "", "To buy", "", ""])
     b=io.BytesIO(); wb2.save(b); r=c.post(f"/p/{pid_p}/import", files={"file":("edited2.xlsx", b.getvalue())}, data={}); h=r.text
     assert "Check before applying" in h and "1 new item</span>" in h and "1 updated</span>" in h and "Preview stool" in h and "GF-LIV-" in h and "Price (CNY)</b>: 3,500 → 3,600" in h and 'Status &#34;Bought&#34; is not one of' in h and "Apply the import" in h, h[h.find("Check before"):h.find("Check before")+3000]
     key=re.search(r'name="key" value="(imports/p\d+/[a-f0-9]+\.xlsx)"', h).group(1); assert _stx.read_image(key) is not None
@@ -598,6 +598,28 @@ with TestClient(app) as c:
     r=c.post(f"/p/{pid_p}/import", files={"file":("again.xlsx", b.getvalue())}, data={}); key2=re.search(r'name="key" value="([^"]+)"', r.text).group(1); assert "1 new item</span>" in r.text and "0 updated</span>" in r.text
     r=c.post(f"/p/{pid_p}/import/cancel", data={"key":key2}, follow_redirects=False); assert r.status_code==303 and _stx.read_image(key2) is None
     assert "Choose an .xlsx file first" in c.post(f"/p/{pid_p}/import", data={}).text and c.post(f"/p/{pid_p}/import", data={"key":"imports/p999/x.xlsx","apply":"1"}).status_code==200
+    # pictures: the export carries each item's cover over its Photo cell; a picture over a row, or a file named after a code or
+    # an item name, is added to items that have no photo yet, and never twice
+    from openpyxl.drawing.image import Image as _XLI
+    xk=openpyxl.load_workbook(io.BytesIO(c.get(f"/p/{pid}/export/items.xlsx").content)); sk=xk["Shopping List"]
+    assert len(sk._images)>=1 and sk._images[0].anchor._from.col==4 and sk.row_dimensions[sk._images[0].anchor._from.row+1].height==66 and [c_.value for c_ in sk[1]][4]=="Photo"  # the Kinondoni project has photos
+    wb3=openpyxl.load_workbook(io.BytesIO(c.get(f"/p/{pid_p}/import/template.xlsx").content)); sl3=wb3["Shopping List"]
+    sl3.append(["","GF-LIV - Living room","Lighting","Embedded lamp","","","","","",1,"pcs",80,"","","To buy","",""]); prow=sl3.max_row
+    pic=io.BytesIO(img("green")); xi=_XLI(pic); xi.width, xi.height=96, 72; sl3.add_image(xi, f"E{prow}")
+    sl3.append(["","GF-LIV - Living room; FF-BR1 - Bedroom 1","Furniture","Photo stool","","","","","",1,"pcs",120,"","","To buy","",""])
+    b=io.BytesIO(); wb3.save(b)
+    db=SessionLocal(); dbc=db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Day bed").one().code; db.close()
+    r=c.post(f"/p/{pid_p}/import", files=[("file",("pics.xlsx", b.getvalue())),("photos",("Photo stool.jpg", img("red"), "image/jpeg")),("photos",("photo_stool-2.JPG", img("blue"), "image/jpeg")),("photos",(f"{dbc}.jpg", img("gray"), "image/jpeg")),("photos",("nobody.jpg", img("white"), "image/jpeg"))], data={}); h=r.text
+    assert "6 pictures</span>" in h and 'Picture &#34;nobody.jpg&#34; matches no item' in h and "Embedded lamp" in h and "Photo</b>: — → 1 added" in h, re.findall(r"\d+ pictures?</span>", h)
+    key3=re.search(r'name="key" value="([^"]+)"', h).group(1); assert _stx.read_image(key3[:-5]+".json") is not None
+    db=SessionLocal(); assert db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Embedded lamp").count()==0; db.close()
+    r=c.post(f"/p/{pid_p}/import", data={"key":key3,"apply":"1"}); assert "3 new items" in r.text and "6 pictures added" in r.text, re.search(r"Imported[^<]*", r.text).group(0)
+    db=SessionLocal(); its3={i.name:i for i in db.query(Item).filter(Item.project_id==int(pid_p))}
+    assert len(its3["Embedded lamp"].photos)==1 and all(len(i.photos)==2 for i in db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Photo stool")) and len(its3["Day bed"].photos)==1 and its3["Day bed"].photos[0].thumb_key
+    db.close(); assert _stx.read_image(key3) is None and _stx.read_image(key3[:-5]+".json") is None
+    xk=c.get(f"/p/{pid_p}/export/items.xlsx").content; r=c.post(f"/p/{pid_p}/import", files={"file":("export.xlsx", xk)}, data={}); h=r.text  # the export's own pictures are never re-added
+    assert "0 pictures</span>" in h and "not added: those items already have a photo" in h; key4=re.search(r'name="key" value="([^"]+)"', h).group(1); c.post(f"/p/{pid_p}/import/cancel", data={"key":key4})
+    assert _stx.read_image(key4) is None
     from app.routers.importer import RoomIndex as _RI
     db=SessionLocal(); ri=_RI(db.get(_P,int(pid_p)))
     assert sorted(x.code for x in ri.from_cell("All bathrooms"))==["FF-BA1","FF-MEN","GF-GBA"] and ri.from_cell("")==[None] and ri.from_cell("ALL - Whole house")==[None] and ri.from_cell("Nowhere") is None

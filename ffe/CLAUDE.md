@@ -289,7 +289,12 @@ ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';  
   does the whole run in one transaction (flushes, no intermediate commits) and returns the plan (`new`, `changes` with per-field
   old → new, `new_rooms`, `new_suppliers`, counts, warnings); `dry=True` rolls back, so `POST /import` with a file shows the
   preview and keeps the file in storage (`imports/p<id>/<uuid>.xlsx`), and `apply=1` with the `key` runs it for real and deletes
-  the file. A file posted with `apply=1` skips the preview (the tests do).
+  the file. A file posted with `apply=1` skips the preview (the tests do). **Pictures:** the export puts each item's cover thumbnail
+  (112×84, `PHOTO_PX`) over the row's Photo cell (`ITEM_COLS` has a Photo column after Item; validation letters come from
+  `_letter`). On import, `_embedded_pictures(ws)` reads pictures placed over rows (openpyxl keeps `ws._images` with anchors) and
+  files uploaded as `photos` are matched by `_photo_keys` (stem → code, then item name, with a `-2` / ` (2)` suffix stripped);
+  a picture goes to every matched item that had no photo before the run (`had_photos`), saved with `items.new_photo` after the
+  commit. Between preview and apply the pictures wait next to the sheet (`<key>-NNN.ext` + a `<key>.json` manifest).
 
 - **Plan roles, legacy layers, the Item list and sorting.** Images & plans names each plan's role under its picture
   (`drawings.plan_role`: main | twin | layer; `plans_for_floor` puts the general plan that carries boxes first, so the sheet
