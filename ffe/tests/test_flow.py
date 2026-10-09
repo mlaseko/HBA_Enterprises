@@ -996,4 +996,12 @@ with TestClient(app) as c:
     finally:
         _st.config.STORAGE_BACKEND="local"; _st._replit_client=None
     print("shared storage ok")
+    # messages and confirmations are the app's own dialog (app.js appConfirm/appAlert, .modal), never the browser's system boxes
+    import re as _re; from pathlib import Path
+    for f in list(Path("app/templates").rglob("*.html")) + list(Path("app/static").glob("*.js")):
+        code = _re.sub(r"^\s*//.*$", "", f.read_text(), flags=_re.M)  # comments may name the forbidden calls
+        assert not _re.search(r"(?<![\w.])(?:window\.)?(?:confirm|alert|prompt)\s*\(", code) and "confirmSubmit" not in code and "onsubmit=" not in code, f
+    assert "data-confirm=" in c.get(f"/p/{pid}/items/{d3}").text and "data-removal=" in c.get(f"/p/{pid}/items/{d3}").text
+    assert "window.appConfirm" in Path("app/static/app.js").read_text()
+    print("no system dialogs ok")
     print("ALL OK")

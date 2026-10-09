@@ -17,7 +17,7 @@
 <div class="card draft" id="d{{ d.id }}">
   <div class="row between mb">
     <span class="pill gold"><svg class="ic sm"><use href="#i-clock"/></svg>{{ d.created_at.strftime('%d %b %H:%M') }}</span>
-    <form method="post" action="/p/{{ p.id }}/drafts/{{ d.id }}/discard" onsubmit="return confirmSubmit(this,'Discard this draft and delete its photo?')"><button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Discard</button></form>
+    <form method="post" action="/p/{{ p.id }}/drafts/{{ d.id }}/discard" data-confirm="Discard this draft? Its photos are deleted."><button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Discard</button></form>
   </div>
   <div class="row top">
     {% if d.cover %}<a class="shot" href="/media/{{ d.cover.file_key }}" target="_blank"><img class="thumb lg" src="/media/{{ d.cover.thumb }}" alt=""></a>{% else %}<div class="shot"><div class="ph lg">no photo</div></div>{% endif %}

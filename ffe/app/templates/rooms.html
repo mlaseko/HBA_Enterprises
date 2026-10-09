@@ -10,7 +10,7 @@
     {% if p.rooms and n_areas == 0 %}<div class="alert info mt">Everything here is listed as a room. Press <b>Sort rooms &amp; areas by name</b> once: entrances, corridors, stairs, balconies, the carport and the whole-house entries move under Areas, and the counts become true. You can switch any entry back.</div>{% endif %}
   </div>
   <div class="actions">
-    {% if p.rooms %}<form method="post" action="/p/{{ p.id }}/rooms/guess-kinds" onsubmit="return confirmSubmit(this,'Sort every entry into Room or Area by its name? You can switch any of them back afterwards.')"><button class="btn sec" title="Entrance, corridors, stairs, balconies, carport, whole house become areas; the rest rooms"><svg class="ic"><use href="#i-sparkle"/></svg>Sort rooms &amp; areas by name</button></form>{% endif %}
+    {% if p.rooms %}<form method="post" action="/p/{{ p.id }}/rooms/guess-kinds" data-confirm="Sort every entry into Room or Area by its name? You can switch any of them back afterwards."><button class="btn sec" title="Entrance, corridors, stairs, balconies, carport, whole house become areas; the rest rooms"><svg class="ic"><use href="#i-sparkle"/></svg>Sort rooms &amp; areas by name</button></form>{% endif %}
     <a class="btn" href="/p/{{ p.id }}/plan"><svg class="ic"><use href="#i-map"/></svg>Open the plan</a>
   </div>
 </div>
@@ -78,7 +78,7 @@
       {% if fp %}<a class="btn ghost sm" href="/media/{{ fp.best_key }}" target="_blank"><svg class="ic"><use href="#i-layout"/></svg>Plan{% if fp.sheet %} {{ fp.sheet }}{% endif %}</a>{% endif %}
     </div>
   </form>
-  <form method="post" action="/p/{{ p.id }}/rooms/{{ r.id }}/delete" onsubmit="return confirmSubmit(this,'Delete this entry? Items stay but lose their room.')" class="mt">
+  <form method="post" action="/p/{{ p.id }}/rooms/{{ r.id }}/delete" data-confirm="Delete this {{ 'area' if r.is_area else 'room' }}? Its items and boxes stay, with no room; its box and item dots come off the plan." class="mt">
     <button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete {{ 'area' if r.is_area else 'room' }}</button>
   </form>
 </details>

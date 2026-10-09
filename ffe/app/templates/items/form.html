@@ -83,7 +83,7 @@
   {% else %}<p class="muted small">This item is only in this room so far.</p>{% endif %}
   <div class="help mt">Tick a room to put this item there too: a copy with the same spec, quantity and photos, status “To buy” and its own code. Untick a room to take the item out of it: that room's line is deleted when you save, with its photos and plan dots. The chips tick a whole group at once. This line's own room is locked here: change it with the Room field above, or remove this line with Delete.</div>
   <input type="hidden" name="rooms_form" value="1">
-  {{ room_picks(p.rooms, 'room_ids', checked=with_rooms, locked=[it.room_id] if it.room_id else [], links=room_links, removal='Remove this item from %n room(s)? Those lines are deleted, with their photos and plan dots.') }}
+  {{ room_picks(p.rooms, 'room_ids', checked=with_rooms, locked=[it.room_id] if it.room_id else [], links=room_links, removal='Remove this item from %n room(s)? The item\'s line there is deleted, with its photos and plan dots.') }}
   {% endif %}
 
   <div class="form-actions">
@@ -101,7 +101,7 @@
   {% for ph in it.photos %}
     <div class="g">
       <a href="/media/{{ ph.file_key }}" target="_blank"><img src="/media/{{ ph.thumb }}" alt=""></a>
-      <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/photo/{{ ph.id }}/delete" onsubmit="return confirmSubmit(this,'Delete photo?')"><button class="btn sm icon danger" title="Delete photo" aria-label="Delete photo"><svg class="ic"><use href="#i-x"/></svg></button></form>
+      <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/photo/{{ ph.id }}/delete" data-confirm="Delete this photo? It disappears from the item, its plan dot and the PDFs."><button class="btn sm icon danger" title="Delete photo" aria-label="Delete photo"><svg class="ic"><use href="#i-x"/></svg></button></form>
       {% if loop.index0 > 0 %}<form class="cover" method="post" action="/p/{{ p.id }}/items/{{ it.id }}/photo/{{ ph.id }}/cover"><button class="btn sm sec">Make cover</button></form>{% else %}<div class="cap"><svg class="ic sm"><use href="#i-check"/></svg> cover</div>{% endif %}
     </div>
   {% else %}
@@ -120,7 +120,7 @@
   <span class="muted small">Need a similar item? Duplicate this one and tweak the copy.</span>
   <div class="row">
     <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/duplicate"><button class="btn sm sec"><svg class="ic"><use href="#i-copy"/></svg>Duplicate</button></form>
-    <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/delete" onsubmit="return confirmSubmit(this,'Delete this item and its photos?')"><button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete item</button></form>
+    <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/delete" data-confirm="Delete this item? Its photos and its dot on the plan go with it. The same item in other rooms stays."><button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete item</button></form>
   </div>
 </div>
 {% endif %}

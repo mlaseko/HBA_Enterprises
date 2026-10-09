@@ -41,6 +41,8 @@ Mobile-first web app with a warm interior-design look: desktop sidebar, phone bo
 Quick capture button, cards and KPI tiles, image-led item cards, and clean public pages for client and
 supplier links. All styling is in `app/static/app.css` with system fonts and inline SVG icons, so nothing is
 loaded from outside the app.
+Every question the app asks before it deletes or resets something (and any notice) is the app's own dialog, a card on
+the desktop and a bottom sheet on the phone, never the browser's grey system box.
 
 ## Stack
 
