@@ -2,6 +2,7 @@
 {% from "_macros.html" import room_options %}
 {% block title %}Drafts · {{ p.name }}{% endblock %}
 {% block content %}
+{% if suggest %}<datalist id="dl-name">{% for v in suggest['name'] %}<option value="{{ v }}">{% endfor %}</datalist>{% endif %}
 <div class="page-head">
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/items">Items</a></div>
@@ -24,7 +25,7 @@
     <form class="fields" method="post" action="/p/{{ p.id }}/drafts/{{ d.id }}">
       {% if err == d.id %}<div class="alert err">Give it a name to save it as an item.</div>{% endif %}
       {% if filled == d.id %}<div class="alert"><svg class="ic sm"><use href="#i-sparkle"/></svg> Claude filled this in from the page. Check it, then save.</div>{% endif %}
-      <label>Item / product name</label><input class="in" type="text" name="name" value="{{ d.name }}" required placeholder="e.g. Brass basin mixer, matt black"{% if err == d.id %} autofocus{% endif %}>
+      <label>Item / product name</label><input class="in" type="text" name="name" value="{{ d.name }}" required list="dl-name" autocomplete="off" placeholder="e.g. Brass basin mixer, matt black"{% if err == d.id %} autofocus{% endif %}>
       <div class="grid stack g2">
         <div><label>Room or area</label><select name="room_id" class="in"><option value="">Whole house / not room-specific</option>{{ room_options(p.rooms, d.room_id) }}</select></div>
         <div><label>Category</label><select name="category" class="in">{% for c in CATEGORIES %}<option {{ 'selected' if d.category == c }}>{{ c }}</option>{% endfor %}</select></div>

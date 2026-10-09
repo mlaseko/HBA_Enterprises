@@ -10,7 +10,7 @@
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
     <h1>Items <span class="h-note">{% if view == 'list' %}{{ rows|length }} item{{ 's' if rows|length != 1 }} · {{ items|length }} room line{{ 's' if items|length != 1 }}{% else %}{{ items|length }}{% endif %} · ¥{{ total|money }} · ${{ (total/(p.rate or 1))|money }}</span></h1>
-    <p class="sub">{% if view == 'list' %}One line per item, whatever the rooms: the same product in several rooms is counted once, with its rooms and the total quantity. Press a column heading to sort, again for the other way; change a status right here.{% elif view == 'table' %}One line per room, the compact sheet. Press a column heading to sort, again for the other way; change a status right here.{% else %}The schedule for {{ p.name }}, grouped by category. Change a status right here; open an item for the full sheet and its photos.{% endif %}</p>
+    <p class="sub">{% if view == 'list' %}One line per item, whatever the rooms: the same product (same name, size, finish and brand) in several rooms is counted once, with its rooms and the total quantity. Press a column heading to sort, again for the other way; change a status right here.{% elif view == 'table' %}One line per room, the compact sheet. Press a column heading to sort, again for the other way; change a status right here.{% else %}The schedule for {{ p.name }}, grouped by category. Change a status right here; open an item for the full sheet and its photos.{% endif %}</p>
   </div>
   <div class="actions">
     {% if qroom %}<a class="btn sec" href="/p/{{ p.id }}/plan?room={{ qroom }}" title="Show this room on the floor plan"><svg class="ic"><use href="#i-map"/></svg>On the plan</a>{% endif %}
@@ -92,7 +92,7 @@
   {% for g in rows %}{% set i = g.item %}
   <tr id="item-{{ i.id }}" data-items="{% for r in g.rows %}{{ r.id }}{% if not loop.last %} {% endif %}{% endfor %}">
     <td>{% if g.cover %}<a href="/p/{{ p.id }}/items/{{ i.id }}"><img class="thumb sm" src="/media/{{ g.cover.thumb }}" alt=""></a>{% endif %}</td>
-    <td data-v="{{ i.name }}"><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a>{% if i.optional %} <span class="pill">optional</span>{% endif %}<div class="small muted">{{ g.codes }}{% if i.size or i.finish %} · {{ i.size }}{% if i.size and i.finish %} · {% endif %}{{ i.finish }}{% endif %}</div></td>
+    <td data-v="{{ i.name }}"><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a>{% if i.optional %} <span class="pill">optional</span>{% endif %}<div class="small muted">{{ g.codes }}{% for v in [i.size, i.finish, i.brand]|select %} · {{ v }}{% endfor %}</div></td>
     <td class="small">{{ i.category }}</td>
     <td class="rooms" data-v="{{ g.rooms|length }}">{% set names = [] %}{% for r in g.rooms %}{% set _ = names.append(r.name if r else 'Whole house') %}{% endfor %}
       {% if names|length == 1 %}{{ names[0] }}{% else %}<a class="n" href="/p/{{ p.id }}/items?q={{ i.name|urlencode }}&amp;view=table" title="{{ names|join(', ') }}">{{ names|length }} rooms</a> · {{ names[:3]|join(', ') }}{% if names|length > 3 %} <span class="more" title="{{ names[3:]|join(', ') }}">+{{ names|length - 3 }} more</span>{% endif %}{% endif %}</td>

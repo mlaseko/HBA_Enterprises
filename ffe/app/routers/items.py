@@ -33,12 +33,12 @@ def _status_rank(status: str) -> int:
 
 
 def group_items(items: list[Item]) -> list[dict]:
-    """The Item list view: one line per product. The rows of the same name across rooms (same rule as
-    same_item_elsewhere) become one entry with its rooms, the quantity and value summed, the statuses counted.
+    """The Item list view: one line per product. The rows of the same product across rooms (product_key, the rule
+    same_item_elsewhere uses) become one entry with its rooms, the quantity and value summed, the statuses counted.
     Keeps the schedule order of the first row of each product."""
     groups: dict[str, dict] = {}
     for i in items:
-        k = _key(i.name) or f"#{i.id}"
+        k = product_key(i) or f"#{i.id}"
         g = groups.get(k)
         if g is None:
             g = groups[k] = dict(item=i, rows=[], rooms=[], qty=0.0, units=[], prices=[], total=0.0, suppliers=[], statuses={}, cover=None)
@@ -86,7 +86,7 @@ def list_items(request: Request, p: Project = Depends(get_project), db: Session 
 @router.get("/p/{project_id}/items/new")
 def new_item(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), room: str = "", category: str = ""):
     suppliers = db.query(Supplier).order_by(Supplier.name).all()
-    return render(request, "items/form.html", p=p, item=None, suppliers=suppliers, pre_room=fint(room), pre_cat=category)
+    return render(request, "items/form.html", p=p, item=None, suppliers=suppliers, pre_room=fint(room), pre_cat=category, suggest=suggestions(db, p))
 
 
 def apply_form(item: Item, db: Session, p: Project, form: dict):
@@ -117,20 +117,62 @@ def apply_form(item: Item, db: Session, p: Project, form: dict):
 
 
 # Fields that describe the product itself. The same product used in several rooms is one Item row per room
-# (own code, qty, status, cartons) sharing the same name; "apply to all rooms" copies these fields across them.
+# (own code, qty, status, cartons); "apply to all rooms" copies these fields across them.
 SHARED_FIELDS = ("name", "category", "brand", "spec", "size", "finish", "unit", "unit_price", "lead_time", "supplier_id")
+# What makes two rows the same product: the name says what it is ("Floor tiles"); size, colour/finish and brand tell one
+# variant from another. "Floor tiles" 1200x600 cream in twelve rooms is one product; the same name in 800x400 is another,
+# so editing one never touches the other and the Item list shows them as two lines.
+IDENTITY_FIELDS = ("name", "size", "finish", "brand")
+# The shared fields outside the identity: where the other rooms' lines of a product may still have been set up differently.
+DIFF_LABELS = {"category": "category", "spec": "spec", "unit": "unit", "unit_price": "price", "lead_time": "lead time", "supplier_id": "supplier"}
+_SIZE_SEP_RE = re.compile(r"(?<=\d)\s*[x×*]\s*(?=\d)")  # 1200 x 600, 1200*600 and 1200×600 are the same size
 
 
-def _key(name: str) -> str:
-    return " ".join((name or "").lower().split())
+def _key(s: str) -> str:
+    return " ".join((s or "").lower().split())
+
+
+def product_key(item: Item) -> str:
+    """The identity of a product: name + size + finish + brand, ignoring case, spacing and how the x of a size is written."""
+    k = _key(item.name)
+    return f"{k}|{_SIZE_SEP_RE.sub('x', _key(item.size)).replace(' ', '')}|{_key(item.finish)}|{_key(item.brand)}" if k else ""
 
 
 def same_item_elsewhere(p: Project, item: Item) -> list[Item]:
-    """The other rooms' rows of the same product: live items in this project with the same name (case/space-insensitive)."""
-    k = _key(item.name)
+    """The other rooms' rows of the same product (product_key) among the live items of this project."""
+    k = product_key(item)
     if not k:
         return []
-    return [i for i in p.live_items if i.id != item.id and _key(i.name) == k]
+    return [i for i in p.live_items if i.id != item.id and product_key(i) == k]
+
+
+def _same(a, b) -> bool:
+    if isinstance(a, float) or isinstance(b, float):
+        return round(a or 0, 2) == round(b or 0, 2)
+    return (a or "") == (b or "")
+
+
+def twin_differences(item: Item, others: list[Item]) -> list[str]:
+    """The shared fields, as words for the page, on which the other rooms' lines of this product differ from this line.
+    Empty = they still match, so "apply to the other rooms" is safe to pre-tick."""
+    return [label for f, label in DIFF_LABELS.items() if any(not _same(getattr(o, f), getattr(item, f)) for o in others)]
+
+
+def suggestions(db: Session, p: Project) -> dict[str, list[str]]:
+    """Values already used for the name, size, finish and brand, for the fields' suggestion lists (<datalist>): this
+    project's first, most used first, then the other projects'. Typing them the same way keeps a product one product."""
+    rows = db.query(Item.project_id, Item.name, Item.size, Item.finish, Item.brand).filter(Item.draft == False, Item.name != "").all()  # noqa: E712
+    out: dict[str, list[str]] = {}
+    for f in IDENTITY_FIELDS:
+        seen: dict[str, list] = {}  # key → [spelling, uses in this project, uses anywhere]
+        for r in rows:
+            v = " ".join((getattr(r, f) or "").split())
+            if v:
+                e = seen.setdefault(_key(v), [v, 0, 0])
+                e[1] += r.project_id == p.id
+                e[2] += 1
+        out[f] = [e[0] for e in sorted(seen.values(), key=lambda e: (-e[1], -e[2], e[0].lower()))[:300]]
+    return out
 
 
 def _form_rooms(p: Project, ids) -> list[Room]:
@@ -212,7 +254,8 @@ def item_detail(request: Request, item_id: int, p: Project = Depends(get_project
     with_rooms = [o.room_id for o in others if o.room_id]  # the checklist: rooms that have this item (its own room is locked)
     room_links = {o.room_id: (o.code, f"/p/{p.id}/items/{o.id}") for o in others if o.room_id}
     return render(request, "items/form.html", p=p, item=item, suppliers=suppliers, pre_room=None, pre_cat="", err=err[:200],
-                  filled=filled[:200], others=others, with_rooms=with_rooms, room_links=room_links, next=safe_next(next, ""))
+                  filled=filled[:200], others=others, differs=twin_differences(item, others), with_rooms=with_rooms, room_links=room_links,
+                  next=safe_next(next, ""), suggest=suggestions(db, p))
 
 
 @router.post("/p/{project_id}/items/{item_id}")
@@ -222,7 +265,7 @@ async def update_item(request: Request, item_id: int, p: Project = Depends(get_p
         return redirect(f"/p/{p.id}/items")
     form = await request.form()
     old_room, was_draft = item.room_id, item.draft
-    siblings = same_item_elsewhere(p, item) if not was_draft else []  # the same product in other rooms, by the name before this save
+    siblings = same_item_elsewhere(p, item) if not was_draft else []  # the same product in other rooms, by its identity before this save
     others = siblings if form.get("apply_all") == "1" else []
     apply_form(item, db, p, form)
     if item.room_id != old_room and not was_draft and not item.draft:

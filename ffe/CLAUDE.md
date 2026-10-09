@@ -115,6 +115,12 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
 - Pages are plain HTML forms + redirects. JavaScript only where it removes a round trip (status dropdown,
   photo compression, copy link). No frontend framework, no build step.
 - Yellow inputs (`class="in"`) = the user types; everything else is calculated.
+- **One product, many rooms.** A product used in several rooms is one `Item` row per room. What makes rows the same product is
+  `items.product_key`: name + size + finish + brand (`IDENTITY_FIELDS`; case, spacing and the x of a size normalised). Keep
+  names short and generic ("Floor tiles") and the variation in size / finish / brand; never fold the size or colour into the
+  name. `same_item_elsewhere` (apply-to-other-rooms, the rooms checklist) and `group_items` (the Item list) must keep using
+  that one rule. The name, size, finish and brand inputs carry `<datalist>` suggestions from `items.suggestions` so values are
+  typed the same way; add the list to any new form with those fields.
 - **Messages and confirmations are the app's own.** Never call `alert()`, `confirm()` or `prompt()` (the browser's grey
   system boxes); `tests/test_flow.py` fails on them, on `confirmSubmit` and on `onsubmit=`. A form that must ask before it
   submits gets `data-confirm="Question? What happens next."` (the text up to the first `?` is the heading, the rest the
@@ -325,6 +331,15 @@ ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';  
   `help_tips.TIPS`), a one-time nudge (`localStorage help.seen.<key>`), `#help` in the URL opens it (empty states link to
   it), and the Studio menu's Help link deep-links to the section of the current page. Screenshots come from a fictional
   demo project seeded by `tools/help_shots.py`.
+
+- **Product identity and naming.** `items.product_key` = name + size + finish + brand (`IDENTITY_FIELDS`; `_key` lowercases
+  and collapses spaces, `_SIZE_SEP_RE` makes 1200 x 600 / 1200*600 / 1200×600 one size) is the one rule behind
+  `same_item_elsewhere` (the apply-to-other-rooms twins and the "Rooms with this item" checklist) and `group_items` (the Item
+  list, which shows size · finish · brand under the name so variants read apart). `twin_differences(item, others)` lists the
+  shared fields outside the identity (`DIFF_LABELS`: category, spec, unit, price, lead time, supplier) on which the twins no
+  longer match; the item form pre-ticks Apply only when it is empty and otherwise names the differences. `suggestions(db, p)`
+  (one query over all live items) feeds `<datalist id="dl-name|size|finish|brand">` on the item form and `dl-name` on the
+  Drafts page: this project's values first, most used first, one spelling per key.
 
 ## Backlog (in priority order)
 

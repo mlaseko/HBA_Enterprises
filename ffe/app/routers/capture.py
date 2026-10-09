@@ -10,6 +10,7 @@ from ..db import get_db
 from ..models import Project, Item, ItemPhoto, Room
 from ..common import render, redirect, require_login, get_project, ffloat, fint
 from ..services import next_code, set_price
+from .items import suggestions
 from .. import storage, config
 
 router = APIRouter(dependencies=[Depends(require_login)])
@@ -62,7 +63,7 @@ async def capture_save(request: Request, p: Project = Depends(get_project), db: 
 
 @router.get("/p/{project_id}/drafts")
 def drafts_page(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), saved: str = "", err: str = "", filled: str = ""):
-    return render(request, "drafts.html", p=p, drafts=_drafts(db, p), saved=saved, err=fint(err), filled=fint(filled))
+    return render(request, "drafts.html", p=p, drafts=_drafts(db, p), saved=saved, err=fint(err), filled=fint(filled), suggest=suggestions(db, p))
 
 
 @router.post("/p/{project_id}/drafts/{item_id}")
