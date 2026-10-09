@@ -65,7 +65,7 @@
       <td>{{ pay.reference }}</td>
       <td class="small muted">{{ pay.note }}</td>
       <td>{% if pay.receipt_key %}<a href="/media/{{ pay.receipt_key }}" target="_blank"><img class="thumb sm" src="/media/{{ pay.receipt_key }}" alt="Receipt"></a>{% else %}<span class="muted">—</span>{% endif %}</td>
-      <td><form method="post" action="/p/{{ p.id }}/payments/{{ pay.id }}/delete" onsubmit="return confirmSubmit(this,'Delete payment?')"><button class="btn icon danger" title="Delete payment" aria-label="Delete payment"><svg class="ic"><use href="#i-trash"/></svg></button></form></td>
+      <td><form method="post" action="/p/{{ p.id }}/payments/{{ pay.id }}/delete" data-confirm="Delete this payment? Its receipt is deleted and the supplier's paid total goes down."><button class="btn icon danger" title="Delete payment" aria-label="Delete payment"><svg class="ic"><use href="#i-trash"/></svg></button></form></td>
     </tr>
     {% else %}
     <tr><td colspan="8" class="muted center">No payments recorded yet. Use the form above the first time you pay a deposit. <a href="#help">How payments work</a></td></tr>

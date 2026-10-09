@@ -57,7 +57,7 @@
       <div class="row">
         <a class="btn sm" href="/p/{{ p.id }}/images/sets/{{ s.id }}"><svg class="ic"><use href="#i-layout"/></svg>Pick pages</a>
         <a class="btn ghost sm" href="/p/{{ p.id }}/images/sets/{{ s.id }}.pdf" title="Download the PDF" aria-label="Download the PDF"><svg class="ic"><use href="#i-download"/></svg><span class="hide-m">PDF</span></a>
-        <form method="post" action="/p/{{ p.id }}/images/sets/{{ s.id }}/delete" onsubmit="return confirmSubmit(this,'Delete this PDF? Pages already added as floor plans stay.')"><button class="btn sm icon danger" title="Delete PDF" aria-label="Delete PDF"><svg class="ic"><use href="#i-x"/></svg></button></form>
+        <form method="post" action="/p/{{ p.id }}/images/sets/{{ s.id }}/delete" data-confirm="Delete this PDF? Pages already added as floor plans stay."><button class="btn sm icon danger" title="Delete PDF" aria-label="Delete PDF"><svg class="ic"><use href="#i-x"/></svg></button></form>
       </div>
     </div>
   {% endfor %}
@@ -91,7 +91,7 @@
   {% for im in imgs %}
     <div class="g" id="img-{{ im.id }}">
       <a href="/media/{{ im.best_key }}" target="_blank" title="Open full size"><img src="/media/{{ im.file_key }}" alt="{{ plan_caption(im) or 'Floor plan' }}"></a>
-      <form method="post" action="/p/{{ p.id }}/images/{{ im.id }}/delete" onsubmit="return confirmSubmit(this,'Delete this plan?')"><button class="btn sm icon danger" title="Delete plan" aria-label="Delete plan"><svg class="ic"><use href="#i-x"/></svg></button></form>
+      <form method="post" action="/p/{{ p.id }}/images/{{ im.id }}/delete" data-confirm="Delete this plan? Its room boxes and item dots go with it."><button class="btn sm icon danger" title="Delete plan" aria-label="Delete plan"><svg class="ic"><use href="#i-x"/></svg></button></form>
       <form method="post" action="/p/{{ p.id }}/images/{{ im.id }}" class="tag">
         <input class="in" type="text" name="floor" list="floors" value="{{ im.floor }}" placeholder="Floor" aria-label="Floor" autocomplete="off">
         <input class="in" type="text" name="sheet" value="{{ im.sheet }}" placeholder="Sheet, e.g. A-104 Rev A" aria-label="Sheet">
@@ -119,7 +119,7 @@
   <div class="gallery mt">
   {% for im in imgs %}
     <div class="g"><img src="/media/{{ im.file_key }}" alt="{{ im.caption }}">
-      <form method="post" action="/p/{{ p.id }}/images/{{ im.id }}/delete" onsubmit="return confirmSubmit(this,'Delete image?')"><button class="btn sm icon danger" title="Delete image" aria-label="Delete image"><svg class="ic"><use href="#i-x"/></svg></button></form>
+      <form method="post" action="/p/{{ p.id }}/images/{{ im.id }}/delete" data-confirm="Delete this image? It comes off the project and its PDFs."><button class="btn sm icon danger" title="Delete image" aria-label="Delete image"><svg class="ic"><use href="#i-x"/></svg></button></form>
       {% if im.caption %}<div class="cap">{{ im.caption }}</div>{% endif %}</div>
   {% else %}
     <div class="ph lg">No {{ title|lower }} yet</div>

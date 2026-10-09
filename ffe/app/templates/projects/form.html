@@ -39,7 +39,7 @@
   <div class="row mt">
     <button type="button" class="btn sm" onclick="copyText(document.getElementById('clink').textContent,this)">Copy link</button>
     <a class="btn sm sec" href="/c/{{ p.client_token }}" target="_blank"><svg class="ic"><use href="#i-users"/></svg>Preview as client</a>
-    <form method="post" action="/p/{{ p.id }}/client-link/reset" onsubmit="return confirmSubmit(this,'Old link will stop working. Continue?')"><button class="btn sm ghost">Reset link</button></form>
+    <form method="post" action="/p/{{ p.id }}/client-link/reset" data-confirm="Reset the client link? The old link stops working for everyone who has it; send the new one again."><button class="btn sm ghost">Reset link</button></form>
   </div>
 </div>
 

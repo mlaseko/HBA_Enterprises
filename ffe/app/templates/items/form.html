@@ -20,6 +20,7 @@
 {% if filled %}<div class="alert"><svg class="ic sm"><use href="#i-sparkle"/></svg> Claude filled in: {{ filled }}. Check and save.</div>{% endif %}
 {% if it and it.draft %}<div class="alert info">This is a quick-capture draft. Give it a name and save: it gets a code and starts counting in totals and documents. <a href="/p/{{ p.id }}/drafts">Back to drafts</a></div>{% endif %}
 
+{% if suggest %}{% for f in ['name', 'size', 'finish', 'brand'] %}<datalist id="dl-{{ f }}">{% for v in suggest[f] %}<option value="{{ v }}">{% endfor %}</datalist>{% endfor %}{% endif %}
 <form method="post" enctype="multipart/form-data" class="card" id="itemform">
   {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
   <div class="grid g2 stack">
@@ -31,16 +32,17 @@
       <div class="help">Each ticked room gets its own line with its own code, status and quantity. Qty below is per room; adjust any room afterwards. The chips tick a whole group at once (all bedrooms, all bathrooms, a floor); press one again to untick.</div></div>
     {% endif %}
     <div><label>Category (schedule)</label><select name="category" class="in">{% for c in CATEGORIES %}<option {{ 'selected' if (it and it.category == c) or (not it and pre_cat == c) }}>{{ c }}</option>{% endfor %}</select></div>
-    <div class="span2"><label>Item / product name</label><input class="in" type="text" name="name" value="{{ it.name if it else '' }}" required placeholder="e.g. Wall-hung WC, rimless, soft-close seat"{% if it and it.draft %} autofocus{% endif %}></div>
+    <div class="span2"><label>Item / product name</label><input class="in" type="text" name="name" value="{{ it.name if it else '' }}" required list="dl-name" autocomplete="off" placeholder="e.g. Floor tiles · Wall-hung WC · Pendant light"{% if it and it.draft %} autofocus{% endif %}>
+      <div class="help">Short and generic: what it is. Size, colour/finish and brand go in their own fields below; with the name they tell one product from another, so the same product in several rooms stays one line.</div></div>
     <div class="span2"><label>Must-have spec (what the supplier must deliver)</label><textarea class="in" name="spec">{{ it.spec if it else '' }}</textarea></div>
   </div>
 
   <div class="divider"></div>
   <div class="eyebrow">Specification</div>
   <div class="grid stack g2">
-    <div><label>Brand / model</label><input class="in" type="text" name="brand" value="{{ it.brand if it else '' }}"></div>
-    <div><label>Size</label><input class="in" type="text" name="size" value="{{ it.size if it else '' }}" placeholder="1200 x 2400 mm"></div>
-    <div><label>Colour / finish</label><input class="in" type="text" name="finish" value="{{ it.finish if it else '' }}"></div>
+    <div><label>Brand / model</label><input class="in" type="text" name="brand" value="{{ it.brand if it else '' }}" list="dl-brand" autocomplete="off"></div>
+    <div><label>Size</label><input class="in" type="text" name="size" value="{{ it.size if it else '' }}" list="dl-size" autocomplete="off" placeholder="1200 x 600 mm"></div>
+    <div><label>Colour / finish</label><input class="in" type="text" name="finish" value="{{ it.finish if it else '' }}" list="dl-finish" autocomplete="off" placeholder="Ceramic, matt, cream"></div>
     <div><label>Lead time</label><input class="in" type="text" name="lead_time" value="{{ it.lead_time if it else '' }}" placeholder="In stock / 3 weeks"></div>
   </div>
 
@@ -78,12 +80,12 @@
   <div class="divider"></div>
   <div class="eyebrow">Rooms with this item</div>
   {% if others %}
-  <label class="check"><input type="checkbox" name="apply_all" value="1" checked> Apply name, category, spec, size, finish, brand, price, unit, lead time and supplier changes to the {{ others|length }} other room{{ 's' if others|length > 1 }} using this item</label>
-  <div class="help">Their quantity, status, notes and photos stay as they are.</div>
+  <label class="check"><input type="checkbox" name="apply_all" value="1"{{ ' checked' if not differs }}> Apply name, category, spec, size, finish, brand, price, unit, lead time and supplier changes to the {{ others|length }} other room{{ 's' if others|length > 1 }} with this exact item</label>
+  <div class="help">{% if differs %}The other rooms differ in {% if differs|length > 1 %}{{ differs[:-1]|join(', ') }} and {% endif %}{{ differs[-1] }}: they were set up their own way, so this is not ticked. Tick it to make them all like this line. {% endif %}Quantity, status, notes and photos always stay per room.</div>
   {% else %}<p class="muted small">This item is only in this room so far.</p>{% endif %}
-  <div class="help mt">Tick a room to put this item there too: a copy with the same spec, quantity and photos, status “To buy” and its own code. Untick a room to take the item out of it: that room's line is deleted when you save, with its photos and plan dots. The chips tick a whole group at once. This line's own room is locked here: change it with the Room field above, or remove this line with Delete.</div>
+  <div class="help mt">A room counts as having this item when its line has the same name, size, colour/finish and brand. Tick a room to put this item there too: a copy with the same spec, quantity and photos, status “To buy” and its own code. Untick a room to take the item out of it: that room's line is deleted when you save, with its photos and plan dots. The chips tick a whole group at once. This line's own room is locked here: change it with the Room field above, or remove this line with Delete.</div>
   <input type="hidden" name="rooms_form" value="1">
-  {{ room_picks(p.rooms, 'room_ids', checked=with_rooms, locked=[it.room_id] if it.room_id else [], links=room_links, removal='Remove this item from %n room(s)? Those lines are deleted, with their photos and plan dots.') }}
+  {{ room_picks(p.rooms, 'room_ids', checked=with_rooms, locked=[it.room_id] if it.room_id else [], links=room_links, removal='Remove this item from %n room(s)? The item\'s line there is deleted, with its photos and plan dots.') }}
   {% endif %}
 
   <div class="form-actions">
@@ -101,7 +103,7 @@
   {% for ph in it.photos %}
     <div class="g">
       <a href="/media/{{ ph.file_key }}" target="_blank"><img src="/media/{{ ph.thumb }}" alt=""></a>
-      <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/photo/{{ ph.id }}/delete" onsubmit="return confirmSubmit(this,'Delete photo?')"><button class="btn sm icon danger" title="Delete photo" aria-label="Delete photo"><svg class="ic"><use href="#i-x"/></svg></button></form>
+      <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/photo/{{ ph.id }}/delete" data-confirm="Delete this photo? It disappears from the item, its plan dot and the PDFs."><button class="btn sm icon danger" title="Delete photo" aria-label="Delete photo"><svg class="ic"><use href="#i-x"/></svg></button></form>
       {% if loop.index0 > 0 %}<form class="cover" method="post" action="/p/{{ p.id }}/items/{{ it.id }}/photo/{{ ph.id }}/cover"><button class="btn sm sec">Make cover</button></form>{% else %}<div class="cap"><svg class="ic sm"><use href="#i-check"/></svg> cover</div>{% endif %}
     </div>
   {% else %}
@@ -120,7 +122,7 @@
   <span class="muted small">Need a similar item? Duplicate this one and tweak the copy.</span>
   <div class="row">
     <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/duplicate"><button class="btn sm sec"><svg class="ic"><use href="#i-copy"/></svg>Duplicate</button></form>
-    <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/delete" onsubmit="return confirmSubmit(this,'Delete this item and its photos?')"><button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete item</button></form>
+    <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/delete" data-confirm="Delete this item? Its photos and its dot on the plan go with it. The same item in other rooms stays."><button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete item</button></form>
   </div>
 </div>
 {% endif %}

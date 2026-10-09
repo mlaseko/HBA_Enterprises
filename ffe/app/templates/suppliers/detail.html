@@ -35,7 +35,7 @@
   <div class="form-actions">
     <button class="btn"><svg class="ic"><use href="#i-check"/></svg>Save</button>
     <span class="sp"></span>
-    <button class="btn sm danger" formaction="/suppliers/{{ s.id }}/delete" onclick="return confirm('Delete supplier? Items keep their data but lose the supplier.')"><svg class="ic"><use href="#i-trash"/></svg>Delete</button>
+    <button class="btn sm danger" formaction="/suppliers/{{ s.id }}/delete" data-confirm="Delete this supplier? Items and payments keep their data but lose the supplier; its packing links stop working."><svg class="ic"><use href="#i-trash"/></svg>Delete</button>
   </div>
 </form>
 

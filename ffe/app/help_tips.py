@@ -101,7 +101,7 @@ TIPS = {
         title="New item", anchor="items",
         what="One product. Tick several rooms and each room gets its own line with its own code.",
         steps=["Tick the <b>rooms</b> that get this item (none = whole house) and choose the <b>category</b>. The chips above the list tick a whole group: <b>All bedrooms</b>, <b>All bathrooms</b>, a floor, all areas.",
-               "Type the <b>name</b> and the <b>must-have spec</b>: what the supplier must deliver.",
+               "Type the <b>name</b>, short and generic (“Floor tiles”, “Pendant light”; the field suggests names already used) and the <b>must-have spec</b>: what the supplier must deliver. Size, colour/finish and brand have their own fields: with the name they tell one product from another.",
                "Enter <b>qty</b>, <b>unit</b> and the <b>unit price</b> in CNY or USD; pick the supplier if you know it.",
                "Add photos of the sample, or paste a web link. Press <b>Save</b>, or <b>Save &amp; add another</b>."],
         tips=["Yellow boxes are where you type; everything else is worked out.",
@@ -109,7 +109,7 @@ TIPS = {
     "item_edit": dict(
         title="Item", anchor="items",
         what="Everything about this item: spec, photos, price, supplier, status and the other rooms that use it.",
-        steps=["Edit and press <b>Save</b>. With <b>Apply to the other rooms</b> ticked, the product details are copied to the other lines of the same product.",
+        steps=["Edit and press <b>Save</b>. With <b>Apply to the other rooms</b> ticked, the product details are copied to the other lines of the same product (same name, size, finish and brand). It comes ticked while those lines still match this one, unticked with a note of what differs when they were set up their own way.",
                "Add photos: take one, or choose several from the gallery at once; paste a web link instead if you like. The first photo is the cover, <b>Make cover</b> changes it.",
                "<b>Rooms with this item</b> is a checklist of every room: tick one to copy the item there with its own code, untick one to take the item out of that room (its line is deleted, with its photos). The chips tick a whole group at once; this line's own room is locked.",
                "<b>Plan</b> / <b>On the plan</b> opens the room on the drawing."],

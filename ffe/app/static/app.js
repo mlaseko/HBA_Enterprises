@@ -134,11 +134,6 @@
   });
   document.addEventListener('change', function (e) { var wrap = e.target.closest && e.target.closest('.room-picks-wrap'); if (wrap) refreshChips(wrap); });
   document.querySelectorAll('.room-picks-wrap').forEach(refreshChips);
-  document.addEventListener('submit', function (e) {  // the item form: unticking rooms that have this item deletes those lines, so ask first
-    var form = e.target, wrap = form.querySelector && form.querySelector('.room-picks-wrap[data-removal]'); if (!wrap) return;
-    var gone = [].filter.call(wrap.querySelectorAll('input[type=checkbox]'), function (b) { return b.defaultChecked && !b.checked && !b.disabled; });
-    if (gone.length && !confirm(wrap.dataset.removal.replace('%n', gone.length))) e.preventDefault();
-  });
 
   // filter bars (form.filters, GET): a dropdown applies as soon as you pick. The Filter button stays for the search box
   // (Enter works too) and for browsers without JavaScript. The status dropdowns in the rows are not inside the form.
@@ -184,7 +179,89 @@
   window.copyText = function (txt, btn) {
     navigator.clipboard.writeText(txt).then(function () { if (btn) { var o = btn.textContent; btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = o; }, 1200); } });
   };
-  window.confirmSubmit = function (form, msg) { return confirm(msg || 'Are you sure?'); };
+
+  // In-app dialogs. The app never shows the browser's own confirm() / alert() / prompt() boxes: they look nothing like the
+  // app and cannot be styled (tests/test_flow.py fails on them). The box is built here on first use (.modal in app.css):
+  // a card in the middle of the screen, a bottom sheet on the phone; Escape, the backdrop and Cancel say no.
+  // A form asks before it submits with data-confirm="Question? What happens next." (up to the first ? is the heading,
+  // the rest the explanation). A button inside the form can carry the attribute instead (a formaction delete button).
+  // The go-ahead button takes the submit button's label (data-confirm-ok overrides it) and turns red when that button
+  // is .danger. Without JavaScript the form submits straight away, as it always did.
+  // From code: appConfirm('Question? Why.', {ok: 'Delete', danger: true}) resolves true or false; appAlert('Message.',
+  // {title: 'Heading'}) resolves when the box is closed.
+  var asking = null, focusBefore = null, scrollBefore = '';
+  function dialogBox() {
+    var d = document.getElementById('app-dialog');
+    if (d) return d;
+    d = document.createElement('div'); d.className = 'modal'; d.id = 'app-dialog'; d.hidden = true;
+    d.innerHTML = '<div class="back" data-dialog-no></div>' +
+      '<div class="panel" role="alertdialog" aria-modal="true" aria-labelledby="dlg-title" aria-describedby="dlg-text" tabindex="-1">' +
+      '<div class="grab"></div><div class="body"><span class="tile"><svg class="ic"><use href="#i-help"/></svg></span>' +
+      '<div class="txt"><div class="eyebrow"></div><h2 id="dlg-title"></h2><p id="dlg-text"></p></div></div>' +
+      '<div class="foot"><button type="button" class="btn sec" data-dialog-no>Cancel</button><button type="button" class="btn" data-dialog-yes>OK</button></div></div>';
+    document.body.appendChild(d);
+    d.addEventListener('click', function (e) {
+      if (e.target.closest('[data-dialog-yes]')) settle(true); else if (e.target.closest('[data-dialog-no]')) settle(false);
+    });
+    d.addEventListener('keydown', function (e) {  // Tab stays inside the box
+      if (e.key !== 'Tab') return;
+      var f = [].filter.call(d.querySelectorAll('button'), function (b) { return !b.hidden; }), first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
+    return d;
+  }
+  function settle(yes) {
+    var d = document.getElementById('app-dialog'); if (!d || d.hidden) return;
+    d.hidden = true; document.body.style.overflow = scrollBefore;
+    if (focusBefore && focusBefore.focus) focusBefore.focus();
+    focusBefore = null;
+    var done = asking; asking = null; if (done) done(yes);
+  }
+  function dialog(o) {
+    var d = dialogBox(); settle(false);  // one box at a time: a new question replaces one still open
+    var m = /^([^?]*\?)\s*([\s\S]*)$/.exec((o.message || '').trim());
+    d.querySelector('.eyebrow').textContent = o.kicker || (o.alert ? 'Notice' : 'Please confirm');
+    d.querySelector('#dlg-title').textContent = o.title || (m ? m[1] : (o.alert ? '' : 'Are you sure?'));
+    d.querySelector('#dlg-text').textContent = m && !o.title ? m[2] : (o.message || '');
+    d.querySelector('use').setAttribute('href', o.danger ? '#i-trash' : o.alert ? '#i-info' : '#i-help');
+    d.classList.toggle('danger', !!o.danger);
+    var yes = d.querySelector('[data-dialog-yes]'), no = d.querySelector('button[data-dialog-no]');
+    yes.textContent = o.ok || (o.alert ? 'OK' : 'Continue'); yes.classList.toggle('danger', !!o.danger);
+    no.hidden = !!o.alert; no.textContent = o.cancel || 'Cancel';
+    focusBefore = document.activeElement; scrollBefore = document.body.style.overflow; document.body.style.overflow = 'hidden';
+    d.hidden = false; (o.danger && !o.alert ? no : yes).focus();  // a deletion starts on Cancel so Enter cannot delete by accident
+    return new Promise(function (resolve) { asking = resolve; });
+  }
+  window.appConfirm = function (message, o) { o = Object.assign({}, o || {}); o.message = message; o.alert = false; return dialog(o); };
+  window.appAlert = function (message, o) { o = Object.assign({}, o || {}); o.message = message; o.alert = true; return dialog(o).then(function () {}); };
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') settle(false); });
+
+  function buttonLabel(btn) { return btn ? (btn.textContent.trim() || btn.getAttribute('aria-label') || btn.title || '') : ''; }
+  function question(form, btn) {  // what a form asks before it submits, or null
+    var wrap = form.querySelector('.room-picks-wrap[data-removal]');  // the item form: unticking rooms that have this item deletes those lines
+    if (wrap) {
+      var gone = [].filter.call(wrap.querySelectorAll('input[type=checkbox]'), function (b) { return b.defaultChecked && !b.checked && !b.disabled; }).length;
+      if (gone) return { message: wrap.dataset.removal.replace('%n', gone).replace(/\(s\)/g, gone === 1 ? '' : 's'), ok: 'Remove', danger: true };
+    }
+    var src = btn && btn.dataset.confirm ? btn : form;
+    if (!src.dataset.confirm) return null;
+    btn = btn || form.querySelector('button:not([type=button]):not([type=reset]), input[type=submit]');
+    return { message: src.dataset.confirm, ok: src.dataset.confirmOk || buttonLabel(btn) || 'Continue', danger: !!(btn && btn.classList.contains('danger')) };
+  }
+  document.addEventListener('submit', function (e) {
+    var form = e.target; if (!(form instanceof HTMLFormElement)) return;
+    if (form.dataset.asked === '1') { delete form.dataset.asked; return; }  // the go-ahead below submits again
+    var btn = e.submitter && e.submitter.form === form ? e.submitter : null, q = question(form, btn);
+    if (!q) return;
+    e.preventDefault();
+    dialog(q).then(function (yes) {
+      if (!yes) return;
+      form.dataset.asked = '1';
+      if (form.requestSubmit) form.requestSubmit(btn || undefined); else form.submit();
+      delete form.dataset.asked;  // consumed by the submit just fired; cleared here in case validation stopped it
+    });
+  });
 })();
 
 // "Help for this page": the ? button in the top bar opens a drawer with the steps for this page (base.html, help_tips.py).

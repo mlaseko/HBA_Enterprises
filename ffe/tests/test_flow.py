@@ -996,4 +996,34 @@ with TestClient(app) as c:
     finally:
         _st.config.STORAGE_BACKEND="local"; _st._replit_client=None
     print("shared storage ok")
+    # one product, many rooms: identity = name + size + finish + brand; another size is another product; Apply is pre-ticked only while the twins match
+    from app.routers.items import same_item_elsewhere as _sie, product_key as _pk
+    db=SessionLocal(); rids=[r.id for r in db.get(_P,int(pid)).rooms if r.kind=="room"][:3]; db.close(); assert len(rids)==3
+    def mk(room_id, size, finish="Ceramic, matt, cream", price="80"):
+        r=c.post(f"/p/{pid}/items/new", data={"room_ids":[str(room_id)],"category":"Tiles","name":"Floor tiles","size":size,"finish":finish,"qty":"20","unit":"m²","unit_price":price,"status":"To buy"}, follow_redirects=False)
+        return int(r.headers["location"].rstrip("/").split("/")[-1])
+    t1=mk(rids[0], "1200 x 600 mm"); t2=mk(rids[1], "1200×600mm"); t3=mk(rids[2], "800 * 400 mm")
+    db=SessionLocal(); P=db.get(_P,int(pid)); i1,i2,i3=db.get(Item,t1),db.get(Item,t2),db.get(Item,t3)
+    assert _pk(i1)==_pk(i2)!=_pk(i3) and [x.id for x in _sie(P,i1)]==[t2] and _sie(P,i3)==[]; db.close()
+    h=c.get(f"/p/{pid}/items/{t1}").text
+    assert 'name="apply_all" value="1" checked>' in h and "1 other room with this exact item" in h and "differ in" not in h
+    assert 'list="dl-name"' in h and '<datalist id="dl-name">' in h and '<option value="Floor tiles">' in h and '<datalist id="dl-size">' in h and '<option value="1200 x 600 mm">' in h and '<option value="Ceramic, matt, cream">' in h
+    assert "only in this room so far" in c.get(f"/p/{pid}/items/{t3}").text and '<datalist id="dl-name">' in c.get(f"/p/{pid}/items/new").text
+    h=c.get(f"/p/{pid}/items?view=list&q=Floor%20tiles").text; assert h.count('<tr id="item-')==2 and "2 rooms</a>" in h and "· 800 * 400 mm · Ceramic, matt, cream" in h
+    c.post(f"/p/{pid}/items/{t2}/status", data={"status":"Quoted"}); assert 'name="apply_all" value="1" checked>' in c.get(f"/p/{pid}/items/{t1}").text  # status is per room: no difference that matters
+    r=c.post(f"/p/{pid}/items/{t2}", data={"room_id":rids[1],"category":"Tiles","name":"Floor tiles","size":"1200*600 mm","finish":"Ceramic, matt, cream","qty":"20","unit":"m²","unit_price":"95","status":"Quoted","lead_time":"3 weeks"}, follow_redirects=False); assert r.status_code==303
+    h=c.get(f"/p/{pid}/items/{t1}").text; assert 'name="apply_all" value="1">' in h and "The other rooms differ in price and lead time:" in h  # set up its own way: not overwritten by default
+    db=SessionLocal(); assert db.get(Item,t1).unit_price==80 and db.get(Item,t2).unit_price==95; db.close()
+    r=c.post(f"/p/{pid}/items/{t1}", data={"room_id":rids[0],"category":"Tiles","name":"Floor tiles","size":"1200 x 600 mm","finish":"Ceramic, matt, cream","qty":"20","unit":"m²","unit_price":"80","status":"To buy","apply_all":"1"}, follow_redirects=False)
+    db=SessionLocal(); assert db.get(Item,t2).unit_price==80 and db.get(Item,t2).lead_time=="" and db.get(Item,t2).status=="Quoted" and db.get(Item,t3).unit_price==80; db.close()  # ticked: twins follow, the other size untouched
+    assert 'name="apply_all" value="1" checked>' in c.get(f"/p/{pid}/items/{t1}").text and '<datalist id="dl-name">' in c.get(f"/p/{pid}/drafts").text
+    print("product identity ok")
+    # messages and confirmations are the app's own dialog (app.js appConfirm/appAlert, .modal), never the browser's system boxes
+    import re as _re; from pathlib import Path
+    for f in list(Path("app/templates").rglob("*.html")) + list(Path("app/static").glob("*.js")):
+        code = _re.sub(r"^\s*//.*$", "", f.read_text(), flags=_re.M)  # comments may name the forbidden calls
+        assert not _re.search(r"(?<![\w.])(?:window\.)?(?:confirm|alert|prompt)\s*\(", code) and "confirmSubmit" not in code and "onsubmit=" not in code, f
+    assert "data-confirm=" in c.get(f"/p/{pid}/items/{d3}").text and "data-removal=" in c.get(f"/p/{pid}/items/{d3}").text
+    assert "window.appConfirm" in Path("app/static/app.js").read_text()
+    print("no system dialogs ok")
     print("ALL OK")

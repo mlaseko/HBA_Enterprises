@@ -93,7 +93,7 @@
 <td class="small">{{ c.length_cm|num }}×{{ c.width_cm|num }}×{{ c.height_cm|num }}</td>
 <td class="num">{{ '%.3f'|format(c.cbm) }}</td>
 <td class="num">{{ c.weight_kg|num }}</td>
-<td class="right">{% if not c.received %}<form method="post" action="/s/{{ link.token }}/cartons/{{ c.id }}/delete" onsubmit="return confirmSubmit(this,'Delete carton?')"><button class="btn icon danger" aria-label="Delete carton" title="Delete carton"><svg class="ic"><use href="#i-trash"/></svg></button></form>{% else %}<span class="pill green"><svg class="ic sm"><use href="#i-check"/></svg>received</span>{% endif %}</td>
+<td class="right">{% if not c.received %}<form method="post" action="/s/{{ link.token }}/cartons/{{ c.id }}/delete" data-confirm="Delete this carton? It comes off the packing list."><button class="btn icon danger" aria-label="Delete carton" title="Delete carton"><svg class="ic"><use href="#i-trash"/></svg></button></form>{% else %}<span class="pill green"><svg class="ic sm"><use href="#i-check"/></svg>received</span>{% endif %}</td>
 </tr>
 {% else %}<tr><td colspan="9" class="muted center">No cartons listed yet. Add the first one above.</td></tr>{% endfor %}
 </tbody></table></div>
