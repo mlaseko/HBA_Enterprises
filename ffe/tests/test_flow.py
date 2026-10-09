@@ -22,7 +22,7 @@ with TestClient(app) as c:
     pid=r.headers["location"].split("/")[-1]; print("project", pid)
     # import excel
     with open("samples/Kinondoni_House_Procurement_List.xlsx","rb") as f:
-        r=c.post(f"/p/{pid}/import", files={"file":("list.xlsx", f.read())}, data={})
+        r=c.post(f"/p/{pid}/import", files={"file":("list.xlsx", f.read())}, data={"apply":"1"})
     assert "Imported" in r.text, r.text[:500]
     import re; print(re.search(r"Imported[^<]*", r.text).group(0))
     r=c.get(f"/p/{pid}"); assert "Kinondoni House" in r.text
@@ -543,7 +543,7 @@ with TestClient(app) as c:
     assert 'data-group="bathroom" data-floor="First" data-kind="room"' in h and 'capture=' not in h.split('name="photos"')[1][:120] and 'name="photos" accept="image/*" multiple' in h
     db=SessionLocal(); mbr=db.query(Room).filter(Room.project_id==int(pid_p), Room.code=="FF-MBR").one().id; db.close()
     r=c.post(f"/p/{pid_p}/items/new", data={"room_ids":[str(mbr)],"category":"Furniture","name":"Bedside lamp","qty":"2","unit":"pcs","unit_price":"300","status":"To buy"}, follow_redirects=False)
-    r=c.get(r.headers["location"]); assert 'name="add_room_ids"' in r.text and 'All bedrooms <b>2</b>' in r.text  # the other two bedrooms
+    r=c.get(r.headers["location"]); assert 'name="rooms_form" value="1"' in r.text and 'name="room_ids"' in r.text and 'All bedrooms <b>3</b>' in r.text and "Rooms with this item" in r.text  # every room, this one locked
     r=c.get(f"/p/{pid_p}/import/template.xlsx"); assert r.status_code==200 and "spreadsheetml" in r.headers["content-type"] and "import_template.xlsx" in r.headers["content-disposition"]
     wb=openpyxl.load_workbook(io.BytesIO(r.content)); assert wb.sheetnames==["How to","Rooms","Shopping List","Lists"]
     ws=wb["Rooms"]; labels=[ws.cell(row=i, column=1).value for i in range(2, 30)]
@@ -563,7 +563,7 @@ with TestClient(app) as c:
     sl.append(["ZZ-99","GF-LIV - Living room","Lighting","Mystery lamp","","","","",1,"pcs",90,"","","To buy","",""])  # an unknown code: a new item that keeps it
     sl.append(["","Kitchn","Other","Typo room item","","","","",1,"pcs",10,"","","To buy","",""])  # an unknown room: whole house, with a warning
     sl.append(["(example) X","FF-BA1 - Bathroom 1","Tiles","Should be skipped","","","","",1,"pcs",1,"","","","",""]); sl.append(["","","Paint","(example) skipped too","","","","",1,"pcs",1,"","","","",""])
-    b=io.BytesIO(); wb.save(b); r=c.post(f"/p/{pid_p}/import", files={"file":("filled.xlsx", b.getvalue())}, data={}); msg=re.search(r"Imported[^<]*", r.text).group(0)
+    b=io.BytesIO(); wb.save(b); r=c.post(f"/p/{pid_p}/import", files={"file":("filled.xlsx", b.getvalue())}, data={"apply":"1"}); msg=re.search(r"Imported[^<]*", r.text).group(0)
     assert msg.startswith("Imported 12 new items, 2 new rooms, 1 new supplier.") and "Skipped 2 rows" in msg and 'Room &#34;Kitchn&#34; not found' in r.text, msg
     db=SessionLocal(); rs={x.code:x for x in db.query(Room).filter(Room.project_id==int(pid_p))}; its={i.name:i for i in db.query(Item).filter(Item.project_id==int(pid_p))}
     assert len(rs)==12 and rs["SF-STU"].floor=="Second" and rs["SF-STU"].kind=="room" and rs["SF-TER"].kind=="area" and "ZZ" not in rs and rs["FF-MBR"].floor=="First" and not any(x.name.startswith("All ") for x in rs.values())
@@ -579,11 +579,25 @@ with TestClient(app) as c:
     rows={sl2.cell(row=i, column=4).value: i for i in range(2, 40) if sl2.cell(row=i, column=1).value}; assert len(rows)>=9 and sl2.cell(row=rows["Day bed"], column=1).value=="SF-STU-01" and sl2.cell(row=rows["Day bed"], column=11).value==3200 and sl2.cell(row=rows["Day bed"], column=17).value==3200
     i_=rows["Day bed"]; sl2.cell(row=i_, column=11, value=3500); sl2.cell(row=i_, column=14, value="Ordered"); sl2.cell(row=i_, column=5, value="-"); sl2.cell(row=i_, column=9, value=2); sl2.cell(row=i_, column=2, value="SF-TER - Terrace")
     sl2.cell(row=rows["Floor tile"], column=6, value="Marazzi")
-    b=io.BytesIO(); wb2.save(b); r=c.post(f"/p/{pid_p}/import", files={"file":("edited.xlsx", b.getvalue())}, data={}); msg=re.search(r"Imported[^<]*", r.text).group(0)
+    b=io.BytesIO(); wb2.save(b); r=c.post(f"/p/{pid_p}/import", files={"file":("edited.xlsx", b.getvalue())}, data={"apply":"1"}); msg=re.search(r"Imported[^<]*", r.text).group(0)
     assert msg.startswith("Imported 0 new items and updated 2, 0 new rooms, 0 new suppliers."), msg
     db=SessionLocal(); its={i.name:i for i in db.query(Item).filter(Item.project_id==int(pid_p))}; d=its["Day bed"]
     assert d.code=="SF-STU-01" and d.room.code=="SF-TER" and d.unit_price==3500 and d.status=="Ordered" and d.spec=="" and d.qty==2 and d.supplier.name=="New Supplier Co" and d.size=="2000 mm" and d.finish=="Oak"  # blanks kept, "-" cleared, code kept
     assert its["Floor tile"].brand=="Marazzi" and its["Floor tile"].qty==8 and db.query(Item).filter(Item.project_id==int(pid_p)).count()==13; db.close()
+    # preview: the plan is shown and nothing is saved until "Apply"; the kept file is removed afterwards
+    from app import storage as _stx
+    i_=rows["Day bed"]; sl2.cell(row=i_, column=11, value=3600); sl2.cell(row=i_, column=14, value="Bought")  # an unknown status: a warning, the status stays
+    sl2.append(["", "GF-LIV - Living room", "Furniture", "Preview stool", "", "", "", "", 1, "pcs", 120, "", "", "To buy", "", ""])
+    b=io.BytesIO(); wb2.save(b); r=c.post(f"/p/{pid_p}/import", files={"file":("edited2.xlsx", b.getvalue())}, data={}); h=r.text
+    assert "Check before applying" in h and "1 new item</span>" in h and "1 updated</span>" in h and "Preview stool" in h and "GF-LIV-" in h and "Price (CNY)</b>: 3,500 → 3,600" in h and 'Status &#34;Bought&#34; is not one of' in h and "Apply the import" in h, h[h.find("Check before"):h.find("Check before")+3000]
+    key=re.search(r'name="key" value="(imports/p\d+/[a-f0-9]+\.xlsx)"', h).group(1); assert _stx.read_image(key) is not None
+    db=SessionLocal(); assert db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Day bed").one().unit_price==3500 and db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Preview stool").count()==0; db.close()  # nothing saved yet
+    r=c.post(f"/p/{pid_p}/import", data={"key":key,"apply":"1"}); msg=re.search(r"Imported[^<]*", r.text).group(0); assert msg.startswith("Imported 1 new item and updated 1,"), msg
+    db=SessionLocal(); d=db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Day bed").one(); assert d.unit_price==3600 and d.status=="Ordered" and db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Preview stool").one().room.code=="GF-LIV"; db.close()
+    assert _stx.read_image(key) is None and "no longer here" in c.post(f"/p/{pid_p}/import", data={"key":key,"apply":"1"}).text
+    r=c.post(f"/p/{pid_p}/import", files={"file":("again.xlsx", b.getvalue())}, data={}); key2=re.search(r'name="key" value="([^"]+)"', r.text).group(1); assert "1 new item</span>" in r.text and "0 updated</span>" in r.text
+    r=c.post(f"/p/{pid_p}/import/cancel", data={"key":key2}, follow_redirects=False); assert r.status_code==303 and _stx.read_image(key2) is None
+    assert "Choose an .xlsx file first" in c.post(f"/p/{pid_p}/import", data={}).text and c.post(f"/p/{pid_p}/import", data={"key":"imports/p999/x.xlsx","apply":"1"}).status_code==200
     from app.routers.importer import RoomIndex as _RI
     db=SessionLocal(); ri=_RI(db.get(_P,int(pid_p)))
     assert sorted(x.code for x in ri.from_cell("All bathrooms"))==["FF-BA1","FF-MEN","GF-GBA"] and ri.from_cell("")==[None] and ri.from_cell("ALL - Whole house")==[None] and ri.from_cell("Nowhere") is None
@@ -674,6 +688,17 @@ with TestClient(app) as c:
     assert g["status_text"]=="2 To buy, 1 Ordered" and g["status_rank"]==0 and g["price_min"]==g["price_max"]==150
     h=c.get(f"/p/{pid_p}/items?view=list&q=Reading").text; assert 'To buy · 2</span>' in h and 'Ordered · 1</span>' in h and '<td data-v="0" class="small nowrap">' in h  and "status-sel" not in h  # sorts by the least advanced status
     print("item list + sorting ok")
+    # the item page: a checklist of the rooms that have this item; untick = that room's line goes, tick = a copy there
+    db=SessionLocal(); rls=sorted(db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Reading light"), key=lambda i: i.id); rl=rls[0]; own=rl.room_id; others_=[i.room_id for i in rls[1:]]
+    rc={x.id:x.code for x in db.query(Room).filter(Room.project_id==int(pid_p))}; liv=[k for k,v in rc.items() if v=="GF-LIV"][0]; db.close()
+    r=c.get(f"/p/{pid_p}/items/{rl.id}"); h=r.text
+    assert 'name="rooms_form" value="1"' in h and h.count('name="room_ids"')>=12 and f'<input type="hidden" name="room_ids" value="{own}">' in h and re.search(r'value="%d"[^>]*checked disabled>' % own, h) and h.count('class="pick-link"')==2 and "Rooms with this item" in h and 'data-removal="Remove this item from' in h
+    r=c.post(f"/p/{pid_p}/items/{rl.id}", data={"room_id":str(own),"category":"Lighting","name":"Reading light","qty":"2","unit":"pcs","unit_price":"150","status":"To buy","rooms_form":"1","room_ids":[str(own), str(others_[0]), str(liv)]}, follow_redirects=False); assert r.status_code==303
+    db=SessionLocal(); codes=sorted(i.room.code for i in db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Reading light")); db.close()
+    assert codes==sorted([rc[own], rc[others_[0]], "GF-LIV"]), codes  # one room dropped, one added, the own room kept
+    r=c.post(f"/p/{pid_p}/items/{rl.id}", data={"room_id":str(own),"category":"Lighting","name":"Reading light","qty":"2","unit":"pcs","unit_price":"150","status":"To buy","rooms_form":"1","room_ids":[str(own)]}, follow_redirects=False); assert r.status_code==303
+    db=SessionLocal(); assert [i.room_id for i in db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Reading light")]==[own]; db.close()  # only this line is left
+    print("room checklist ok")
     # speed: small copies of photos, the picture cache and headers, compression, static versioning, few queries per page
     from app.models import ItemPhoto as _IP
     from app import storage as _st

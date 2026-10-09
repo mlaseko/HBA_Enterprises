@@ -76,17 +76,14 @@
 
   {% if it and not it.draft %}
   <div class="divider"></div>
-  <div class="eyebrow">Other rooms</div>
+  <div class="eyebrow">Rooms with this item</div>
   {% if others %}
   <label class="check"><input type="checkbox" name="apply_all" value="1" checked> Apply name, category, spec, size, finish, brand, price, unit, lead time and supplier changes to the {{ others|length }} other room{{ 's' if others|length > 1 }} using this item</label>
-  <div class="help">Also in: {% for o in others %}<a href="/p/{{ p.id }}/items/{{ o.id }}">{{ o.code }}</a>{{ ', ' if not loop.last }}{% endfor %}. Their quantity, status, notes and photos stay as they are.</div>
-  {% else %}<p class="muted small">This item is only used in this room.</p>{% endif %}
-  {% if free_rooms %}
-  <details class="mt"><summary>Add this item to more rooms</summary>
-    {{ room_picks(free_rooms, 'add_room_ids') }}
-    <div class="help">Each ticked room gets a copy (same spec, qty and photos, status “To buy”) with its own code. The chips tick a whole group at once.</div>
-  </details>
-  {% endif %}
+  <div class="help">Their quantity, status, notes and photos stay as they are.</div>
+  {% else %}<p class="muted small">This item is only in this room so far.</p>{% endif %}
+  <div class="help mt">Tick a room to put this item there too: a copy with the same spec, quantity and photos, status “To buy” and its own code. Untick a room to take the item out of it: that room's line is deleted when you save, with its photos and plan dots. The chips tick a whole group at once. This line's own room is locked here: change it with the Room field above, or remove this line with Delete.</div>
+  <input type="hidden" name="rooms_form" value="1">
+  {{ room_picks(p.rooms, 'room_ids', checked=with_rooms, locked=[it.room_id] if it.room_id else [], links=room_links, removal='Remove this item from %n room(s)? Those lines are deleted, with their photos and plan dots.') }}
   {% endif %}
 
   <div class="form-actions">

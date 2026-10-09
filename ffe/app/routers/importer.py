@@ -3,6 +3,7 @@ A Shopping List row with the Code of an existing item updates that item; a row w
 in several (a quick pick such as "All bedrooms", or rooms separated by ";"), exactly like ticking rooms on the item form."""
 import io
 import re
+import uuid
 from fastapi import APIRouter, Request, Depends, UploadFile, File, Form
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
@@ -12,9 +13,9 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 from ..db import get_db
 from ..models import Project, Room, Item, Supplier
-from ..common import render, require_login, get_project, ffloat, content_disposition
+from ..common import render, redirect, require_login, get_project, ffloat, content_disposition
 from ..services import next_code, guess_kind, set_price
-from .. import config, drawings
+from .. import config, drawings, storage
 
 router = APIRouter(dependencies=[Depends(require_login)])
 
@@ -372,126 +373,218 @@ def _supplier(db: Session, sups: dict, name: str, result: dict):
     return s
 
 
-@router.post("/p/{project_id}/import")
-async def do_import(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db),
-                    file: UploadFile = File(...), replace: str = Form("")):
-    data = await file.read()
-    try:
-        wb = load_workbook(io.BytesIO(data), data_only=True)
-    except Exception as e:
-        return render(request, "import.html", p=p, result={"error": f"Could not read the file: {e}"})
-    result = {"rooms": 0, "items": 0, "updated": 0, "suppliers": 0, "skipped": 0, "warnings": [], "error": None}
+FIELD_LABELS = {"name": "Item", "category": "Category", "spec": "Spec", "brand": "Brand", "size": "Size", "finish": "Finish", "qty": "Qty",
+                "unit": "Unit", "unit_price": "Price (CNY)", "supplier_id": "Supplier", "lead_time": "Lead time", "status": "Status",
+                "optional": "Optional", "notes": "Notes", "room_id": "Room"}
+
+
+def _fmt(field: str, v, rooms: dict, sups: dict) -> str:
+    """A field value as the preview shows it: names for ids, yes / no, trimmed numbers, '' for blanks."""
+    if field == "room_id":
+        return rooms.get(v, "Whole house") if v else "Whole house"
+    if field == "supplier_id":
+        return sups.get(v, "") if v else ""
+    if field == "optional":
+        return "yes" if v else "no"
+    if isinstance(v, float):
+        return f"{v:,.2f}".rstrip("0").rstrip(".") if v else ""
+    return str(v or "")
+
+
+def run_import(p: Project, db: Session, wb, replace: bool, dry: bool) -> dict:
+    """Read the workbook into the project: rooms first, then the Shopping List (new items, one per room, and updates by
+    code). Returns the counts, a list of what was (or would be) added, changed and skipped, and warnings. With `dry`,
+    nothing is kept: the whole run is rolled back, so the Import page can show a preview before anything is saved."""
+    result = {"rooms": 0, "items": 0, "updated": 0, "unchanged": 0, "suppliers": 0, "skipped": 0, "deleted": 0, "warnings": [],
+              "new": [], "changes": [], "new_rooms": [], "new_suppliers": [], "error": None, "dry": dry}
     warnings: list[str] = []
 
     def warn(msg: str):
         if msg not in warnings:
             warnings.append(msg)
-    if replace == "1":
-        for i in list(p.items):
-            db.delete(i)
-        db.commit()
-        db.expire(p)  # the session keeps objects after commit: reload the item collections without the deleted rows
+    photos_to_drop = []
+    try:
+        if replace:
+            doomed = list(p.items)
+            result["deleted"] = len(doomed)
+            photos_to_drop = [ph for i in doomed for ph in i.photos]
+            for i in doomed:
+                db.delete(i)
+            db.flush()
+            db.expire(p)  # the session keeps objects after a flush: reload the item collections without the deleted rows
 
-    # ---- rooms ----
-    rooms_by_code = {r.code.lower(): r for r in p.rooms}
-    idx = RoomIndex(p)  # fed with the rooms the sheet adds, so an item row can name them
-    if "Rooms" in wb.sheetnames:
-        ws = wb["Rooms"]
-        hdr_row = None
-        for row in ws.iter_rows(min_row=1, max_row=8):
-            vals = [norm(c.value) for c in row]
-            if "room" in vals:
-                hdr_row, h = row[0].row, {v: i for i, v in enumerate(vals) if v}
-                break
-        if hdr_row:
-            sort = max([r.sort for r in p.rooms if r.code != "ALL"] + [0])
-            for row in ws.iter_rows(min_row=hdr_row + 1, values_only=True):
-                label = text(col(h, row, "room"))
-                kind = norm(col(h, row, "kind", "type"))
-                if not label or label.upper().startswith("TOTAL") or label.lower().startswith("(example)") or is_pick(label, kind):
-                    continue  # blank, a totals line, a note to self, or a quick pick of the Room dropdown (not a room)
-                if " - " in label:
-                    code, name = label.split(" - ", 1)
-                else:
-                    code, name = label[:12].upper().replace(" ", "-"), label
-                code = code.strip().upper()
-                r = rooms_by_code.get(code.lower())
-                new_room = r is None
-                if not r:
-                    sort += 1
-                    r = Room(project_id=p.id, code=code, name=name.strip(), sort=sort)
-                    db.add(r)
-                    result["rooms"] += 1
-                r.floor = str(col(h, row, "floor") or r.floor or "")
-                if kind in ("room", "area"):
-                    r.kind = kind
-                elif new_room:
-                    r.kind = guess_kind(r.name, r.floor)  # entrance, corridors, stairs, balconies... = area
-                r.floor_area = ffloat(col(h, row, "floor area m²", "floor area", "floor area m2"), r.floor_area)
-                r.wall_area = ffloat(col(h, row, "wall tile m²", "wall tile m2", "wall area"), r.wall_area)
-                r.notes = str(col(h, row, "notes") or r.notes or "")
-                db.flush()
-                rooms_by_code[r.code.lower()] = r
-                idx.add(r)
-            db.commit()
+        # ---- rooms ----
+        rooms_by_code = {r.code.lower(): r for r in p.rooms}
+        idx = RoomIndex(p)  # fed with the rooms the sheet adds, so an item row can name them
+        if "Rooms" in wb.sheetnames:
+            ws = wb["Rooms"]
+            hdr_row = None
+            for row in ws.iter_rows(min_row=1, max_row=8):
+                vals = [norm(c.value) for c in row]
+                if "room" in vals:
+                    hdr_row, h = row[0].row, {v: i for i, v in enumerate(vals) if v}
+                    break
+            if hdr_row:
+                sort = max([r.sort for r in p.rooms if r.code != "ALL"] + [0])
+                for row in ws.iter_rows(min_row=hdr_row + 1, values_only=True):
+                    label = text(col(h, row, "room"))
+                    kind = norm(col(h, row, "kind", "type"))
+                    if not label or label.upper().startswith("TOTAL") or label.lower().startswith("(example)") or is_pick(label, kind):
+                        continue  # blank, a totals line, a note to self, or a quick pick of the Room dropdown (not a room)
+                    if " - " in label:
+                        code, name = label.split(" - ", 1)
+                    else:
+                        code, name = label[:12].upper().replace(" ", "-"), label
+                    code = code.strip().upper()
+                    r = rooms_by_code.get(code.lower())
+                    new_room = r is None
+                    if not r:
+                        sort += 1
+                        r = Room(project_id=p.id, code=code, name=name.strip(), sort=sort)
+                        db.add(r)
+                        result["rooms"] += 1
+                    r.floor = str(col(h, row, "floor") or r.floor or "")
+                    if kind in ("room", "area"):
+                        r.kind = kind
+                    elif new_room:
+                        r.kind = guess_kind(r.name, r.floor)  # entrance, corridors, stairs, balconies... = area
+                    r.floor_area = ffloat(col(h, row, "floor area m²", "floor area", "floor area m2"), r.floor_area)
+                    r.wall_area = ffloat(col(h, row, "wall tile m²", "wall tile m2", "wall area"), r.wall_area)
+                    r.notes = str(col(h, row, "notes") or r.notes or "")
+                    db.flush()
+                    rooms_by_code[r.code.lower()] = r
+                    idx.add(r)
+                    if new_room:
+                        result["new_rooms"].append(f"{r.label} ({r.floor or 'no floor'}, {r.kind})")
 
-    # ---- items ----
-    sheet = next((n for n in wb.sheetnames if n.lower() in ("shopping list", "items", "master list")), None)
-    if not sheet:
-        for n in wb.sheetnames:
-            hr, _ = find_header(wb[n])
-            if hr:
-                sheet = n
-                break
-    if not sheet:
-        result["error"] = "No sheet with Item and Qty columns found."
-        return render(request, "import.html", p=p, result=result)
-    ws = wb[sheet]
-    hdr_row, h = find_header(ws)
-    sups = {s.name.lower(): s for s in db.query(Supplier).all()}
-    live_by_code = {i.code.lower(): i for i in p.live_items if i.code}
-    for row in ws.iter_rows(min_row=hdr_row + 1, values_only=True):
-        if not any(v not in (None, "") for v in row):
-            continue  # a blank row (the template carries hundreds of styled empty ones): not worth counting
-        f = read_row(h, row)
-        if any(f[k].lower().startswith("(example)") for k in ("code", "room", "name")):
-            result["skipped"] += 1
-            continue
-        existing = live_by_code.get(f["code"].lower()) if f["code"] else None
-        if existing is None and not f["name"]:
-            result["skipped"] += 1
-            continue
-        rooms = idx.from_cell(f["room"])
-        if rooms is None:
-            warn(f'Room "{f["room"]}" not found: ' + ("the item stays where it is." if existing else "the item went to Whole house."))
-            rooms = [] if existing else [None]
-        elif not rooms:
-            warn(f'"{f["room"]}" matches no room' + ("." if existing else f": \"{f['name']}\" was not added."))
-            if existing is None:
+        # ---- items ----
+        sheet = next((n for n in wb.sheetnames if n.lower() in ("shopping list", "items", "master list")), None)
+        if not sheet:
+            for n in wb.sheetnames:
+                hr, _ = find_header(wb[n])
+                if hr:
+                    sheet = n
+                    break
+        if not sheet:
+            result["error"] = "No sheet with Item and Qty columns found."
+            db.rollback()
+            return result
+        ws = wb[sheet]
+        hdr_row, h = find_header(ws)
+        sups = {s.name.lower(): s for s in db.query(Supplier).all()}
+        sup_names = {s.id: s.name for s in sups.values()}
+        room_labels = {r.id: r.label for r in idx.rooms}
+        live_by_code = {i.code.lower(): i for i in p.live_items if i.code}
+        for row in ws.iter_rows(min_row=hdr_row + 1, values_only=True):
+            if not any(v not in (None, "") for v in row):
+                continue  # a blank row (the template carries hundreds of styled empty ones): not worth counting
+            f = read_row(h, row)
+            if any(f[k].lower().startswith("(example)") for k in ("code", "room", "name")):
                 result["skipped"] += 1
                 continue
-        sup = _supplier(db, sups, f["supplier"], result)
-        if existing is not None:
-            before = _snapshot(existing)
-            apply_update(existing, f, rooms, sup, p, result)
-            if _snapshot(existing) != before:
-                result["updated"] += 1
-            continue
-        for room in rooms:  # one new item per room, like the room checklist of the item form
-            item = Item(project_id=p.id, room_id=room.id if room else None, category=f["category"] or "Other", name=f["name"],
-                        brand=_clean(f["brand"]), spec=_clean(f["spec"]), size=_clean(f["size"]), finish=_clean(f["finish"]),
-                        qty=ffloat(f["qty"], 1), unit=_clean(f["unit"]) or "pcs", supplier_id=sup.id if sup else None,
-                        lead_time=_clean(f["lead_time"]), status=f["status"] or "To buy", optional=bool(f["optional"]), notes=_clean(f["notes"]))
-            set_price(item, ffloat(f["price"]), "CNY", p.rate)
-            code = f["code"]
-            item.code = code if code and len(rooms) == 1 and not any(i.code == code for i in p.items) else next_code(db, p, room)
-            db.add(item)
-            db.flush()
-            p.items.append(item)
-            result["items"] += 1
-    db.commit()
-    result["warnings"] = warnings[:8] + ([f"… and {len(warnings) - 8} more."] if len(warnings) > 8 else [])
-    return render(request, "import.html", p=p, result=result)
+            existing = live_by_code.get(f["code"].lower()) if f["code"] else None
+            if existing is None and not f["name"]:
+                result["skipped"] += 1
+                continue
+            raw_status = text(col(h, row, "status"))
+            if raw_status and not f["status"]:
+                warn(f'Status "{raw_status}" is not one of {", ".join(config.STATUSES)}: ' + ("left as it is." if existing else '"To buy" is used.'))
+            rooms = idx.from_cell(f["room"])
+            if rooms is None:
+                warn(f'Room "{f["room"]}" not found: ' + ("the item stays where it is." if existing else "the item goes to Whole house. Add the room on the Rooms sheet, or pick an existing one."))
+                rooms = [] if existing else [None]
+            elif not rooms:
+                warn(f'"{f["room"]}" matches no room' + ("." if existing else f': "{f["name"]}" is not added.'))
+                if existing is None:
+                    result["skipped"] += 1
+                    continue
+            sup = _supplier(db, sups, f["supplier"], result)
+            if sup is not None and sup.id not in sup_names:
+                sup_names[sup.id] = sup.name
+                result["new_suppliers"].append(sup.name)
+            if existing is not None:
+                before = _snapshot(existing)
+                apply_update(existing, f, rooms, sup, p, result)
+                after = _snapshot(existing)
+                if after != before:
+                    result["updated"] += 1
+                    fields = [(FIELD_LABELS[name], _fmt(name, a, room_labels, sup_names), _fmt(name, b, room_labels, sup_names))
+                              for name, a, b in zip(FIELDS, before, after) if a != b]
+                    result["changes"].append({"code": existing.code, "name": existing.name, "fields": fields})
+                else:
+                    result["unchanged"] += 1
+                continue
+            for room in rooms:  # one new item per room, like the room checklist of the item form
+                item = Item(project_id=p.id, room_id=room.id if room else None, category=f["category"] or "Other", name=f["name"],
+                            brand=_clean(f["brand"]), spec=_clean(f["spec"]), size=_clean(f["size"]), finish=_clean(f["finish"]),
+                            qty=ffloat(f["qty"], 1), unit=_clean(f["unit"]) or "pcs", supplier_id=sup.id if sup else None,
+                            lead_time=_clean(f["lead_time"]), status=f["status"] or "To buy", optional=bool(f["optional"]), notes=_clean(f["notes"]))
+                set_price(item, ffloat(f["price"]), "CNY", p.rate)
+                code = f["code"]
+                item.code = code if code and len(rooms) == 1 and not any(i.code == code for i in p.items) else next_code(db, p, room)
+                db.add(item)
+                db.flush()
+                p.items.append(item)
+                result["items"] += 1
+                result["new"].append({"code": item.code, "name": item.name, "room": room.label if room else "Whole house", "category": item.category,
+                                      "qty": _fmt("qty", item.qty, {}, {}) + " " + item.unit, "price": _fmt("unit_price", item.unit_price, {}, {}),
+                                      "status": item.status, "supplier": sup.name if sup else ""})
+        result["warnings"] = warnings[:12] + ([f"… and {len(warnings) - 12} more."] if len(warnings) > 12 else [])
+        if dry:
+            db.rollback()
+        else:
+            db.commit()
+            for ph in photos_to_drop:  # the files of the items "replace" deleted, once the deletion is final
+                storage.delete_photo(ph)
+        return result
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _import_key(p: Project, key: str) -> str:
+    """The storage key of a file kept between the preview and the apply step; '' unless it is this project's."""
+    return key if key.startswith(f"imports/p{p.id}/") and storage.safe_key(key) else ""
+
+
+@router.post("/p/{project_id}/import")
+async def do_import(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db),
+                    file: UploadFile | None = File(None), replace: str = Form(""), apply: str = Form(""), key: str = Form("")):
+    """Step one (a file): keep the file, run the import without saving, show what it would do. Step two (the kept file's
+    key with apply=1): run it for real. A file posted with apply=1 skips the preview."""
+    key = _import_key(p, key)
+    if key:
+        data = storage.read_image(key)
+        if not data:
+            return render(request, "import.html", p=p, result={"error": "The uploaded file is no longer here. Choose it again."})
+    else:
+        data = await file.read() if file is not None else b""
+        if not data:
+            return render(request, "import.html", p=p, result={"error": "Choose an .xlsx file first."})
+    try:
+        wb = load_workbook(io.BytesIO(data), data_only=True)
+    except Exception as e:
+        return render(request, "import.html", p=p, result={"error": f"Could not read the file: {e}"})
+    if apply == "1":
+        result = run_import(p, db, wb, replace == "1", dry=False)
+        if key:
+            storage.delete_image(key)
+        return render(request, "import.html", p=p, result=result)
+    if not key:
+        key = storage.save_blob(data, f"imports/p{p.id}/{uuid.uuid4().hex}.xlsx", XLSX)
+    preview = run_import(p, db, wb, replace == "1", dry=True)
+    if preview["error"]:
+        storage.delete_image(key)
+        return render(request, "import.html", p=p, result=preview)
+    return render(request, "import.html", p=p, result=None, preview=preview, key=key, replace=replace == "1")
+
+
+@router.post("/p/{project_id}/import/cancel")
+def cancel_import(p: Project = Depends(get_project), key: str = Form("")):
+    key = _import_key(p, key)
+    if key:
+        storage.delete_image(key)
+    return redirect(f"/p/{p.id}/import")
 
 
 def _clean(v: str) -> str:

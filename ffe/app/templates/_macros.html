@@ -10,14 +10,15 @@
 {% endmacro %}
 {# room_picks: the checklist of rooms (rooms first, then areas) with quick-pick chips above it: All bedrooms, All bathrooms,
    each floor, All rooms, All areas, Clear. Chips appear only when they would tick more than one entry; app.js toggles them. #}
-{% macro room_picks(rooms, name, checked=[]) %}
+{% macro pick_box(r, name, checked, locked, links) %}<label class="check{{ ' locked' if r.id in locked }}"><input type="checkbox" name="{{ name }}" value="{{ r.id }}" data-group="{{ r.group }}" data-floor="{{ r.floor }}" data-kind="{{ r.kind }}" {{ 'checked' if r.id in checked or r.id in locked }}{{ ' disabled' if r.id in locked }}>{% if r.id in locked %}<input type="hidden" name="{{ name }}" value="{{ r.id }}">{% endif %} {{ r.label }}{% if links and r.id in links %} <a class="pick-link" href="{{ links[r.id][1] }}" title="Open this room's line">{{ links[r.id][0] }}</a>{% endif %}</label>{% endmacro %}
+{% macro room_picks(rooms, name, checked=[], locked=[], links={}, removal='') %}
 {% set rs = rooms|list %}
 {% set proper = rs|rejectattr('is_area')|list %}
 {% set areas = rs|selectattr('is_area')|list %}
 {% set beds = rs|selectattr('group', 'equalto', 'bedroom')|list %}
 {% set baths = rs|selectattr('group', 'equalto', 'bathroom')|list %}
 {% set floors = rs|map(attribute='floor')|reject('equalto', '')|unique|list %}
-<div class="room-picks-wrap">
+<div class="room-picks-wrap"{% if removal %} data-removal="{{ removal }}"{% endif %}>
 {% if rs|length > 2 %}
 <div class="pick-chips" role="group" aria-label="Quick picks">
   <span class="small muted">Tick:</span>
@@ -29,7 +30,7 @@
   <button type="button" class="pick-chip ghost" data-pick="none">Clear</button>
 </div>
 {% endif %}
-<div class="room-picks">{% for r in proper %}<label class="check"><input type="checkbox" name="{{ name }}" value="{{ r.id }}" data-group="{{ r.group }}" data-floor="{{ r.floor }}" data-kind="{{ r.kind }}" {{ 'checked' if r.id in checked }}> {{ r.label }}</label>{% endfor %}{% if areas %}<div class="picks-sub">Areas</div>{% for r in areas %}<label class="check"><input type="checkbox" name="{{ name }}" value="{{ r.id }}" data-group="{{ r.group }}" data-floor="{{ r.floor }}" data-kind="{{ r.kind }}" {{ 'checked' if r.id in checked }}> {{ r.label }}</label>{% endfor %}{% endif %}</div>
+<div class="room-picks">{% for r in proper %}{{ pick_box(r, name, checked, locked, links) }}{% endfor %}{% if areas %}<div class="picks-sub">Areas</div>{% for r in areas %}{{ pick_box(r, name, checked, locked, links) }}{% endfor %}{% endif %}</div>
 </div>
 {% endmacro %}
 {% macro room_pill(r) %}<span class="pill {{ 'area' if r.is_area else 'accent' }}" title="{{ r.kind_title }}">{{ r.code }}</span>{% endmacro %}

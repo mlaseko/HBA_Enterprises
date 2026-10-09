@@ -28,6 +28,7 @@ const DESKTOP = [
   ['payments', `/p/${pid}/payments`],
   ['packing', `/p/${pid}/cartons`],
   ['import', `/p/${pid}/import`],
+  ['import-preview', `/p/${pid}/import`, async p => { await p.setInputFiles('input[name=file]', ids.edited_xlsx); await Promise.all([p.waitForNavigation(), p.click('form[enctype] button.btn')]); await p.waitForLoadState('networkidle'); }],
   ['settings', '/settings'],
   ['clip', '/clip'],
   ['client', `/c/${ids.token}`],

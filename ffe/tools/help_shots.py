@@ -11,6 +11,7 @@ enough for its picture in the guide to be wrong.
 Env: HELP_SHOTS_CHROME = path of the chrome binary for Playwright (default: Playwright's own download),
      NODE_PATH = where `require('playwright')` is found when it is not installed next to this repo."""
 import io
+import openpyxl
 import json
 import os
 import random
@@ -409,6 +410,17 @@ def seed() -> dict:
             c.post(f"/p/{pid}/items/new", data={"room_ids": [str(x) for x in room_ids], "category": cat, "name": name, "spec": spec, "size": size, "finish": finish, "qty": str(qty),
                                                "unit": "pcs", "unit_price": str(price), "price_currency": "CNY", "supplier_id": str(sups.get(sup, "")), "status": "Quoted", "lead_time": "3 weeks", "notes": ""},
                    files=[("photos", ("sample.jpg", swatch(kind, colour), "image/jpeg"))], follow_redirects=False)
+        # an edited export for the import preview picture: two prices, a status and one new row
+        xl = openpyxl.load_workbook(io.BytesIO(c.get(f"/p/{pid}/export/items.xlsx").content))
+        sl = xl["Shopping List"]
+        at = {sl.cell(row=i, column=4).value: i for i in range(2, 120) if sl.cell(row=i, column=1).value}
+        sl.cell(row=at["3-seat sofa, linen"], column=11, value=6400)
+        sl.cell(row=at["Arc floor lamp"], column=14, value="Ordered")
+        sl.cell(row=at["King bed, upholstered headboard"], column=11, value=5900)
+        sl.append(["", "All bedrooms", "Lighting", "Reading light", "7 W LED, swing arm, switch on the base", "", "350 mm", "Brushed brass", 1, "pcs", 390,
+                   "Guangzhou Lighting Market", "3 weeks", "To buy", "no", ""])
+        ids["edited_xlsx"] = os.path.join(TMP, "edited-items.xlsx")
+        xl.save(ids["edited_xlsx"])
         db = SessionLocal()
         items = db.query(Item).filter(Item.project_id == pid, Item.draft == False).order_by(Item.id).all()  # noqa: E712
         by_code = {i.code: i.id for i in items}
