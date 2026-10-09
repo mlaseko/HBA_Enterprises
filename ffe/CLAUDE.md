@@ -54,7 +54,8 @@ app/ai.py              Claude auto-fill (off without ANTHROPIC_API_KEY): suggest
                        structured output, apply_suggestion(item, s, rooms, only_empty) fills fields; all failures → None
 app/routers/           projects, rooms, items, suppliers, payments, cartons, share (public /s/<token>, /c/<token>),
                        exports (PDF + xlsx; items.xlsx = importer.build_workbook filled), importer (Excel import: new rows, multi-room
-                       rows via rooms_from_cell(), updates by Code; GET /p/<id>/import/template.xlsx = build_workbook empty),
+                       rows via rooms_from_cell(), updates by Code; run_import(dry=True) previews, the file waits in storage under
+                       imports/p<id>/ until apply=1 or /import/cancel; GET /p/<id>/import/template.xlsx = build_workbook empty),
                        capture (/p/<id>/capture camera page → draft items; /p/<id>/drafts complete or discard),
                        clip (/clip: "Save to HBA" bookmarklet + save-from-web form → draft item or mood-board image),
                        plan (/p/<id>/plan interactive plan + ?mode=mark, /plan/room/<id> panel fragment, /plan/pins and
@@ -207,7 +208,9 @@ ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';  
 - **Items in several rooms.** No schema change: the same product in several rooms stays one `Item` row per room (own
   code, qty, status, cartons) and rows are grouped by name (`items.same_item_elsewhere`, case/space-insensitive).
   New item form posts `room_ids` (checklist, one row per room, photos copied per row); the edit form has
-  `apply_all` (copies `SHARED_FIELDS` to the other rooms' rows) and `add_room_ids` (copies this item into more rooms).
+  `apply_all` (copies `SHARED_FIELDS` to the other rooms' rows) and a `room_ids` checklist of every room (`rooms_form=1`; ticked
+  rooms without a copy get one via `_copy_to_room`, unticked rooms that had one lose that line, photos deleted through storage;
+  the item's own room is locked in the `room_picks` macro: checked + disabled + a hidden input). `add_room_ids` still works.
 
 - **Architectural drawings.** Floor plans tagged with floor + sheet (`PlanTag`, own table), PDF drawing sets with a
   page picker (`DrawingSet`, pages rendered by `pypdfium2` at `PLAN_MAX_PX`, previews at 1600 px), plans on the Rooms
@@ -282,7 +285,16 @@ ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';  
   the importer skips them (`is_pick`) and `rooms_from_cell()` expands them, a label, a code, a name or a `;`-separated list into
   the target rooms (one new `Item` per room, like the form). A row whose Code matches a live item updates it in place
   (`apply_update`: filled cells change, blank stay, `-` clears, prices through `set_price`, a changed room clears `item.pins`);
-  only rows that actually changed count as updated. Codes are never rewritten by an update.
+  only rows that actually changed count as updated. Codes are never rewritten by an update. `run_import(p, db, wb, replace, dry)`
+  does the whole run in one transaction (flushes, no intermediate commits) and returns the plan (`new`, `changes` with per-field
+  old → new, `new_rooms`, `new_suppliers`, counts, warnings); `dry=True` rolls back, so `POST /import` with a file shows the
+  preview and keeps the file in storage (`imports/p<id>/<uuid>.xlsx`), and `apply=1` with the `key` runs it for real and deletes
+  the file. A file posted with `apply=1` skips the preview (the tests do). **Pictures:** the export puts each item's cover thumbnail
+  (112×84, `PHOTO_PX`) over the row's Photo cell (`ITEM_COLS` has a Photo column after Item; validation letters come from
+  `_letter`). On import, `_embedded_pictures(ws)` reads pictures placed over rows (openpyxl keeps `ws._images` with anchors) and
+  files uploaded as `photos` are matched by `_photo_keys` (stem → code, then item name, with a `-2` / ` (2)` suffix stripped);
+  a picture goes to every matched item that had no photo before the run (`had_photos`), saved with `items.new_photo` after the
+  commit. Between preview and apply the pictures wait next to the sheet (`<key>-NNN.ext` + a `<key>.json` manifest).
 
 - **Plan roles, legacy layers, the Item list and sorting.** Images & plans names each plan's role under its picture
   (`drawings.plan_role`: main | twin | layer; `plans_for_floor` puts the general plan that carries boxes first, so the sheet

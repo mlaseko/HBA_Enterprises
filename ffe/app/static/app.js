@@ -108,7 +108,7 @@
 
   // room checklists (_macros.html room_picks): a chip ticks every box of its group, again unticks; pressed = all ticked
   function pickSet(wrap, pick) {
-    var boxes = [].slice.call(wrap.querySelectorAll('input[type=checkbox]')), i = pick.indexOf(':');
+    var boxes = [].slice.call(wrap.querySelectorAll('input[type=checkbox]:not(:disabled)')), i = pick.indexOf(':');
     var kind = i > 0 ? pick.slice(0, i) : pick, val = i > 0 ? pick.slice(i + 1) : '';
     return boxes.filter(function (b) {
       if (kind === 'group') return b.dataset.group === val;
@@ -128,12 +128,17 @@
     var chip = e.target.closest('.pick-chip'); if (!chip) return;
     var wrap = chip.closest('.room-picks-wrap'); if (!wrap) return;
     e.preventDefault();
-    if (chip.dataset.pick === 'none') { wrap.querySelectorAll('input[type=checkbox]').forEach(function (b) { b.checked = false; }); }
+    if (chip.dataset.pick === 'none') { wrap.querySelectorAll('input[type=checkbox]:not(:disabled)').forEach(function (b) { b.checked = false; }); }
     else { var set = pickSet(wrap, chip.dataset.pick), all = set.length && set.every(function (b) { return b.checked; }); set.forEach(function (b) { b.checked = !all; }); }
     refreshChips(wrap);
   });
   document.addEventListener('change', function (e) { var wrap = e.target.closest && e.target.closest('.room-picks-wrap'); if (wrap) refreshChips(wrap); });
   document.querySelectorAll('.room-picks-wrap').forEach(refreshChips);
+  document.addEventListener('submit', function (e) {  // the item form: unticking rooms that have this item deletes those lines, so ask first
+    var form = e.target, wrap = form.querySelector && form.querySelector('.room-picks-wrap[data-removal]'); if (!wrap) return;
+    var gone = [].filter.call(wrap.querySelectorAll('input[type=checkbox]'), function (b) { return b.defaultChecked && !b.checked && !b.disabled; });
+    if (gone.length && !confirm(wrap.dataset.removal.replace('%n', gone.length))) e.preventDefault();
+  });
 
   // filter bars (form.filters, GET): a dropdown applies as soon as you pick. The Filter button stays for the search box
   // (Enter works too) and for browsers without JavaScript. The status dropdowns in the rows are not inside the form.

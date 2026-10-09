@@ -14,40 +14,88 @@
   </div>
 </div>
 
+{% if preview %}
+<div class="card" id="preview">
+  <div class="row between top">
+    <div><h2 class="mb-0">Check before applying</h2><div class="small muted">Nothing is saved yet. This is what the file would do to {{ p.name }}.</div></div>
+    <span class="pill">{{ preview.new|length + preview.changes|length }} row{{ 's' if preview.new|length + preview.changes|length != 1 }} to apply</span>
+  </div>
+  {% if preview.deleted %}<div class="alert err mt">All {{ preview.deleted }} existing item{{ 's' if preview.deleted != 1 }} of this project will be <b>deleted first</b>, with their photos, because "Delete all existing items" is ticked. Cancel and untick it if that is not what you want.</div>{% endif %}
+  <div class="row mt">
+    <span class="pill {{ 'accent' if preview['items'] }}">{{ preview['items'] }} new item{{ 's' if preview['items'] != 1 }}</span>
+    <span class="pill {{ 'accent' if preview.updated }}">{{ preview.updated }} updated</span>
+    <span class="pill">{{ preview.unchanged }} unchanged</span>
+    <span class="pill {{ 'accent' if preview.rooms }}">{{ preview.rooms }} new room{{ 's' if preview.rooms != 1 }}</span>
+    <span class="pill {{ 'accent' if preview.suppliers }}">{{ preview.suppliers }} new supplier{{ 's' if preview.suppliers != 1 }}</span>
+    <span class="pill">{{ preview.skipped }} skipped</span>
+    <span class="pill {{ 'accent' if preview.photos }}">{{ preview.photos }} picture{{ 's' if preview.photos != 1 }}</span>
+  </div>
+  {% if preview.warnings %}<div class="alert info mt"><b>Check these:</b><ul class="mt mb-0">{% for w in preview.warnings %}<li>{{ w }}</li>{% endfor %}</ul></div>{% endif %}
+  {% if preview.new_rooms %}<div class="mt"><span class="eyebrow">New rooms</span><div class="small">{{ preview.new_rooms|join(' · ') }}</div></div>{% endif %}
+  {% if preview.new_suppliers %}<div class="mt"><span class="eyebrow">New suppliers</span><div class="small">{{ preview.new_suppliers|join(' · ') }}</div></div>{% endif %}
+  {% if preview.changes %}
+  <div class="eyebrow mt">Updated items</div>
+  <div class="tbl"><table>
+    <thead><tr><th>Code</th><th>Item</th><th>What changes</th></tr></thead>
+    <tbody>{% for ch in preview.changes %}<tr><td class="small muted nowrap">{{ ch.code }}</td><td>{{ ch.name }}</td><td class="small">{% for label, a, b in ch.fields %}<div><b>{{ label }}</b>: {{ a or '—' }} → {{ b or '—' }}</div>{% endfor %}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% endif %}
+  {% if preview.new %}
+  <div class="eyebrow mt">New items</div>
+  <div class="tbl"><table>
+    <thead><tr><th>Code</th><th>Item</th><th>Room</th><th>Category</th><th class="num">Qty</th><th class="num">Price CNY</th><th>Supplier</th><th>Status</th><th>Photo</th></tr></thead>
+    <tbody>{% for n in preview.new[:300] %}<tr><td class="small muted nowrap">{{ n.code }}</td><td>{{ n.name }}</td><td class="small">{{ n.room }}</td><td class="small">{{ n.category }}</td><td class="num">{{ n.qty }}</td><td class="num">{{ n.price }}</td><td class="small">{{ n.supplier }}</td><td class="small">{{ n.status }}</td><td class="small">{% if n.photos %}<svg class="ic sm"><use href="#i-camera"/></svg> {{ n.photos }}{% endif %}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% if preview.new|length > 300 %}<div class="small muted mt">… and {{ preview.new|length - 300 }} more.</div>{% endif %}
+  {% endif %}
+  {% if not (preview['items'] or preview.updated or preview.rooms or preview.suppliers or preview.deleted or preview.photos) %}<div class="alert mt">Nothing would change: every row matches what the project already has.</div>{% endif %}
+  <form method="post" class="form-actions">
+    <input type="hidden" name="key" value="{{ key }}"><input type="hidden" name="apply" value="1">{% if replace %}<input type="hidden" name="replace" value="1">{% endif %}
+    <button class="btn lg"{% if not (preview['items'] or preview.updated or preview.rooms or preview.suppliers or preview.deleted or preview.photos) %} disabled{% endif %}><svg class="ic"><use href="#i-check"/></svg>Apply the import</button>
+    <button class="btn ghost" formaction="/p/{{ p.id }}/import/cancel" formnovalidate><svg class="ic"><use href="#i-x"/></svg>Cancel</button>
+  </form>
+</div>
+{% endif %}
+
 {% if result %}
   {% if result.error %}<div class="alert err">{{ result.error }}</div>{% else %}
-  <div class="alert">Imported {{ result['items'] }} new item{{ 's' if result['items'] != 1 }}{% if result.updated %} and updated {{ result.updated }}{% endif %}, {{ result.rooms }} new room{{ 's' if result.rooms != 1 }}, {{ result.suppliers }} new supplier{{ 's' if result.suppliers != 1 }}. Skipped {{ result.skipped }} row{{ 's' if result.skipped != 1 }}. <a href="/p/{{ p.id }}/items">Open items →</a>
+  <div class="alert">Imported {{ result['items'] }} new item{{ 's' if result['items'] != 1 }}{% if result.updated %} and updated {{ result.updated }}{% endif %}, {{ result.rooms }} new room{{ 's' if result.rooms != 1 }}, {{ result.suppliers }} new supplier{{ 's' if result.suppliers != 1 }}{% if result.photos %}, {{ result.photos }} picture{{ 's' if result.photos != 1 }} added{% endif %}. Skipped {{ result.skipped }} row{{ 's' if result.skipped != 1 }}. <a href="/p/{{ p.id }}/items">Open items →</a>
     {% if result.warnings %}<ul class="mt mb-0">{% for w in result.warnings %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}</div>{% endif %}
 {% endif %}
 
+{% if not preview %}
 <form method="post" enctype="multipart/form-data" class="card">
   <div class="grid g2 stack">
     <div>
       <h2>Upload the Excel</h2>
       <p class="small muted"><b>Adding:</b> start from <b>Download the template</b>. Its <b>Rooms</b> sheet lists this project's rooms and areas (add a floor, a room or an area as a new row) and its <b>Shopping List</b> has dropdowns for the room, category, unit and status. The Room dropdown also offers <b>All bedrooms</b>, <b>All bathrooms</b>, <b>All rooms</b>, <b>All areas</b> and <b>All on Ground floor</b>; several rooms can be typed with <b>;</b> between them. One row then becomes one item per room, each with its own code.</p>
-      <p class="small muted"><b>Updating:</b> press <b>Export all items</b>, change what you need in Excel and import the file. A row whose <b>Code</b> is an existing item's code updates that item: only the cells you fill in change, a <b>-</b> clears a cell, and the code never changes. Rows without a code are added as new items.</p>
+      <p class="small muted"><b>Updating:</b> press <b>Export all items</b> (it carries each item's picture), change what you need in Excel and import the file. A row whose <b>Code</b> is an existing item's code updates that item: only the cells you fill in change, a <b>-</b> clears a cell, and the code never changes. Rows without a code are added as new items.</p>
       <div class="eyebrow">Recognised columns</div>
       <div class="row mt">
-        <span class="pill">Code</span><span class="pill">Room</span><span class="pill">Category</span><span class="pill">Item</span><span class="pill">Must-have spec</span><span class="pill">Brand</span><span class="pill">Size / Finish</span><span class="pill">Qty</span><span class="pill">Unit</span><span class="pill">Price (CNY)</span><span class="pill">Supplier</span><span class="pill">Lead time</span><span class="pill">Status</span><span class="pill">Optional</span><span class="pill">Notes</span>
+        <span class="pill">Code</span><span class="pill">Room</span><span class="pill">Category</span><span class="pill">Item</span><span class="pill">Photo</span><span class="pill">Must-have spec</span><span class="pill">Brand</span><span class="pill">Size / Finish</span><span class="pill">Qty</span><span class="pill">Unit</span><span class="pill">Price (CNY)</span><span class="pill">Supplier</span><span class="pill">Lead time</span><span class="pill">Status</span><span class="pill">Optional</span><span class="pill">Notes</span>
       </div>
     </div>
     <div>
       <label>Excel file (.xlsx)</label>
       <input type="file" name="file" accept=".xlsx" required>
-      <div class="help">Rooms are created or updated first (matched by their code, never duplicated). Then each item row: a code that matches an existing item updates it, anything else is added as a new item. The Kinondoni list format imports too; columns are matched by their headers and extra columns are ignored.</div>
+      <label class="mt">Pictures (optional)</label>
+      <input type="file" name="photos" accept="image/*" multiple>
+      <div class="help">Picture files named after the item code (FF-MBR-04.jpg) or the item name (Bedside wall light.jpg, and Bedside wall light-2.jpg for a second one). A picture placed over a row's <b>Photo</b> cell in the sheet works too. Pictures go to items that have no photo yet; the preview says which.</div>
+      <div class="help">Nothing is saved until you confirm: the next screen lists every item the file would add or change. Rooms are created or updated first (matched by their code, never duplicated). Then each item row: a code that matches an existing item updates it, anything else is added as a new item. The Kinondoni list format imports too; columns are matched by their headers and extra columns are ignored.</div>
       <label class="check"><input type="checkbox" name="replace" value="1"> Delete all existing items in this project first</label>
       <div class="help">Only tick this to start over from a corrected file. Photos on deleted items are lost; updating by code keeps them.</div>
     </div>
   </div>
-  <div class="form-actions"><button class="btn"><svg class="ic"><use href="#i-upload"/></svg>Import</button></div>
+  <div class="form-actions"><button class="btn"><svg class="ic"><use href="#i-upload"/></svg>Preview the import</button><span class="small muted">You see what the file would add or change, then confirm.</span></div>
 </form>
+{% endif %}
 
 <div class="card soft">
   <div class="row top nowrap">
     <svg class="ic"><use href="#i-camera"/></svg>
     <div>
-      <div class="b">Tip: photos are not in Excel.</div>
-      <div class="muted small">After importing new items, open each one and add the sample photo from your phone, or use Quick capture. An update by code keeps the photos an item already has.</div>
+      <div class="b">Tip: pictures can come with the sheet.</div>
+      <div class="muted small">Upload picture files next to the Excel, named after the item code or name, or place a picture over the row's Photo cell. The export shows each item's cover picture in that column. Items that already have a photo keep it; change photos on the item page or with Quick capture.</div>
     </div>
   </div>
 </div>

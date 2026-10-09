@@ -209,10 +209,10 @@ def item_detail(request: Request, item_id: int, p: Project = Depends(get_project
         return redirect(f"/p/{p.id}/items")
     suppliers = db.query(Supplier).order_by(Supplier.name).all()
     others = sorted(same_item_elsewhere(p, item), key=lambda i: i.code)
-    used = {i.room_id for i in others} | {item.room_id}
-    free_rooms = [r for r in p.rooms if r.id not in used]
+    with_rooms = [o.room_id for o in others if o.room_id]  # the checklist: rooms that have this item (its own room is locked)
+    room_links = {o.room_id: (o.code, f"/p/{p.id}/items/{o.id}") for o in others if o.room_id}
     return render(request, "items/form.html", p=p, item=item, suppliers=suppliers, pre_room=None, pre_cat="", err=err[:200],
-                  filled=filled[:200], others=others, free_rooms=free_rooms, next=safe_next(next, ""))
+                  filled=filled[:200], others=others, with_rooms=with_rooms, room_links=room_links, next=safe_next(next, ""))
 
 
 @router.post("/p/{project_id}/items/{item_id}")
@@ -222,7 +222,8 @@ async def update_item(request: Request, item_id: int, p: Project = Depends(get_p
         return redirect(f"/p/{p.id}/items")
     form = await request.form()
     old_room, was_draft = item.room_id, item.draft
-    others = same_item_elsewhere(p, item) if form.get("apply_all") == "1" and not was_draft else []
+    siblings = same_item_elsewhere(p, item) if not was_draft else []  # the same product in other rooms, by the name before this save
+    others = siblings if form.get("apply_all") == "1" else []
     apply_form(item, db, p, form)
     if item.room_id != old_room and not was_draft and not item.draft:
         item.code = next_code(db, p, item.room)
@@ -232,7 +233,14 @@ async def update_item(request: Request, item_id: int, p: Project = Depends(get_p
         for f in SHARED_FIELDS:
             setattr(o, f, getattr(item, f))
         copy_price(item, o)
-    copies = [_copy_to_room(db, p, item, r) for r in _form_rooms(p, form.getlist("add_room_ids"))] if not item.draft else []
+    copies, removed = [], []
+    if not item.draft:
+        have = {o.room_id: o for o in siblings if o.room_id}
+        if form.get("rooms_form") == "1":  # the edit form's checklist: ticked = a copy in that room, unticked = that room's line goes
+            wanted = {fint(x) for x in form.getlist("room_ids")} | {item.room_id}
+            copies = [_copy_to_room(db, p, item, r) for r in p.rooms if r.id in wanted and r.id not in have and r.id != item.room_id]
+            removed = [o for rid, o in have.items() if rid not in wanted]
+        copies += [_copy_to_room(db, p, item, r) for r in _form_rooms(p, form.getlist("add_room_ids")) if r.id not in have and r.id != item.room_id]  # older forms
     for f in form.getlist("photos"):
         if hasattr(f, "read"):
             data = await f.read()
@@ -246,6 +254,10 @@ async def update_item(request: Request, item_id: int, p: Project = Depends(get_p
             data = storage.read_image(ph.file_key)
             if data:
                 db.add(new_photo(new.id, data, p, ph.caption))
+    for o in removed:  # taken out of that room: its line goes like a delete, photos included
+        for ph in o.photos:
+            storage.delete_photo(ph)
+        db.delete(o)
     db.commit()
     nxt = safe_next(form.get("next"), "")
     if err:
