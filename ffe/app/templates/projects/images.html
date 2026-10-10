@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import floor_select %}
+{% from "_macros.html" import floor_select, room_options %}
 {% block title %}Images &amp; plans · {{ p.name }} · {{ APP_NAME }}{% endblock %}
 {% block content %}
 {% set total = p.images|length %}
@@ -22,6 +22,7 @@
   <h2><svg class="ic"><use href="#i-upload"/></svg> Add images</h2>
   <div class="grid g3 stack">
     <div><label for="im-kind">Type</label><select id="im-kind" name="kind" class="in"><option value="mood">Mood board</option><option value="cover">Cover image</option></select></div>
+    <div><label for="im-room">For</label><select id="im-room" name="room_id" class="in"><option value="">Whole house</option>{{ room_options(p.rooms, '') }}</select><div class="help">A mood-board picture for one room is its inspiration: it shows on that room's panel, on the Rooms page, in its item list and on the client's link.</div></div>
     <div><label for="im-cap">Caption (optional)</label><input id="im-cap" class="in" type="text" name="caption" placeholder="e.g. Warm wood &amp; linen"></div>
     <div><label for="im-files">Photos</label><input id="im-files" type="file" name="files" accept="image/*" multiple required><div class="filehint help"></div></div>
   </div>
@@ -81,7 +82,7 @@
 <div class="moodboard">
 {% for kind, title, hint in [('cover', 'Cover', 'The first page of the client schedule.'), ('floorplan', 'Floor plans', 'Tag each plan with its floor and what it shows. One sheet per floor is the main plan (the general floor plan) and carries the room boxes; a furniture layout, electrical, plumbing, ceiling or flooring sheet with the same floor name is a layer of it. Untagged plans print up front.'), ('mood', 'Mood board', 'Six images per page, with captions.')] %}
 {% set imgs = p.images|selectattr('kind', 'equalto', kind)|list %}
-<div class="card">
+<div class="card"{% if kind == 'mood' %} id="mood"{% endif %}>
   <div class="row between top">
     <div><h2 class="mb-0">{{ title }}</h2><div class="small muted">{{ hint }}</div></div>
     <span class="pill">{{ imgs|length }}</span>
@@ -115,6 +116,25 @@
     <div class="ph lg">No floor plans yet</div>
   {% endfor %}
   </div>
+  {% elif kind == 'mood' %}
+  {% for grp_room, grp in mood_groups %}
+  <div class="sub-title mt"><span>{{ grp_room.label if grp_room else 'Whole house' }}</span><span class="muted small">{{ grp|length }} picture{{ 's' if grp|length != 1 }}{% if grp|selectattr('by_client')|list %} · {{ grp|selectattr('by_client')|list|length }} from the client{% endif %}</span></div>
+  <div class="gallery">
+  {% for im in grp %}
+    <div class="g{{ ' client' if im.by_client }}" id="img-{{ im.id }}"><img src="/media/{{ im.file_key }}" alt="{{ im.caption }}">
+      <form method="post" action="/p/{{ p.id }}/images/{{ im.id }}/delete" data-confirm="Delete this picture? It comes off the project and its PDFs."><button class="btn sm icon danger" title="Delete picture" aria-label="Delete picture"><svg class="ic"><use href="#i-x"/></svg></button></form>
+      <form method="post" action="/p/{{ p.id }}/images/{{ im.id }}" class="tag">
+        {% if im.by_client %}<span class="pill sage">from the client</span>{% endif %}
+        <input class="in" type="text" name="caption" value="{{ im.caption }}" placeholder="Caption" aria-label="Caption">
+        <select class="in" name="room_id" aria-label="For"><option value="">Whole house</option>{{ room_options(p.rooms, im.room_id) }}</select>
+        <button class="btn sm sec"><svg class="ic"><use href="#i-check"/></svg>Save</button>
+      </form>
+    </div>
+  {% else %}
+    <div class="ph lg">No mood board yet</div>
+  {% endfor %}
+  </div>
+  {% endfor %}
   {% else %}
   <div class="gallery mt">
   {% for im in imgs %}

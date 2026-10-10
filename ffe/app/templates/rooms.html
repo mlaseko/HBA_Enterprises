@@ -79,7 +79,7 @@
 {% for r in g.rooms + g.areas %}
 {% if r.is_area and (loop.first or not loop.previtem.is_area) %}<div class="sub-title"><span>Areas</span><span class="muted small">zones with a code, items and boxes, but not rooms</span></div>{% endif %}
 {% set st = stats.get(r.id) %}
-<details class="card tight{{ ' area' if r.is_area }}">
+<details class="card tight{{ ' area' if r.is_area }}" id="room-{{ r.id }}">
   <summary>
     {{ room_pill(r) }}
     <span class="b">{{ r.name }}</span>{% if r.is_area %}<span class="muted small">Area</span>{% endif %}{% if r.floor %}<span class="muted small">{{ r.floor }}</span>{% endif %}
@@ -88,6 +88,7 @@
   </summary>
   <div class="small muted hide-d mt">¥{{ (st.total if st else 0)|money }} ordered{% if st and st.received %} · {{ st.received }} received{% endif %}</div>
   {% set zoom = zooms.get(r.id) %}{% if zoom %}<div class="mt">{% set room = r %}{% set cls = 'sm' %}{% include "plan/_zoom.html" %}</div>{% endif %}
+  <div class="mt">{% with room = r, moods = moods_by_room.get(r.id, []), here = '/p/' ~ p.id ~ '/rooms#room-' ~ r.id %}{% include "plan/_inspiration.html" %}{% endwith %}</div>
   <form method="post" action="/p/{{ p.id }}/rooms/{{ r.id }}" class="mt">
     <div class="grid stack g4">
       <div><label>Code</label><input class="in" type="text" name="code" value="{{ r.code }}"></div>

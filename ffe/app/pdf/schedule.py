@@ -125,7 +125,9 @@ def _mood_pages(moods) -> list:
         ch = (H - 50) / rows_n - 20
         cells, row = [], []
         for im in chunk:
-            row.append([picture(storage.read_image(im.file_key), cw, ch), Spacer(1, 3), P(im.caption or "", "captionc")])
+            room = im.mood.room if im.mood is not None else None
+            cap = " · ".join(x for x in [room.name if room is not None else "", im.caption or ""] if x)
+            row.append([picture(storage.read_image(im.file_key), cw, ch), Spacer(1, 3), P(cap, "captionc")])
             if len(row) == per_row:
                 cells.append(row); row = []
         if row:
@@ -258,7 +260,8 @@ def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=T
     mny = Money(currency, p.rate or 1.0)
     all_items = p.live_items
     covers = [i for i in p.images if i.kind == "cover"]
-    moods = [i for i in p.images if i.kind == "mood"]
+    room_order = {r.id: r.sort for r in p.rooms}
+    moods = sorted([i for i in p.images if i.kind == "mood"], key=lambda i: (i.room_id is not None, room_order.get(i.room_id, 0), i.id))  # the house first, then room by room
     plans = drawings.plans(p)
     storage.prefetch([c.file_key for c in covers[:1]] + [im.best_key for im in plans] + [m.file_key for m in moods]
                      + ([i.cover.thumb for i in all_items if i.cover] if include_photos else []) + ([studio.logo_key] if studio.logo_key else []))

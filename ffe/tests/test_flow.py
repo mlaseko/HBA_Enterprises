@@ -1147,4 +1147,46 @@ with TestClient(app) as c:
     h=c.get(f"/p/{pf}/items").text; assert f'href="/p/{pf}/export/items.xlsx"' in h and "Export these" not in h
     h=c.get(f"/p/{pf}/import").text; assert f'action="/p/{pf}/export/items.xlsx"' in h and 'name="floor"' in h and 'value="Guest house"' in h and "Export a part" in h
     print("exports and plan navigation ok")
+    # ---- room inspiration: mood-board pictures per room (MoodTag) on the panel, the Rooms page, the item list, the Images page and the client's link; the client adds their own ----
+    r=c.post("/projects/new", data={"client_name":"Insp","name":"Inspiration test","rate":"7"}, follow_redirects=False); pi=r.headers["location"].rstrip("/").split("/")[-1]
+    c.post(f"/p/{pi}/rooms", data={"code":"GF-KIT","name":"Kitchen","floor":"Ground"}, follow_redirects=False); c.post(f"/p/{pi}/rooms", data={"code":"GF-LIV","name":"Living room","floor":"Ground"}, follow_redirects=False)
+    db=SessionLocal(); pr=db.get(_P,int(pi)); kit=next(x.id for x in pr.rooms if x.code=="GF-KIT"); liv=next(x.id for x in pr.rooms if x.code=="GF-LIV"); itok=pr.client_token; db.close()
+    # the designer: a whole-house picture, and a kitchen picture the way the room panel's form posts it (room_id + next)
+    r=c.post(f"/p/{pi}/images", data={"kind":"mood","caption":"Warm wood"}, files=[("files",("h.jpg",img("brown"),"image/jpeg"))], follow_redirects=False); assert r.headers["location"]==f"/p/{pi}/images"
+    r=c.post(f"/p/{pi}/images", data={"kind":"mood","caption":"Black taps","room_id":str(kit),"next":f"/p/{pi}/plan?room={kit}"}, files=[("files",("k.jpg",img("black"),"image/jpeg"))], follow_redirects=False); assert r.headers["location"]==f"/p/{pi}/plan?room={kit}"
+    db=SessionLocal(); pr=db.get(_P,int(pi)); ms=[im for im in pr.images if im.kind=="mood"]; assert len(ms)==2 and {im.room_id for im in ms}=={None,kit} and not any(im.by_client for im in ms); kpic=next(im for im in ms if im.room_id==kit).id; db.close()
+    h=c.get(f"/p/{pi}/plan/room/{kit}").text; assert "Inspiration" in h and "Black taps" in h and "Warm wood" not in h and "Add inspiration" in h and f'action="/p/{pi}/images/{kpic}/delete"' in h
+    assert "Black taps" in c.get(f"/p/{pi}/rooms").text and "Black taps" in c.get(f"/p/{pi}/items?room={kit}").text and "Black taps" not in c.get(f"/p/{pi}/items?room={liv}").text
+    h=c.get(f"/p/{pi}/images").text; assert "GF-KIT - Kitchen</span>" in h and "Whole house</span>" in h and f'id="img-{kpic}"' in h and 'name="room_id"' in h
+    # a picture moved to the living room from the Images page, back to the whole house, then to the kitchen again
+    c.post(f"/p/{pi}/images/{kpic}", data={"caption":"Black taps","room_id":str(liv)}, follow_redirects=False); db=SessionLocal(); assert db.get(ProjectImage,kpic).room_id==liv; db.close()
+    c.post(f"/p/{pi}/images/{kpic}", data={"caption":"Black taps","room_id":""}, follow_redirects=False); db=SessionLocal(); assert db.get(ProjectImage,kpic).room_id is None; db.close()
+    c.post(f"/p/{pi}/images/{kpic}", data={"caption":"Black taps","room_id":str(kit)}, follow_redirects=False)
+    # the client: the link shows the house pictures with the add form; they add one for the kitchen ("you" for them, "client" for the designer)
+    h=c2.get(f"/c/{itok}").text; assert 'id="mood"' in h and "Add a picture of what you like" in h and f'action="/c/{itok}/inspiration"' in h and "Warm wood" in h and "Add inspiration" not in h and "/p/" not in h.split('id="mood"')[1].split("plan-section")[0]
+    r=c2.post(f"/c/{itok}/inspiration", data={"room_id":str(kit),"caption":"Like this green"}, files=[("files",("c.jpg",img("green"),"image/jpeg"))], follow_redirects=False)
+    assert r.status_code==303 and r.headers["location"].startswith(f"/c/{itok}?room={kit}&ok=") and r.headers["location"].endswith("#plan-section"), r.headers
+    db=SessionLocal(); pr=db.get(_P,int(pi)); cp=next(im for im in pr.images if im.by_client); assert cp.room_id==kit and cp.caption=="Like this green"; cpid=cp.id; db.close()
+    h=c2.get(f"/c/{itok}/plan/room/{kit}").text; assert "Like this green" in h and ">you</span>" in h and f'action="/c/{itok}/inspiration/{cpid}/delete"' in h and f'/images/{kpic}/delete' not in h and "Black taps" in h
+    h=c.get(f"/p/{pi}/plan/room/{kit}").text; assert "Like this green" in h and ">client</span>" in h and "1 from the client" in h
+    assert "1 inspiration picture" in c.get(f"/p/{pi}").text and "1 from the client" in c.get(f"/p/{pi}/images").text
+    # nothing chosen, a bad link, the cap per room, someone else's picture, a wrong token
+    r=c2.post(f"/c/{itok}/inspiration", data={"room_id":str(kit)}, follow_redirects=False); assert "err=" in r.headers["location"]
+    r=c2.post(f"/c/{itok}/inspiration", data={"room_id":str(kit),"url":"https://shop.example/empty"}, follow_redirects=False); assert "err=" in r.headers["location"]
+    for k in range(11): c2.post(f"/c/{itok}/inspiration", data={"room_id":str(liv)}, files=[("files",(f"l{k}.jpg",img("pink"),"image/jpeg"))], follow_redirects=False)
+    r=c2.post(f"/c/{itok}/inspiration", data={"room_id":str(liv)}, files=[("files",("l12.jpg",img("pink"),"image/jpeg"))], follow_redirects=False); assert "ok=" in r.headers["location"]
+    r=c2.post(f"/c/{itok}/inspiration", data={"room_id":str(liv)}, files=[("files",("l13.jpg",img("pink"),"image/jpeg"))], follow_redirects=False); assert "err=Up+to+12" in r.headers["location"], r.headers
+    db=SessionLocal(); pr=db.get(_P,int(pi)); assert sum(1 for im in pr.images if im.by_client and im.room_id==liv)==12; db.close()
+    c2.post(f"/c/{itok}/inspiration/{kpic}/delete", data={"room_id":str(kit)}, follow_redirects=False); db=SessionLocal(); assert db.get(ProjectImage,kpic) is not None; db.close()  # the designer's stays
+    c2.post(f"/c/{itok}/inspiration/{cpid}/delete", data={"room_id":str(kit)}, follow_redirects=False); db=SessionLocal(); assert db.get(ProjectImage,cpid) is None; db.close()  # their own goes
+    assert c2.post("/c/nosuchtoken/inspiration", data={"room_id":str(kit)}, files=[("files",("x.jpg",img("pink"),"image/jpeg"))], follow_redirects=False).status_code==404
+    r=c2.post(f"/c/{itok}/inspiration", data={"room_id":str(kit)}, files=[("files",("bad.jpg",b"not a picture","image/jpeg"))], follow_redirects=False); assert "err=That+picture+could+not+be+read" in r.headers["location"]  # a broken file: a message, never a 500
+    r=c.post(f"/p/{pi}/images", data={"kind":"mood","room_id":str(kit),"next":f"/p/{pi}/rooms"}, files=[("files",("bad.jpg",b"not a picture","image/jpeg"))], follow_redirects=False); assert r.headers["location"].startswith(f"/p/{pi}/rooms?err=1%20file%20could%20not%20be%20read")
+    # the schedule names the room on its picture; the designer deletes with next; a deleted room leaves its pictures as whole-house ones
+    r=c.get(f"/p/{pi}/export/schedule.pdf"); assert r.status_code==200 and "Kitchen · Black taps" in pdf_text(r.content)
+    r=c.post(f"/p/{pi}/images/{kpic}/delete", data={"next":f"/p/{pi}/rooms#room-{kit}"}, follow_redirects=False); assert r.headers["location"]==f"/p/{pi}/rooms#room-{kit}"
+    db=SessionLocal(); assert db.get(ProjectImage,kpic) is None; db.close()
+    c.post(f"/p/{pi}/rooms/{liv}/delete", data={}, follow_redirects=False)
+    db=SessionLocal(); pr=db.get(_P,int(pi)); ms=[im for im in pr.images if im.kind=="mood"]; assert len(ms)==13 and all(im.room_id is None for im in ms) and sum(1 for im in ms if im.by_client)==12; db.close()
+    print("room inspiration ok")
     print("ALL OK")

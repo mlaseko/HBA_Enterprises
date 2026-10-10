@@ -28,7 +28,8 @@ app/main.py            app, login/logout, /settings, /help (user guide = templat
 app/config.py          env vars + constant lists (CATEGORIES, STATUSES, UNITS …)
 app/db.py              engine/session; create_all on startup + migrate(): COLUMN_MIGRATIONS adds columns to existing tables
 app/models.py          Settings, Project, ProjectImage, PlanTag, RoomPin, ItemPin, DrawingSet, DrawingPage (title block per page),
-                       Floor (the project's floor list: name, kind floor | area, sort), Room (kind = room | area; is_area), Supplier, SupplierLink, Item, ItemPhoto,
+                       Floor (the project's floor list: name, kind floor | area, sort), MoodTag (a mood-board picture's room and whether the client added it),
+                       Room (kind = room | area; is_area), Supplier, SupplierLink, Item, ItemPhoto,
                        ItemPrice (the typed USD price; Item.price_currency / price_amount), Payment, Carton
                        Item.draft = quick-capture draft (no name/code yet); Project.live_items / Project.drafts split them
 app/common.py          templates, auth helpers, number filters, render()/redirect() (render injects `help_tip` for the ? drawer)
@@ -152,7 +153,10 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
   `python tools/help_shots.py` on a machine with Chromium + Playwright for Node (it seeds its own demo data, never the
   real database) and commit the new pictures. Keep the tips for the share pages free of anything designer-only.
 - Share links are random tokens (`SupplierLink.token`, `Project.client_token`); public routes live only in
-  `routers/share.py` and the `/s/… /c/…` PDF routes in `exports.py`. Never expose other routes without login.
+  `routers/share.py` and the `/s/… /c/…` PDF routes in `exports.py`. Never expose other routes without login. The client
+  link writes exactly one thing: inspiration pictures (`POST /c/<token>/inspiration`, `…/inspiration/<id>/delete` for
+  their own only), capped by `config.MAX_CLIENT_INSPIRATION` per room and marked `MoodTag.by_client`; keep every other
+  client route read-only.
 - Photos: compressed in the browser (`app.js`) and again server-side (`storage.process_image`, max 1600 px JPEG).
   Always go through `storage.py`; never write files directly. An item photo is made with `storage.save_photo()` (full copy +
   small copy, `ItemPhoto.thumb_key`) and removed with `storage.delete_photo(ph)`; anywhere a photo is a thumbnail (lists,
@@ -392,6 +396,16 @@ ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';  
   (`im=None`, `?floor=<key>`, hidden on the client page); `plan_page(floor=)` opens the floor's main plan or, when it has
   none, the `plan-nofloor` card with `floor_sel_rooms`; `plan/_intro.html` lists the whole floor (`floor_rooms`, rooms
   then areas, "not placed" for the designer) instead of only the placed rooms.
+
+- **Room inspiration.** A mood-board picture (`ProjectImage` kind `mood`) may carry a `MoodTag` (table `mood_tags`: `room_id`,
+  `by_client`; `im.room_id` / `im.by_client` / `ensure_mood()`); `services.moods_for(p, room)`, `mood_groups(p)` (whole house
+  first, then rooms) and `client_moods(p)`. `plan/_inspiration.html` is the strip (pictures with who added them, delete,
+  the add form posting files or a `url` with `room_id` and `next`): included by the room panel (`room_ctx` passes `moods`),
+  the Rooms page (`moods_by_room`), the room-filtered Items page and the client page (whole house, inside `{% with %}` so
+  `room` is not clobbered). `projects.add_mood()` creates tagged pictures for `upload_images` / `add_image_url` (which take
+  `room_id`, `url` and `next`) and for the client route; `edit_image` moves a mood picture between rooms (`room_id`);
+  `delete_image` takes `next`; `delete_room` nulls its pictures' rooms. The schedule's mood pages print the house first,
+  then room by room with the room name in the caption; the Overview shows `client_moods`.
 
 ## Backlog (in priority order)
 

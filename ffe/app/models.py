@@ -75,6 +75,9 @@ class ProjectImage(Base):
     project: Mapped["Project"] = relationship(back_populates="images")
     # Floor plans only: which floor the plan shows, sheet reference, full-size copy. No row = untagged plan.
     tag: Mapped["PlanTag | None"] = relationship(back_populates="image", cascade="all, delete-orphan", uselist=False, lazy="joined")
+    # Mood-board pictures only: the room the picture inspires (none = the whole house) and whether the client added it
+    # through their link. No row = a whole-house picture from the designer, as every mood-board picture was before.
+    mood: Mapped["MoodTag | None"] = relationship(back_populates="image", cascade="all, delete-orphan", uselist=False, lazy="joined")
     # Floor plans only: where each room sits on this plan (the interactive Plan page). Deleted with the plan.
     pins: Mapped[list["RoomPin"]] = relationship(back_populates="image", cascade="all, delete-orphan", order_by="RoomPin.id", lazy="selectin")
     item_pins: Mapped[list["ItemPin"]] = relationship(back_populates="image", cascade="all, delete-orphan", order_by="ItemPin.id", lazy="selectin")
@@ -110,6 +113,32 @@ class ProjectImage(Base):
         if self.tag is None:
             self.tag = PlanTag()
         return self.tag
+
+    @property
+    def room_id(self):
+        """The room a mood-board picture inspires; None for the whole house (and for covers and plans)."""
+        return self.mood.room_id if self.mood is not None else None
+
+    @property
+    def by_client(self) -> bool:
+        return bool(self.mood is not None and self.mood.by_client)
+
+    def ensure_mood(self) -> "MoodTag":
+        if self.mood is None:
+            self.mood = MoodTag()
+        return self.mood
+
+
+class MoodTag(Base):
+    """Which room a mood-board picture (ProjectImage kind='mood') inspires, and who added it: the designer, or the client
+    through their link. Lives in its own table so adding it needs no ALTER; a picture without a row is a whole-house
+    picture from the designer."""
+    __tablename__ = "mood_tags"
+    image_id: Mapped[int] = mapped_column(ForeignKey("project_images.id"), primary_key=True)
+    room_id: Mapped[int | None] = mapped_column(ForeignKey("rooms.id"), nullable=True)  # None = the whole house
+    by_client: Mapped[bool] = mapped_column(Boolean, default=False)
+    image: Mapped["ProjectImage"] = relationship(back_populates="mood")
+    room: Mapped["Room | None"] = relationship(lazy="joined")
 
 
 class PlanTag(Base):

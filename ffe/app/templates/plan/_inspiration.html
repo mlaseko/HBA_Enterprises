@@ -1,0 +1,37 @@
+{# The inspiration strip of one room (or of the whole house when room is none): mood-board pictures tagged with the room,
+   with who added them, and the add form. Needs: p, room (or none), moods, here (where to come back to); ro (the client's
+   link, where token is set too). The designer deletes any picture; the client only their own. #}
+{% set ro = readonly is defined and readonly %}
+{% set n_client = moods|selectattr('by_client')|list|length %}
+<div class="insp" id="inspiration{{ '-' ~ room.id if room else '' }}">
+  <div class="row between">
+    <span class="eyebrow">Inspiration{% if moods %} <span class="muted">· {{ moods|length }}{% if n_client %}, {{ n_client }} from the client{% endif %}</span>{% endif %}</span>
+    {% if not ro %}<a class="small" href="/p/{{ p.id }}/images#mood">Mood board</a>{% endif %}
+  </div>
+  {% if moods %}
+  <div class="gallery insp-gallery">
+    {% for im in moods %}
+    <div class="g{{ ' client' if im.by_client }}">
+      <a href="/media/{{ im.file_key }}" target="_blank" title="Open full size"><img src="/media/{{ im.file_key }}" alt="{{ im.caption }}" loading="lazy"></a>
+      {% if not ro %}<form method="post" action="/p/{{ p.id }}/images/{{ im.id }}/delete" data-confirm="Delete this picture? It comes off the {{ room.name if room else 'house' }} and the PDFs."><input type="hidden" name="next" value="{{ here }}"><button class="btn sm icon danger" title="Delete picture" aria-label="Delete picture"><svg class="ic"><use href="#i-x"/></svg></button></form>
+      {% elif im.by_client %}<form method="post" action="/c/{{ token }}/inspiration/{{ im.id }}/delete" data-confirm="Remove your picture? The designer will no longer see it."><input type="hidden" name="room_id" value="{{ room.id if room else '' }}"><button class="btn sm icon danger" title="Remove my picture" aria-label="Remove my picture"><svg class="ic"><use href="#i-x"/></svg></button></form>{% endif %}
+      <div class="cap">{% if im.by_client %}<span class="pill sage">{{ 'you' if ro else 'client' }}</span> {% endif %}{{ im.caption }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="small muted">{% if ro %}No pictures yet. Add one of what you like for {{ 'this ' ~ ('area' if room.is_area else 'room') if room else 'the house' }}: the designer sees it when buying.{% else %}No inspiration pictures yet: yours, or the client's through their link.{% endif %}</p>
+  {% endif %}
+  <details class="insp-add">
+    <summary>{{ 'Add a picture of what you like' if ro else 'Add inspiration' }}</summary>
+    <form method="post" action="{% if ro %}/c/{{ token }}/inspiration{% else %}/p/{{ p.id }}/images{% endif %}" enctype="multipart/form-data" class="mt">
+      <input type="hidden" name="kind" value="mood"><input type="hidden" name="room_id" value="{{ room.id if room else '' }}"><input type="hidden" name="next" value="{{ here }}">
+      <div class="grid g2">
+        <div><label>Photos</label><input type="file" name="files" accept="image/*" multiple><div class="filehint help"></div></div>
+        <div><label>Or a web link</label><input class="in" type="url" name="url" placeholder="https://…"></div>
+        <div class="span2"><label>What you like about it</label><input class="in" type="text" name="caption" maxlength="200" placeholder="e.g. the warm wood and the black taps"></div>
+      </div>
+      <div class="row mt"><button class="btn sm"><svg class="ic"><use href="#i-upload"/></svg>Add</button><span class="small muted">{% if ro %}Up to {{ MAX_CLIENT_INSPIRATION }} pictures per room.{% else %}Shown on the room's panel, the Rooms page, the item list and the client's link.{% endif %}</span></div>
+    </form>
+  </details>
+</div>
