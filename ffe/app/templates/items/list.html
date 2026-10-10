@@ -41,7 +41,9 @@
 <form method="post" action="/p/{{ p.id }}/items/delete-filtered" class="row mb bulk-delete" data-confirm="Delete these {{ items|length }} item{{ 's' if items|length != 1 }}? Their photos and plan dots go with them. Everything outside this filter stays.">
   {% for k in ['room', 'category', 'status', 'supplier', 'q'] %}{% if f[k] %}<input type="hidden" name="{{ k }}" value="{{ f[k] }}">{% endif %}{% endfor %}
   {% if view != 'list' %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
-  <span class="small muted">This filter shows {{ items|length }} room line{{ 's' if items|length != 1 }}.</span>
+  {% set with_photos = items|selectattr('photos')|list|length %}
+  <span class="small muted">This filter shows {{ items|length }} room line{{ 's' if items|length != 1 }}{% if with_photos %}, {{ with_photos }} with photos{% endif %}.</span>
+  {% if with_photos %}<label class="check small"><input type="checkbox" name="keep_photos" value="1" checked> Keep the {{ with_photos }} with photos</label>{% endif %}
   <button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete these {{ items|length }} item{{ 's' if items|length != 1 }}</button>
 </form>
 {% endif %}

@@ -95,7 +95,7 @@ TIPS = {
                "Filter by room, category, status or supplier: the list updates as soon as you pick. For a search word, type it and press <b>Filter</b> or Enter. The page opens on the <b>Item list</b> (one line per item across its rooms, with its rooms and the total quantity); switch to the <b>Table</b> (one line per room) or <b>Cards</b> (by category, with photos) at the right of the filters.",
                "In the Table and the Item list, press a <b>column heading</b> to sort: A to Z or smallest first, press again for the other way.",
                "Filtered by one room, the top shows that room zoomed in on the plan; tap a dot to jump to its item.",
-               "With a filter on, <b>Delete these items</b> under the filters removes every line it shows (photos and dots included) after a confirmation: handy to clear a category before importing it again."],
+               "With a filter on, <b>Delete these items</b> under the filters removes every line it shows after a confirmation, keeping the lines that have photos unless you untick that: handy to clear a category before importing it again."],
         tips=["The status follows the purchase: To buy → Quoted → Ordered → Paid → Shipped → Received.",
               "The category decides which page of the client schedule the item prints on."]),
     "item_new": dict(

@@ -1045,13 +1045,16 @@ with TestClient(app) as c:
     db=SessionLocal(); first=db.query(Item).filter(Item.project_id==int(pid_big), Item.category=="Lighting").first(); first_id=first.id; db.close()
     c.post(f"/p/{pid_big}/items/{first_id}", data={"room_id":big_rids[0],"category":"Lighting","name":"Pendant light","qty":"2","unit":"pcs","status":"To buy"}, files={"photos":("p.jpg",img("pink"),"image/jpeg")}, follow_redirects=False)
     db=SessionLocal(); ph_key=db.get(Item,first_id).photos[0].file_key; db.close(); assert _st.read_image(ph_key) is not None
-    h=c.get(f"/p/{pid_big}/items?category=Lighting").text; assert "Delete these 71 items" in h and 'data-confirm="Delete these 71 items?' in h and 'name="category" value="Lighting"' in h
+    h=c.get(f"/p/{pid_big}/items?category=Lighting").text; assert "Delete these 71 items" in h and 'data-confirm="Delete these 71 items?' in h and 'name="category" value="Lighting"' in h and "1 with photos" in h and 'name="keep_photos" value="1" checked' in h
     assert "bulk-delete" not in c.get(f"/p/{pid_big}/items").text  # no filter, no button
     r=c.post(f"/p/{pid_big}/items/delete-filtered", data={}, follow_redirects=False); assert r.status_code==303 and "deleted" not in r.headers["location"]
     db=SessionLocal(); assert db.query(Item).filter(Item.project_id==int(pid_big)).count()==72; db.close()
-    r=c.post(f"/p/{pid_big}/items/delete-filtered", data={"category":"Lighting"}, follow_redirects=False); assert r.status_code==303 and r.headers["location"].endswith("category=Lighting&deleted=71")
+    r=c.post(f"/p/{pid_big}/items/delete-filtered", data={"category":"Lighting","keep_photos":"1"}, follow_redirects=False); assert r.status_code==303 and r.headers["location"].endswith("category=Lighting&deleted=70")
+    db=SessionLocal(); assert [i.id for i in db.query(Item).filter(Item.project_id==int(pid_big), Item.category=="Lighting").all()]==[first_id]; db.close()  # the one with the photo survived
+    assert _st.read_image(ph_key) is not None and 'name="keep_photos"' not in c.get(f"/p/{pid_big}/items?category=Tiles").text  # no photos in that filter: no box
+    r=c.post(f"/p/{pid_big}/items/delete-filtered", data={"category":"Lighting"}, follow_redirects=False); assert r.status_code==303 and r.headers["location"].endswith("category=Lighting&deleted=1")
     db=SessionLocal(); left=db.query(Item).filter(Item.project_id==int(pid_big)).all(); assert [i.id for i in left]==[keep_id]; db.close()
-    assert _st.read_image(ph_key) is None and "71 items deleted." in c.get(f"/p/{pid_big}/items?category=Lighting&deleted=71").text
+    assert _st.read_image(ph_key) is None and "71 items deleted." in c.get(f"/p/{pid_big}/items?category=Lighting&deleted=71").text and "1 item deleted." in c.get(f"/p/{pid_big}/items?category=Lighting&deleted=1").text
     print("delete by filter ok")
     # messages and confirmations are the app's own dialog (app.js appConfirm/appAlert, .modal), never the browser's system boxes
     import re as _re; from pathlib import Path

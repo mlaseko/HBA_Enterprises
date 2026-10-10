@@ -85,12 +85,13 @@ def list_items(request: Request, p: Project = Depends(get_project), db: Session 
 
 @router.post("/p/{project_id}/items/delete-filtered")
 def delete_filtered(p: Project = Depends(get_project), db: Session = Depends(get_db), room: str = Form(""), category: str = Form(""),
-                    status: str = Form(""), supplier: str = Form(""), q: str = Form(""), view: str = Form("")):
-    """Deletes every item the Items page filter shows, photos included. At least one filter must be set: never the whole
-    project in one press. The filter stays on the page afterwards so what is left can be checked."""
+                    status: str = Form(""), supplier: str = Form(""), q: str = Form(""), view: str = Form(""), keep_photos: str = Form("")):
+    """Deletes every item the Items page filter shows. At least one filter must be set: never the whole project in one
+    press. keep_photos=1 spares the lines that have a photo (a picture is work; a deleted one is gone for good). The
+    filter stays on the page afterwards so what is left can be checked."""
     if not any([room, category, status, supplier, q.strip()]):
         return redirect(f"/p/{p.id}/items")
-    items = item_query(db, p, room, category, status, supplier, q).all()
+    items = [i for i in item_query(db, p, room, category, status, supplier, q).all() if not (keep_photos == "1" and i.photos)]
     for i in items:
         for ph in i.photos:
             storage.delete_photo(ph)
