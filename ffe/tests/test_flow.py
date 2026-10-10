@@ -1040,22 +1040,30 @@ with TestClient(app) as c:
         r=c.get(f"/p/{pid_big}/export/schedule.pdf{q}"); assert r.status_code==200 and r.headers["content-type"]=="application/pdf", (q, r.status_code, r.text[:300])
     tb=pdf_text(c.get(f"/p/{pid_big}/export/schedule.pdf?layout=floor").content); assert tb.count("R69 - Room number 69")>=1 and "Grand total" in tb
     print("big project summary ok")
-    # delete by filter: everything the filter shows goes (photos too), nothing else; no filter = nothing happens
+    # delete by selection: the user ticks lines and presses Delete selected; a filter on its own never deletes anything.
+    # An Item list box carries every room line of its product; other projects' ids, drafts and junk are ignored
     r=c.post(f"/p/{pid_big}/items/new", data={"room_ids":[big_rids[0]],"category":"Tiles","name":"Floor tiles","qty":"10","unit":"m²","status":"To buy"}, follow_redirects=False); keep_id=int(r.headers["location"].rstrip("/").split("/")[-1])
-    db=SessionLocal(); first=db.query(Item).filter(Item.project_id==int(pid_big), Item.category=="Lighting").first(); first_id=first.id; db.close()
+    db=SessionLocal(); first=db.query(Item).filter(Item.project_id==int(pid_big), Item.category=="Lighting").first(); first_id=first.id; other_id=db.query(Item).filter(Item.project_id!=int(pid_big), Item.draft==False).first().id; db.close()
     c.post(f"/p/{pid_big}/items/{first_id}", data={"room_id":big_rids[0],"category":"Lighting","name":"Pendant light","qty":"2","unit":"pcs","status":"To buy"}, files={"photos":("p.jpg",img("pink"),"image/jpeg")}, follow_redirects=False)
     db=SessionLocal(); ph_key=db.get(Item,first_id).photos[0].file_key; db.close(); assert _st.read_image(ph_key) is not None
-    h=c.get(f"/p/{pid_big}/items?category=Lighting").text; assert "Delete these 71 items" in h and 'data-confirm="Delete these 71 items?' in h and 'name="category" value="Lighting"' in h and "1 with photos" in h and 'name="keep_photos" value="1" checked' in h
-    assert "bulk-delete" not in c.get(f"/p/{pid_big}/items").text  # no filter, no button
-    r=c.post(f"/p/{pid_big}/items/delete-filtered", data={}, follow_redirects=False); assert r.status_code==303 and "deleted" not in r.headers["location"]
+    h=c.get(f"/p/{pid_big}/items?category=Lighting&view=table").text
+    assert 'id="bulk"' in h and f'action="/p/{pid_big}/items/delete-selected"' in h and h.count('class="sel-box" name="ids"')==71 and f'name="ids" value="{first_id}" form="bulk" data-photos="1"' in h, h[:200]
+    assert 'name="category" value="Lighting"' in h and 'name="view" value="table"' in h and "Delete selected" in h and "delete-filtered" not in h and h.count('class="sel-all"')==1
+    h=c.get(f"/p/{pid_big}/items?category=Lighting").text  # the Item list: one box per product, carrying all its room lines
+    m=re.search(r'name="ids" value="([\d ]+)" form="bulk" data-photos="1"', h); assert m and len(m.group(1).split())==71 and h.count('class="sel-box"')==1, h.count('class="sel-box"')
+    assert c.get(f"/p/{pid_big}/items?view=cards").text.count('class="sel-box"')==72 and 'id="bulk"' in c.get(f"/p/{pid_big}/items").text  # no filter needed: nothing goes without a tick
+    assert "bulk" not in c.get(f"/p/{pid_big}/items?category=Curtains").text  # nothing shown, no bar
+    r=c.post(f"/p/{pid_big}/items/delete-selected", data={"category":"Lighting"}, follow_redirects=False); assert r.status_code==303 and r.headers["location"]==f"/p/{pid_big}/items?category=Lighting", r.headers  # nothing ticked: nothing happens
     db=SessionLocal(); assert db.query(Item).filter(Item.project_id==int(pid_big)).count()==72; db.close()
-    r=c.post(f"/p/{pid_big}/items/delete-filtered", data={"category":"Lighting","keep_photos":"1"}, follow_redirects=False); assert r.status_code==303 and r.headers["location"].endswith("category=Lighting&deleted=70")
-    db=SessionLocal(); assert [i.id for i in db.query(Item).filter(Item.project_id==int(pid_big), Item.category=="Lighting").all()]==[first_id]; db.close()  # the one with the photo survived
-    assert _st.read_image(ph_key) is not None and 'name="keep_photos"' not in c.get(f"/p/{pid_big}/items?category=Tiles").text  # no photos in that filter: no box
-    r=c.post(f"/p/{pid_big}/items/delete-filtered", data={"category":"Lighting"}, follow_redirects=False); assert r.status_code==303 and r.headers["location"].endswith("category=Lighting&deleted=1")
+    others=[x for x in m.group(1).split() if int(x)!=first_id]
+    r=c.post(f"/p/{pid_big}/items/delete-selected", data={"ids":[" ".join(others[:30])]+others[30:]+[str(other_id),"abc"],"category":"Lighting","view":"table"}, follow_redirects=False)
+    assert r.status_code==303 and r.headers["location"]==f"/p/{pid_big}/items?category=Lighting&view=table&deleted=70", r.headers
+    db=SessionLocal(); assert [i.id for i in db.query(Item).filter(Item.project_id==int(pid_big), Item.category=="Lighting").all()]==[first_id] and db.get(Item,other_id) is not None; db.close()  # the unticked one (with the photo) and the other project's item survived
+    assert _st.read_image(ph_key) is not None
+    r=c.post(f"/p/{pid_big}/items/delete-selected", data={"ids":[str(first_id)],"category":"Lighting"}, follow_redirects=False); assert r.status_code==303 and r.headers["location"].endswith("category=Lighting&deleted=1")
     db=SessionLocal(); left=db.query(Item).filter(Item.project_id==int(pid_big)).all(); assert [i.id for i in left]==[keep_id]; db.close()
-    assert _st.read_image(ph_key) is None and "71 items deleted." in c.get(f"/p/{pid_big}/items?category=Lighting&deleted=71").text and "1 item deleted." in c.get(f"/p/{pid_big}/items?category=Lighting&deleted=1").text
-    print("delete by filter ok")
+    assert _st.read_image(ph_key) is None and "70 items deleted." in c.get(f"/p/{pid_big}/items?deleted=70").text and "1 item deleted." in c.get(f"/p/{pid_big}/items?category=Lighting&deleted=1").text
+    print("delete selected ok")
     # messages and confirmations are the app's own dialog (app.js appConfirm/appAlert, .modal), never the browser's system boxes
     import re as _re; from pathlib import Path
     for f in list(Path("app/templates").rglob("*.html")) + list(Path("app/static").glob("*.js")):

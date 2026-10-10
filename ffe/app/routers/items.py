@@ -83,22 +83,25 @@ def list_items(request: Request, p: Project = Depends(get_project), db: Session 
                   f=f, qs=qs, rows=rows, deleted=deleted)
 
 
-@router.post("/p/{project_id}/items/delete-filtered")
-def delete_filtered(p: Project = Depends(get_project), db: Session = Depends(get_db), room: str = Form(""), category: str = Form(""),
-                    status: str = Form(""), supplier: str = Form(""), q: str = Form(""), view: str = Form(""), keep_photos: str = Form("")):
-    """Deletes every item the Items page filter shows. At least one filter must be set: never the whole project in one
-    press. keep_photos=1 spares the lines that have a photo (a picture is work; a deleted one is gone for good). The
-    filter stays on the page afterwards so what is left can be checked."""
-    if not any([room, category, status, supplier, q.strip()]):
-        return redirect(f"/p/{p.id}/items")
-    items = [i for i in item_query(db, p, room, category, status, supplier, q).all() if not (keep_photos == "1" and i.photos)]
+@router.post("/p/{project_id}/items/delete-selected")
+def delete_selected(p: Project = Depends(get_project), db: Session = Depends(get_db), ids: list[str] = Form([]), room: str = Form(""),
+                    category: str = Form(""), status: str = Form(""), supplier: str = Form(""), q: str = Form(""), view: str = Form("")):
+    """Deletes the lines ticked on the Items page and nothing else: what goes is the user's own selection, never what a
+    filter happens to show. A box in the Item list stands for a product in all its rooms, so one value may carry several
+    ids ("12 13 14"). Ids outside this project, drafts (they live on /drafts) and anything that is not a number are
+    ignored. Photos go through storage, pins by cascade. The filter stays on the page afterwards so what is left can be
+    checked; nothing ticked = straight back, no message."""
+    wanted = {int(x) for v in ids for x in v.split() if x.isdigit()}
+    items = db.query(Item).filter(Item.project_id == p.id, Item.draft == False, Item.id.in_(wanted)).all() if wanted else []  # noqa: E712
     for i in items:
         for ph in i.photos:
             storage.delete_photo(ph)
         db.delete(i)
     db.commit()
-    keep = urlencode({k: v for k, v in dict(room=room, category=category, status=status, supplier=supplier, q=q, view=view).items() if v})
-    return redirect(f"/p/{p.id}/items?{keep}&deleted={len(items)}")
+    keep = {k: v for k, v in dict(room=room, category=category, status=status, supplier=supplier, q=q, view=view).items() if v}
+    if items:
+        keep["deleted"] = len(items)
+    return redirect(f"/p/{p.id}/items" + (f"?{urlencode(keep)}" if keep else ""))
 
 
 @router.get("/p/{project_id}/items/new")

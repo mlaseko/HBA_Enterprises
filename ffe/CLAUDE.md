@@ -356,11 +356,16 @@ ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';  
   the pricing note, Prepared by with the studio logo). Suppliers, notes and CNY are never printed (parity with the client link).
   `packing.py` still uses `common.py`; moving it to the theme is the next step of the redesign.
 
-- **Delete by filter.** `POST /p/<id>/items/delete-filtered` (routers/items.py) deletes every live item the Items page filter
-  shows (`item_query` with the same room / category / status / supplier / q), photos through `storage.delete_photo`, pins by
-  cascade; it refuses when no filter is set, and `keep_photos=1` (the form's box, ticked by default when any line has a photo)
-  spares the lines that have photos. The form sits under the filter bar (`filtering and items`), asks through
-  `data-confirm`, and redirects back to the same filter with `?deleted=N` for the message.
+- **Delete by selection.** `POST /p/<id>/items/delete-selected` (routers/items.py) deletes the ticked lines and nothing
+  else: `ids` form values (an Item list box carries every room line of its product, "12 13 14"), restricted to this
+  project's live items, photos through `storage.delete_photo`, pins by cascade; nothing ticked = straight back. The
+  Items page carries the boxes (`input.sel-box` in `td.sel` of the Table and Item list, the Select label in a card foot,
+  `form="bulk"` so they belong to the bar's form outside the table; `input.sel-all` in the table header or, for cards,
+  in the bar ticks all shown) and the bar `form.select-bar#bulk` above the list, whose Delete button app.js keeps
+  disabled until something is ticked, labels with the count and whose `data-confirm` it rewrites from the live count
+  (`question()` reads it at submit time); `data-photos` on a box counts its lines with photos for the "Untick the ones
+  with photos" button. The bar sticks under the top bar while something is ticked (`.has-sel`). A filter never deletes
+  anything on its own; the redirect keeps the filter and adds `?deleted=N` for the message.
 
 ## Backlog (in priority order)
 

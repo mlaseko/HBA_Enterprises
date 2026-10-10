@@ -21,6 +21,7 @@ const DESKTOP = [
   ['items', `/p/${pid}/items?room=${kit}`],
   ['items-table', `/p/${pid}/items?view=table&category=Tiles`],
   ['items-list', `/p/${pid}/items?view=list`, async p => { await p.click('th[data-sort]:has-text("Rooms")'); await p.click('th[data-sort]:has-text("Rooms")'); await p.waitForTimeout(200); }],
+  ['items-select', `/p/${pid}/items?view=table&category=Tiles`, async p => { await p.locator('input.sel-box').nth(0).check(); await p.locator('input.sel-box').nth(2).check(); await p.waitForTimeout(200); }],
   ['item-new', `/p/${pid}/items/new?room=${liv}`],
   ['item-edit', `/p/${pid}/items/${ids.sofa}`],
   ['suppliers', `/p/${pid}/suppliers`],

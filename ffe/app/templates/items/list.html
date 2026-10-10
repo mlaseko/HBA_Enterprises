@@ -37,14 +37,15 @@
     <a href="/p/{{ p.id }}/items?{{ qs_ }}view=list" class="{{ 'on' if view == 'list' }}"{% if view == 'list' %} aria-current="page"{% endif %} title="One line per item across its rooms"><svg class="ic"><use href="#i-tag"/></svg>Item list</a>
   </nav>
 </form>
-{% if filtering and items %}
-<form method="post" action="/p/{{ p.id }}/items/delete-filtered" class="row mb bulk-delete" data-confirm="Delete these {{ items|length }} item{{ 's' if items|length != 1 }}? Their photos and plan dots go with them. Everything outside this filter stays.">
+{% if items %}
+<form method="post" id="bulk" action="/p/{{ p.id }}/items/delete-selected" class="select-bar" data-confirm="Delete the ticked items? Their photos and plan dots go with them; everything not ticked stays.">
   {% for k in ['room', 'category', 'status', 'supplier', 'q'] %}{% if f[k] %}<input type="hidden" name="{{ k }}" value="{{ f[k] }}">{% endif %}{% endfor %}
   {% if view != 'list' %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
-  {% set with_photos = items|selectattr('photos')|list|length %}
-  <span class="small muted">This filter shows {{ items|length }} room line{{ 's' if items|length != 1 }}{% if with_photos %}, {{ with_photos }} with photos{% endif %}.</span>
-  {% if with_photos %}<label class="check small"><input type="checkbox" name="keep_photos" value="1" checked> Keep the {{ with_photos }} with photos</label>{% endif %}
-  <button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete these {{ items|length }} item{{ 's' if items|length != 1 }}</button>
+  {% if view == 'cards' %}<label class="check"><input type="checkbox" class="sel-all" aria-label="Select all shown"> All shown</label>{% endif %}
+  <span class="count small muted">Tick the lines to delete, then press the button. A filter on its own never deletes anything.</span>
+  <button type="button" class="btn sm ghost unphoto" hidden>Untick the ones with photos</button>
+  <button type="button" class="btn sm ghost clear" hidden>Clear</button>
+  <button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg><span class="lbl">Delete selected</span></button>
 </form>
 {% endif %}
 
@@ -77,10 +78,11 @@
 
 {% elif view == 'table' %}
 <div class="tbl"><table class="sortable">
-  <thead><tr><th></th><th data-sort="text">Code</th><th data-sort="text">Item</th><th data-sort="text">Room</th><th data-sort="text">Category</th><th class="num" data-sort="num">Qty</th><th class="num" data-sort="num">Unit CNY</th><th class="num" data-sort="num">Total CNY</th><th data-sort="text">Supplier</th><th data-sort="num">Status</th></tr></thead>
+  <thead><tr><th class="sel"><label><input type="checkbox" class="sel-all" aria-label="Select all shown" title="Select all shown"></label></th><th></th><th data-sort="text">Code</th><th data-sort="text">Item</th><th data-sort="text">Room</th><th data-sort="text">Category</th><th class="num" data-sort="num">Qty</th><th class="num" data-sort="num">Unit CNY</th><th class="num" data-sort="num">Total CNY</th><th data-sort="text">Supplier</th><th data-sort="num">Status</th></tr></thead>
   <tbody>
   {% for i in items %}
   <tr id="item-{{ i.id }}">
+    <td class="sel"><label><input type="checkbox" class="sel-box" name="ids" value="{{ i.id }}" form="bulk"{% if i.photos %} data-photos="1"{% endif %} aria-label="Select {{ i.code }}"></label></td>
     <td>{% if i.cover %}<a href="/p/{{ p.id }}/items/{{ i.id }}"><img class="thumb sm" src="/media/{{ i.cover.thumb }}" alt=""></a>{% endif %}</td>
     <td class="small muted nowrap">{{ i.code }}</td>
     <td data-v="{{ i.name }}"><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a>{% if i.optional %} <span class="pill">optional</span>{% endif %}{% if i.size or i.finish %}<div class="small muted">{{ i.size }}{% if i.size and i.finish %} · {% endif %}{{ i.finish }}</div>{% endif %}</td>
@@ -98,10 +100,12 @@
 
 {% elif view == 'list' %}
 <div class="tbl"><table class="sortable">
-  <thead><tr><th></th><th data-sort="text">Item</th><th data-sort="text">Category</th><th data-sort="num">Rooms</th><th class="num" data-sort="num">Qty</th><th class="num" data-sort="num">Unit CNY</th><th class="num" data-sort="num">Total CNY</th><th data-sort="text">Supplier</th><th data-sort="num">Status</th></tr></thead>
+  <thead><tr><th class="sel"><label><input type="checkbox" class="sel-all" aria-label="Select all shown" title="Select all shown"></label></th><th></th><th data-sort="text">Item</th><th data-sort="text">Category</th><th data-sort="num">Rooms</th><th class="num" data-sort="num">Qty</th><th class="num" data-sort="num">Unit CNY</th><th class="num" data-sort="num">Total CNY</th><th data-sort="text">Supplier</th><th data-sort="num">Status</th></tr></thead>
   <tbody>
   {% for g in rows %}{% set i = g.item %}
+  {% set with_photos = g.rows|selectattr('photos')|list|length %}
   <tr id="item-{{ i.id }}" data-items="{% for r in g.rows %}{{ r.id }}{% if not loop.last %} {% endif %}{% endfor %}">
+    <td class="sel"><label><input type="checkbox" class="sel-box" name="ids" value="{% for r in g.rows %}{{ r.id }}{% if not loop.last %} {% endif %}{% endfor %}" form="bulk"{% if with_photos %} data-photos="{{ with_photos }}"{% endif %} aria-label="Select {{ i.name }}"></label></td>
     <td>{% if g.cover %}<a href="/p/{{ p.id }}/items/{{ i.id }}"><img class="thumb sm" src="/media/{{ g.cover.thumb }}" alt=""></a>{% endif %}</td>
     <td data-v="{{ i.name }}"><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a>{% if i.optional %} <span class="pill">optional</span>{% endif %}<div class="small muted">{{ g.codes }}{% for v in [i.size, i.finish, i.brand]|select %} · {{ v }}{% endfor %}</div></td>
     <td class="small">{{ i.category }}</td>
@@ -140,6 +144,7 @@
       <div class="foot">
         <select class="status-sel" data-url="/p/{{ p.id }}/items/{{ i.id }}/status" style="--c:{{ STATUS_COLORS[i.status] }}" aria-label="Status">{% for st in STATUSES %}<option {{ 'selected' if i.status == st }}>{{ st }}</option>{% endfor %}</select>
         {% if i.optional %}<span class="pill">optional</span>{% endif %}
+        <label class="sel"><input type="checkbox" class="sel-box" name="ids" value="{{ i.id }}" form="bulk"{% if i.photos %} data-photos="1"{% endif %}> Select</label>
       </div>
     </div>
   </div>
