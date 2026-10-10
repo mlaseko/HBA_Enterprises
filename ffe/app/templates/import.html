@@ -26,12 +26,16 @@
     <span class="pill {{ 'accent' if preview.updated }}">{{ preview.updated }} updated</span>
     <span class="pill">{{ preview.unchanged }} unchanged</span>
     <span class="pill {{ 'accent' if preview.rooms }}">{{ preview.rooms }} new room{{ 's' if preview.rooms != 1 }}</span>
+    {% if preview.room_changes %}<span class="pill accent">{{ preview.room_changes|length }} room{{ 's' if preview.room_changes|length != 1 }} changed</span>{% endif %}
+    {% if preview.floors %}<span class="pill accent">{{ preview.floors }} new floor{{ 's' if preview.floors != 1 }}</span>{% endif %}
     <span class="pill {{ 'accent' if preview.suppliers }}">{{ preview.suppliers }} new supplier{{ 's' if preview.suppliers != 1 }}</span>
     <span class="pill">{{ preview.skipped }} skipped</span>
     <span class="pill {{ 'accent' if preview.photos }}">{{ preview.photos }} picture{{ 's' if preview.photos != 1 }}</span>
   </div>
   {% if preview.warnings %}<div class="alert info mt"><b>Check these:</b><ul class="mt mb-0">{% for w in preview.warnings %}<li>{{ w }}</li>{% endfor %}</ul></div>{% endif %}
   {% if preview.new_rooms %}<div class="mt"><span class="eyebrow">New rooms</span><div class="small">{{ preview.new_rooms|join(' · ') }}</div></div>{% endif %}
+  {% if preview.new_floors %}<div class="mt"><span class="eyebrow">New floors</span><div class="small">{{ preview.new_floors|join(' · ') }} <span class="muted">(added to the floor list on the Rooms page; set the kind there)</span></div></div>{% endif %}
+  {% if preview.room_changes %}<div class="mt"><span class="eyebrow">Rooms that change</span><div class="small">{{ preview.room_changes|join(' · ') }}</div></div>{% endif %}
   {% if preview.new_suppliers %}<div class="mt"><span class="eyebrow">New suppliers</span><div class="small">{{ preview.new_suppliers|join(' · ') }}</div></div>{% endif %}
   {% if preview.changes %}
   <div class="eyebrow mt">Updated items</div>

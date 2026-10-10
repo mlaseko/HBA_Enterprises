@@ -71,12 +71,12 @@ def stage_ctx(db: Session, p: Project, im: ProjectImage | None, *, sel_room: Roo
             seen.add(k)
             fl = drawings.plans_for_floor(p, x.floor)
             on = im is not None and drawings.floor_key(im.floor) == k
-            tabs.append({"im": fl[0], "title": drawings.floor_title(x.floor), "sheet": fl[0].sheet, "n": len(drawings.pins_for(p, fl[0])), "on": on,
+            tabs.append({"im": fl[0], "title": drawings.floor_title(x.floor, p), "sheet": fl[0].sheet, "n": len(drawings.pins_for(p, fl[0])), "on": on,
                          "layers": len(fl)})
             if on and len(fl) > 1:
                 layers = [{"im": y, "title": y.layer_title, "sheet": y.sheet, "on": y.id == im.id, "n": len(live_item_pins(y))} for y in fl]
         else:
-            tabs.append({"im": x, "title": drawings.floor_title(x.floor) or (x.caption or "Plan"), "sheet": x.sheet, "n": len(x.pins),
+            tabs.append({"im": x, "title": drawings.floor_title(x.floor, p) or (x.caption or "Plan"), "sheet": x.sheet, "n": len(x.pins),
                          "on": im is not None and x.id == im.id, "layers": 1})
     return dict(p=p, plan=im, pins=pins, ipins=ipins, stats=stats, tabs=tabs, layers=layers, borrowed=borrowed, mode=mode, unplaced=unplaced,
                 other_rooms=other_rooms, floor_rooms=floor_rooms, sel_room=sel_room, sel_item=sel_item, base=base, anchor=anchor)

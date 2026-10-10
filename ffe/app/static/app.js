@@ -135,6 +135,15 @@
   document.addEventListener('change', function (e) { var wrap = e.target.closest && e.target.closest('.room-picks-wrap'); if (wrap) refreshChips(wrap); });
   document.querySelectorAll('.room-picks-wrap').forEach(refreshChips);
 
+  // Floor dropdowns (_macros.html floor_select): "+ New floor…" reveals the text box after the select; the route registers
+  // the typed name in the project's floor list (Rooms page → Floors), so it is offered everywhere from then on.
+  document.addEventListener('change', function (e) {
+    var sel = e.target; if (!(sel instanceof HTMLSelectElement) || !sel.classList.contains('floor-sel')) return;
+    var inp = sel.nextElementSibling; if (!inp || !inp.classList.contains('floor-new')) return;
+    var on = sel.value === '__new__'; inp.hidden = !on; inp.required = on;
+    if (on) inp.focus();
+  });
+
   // filter bars (form.filters, GET): a dropdown applies as soon as you pick. The Filter button stays for the search box
   // (Enter works too) and for browsers without JavaScript. The status dropdowns in the rows are not inside the form.
   document.addEventListener('change', function (e) {

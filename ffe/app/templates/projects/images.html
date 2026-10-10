@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import floor_select %}
 {% block title %}Images &amp; plans · {{ p.name }} · {{ APP_NAME }}{% endblock %}
 {% block content %}
 {% set total = p.images|length %}
@@ -16,7 +17,6 @@
 
 {% if err %}<div class="alert err">{{ err }}</div>{% endif %}
 {% if ok %}<div class="alert info">{{ ok }}</div>{% endif %}
-<datalist id="floors">{% for f in floors %}<option value="{{ f }}">{% endfor %}</datalist>
 
 <form method="post" enctype="multipart/form-data" class="card">
   <h2><svg class="ic"><use href="#i-upload"/></svg> Add images</h2>
@@ -34,7 +34,7 @@
 <form method="post" action="/p/{{ p.id }}/images/plans" enctype="multipart/form-data" class="card" id="plans">
   <h2><svg class="ic"><use href="#i-layout"/></svg> Add floor plans</h2>
   <div class="grid g3 stack">
-    <div><label for="fp-floor">Floor</label><input id="fp-floor" class="in" type="text" name="floor" list="floors" placeholder="Ground" autocomplete="off"></div>
+    <div><label for="fp-floor">Floor</label>{{ floor_select('floor', '', floors, id='fp-floor', none_label='Untagged (choose later)') }}<div class="help">Floors are listed on the <a href="/p/{{ p.id }}/rooms#floors">Rooms &amp; areas</a> page; "+ New floor…" adds one here.</div></div>
     <div><label for="fp-sheet">Sheet ref (optional)</label><input id="fp-sheet" class="in" type="text" name="sheet" placeholder="A-104 Rev A"></div>
     <div><label for="fp-cap">Caption (optional)</label><input id="fp-cap" class="in" type="text" name="caption" placeholder="e.g. Rev B"></div>
     <div><label for="fp-layer">Shows</label><select id="fp-layer" name="layer" class="in">{% for key, title in LAYER_OPTIONS %}<option value="{{ key }}">{{ title }}</option>{% endfor %}</select><div class="help">The <b>main plan</b> is the architect's general floor plan of the floor: it carries the room boxes. A furniture layout, electrical or plumbing sheet with the same floor name becomes a layer on top of it.</div></div>
@@ -93,7 +93,7 @@
       <a href="/media/{{ im.best_key }}" target="_blank" title="Open full size"><img src="/media/{{ im.file_key }}" alt="{{ plan_caption(im) or 'Floor plan' }}"></a>
       <form method="post" action="/p/{{ p.id }}/images/{{ im.id }}/delete" data-confirm="Delete this plan? Its room boxes and item dots go with it."><button class="btn sm icon danger" title="Delete plan" aria-label="Delete plan"><svg class="ic"><use href="#i-x"/></svg></button></form>
       <form method="post" action="/p/{{ p.id }}/images/{{ im.id }}" class="tag">
-        <input class="in" type="text" name="floor" list="floors" value="{{ im.floor }}" placeholder="Floor" aria-label="Floor" autocomplete="off">
+        {{ floor_select('floor', im.floor, floors, none_label='Untagged') }}
         <input class="in" type="text" name="sheet" value="{{ im.sheet }}" placeholder="Sheet, e.g. A-104 Rev A" aria-label="Sheet">
         <input class="in" type="text" name="caption" value="{{ im.caption }}" placeholder="Caption" aria-label="Caption">
         <select class="in" name="layer" aria-label="What this sheet shows">{% for key, title in LAYER_OPTIONS %}<option value="{{ key }}" {{ 'selected' if im.layer == key }}>{{ title }}</option>{% endfor %}</select>

@@ -12,6 +12,7 @@ except ImportError:  # pragma: no cover - exercised in the test by setting pdfiu
     pdfium = None
 from PIL import Image, ImageDraw, ImageFont
 from . import config
+import re as _re_mod
 
 # Room.floor values that mean "not a real floor": those rooms and plans go in the Whole house section.
 PSEUDO = {"", "all", "whole house", "outside", "exterior", "site", "n/a", "-"}
@@ -83,11 +84,19 @@ def is_pseudo(s) -> bool:
     return floor_key(s) in PSEUDO
 
 
-def floor_title(s) -> str:
-    """'Ground' -> 'Ground floor', 'ground floor' -> 'Ground floor', 'Roof' -> 'Roof', 'All' -> 'All'."""
+def floor_title(s, p=None) -> str:
+    """'Ground' -> 'Ground floor', 'ground floor' -> 'Ground floor', 'Roof' -> 'Roof', 'All' -> 'All'. With the project, the
+    floor list decides: its spelling is used, and a separate area (Floor.kind 'area': the staff quarters, a guest house)
+    prints as it is, never with "floor" after it."""
     t = (s or "").strip()
     if not t or is_pseudo(t):
         return t
+    if p is not None:
+        f = floor_entry(p, t)
+        if f is not None:
+            if f.is_area:
+                return f.name
+            t = f.name
     t = t[0].upper() + t[1:]
     low = t.lower()
     if "floor" in low or "level" in low or floor_key(t) in NO_SUFFIX or len(t.split()) > 1:
@@ -99,7 +108,7 @@ def plan_caption(im) -> str:
     """'Ground floor · A-101 · Rev B'; a layer other than the main plan names itself after the floor ("Ground floor · Electrical
     & lighting · E-01")."""
     layer = "" if im.is_main_layer else im.layer_title
-    return " · ".join(x for x in [floor_title(im.floor), layer, im.sheet, im.caption] if x)
+    return " · ".join(x for x in [floor_title(im.floor, getattr(im, "project", None)), layer, im.sheet, im.caption] if x)
 
 
 def layer_from_title(title: str) -> str:
@@ -122,18 +131,123 @@ def plans(p) -> list:
 
 
 def floor_order(p) -> list[str]:
-    """Distinct real floors in room order (first spelling wins), then floors that only appear on tagged plans."""
+    """The floors in order: the project's floor list (models.Floor, as ordered on the Rooms page), then any real floor a
+    room or plan still names outside the list (first spelling wins; rooms before plans). Pseudo floors never appear."""
     out, seen = [], set()
+    for name in [f.name for f in sorted(p.floors, key=lambda f: (f.sort, f.id))] + named_floors(p):
+        k = floor_key(name)
+        if k and k not in PSEUDO and k not in seen:
+            seen.add(k)
+            out.append(name.strip())
+    return out
+
+
+def named_floors(p) -> list[str]:
+    """Distinct real floors as rooms and tagged plans spell them, rooms first: what the floor list is built from."""
+    out, seen = [], set()
+    for s in [r.floor for r in p.rooms] + [im.floor for im in plans(p)]:
+        k = floor_key(s)
+        if k and k not in PSEUDO and k not in seen:
+            seen.add(k)
+            out.append(s.strip())
+    return out
+
+
+# ---- the floor list (models.Floor) ---------------------------------------------------------------------------------
+# Rooms and plans carry their floor as text (Room.floor, PlanTag.floor) matched through floor_key(); the project's Floor
+# rows are the list behind every Floor dropdown, the order of the floors, their spelling and their kind. A floor typed
+# anywhere (a room, a plan, the import) goes through register_floor(), so the list is never behind the data.
+
+_FLOOR_AREA_RE = _re_mod.compile(r"\b(?:" + "|".join(_re_mod.escape(w) for w in config.FLOOR_AREA_WORDS) + r")")
+
+
+def guess_floor_kind(name: str) -> str:
+    """'area' for a separate building or outdoor zone named like one (staff quarters, guest house, garden...), else 'floor'."""
+    return "area" if _FLOOR_AREA_RE.search((name or "").lower()) else "floor"
+
+
+def floor_entry(p, s):
+    """The project's Floor row for a floor name, matched like rooms and plans ('ground floor' = 'Ground'), or None."""
+    k = floor_key(s)
+    if not k:
+        return None
+    return next((f for f in p.floors if floor_key(f.name) == k), None)
+
+
+def canonical_floor(p, s) -> str:
+    """The listed spelling of a floor name ('ground floor' -> 'Ground'); a name outside the list, trimmed."""
+    f = floor_entry(p, s)
+    return f.name if f is not None else " ".join((s or "").split())
+
+
+def floor_from_form(floor: str, floor_new: str = "", current: str = "") -> str:
+    """What a Floor dropdown (the floor_select macro) posted: a listed name, or "+ New floor…" with the typed name;
+    the new-floor choice with nothing typed keeps the current value."""
+    if (floor or "").strip() == "__new__":
+        return " ".join((floor_new or "").split()) or current
+    return " ".join((floor or "").split())
+
+
+def register_floor(db, p, s, kind: str = "") -> str:
+    """The floor name to store on a room or plan: the listed spelling when the floor is known, else a new Floor row (kind
+    guessed from the name unless given) and the trimmed name. Blanks and pseudo floors (All, Site, Outside...) are stored
+    as typed and never listed."""
+    from .models import Floor
+    name = canonical_floor(p, s)[:40]
+    if not name or is_pseudo(name):
+        return name
+    if floor_entry(p, name) is None:
+        name = name[0].upper() + name[1:]  # a new floor starts with a capital, as the titles do
+        p.floors.append(Floor(name=name, kind=kind if kind in config.FLOOR_KINDS else guess_floor_kind(name),
+                              sort=max([f.sort for f in p.floors] + [0]) + 1))
+        db.flush()
+    return name
+
+
+def sync_floors(db, p) -> list[str]:
+    """List every real floor a room or plan names that the list lacks (projects from before the list, a sheet typed on the
+    page picker). Returns the names added; the caller commits."""
+    added = []
+    for name in named_floors(p):
+        if floor_entry(p, name) is None:
+            added.append(register_floor(db, p, name))
+    return added
+
+
+def _retag(p, old_key: str, new_name: str) -> int:
+    """Every room and plan tag on the floor `old_key` gets the name `new_name`; returns how many rows changed."""
+    n = 0
     for r in p.rooms:
-        k = floor_key(r.floor)
-        if k and k not in PSEUDO and k not in seen:
-            seen.add(k)
-            out.append(r.floor.strip())
+        if floor_key(r.floor) == old_key and r.floor != new_name:
+            r.floor, n = new_name, n + 1
     for im in plans(p):
-        k = floor_key(im.floor)
-        if k and k not in PSEUDO and k not in seen:
-            seen.add(k)
-            out.append(im.floor.strip())
+        if im.tag is not None and floor_key(im.tag.floor) == old_key and im.tag.floor != new_name:
+            im.tag.floor, n = new_name, n + 1
+    return n
+
+
+def rename_floor(p, f, new_name: str) -> int:
+    """Rename a listed floor; its rooms and plans follow. Returns how many of them changed."""
+    old_key = floor_key(f.name)
+    f.name = " ".join(new_name.split())[:40]
+    return _retag(p, old_key, f.name)
+
+
+def merge_floor(db, p, f, target) -> int:
+    """Move every room and plan of the floor `f` onto `target` and drop `f` from the list. Returns how many moved."""
+    n = _retag(p, floor_key(f.name), target.name)
+    p.floors.remove(f)
+    db.flush()
+    return n
+
+
+def floor_rows(p) -> list[dict]:
+    """The floor list for the Rooms page: [{floor, rooms, plans}] in order, with how many rooms and plans each one has."""
+    out = []
+    for f in sorted(p.floors, key=lambda f: (f.sort, f.id)):
+        k = floor_key(f.name)
+        out.append({"floor": f, "rooms": sum(1 for r in p.rooms if floor_key(r.floor) == k),
+                    "plans": sum(1 for im in plans(p) if floor_key(im.floor) == k)})
     return out
 
 
@@ -213,7 +327,7 @@ def legacy_layer_hint(p, im) -> dict | None:
     has_main = any(x.id != im.id and x.is_main_layer for x in plans_for_floor(p, floor))
     if layer == "furnishing" and not has_main:
         return None
-    return {"floor": floor, "layer": layer, "title": config.LAYER_TITLES[layer], "floor_title": floor_title(floor), "has_main": has_main}
+    return {"floor": floor, "layer": layer, "title": config.LAYER_TITLES[layer], "floor_title": floor_title(floor, p), "has_main": has_main}
 
 
 def plan_for_room(p, room):
@@ -234,13 +348,15 @@ def rooms_by_floor(p) -> list[dict]:
     by = plans_by_floor(p)
     groups = []
 
-    def group(key, title, floor, entries, plans):
+    def group(key, title, floor, entries, plans, kind="floor"):
         rooms, areas = split_kinds(entries)
-        return {"key": key, "title": title, "floor": floor, "all": entries, "rooms": rooms, "areas": areas, "plans": plans}
+        return {"key": key, "title": title, "floor": floor, "all": entries, "rooms": rooms, "areas": areas, "plans": plans, "kind": kind}
 
     for f in floor_order(p):
         k = floor_key(f)
-        groups.append(group(k, floor_title(f), f, [r for r in p.rooms if floor_key(r.floor) == k], plans_for_floor(p, f)))
+        entry = floor_entry(p, f)
+        groups.append(group(k, floor_title(f, p), f, [r for r in p.rooms if floor_key(r.floor) == k], plans_for_floor(p, f),
+                            entry.kind if entry is not None else "floor"))
     whole_rooms = [r for r in p.rooms if is_pseudo(r.floor)]
     whole_plans = [im for k, v in by.items() if k and k in PSEUDO for im in v]
     if whole_rooms or whole_plans:

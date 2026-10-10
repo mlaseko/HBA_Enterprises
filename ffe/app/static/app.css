@@ -220,6 +220,16 @@ td.sel input,th.sel input{margin:0}
 tr.selected td,tbody tr.selected:hover td{background:var(--accent-soft)}
 .item-card.selected{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
 .item-card .foot label.sel{display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--muted);cursor:pointer;margin-left:auto}
+/* the floor list on the Rooms page (#floors): one row per floor with its order buttons, inline name + kind form, counts, merge and delete */
+.in[hidden]{display:none}
+.floor-new{margin-top:6px}
+table.floors td{vertical-align:middle}
+table.floors form.inl{display:inline-flex;gap:6px;align-items:center;margin:0}
+table.floors .in{padding:7px 10px;font-size:.86rem;min-width:0}
+table.floors .nm{min-width:150px}
+table.floors select.in{padding-right:28px;min-width:150px}
+.floors-add .in{max-width:280px}
+.floors-add select.in{width:auto;max-width:none}
 /* sortable tables (app.js): a header with data-sort is a button; the small arrow shows the current order */
 table.sortable th[data-sort]{cursor:pointer;user-select:none}
 table.sortable th[data-sort]:hover,table.sortable th[aria-sort]{color:var(--ink)}

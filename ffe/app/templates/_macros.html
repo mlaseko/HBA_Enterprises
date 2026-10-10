@@ -34,3 +34,8 @@
 </div>
 {% endmacro %}
 {% macro room_pill(r) %}<span class="pill {{ 'area' if r.is_area else 'accent' }}" title="{{ r.kind_title }}">{{ r.code }}</span>{% endmacro %}
+
+{# A Floor dropdown fed by the project's floor list (Rooms page → Floors). "+ New floor…" reveals a text box (app.js); the
+   route stores the typed name through drawings.register_floor, so it joins the list. A value outside the list (Site,
+   Outside, a legacy spelling) stays selectable so saving never loses it. #}
+{% macro floor_select(name, value, floors, id='', label='Floor', none_label='No floor') %}<select class="in floor-sel" name="{{ name }}"{% if id %} id="{{ id }}"{% endif %} aria-label="{{ label }}"><option value="">{{ none_label }}</option>{% for f in floors %}<option value="{{ f }}" {{ 'selected' if value == f }}>{{ f }}</option>{% endfor %}{% if value and value not in floors %}<option value="{{ value }}" selected>{{ value }}</option>{% endif %}<option value="__new__">+ New floor…</option></select><input class="in floor-new" type="text" name="{{ name }}_new" placeholder="Name of the new floor" aria-label="Name of the new floor" hidden>{% endmacro %}

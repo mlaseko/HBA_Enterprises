@@ -135,7 +135,7 @@ def quick_picks(p) -> list[tuple[str, str]]:
         out.append(("All bathrooms", "every bathroom"))
     for f in drawings.floor_order(p):
         if any(drawings.floor_key(r.floor) == drawings.floor_key(f) for r in rooms):
-            out.append((f"All on {drawings.floor_title(f)}", f"every room and area on the {drawings.floor_title(f).lower()}"))
+            out.append((f"All on {drawings.floor_title(f, p)}", f"every room and area on the {drawings.floor_title(f, p).lower()}"))
     return [(label, f"Quick pick for the Shopping List: a new item in {what}. Not a room; leave this row as it is.") for label, what in out]
 
 
@@ -458,7 +458,7 @@ def run_import(p: Project, db: Session, wb, replace: bool, dry: bool, photos: li
     `photos` = [(file name, bytes)] uploaded with the sheet; with the pictures placed over the sheet's Photo cells they go
     to the items they name (code or item name) when those have no photo yet, after the commit."""
     result = {"rooms": 0, "items": 0, "updated": 0, "unchanged": 0, "suppliers": 0, "skipped": 0, "deleted": 0, "warnings": [],
-              "new": [], "changes": [], "new_rooms": [], "new_suppliers": [], "photos": 0, "photos_kept": 0, "error": None, "dry": dry}
+              "new": [], "changes": [], "new_rooms": [], "new_floors": [], "floors": 0, "room_changes": [], "new_suppliers": [], "photos": 0, "photos_kept": 0, "error": None, "dry": dry}
     photos = photos or []
     warnings: list[str] = []
 
@@ -506,7 +506,14 @@ def run_import(p: Project, db: Session, wb, replace: bool, dry: bool, photos: li
                         r = Room(project_id=p.id, code=code, name=name.strip(), sort=sort)
                         db.add(r)
                         result["rooms"] += 1
-                    r.floor = str(col(h, row, "floor") or r.floor or "")
+                    before = None if new_room else (r.floor, r.kind)
+                    floor_cell = text(col(h, row, "floor"))
+                    if floor_cell:
+                        if not drawings.is_pseudo(floor_cell) and drawings.floor_entry(p, floor_cell) is None:
+                            result["new_floors"].append(" ".join(floor_cell.split())[:40])  # joins the floor list (Rooms page)
+                        r.floor = drawings.register_floor(db, p, floor_cell)
+                    else:
+                        r.floor = r.floor or ""
                     if kind in ("room", "area"):
                         r.kind = kind
                     elif new_room:
@@ -519,6 +526,10 @@ def run_import(p: Project, db: Session, wb, replace: bool, dry: bool, photos: li
                     idx.add(r)
                     if new_room:
                         result["new_rooms"].append(f"{r.label} ({r.floor or 'no floor'}, {r.kind})")
+                    elif (r.floor, r.kind) != before:  # an existing room moved or reclassified: say so in the preview
+                        what = ([f"floor {before[0] or 'none'} → {r.floor or 'none'}"] if r.floor != before[0] else []) + ([f"{before[1]} → {r.kind}"] if r.kind != before[1] else [])
+                        result["room_changes"].append(f"{r.label}: " + ", ".join(what))
+                result["floors"] = len(result["new_floors"])
 
         # ---- items ----
         sheet = next((n for n in wb.sheetnames if n.lower() in ("shopping list", "items", "master list")), None)
