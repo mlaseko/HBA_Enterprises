@@ -214,6 +214,9 @@ td.nowrap{white-space:nowrap}
 .select-bar label.check{margin:0;font-size:.86rem}
 .btn[hidden]{display:none}  /* the class sets display, so the attribute alone would not hide a button */
 .select-bar .count{flex:1;min-width:180px}
+.select-bar .codes-box{flex-basis:100%;display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;padding-top:8px;border-top:1px dashed var(--line)}
+.select-bar .codes-box textarea{flex:1 1 260px;min-height:56px;font-size:.86rem}
+.select-bar .codes-box .result{flex-basis:100%}
 td.sel,th.sel{width:1%;padding-right:2px}
 td.sel label,th.sel label{display:flex;align-items:center;margin:-10px -6px;padding:10px 6px;cursor:pointer}
 td.sel input,th.sel input{margin:0}
@@ -778,3 +781,28 @@ tr.hl td,.item-card.hl{background:var(--accent-soft)!important;transition:backgr
   .modal .foot .btn{flex:1 1 0;min-width:0;padding:12px 16px}
 }
 @media print{.modal{display:none!important}}
+/* the picture viewer (app.js): a /media/ picture link or an img[data-full] opens on top of the page, fitted, with zoom */
+img[data-full]{cursor:zoom-in}
+.lb{position:fixed;inset:0;z-index:80;display:flex;flex-direction:column;background:rgba(22,19,16,.94);color:#F6F3EE;animation:fade .15s ease;overscroll-behavior:contain}
+.lb[hidden]{display:none}
+.lb .lb-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top));min-height:54px}
+.lb .lb-cap{flex:1;min-width:0;font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb .lb-n{color:rgba(246,243,238,.6);font-size:.8rem;margin-left:6px}
+.lb .lb-btn{appearance:none;-webkit-appearance:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;min-width:38px;padding:0 12px;border-radius:999px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);color:#F6F3EE;font:inherit;font-size:.88rem;font-weight:600;line-height:1;cursor:pointer;text-decoration:none}
+.lb .lb-btn:hover{background:rgba(255,255,255,.18);text-decoration:none;color:#fff}
+.lb .lb-btn:focus-visible{outline:2px solid #E7B9A5;outline-offset:2px}
+.lb .lb-btn .ic{width:18px;height:18px}
+.lb .lb-btn[hidden]{display:none}
+.lb .lb-stage{flex:1;position:relative;overflow:hidden;touch-action:none;cursor:grab}
+.lb .lb-stage.drag{cursor:grabbing}
+.lb .lb-stage img{position:absolute;left:0;top:0;max-width:none;max-height:none;transform-origin:0 0;user-select:none;-webkit-user-drag:none;will-change:transform;box-shadow:0 20px 60px rgba(0,0,0,.45);background:#fff}
+.lb .lb-spin{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none}
+.lb .lb-spin[hidden]{display:none}
+.lb .lb-spin span{display:block;width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.25);border-top-color:#F6F3EE;animation:lbspin .8s linear infinite}
+.lb .lb-tools{position:absolute;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;gap:6px;padding:6px;border-radius:999px;background:rgba(30,27,24,.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.1)}
+.lb .lb-tools .lb-btn{border-color:transparent;background:transparent;font-size:1.05rem}
+.lb .lb-tools .lb-btn:hover{background:rgba(255,255,255,.14)}
+.lb .lb-tools .lb-btn[data-zoom=fit]{font-size:.84rem}
+@keyframes lbspin{to{transform:rotate(360deg)}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@media print{.lb{display:none!important}}

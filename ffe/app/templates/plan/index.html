@@ -16,7 +16,7 @@
       {% if marking %}<a class="btn" href="{{ base }}?plan={{ plan.id }}"><svg class="ic"><use href="#i-check"/></svg>Done marking</a>
       {% elif plan.is_reference %}<a class="btn sec" href="/p/{{ p.id }}/plan/match?plan={{ plan.id }}"><svg class="ic"><use href="#i-sparkle"/></svg>Match drawings</a>
       {% else %}<a class="btn sec" href="{{ base }}?plan={{ plan.id }}&amp;mode=mark"><svg class="ic"><use href="#i-edit"/></svg>Mark rooms</a>{% endif %}
-      <a class="btn sec hide-m" href="/media/{{ plan.best_key }}" target="_blank"><svg class="ic"><use href="#i-image"/></svg>Full size</a>
+      <a class="btn sec hide-m" href="/media/{{ plan.best_key }}" target="_blank" data-thumb="/media/{{ plan.file_key }}" data-caption="{{ plan_caption(plan) or 'Floor plan' }}"><svg class="ic"><use href="#i-image"/></svg>Full size</a>
     {% endif %}
     <a class="btn ghost" href="/p/{{ p.id }}/rooms"><svg class="ic"><use href="#i-layout"/></svg>Rooms</a>
   </div>

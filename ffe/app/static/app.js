@@ -313,6 +313,29 @@
   });
   unphoto.addEventListener('click', function () { boxes.forEach(function (b) { if (b.dataset.photos) b.checked = false; }); refresh(); });
   clear.addEventListener('click', function () { boxes.forEach(function (b) { b.checked = false; }); refresh(); });
+  // "Tick by codes": paste item codes (an Excel column, a message, the duplicate check), and every line on the page whose
+  // code is in the list gets ticked; the bar says how many were found and which are not on this page. In the Item list a
+  // box covers every room line of its product (data-codes lists them), so it is ticked only when all of them are wanted.
+  var byCodes = bar.querySelector('.by-codes'), codesBox = bar.querySelector('.codes-box');
+  if (byCodes && codesBox) {
+    var ta = codesBox.querySelector('textarea'), result = codesBox.querySelector('.result');
+    byCodes.addEventListener('click', function () { codesBox.hidden = !codesBox.hidden; byCodes.setAttribute('aria-expanded', String(!codesBox.hidden)); if (!codesBox.hidden) ta.focus(); });
+    codesBox.querySelector('.apply').addEventListener('click', function () {
+      var want = {}, order = [], m, re = /[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*-\d+/g, text = ta.value.toUpperCase();
+      while ((m = re.exec(text))) { if (!(m[0] in want)) { want[m[0]] = 0; order.push(m[0]); } }
+      var shared = [];
+      boxes.forEach(function (b) {
+        var codes = (b.dataset.codes || '').toUpperCase().split(/\s+/).filter(Boolean), hit = codes.filter(function (c) { return c in want; });
+        if (!hit.length) return;
+        if (hit.length === codes.length) { b.checked = true; hit.forEach(function (c) { want[c]++; }); } else shared.push(hit.join(', '));
+      });
+      refresh();
+      var missing = order.filter(function (c) { return !want[c]; });
+      result.textContent = !order.length ? 'No item codes in the text.' :
+        'Ticked ' + (order.length - missing.length) + ' of ' + order.length + (missing.length ? ' · not on this page: ' + missing.join(', ') : '') +
+        (shared.length ? ' · shares its line with other rooms here, tick it in the Table view: ' + shared.join(', ') : '');
+    });
+  }
   window.addEventListener('pageshow', refresh);  // the browser may bring ticks back on Back
   refresh();
 })();
@@ -347,4 +370,186 @@
     setTimeout(hideNudge, 9000);
     document.addEventListener('pointerdown', function h() { hideNudge(); document.removeEventListener('pointerdown', h); });
   }
+})();
+
+// Picture viewer: a link to a /media/ picture (not a PDF) or an img[data-full] opens on top of the page, fitted to the
+// window, with zoom (− / Fit / +, the mouse wheel, pinch, a double tap), drag to move, ‹ › through the pictures of the
+// same gallery, and × / Esc / the backdrop / the phone's Back button to close and land where you were. The small copy
+// already on the page (or data-thumb) shows at once; the full picture replaces it when it has arrived. The link's
+// target="_blank" stays as the no-JavaScript fallback; data-caption names the picture; data-nolb keeps a link out.
+(function () {
+  var MEDIA = /\/media\//, PDF = /\.pdf(\?|$)/i, GROUP = '.gallery, .insp-gallery, .cards, .tbl, .pages, .shots, [data-lb-group]';
+  function isTrigger(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (el.tagName === 'IMG') return !!el.dataset.full;
+    if (el.tagName !== 'A' || el.dataset.nolb !== undefined) return false;
+    var href = el.getAttribute('href') || '';
+    return MEDIA.test(href) && !PDF.test(href);
+  }
+  function describe(el) {  // the full-size url, the small copy already on the page, and a caption
+    if (el.tagName === 'IMG') return { src: el.dataset.full, thumb: el.currentSrc || el.src, cap: el.dataset.caption || el.alt || '' };
+    var img = el.querySelector('img'), title = el.getAttribute('title') || '';
+    if (/full size/i.test(title)) title = '';
+    return { src: el.getAttribute('href'), thumb: el.dataset.thumb || (img ? (img.currentSrc || img.src) : ''), cap: el.dataset.caption || title || (img && img.alt) || '' };
+  }
+  var box, stage, img, cap, num, openLink, prevBtn, nextBtn, spin;
+  var cur = null, pushed = false, before = null, nw = 0, nh = 0, s = 1, tx = 0, ty = 0, fit = 1, touched = false, wanted = '';
+  var pointers = {}, drag = null, pinch = null, tapStart = null;
+  function build() {
+    if (box) return;
+    box = document.createElement('div'); box.className = 'lb'; box.hidden = true;
+    box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-label', 'Picture');
+    box.innerHTML = '<div class="lb-bar"><div class="lb-cap"><span class="t"></span> <span class="lb-n"></span></div>' +
+      '<a class="lb-btn lb-open" target="_blank" rel="noopener" title="Open the picture on its own, to save it"><svg class="ic"><use href="#i-image"/></svg><span class="hide-m">Open</span></a>' +
+      '<button type="button" class="lb-btn lb-close" aria-label="Close"><svg class="ic"><use href="#i-x"/></svg></button></div>' +
+      '<div class="lb-stage"><img alt="" draggable="false"><div class="lb-spin" hidden><span></span></div></div>' +
+      '<div class="lb-tools"><button type="button" class="lb-btn lb-prev" aria-label="Previous picture">&#8249;</button>' +
+      '<button type="button" class="lb-btn" data-zoom="-" aria-label="Zoom out">&minus;</button><button type="button" class="lb-btn" data-zoom="fit">Fit</button>' +
+      '<button type="button" class="lb-btn" data-zoom="+" aria-label="Zoom in">+</button><button type="button" class="lb-btn lb-next" aria-label="Next picture">&#8250;</button></div>';
+    document.body.appendChild(box);
+    stage = box.querySelector('.lb-stage'); img = stage.querySelector('img'); cap = box.querySelector('.lb-cap .t'); num = box.querySelector('.lb-n');
+    openLink = box.querySelector('.lb-open'); prevBtn = box.querySelector('.lb-prev'); nextBtn = box.querySelector('.lb-next'); spin = box.querySelector('.lb-spin');
+    box.querySelector('.lb-close').addEventListener('click', close);
+    prevBtn.addEventListener('click', function () { step(-1); });
+    nextBtn.addEventListener('click', function () { step(1); });
+    box.querySelectorAll('[data-zoom]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var r = stage.getBoundingClientRect(), cx = r.width / 2, cy = r.height / 2;
+        if (b.dataset.zoom === 'fit') refit(); else zoomAt(cx, cy, b.dataset.zoom === '+' ? 1.5 : 1 / 1.5);
+      });
+    });
+    stage.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      var r = stage.getBoundingClientRect();
+      zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.2 : 1 / 1.2);
+    }, { passive: false });
+    stage.addEventListener('dblclick', function (e) {
+      var r = stage.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+      if (s > fit * 1.05) refit(); else zoomAt(x, y, (fit * 2.5) / s);
+    });
+    stage.addEventListener('pointerdown', function (e) {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+      stage.setPointerCapture(e.pointerId);
+      var ids = Object.keys(pointers);
+      if (ids.length === 1) { drag = { x: e.clientX, y: e.clientY, tx: tx, ty: ty, moved: false }; tapStart = { t: Date.now(), onImg: e.target === img }; pinch = null; }
+      else if (ids.length === 2) { drag = null; pinch = { d: dist(ids), s: s, mid: mid(ids) }; tapStart = null; }
+      stage.classList.add('drag');
+    });
+    stage.addEventListener('pointermove', function (e) {
+      if (!pointers[e.pointerId]) return;
+      pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var ids = Object.keys(pointers);
+      if (pinch && ids.length >= 2) {
+        var d = dist(ids), m = mid(ids), r = stage.getBoundingClientRect();
+        setScaleAt(m.x - r.left, m.y - r.top, pinch.s * d / pinch.d);
+        touched = true;
+      } else if (drag) {
+        var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+        if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
+        tx = drag.tx + dx; ty = drag.ty + dy; clampPan(); apply();
+        if (drag.moved) touched = true;
+      }
+    });
+    function up(e) {
+      delete pointers[e.pointerId];
+      var ids = Object.keys(pointers);
+      if (!ids.length) {
+        stage.classList.remove('drag');
+        if (tapStart && drag && !drag.moved && !tapStart.onImg && Date.now() - tapStart.t < 400) close();  // a tap beside the picture
+        drag = null; pinch = null; tapStart = null;
+      } else if (ids.length === 1) { drag = { x: pointers[ids[0]].x, y: pointers[ids[0]].y, tx: tx, ty: ty, moved: true }; pinch = null; }
+    }
+    stage.addEventListener('pointerup', up); stage.addEventListener('pointercancel', up);
+    img.addEventListener('load', function () {
+      if (img.src !== wanted && img.src !== wantedThumb) return;
+      var ow = nw; nw = img.naturalWidth; nh = img.naturalHeight;
+      if (!touched || !ow) refit();
+      else { fit = Math.min(stage.clientWidth / nw, stage.clientHeight / nh); s = s * ow / nw; clampPan(); apply(); }  // the full picture replaces the small copy at the same size on screen
+    });
+    document.addEventListener('keydown', function (e) {
+      if (!box || box.hidden) return;
+      var r = stage.getBoundingClientRect(), cx = r.width / 2, cy = r.height / 2;
+      if (e.key === 'Escape') { close(); }
+      else if (e.key === '+' || e.key === '=') { zoomAt(cx, cy, 1.5); }
+      else if (e.key === '-' || e.key === '_') { zoomAt(cx, cy, 1 / 1.5); }
+      else if (e.key === '0') { refit(); }
+      else if (e.key === 'ArrowLeft' && cur.list.length > 1) { step(-1); }
+      else if (e.key === 'ArrowRight' && cur.list.length > 1) { step(1); }
+      else if (/^Arrow/.test(e.key)) { tx += e.key === 'ArrowLeft' ? 60 : e.key === 'ArrowRight' ? -60 : 0; ty += e.key === 'ArrowUp' ? 60 : e.key === 'ArrowDown' ? -60 : 0; clampPan(); apply(); }
+      else return;
+      e.preventDefault();
+    });
+    window.addEventListener('resize', function () { if (box.hidden || !nw) return; if (!touched) refit(); else { clampPan(); apply(); } });
+    window.addEventListener('popstate', function () { if (!box.hidden) { pushed = false; hide(); } });
+  }
+  var wantedThumb = '';
+  function dist(ids) { var a = pointers[ids[0]], b = pointers[ids[1]]; return Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)); }
+  function mid(ids) { var a = pointers[ids[0]], b = pointers[ids[1]]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
+  function apply() { img.style.transform = 'translate(' + tx.toFixed(1) + 'px,' + ty.toFixed(1) + 'px) scale(' + s.toFixed(4) + ')'; }
+  function clampPan() {
+    var W = stage.clientWidth, H = stage.clientHeight, w = nw * s, h = nh * s;
+    tx = w <= W ? (W - w) / 2 : Math.min(0, Math.max(W - w, tx));
+    ty = h <= H ? (H - h) / 2 : Math.min(0, Math.max(H - h, ty));
+  }
+  function refit() {
+    if (!nw || !nh) return;
+    var W = stage.clientWidth, H = stage.clientHeight;
+    fit = Math.min(W / nw, H / nh); s = fit; touched = false;
+    clampPan(); apply();
+  }
+  function setScaleAt(px, py, s2) {
+    var lo = fit * 0.5, hi = Math.max(fit * 10, 4);
+    s2 = Math.min(hi, Math.max(lo, s2));
+    tx = px - (px - tx) * (s2 / s); ty = py - (py - ty) * (s2 / s); s = s2;
+    clampPan(); apply();
+  }
+  function zoomAt(px, py, f) { touched = true; setScaleAt(px, py, s * f); }
+  function groupOf(el) {
+    var scope = el.closest('[data-lb-group]') || el.closest(GROUP), list = scope ? Array.prototype.filter.call(scope.querySelectorAll('a[href], img[data-full]'), isTrigger) : [];
+    list = list.filter(function (x) { return !x.closest('a[href]') || x === x.closest('a[href]') || !isTrigger(x.closest('a[href]')); });  // a data-full img inside a picture link counts once
+    return list.length && list.indexOf(el) >= 0 ? list : [el];
+  }
+  function show(el) {
+    build();
+    var list = groupOf(el);
+    cur = { list: list, i: list.indexOf(el) };
+    before = document.activeElement;
+    box.hidden = false; document.body.style.overflow = 'hidden';
+    if (!pushed) { try { history.pushState({ lb: 1 }, ''); pushed = true; } catch (e) { pushed = false; } }
+    load();
+    box.querySelector('.lb-close').focus();
+  }
+  function load() {
+    var t = describe(cur.list[cur.i]);
+    cap.textContent = t.cap; num.textContent = cur.list.length > 1 ? (cur.i + 1) + ' / ' + cur.list.length : '';
+    openLink.href = t.src; prevBtn.hidden = nextBtn.hidden = cur.list.length < 2;
+    nw = nh = 0; touched = false; wanted = new URL(t.src, location.href).href; wantedThumb = t.thumb ? new URL(t.thumb, location.href).href : '';
+    img.style.transform = 'translate(-9999px,-9999px)';
+    spin.hidden = false;
+    if (wantedThumb && wantedThumb !== wanted) img.src = wantedThumb; else img.src = wanted;
+    var big = new Image();
+    big.onload = function () { if (big.src !== wanted) return; spin.hidden = true; if (img.src !== wanted) img.src = wanted; };
+    big.onerror = function () { spin.hidden = true; };
+    big.src = wanted;
+  }
+  function step(d) { if (!cur || cur.list.length < 2) return; cur.i = (cur.i + d + cur.list.length) % cur.list.length; load(); }
+  function hide() {
+    box.hidden = true; document.body.style.overflow = ''; img.src = ''; cur = null;
+    if (before && before.focus) { try { before.focus(); } catch (e) { /* gone */ } }
+  }
+  function close() {
+    if (!box || box.hidden) return;
+    if (pushed) { pushed = false; history.back(); }  // popstate hides it, so Back and × end the same way
+    else hide();
+  }
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var el = e.target.closest('a[href], img[data-full]');
+    if (!el) return;
+    if (el.tagName === 'IMG' && el.closest('a[href]')) { var a = el.closest('a[href]'); if (isTrigger(a)) el = a; else if (!isTrigger(el)) return; }
+    if (!isTrigger(el)) return;
+    e.preventDefault();
+    show(el);
+  });
 })();

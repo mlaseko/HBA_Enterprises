@@ -24,6 +24,8 @@ const DESKTOP = [
   ['items-table', `/p/${pid}/items?view=table&category=Tiles`],
   ['items-list', `/p/${pid}/items?view=list`, async p => { await p.click('th[data-sort]:has-text("Rooms")'); await p.click('th[data-sort]:has-text("Rooms")'); await p.waitForTimeout(200); }],
   ['items-select', `/p/${pid}/items?view=table&category=Tiles`, async p => { await p.locator('input.sel-box').nth(0).check(); await p.locator('input.sel-box').nth(2).check(); await p.waitForTimeout(200); }],
+  ['items-codes', `/p/${pid}/items?view=table&category=Tiles`, async p => { const codes = await p.$$eval('input.sel-box', xs => xs.slice(0, 3).map(x => x.dataset.codes).join(', ')); await p.click('.select-bar .by-codes'); await p.fill('.select-bar textarea', codes + ', GF-LIV-99'); await p.click('.select-bar .apply'); await p.waitForTimeout(300); }],
+  ['viewer', `/p/${pid}/plan?plan=${ground}`, async p => { await p.click('.page-head .actions a[href^="/media/"]'); await p.waitForTimeout(1500); }],
   ['item-new', `/p/${pid}/items/new?room=${liv}`],
   ['item-edit', `/p/${pid}/items/${ids.sofa}`],
   ['suppliers', `/p/${pid}/suppliers`],

@@ -9,7 +9,7 @@
   </div>
   <div class="actions">
     <a class="btn sec" href="/p/{{ p.id }}/plan?plan={{ plan.id }}"><svg class="ic"><use href="#i-map"/></svg>Back to the sheet</a>
-    <a class="btn ghost hide-m" href="/media/{{ plan.best_key }}" target="_blank"><svg class="ic"><use href="#i-image"/></svg>Full size</a>
+    <a class="btn ghost hide-m" href="/media/{{ plan.best_key }}" target="_blank" data-thumb="/media/{{ plan.file_key }}" data-caption="{{ plan_caption(plan) or 'Floor plan' }}"><svg class="ic"><use href="#i-image"/></svg>Full size</a>
   </div>
 </div>
 

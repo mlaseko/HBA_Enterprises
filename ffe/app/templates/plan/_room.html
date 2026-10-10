@@ -29,13 +29,13 @@
   </div>
   {% if plan and n %}<div class="small muted ph-tip"><span data-placed>{{ ipin_of|length }}</span> of {{ n }} item{{ 's' if n != 1 }} {{ 'tied to a drawing on this sheet' if plan.is_reference else 'placed on this plan' }}. Tap <svg class="ic sm"><use href="#i-map"/></svg> on an item, then {{ 'its drawing on the sheet: it becomes the item\'s picture' if plan.is_reference else 'the spot on the plan where it goes' }}.</div>{% endif %}
   {% endif %}
-  <div class="ph-items">
+  <div class="ph-items" data-lb-group>
     {% set ns = namespace(last='') %}
     {% for i in items %}{% set q = ipin_of.get(i.id) %}
     {% if i.category != ns.last %}<div class="cat">{{ i.category }}</div>{% set ns.last = i.category %}{% endif %}
     <div class="pi{{ ' placed' if q }}{{ ' hl' if sel_item == i.id }}" data-item="{{ i.id }}" data-pin="{{ q.id if q else '' }}" data-code="{{ i.code }}" data-name="{{ i.name }}">
       {% if ro %}
-      <div class="pic{{ '' if i.cover else ' empty' }}">{% if i.cover %}<img src="/media/{{ i.cover.thumb }}" loading="lazy" alt="">{% else %}no photo{% endif %}</div>
+      <div class="pic{{ '' if i.cover else ' empty' }}">{% if i.cover %}<img src="/media/{{ i.cover.thumb }}" loading="lazy" alt="{{ i.name }}" data-full="/media/{{ i.cover.file_key }}">{% else %}no photo{% endif %}</div>
       <div class="body">
         <div class="t">{{ i.name }}</div>
         <div class="m">{{ i.qty|num }} {{ i.unit }}{% if i.brand %} · {{ i.brand }}{% endif %}{% if i.size %} · {{ i.size }}{% endif %}{% if i.finish %} · {{ i.finish }}{% endif %}{% if i.optional %} · optional{% endif %}</div>

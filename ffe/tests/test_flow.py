@@ -1294,4 +1294,13 @@ with TestClient(app) as c:
     c.post(f"/p/{pi}/rooms/{liv}/delete", data={}, follow_redirects=False)
     db=SessionLocal(); pr=db.get(_P,int(pi)); ms=[im for im in pr.images if im.kind=="mood"]; assert len(ms)==13 and all(im.room_id is None for im in ms) and sum(1 for im in ms if im.by_client)==12; db.close()
     print("room inspiration ok")
+
+    # the picture viewer and Tick by codes: the static parts exist and the pages carry their hooks
+    js=open("app/static/app.js").read(); css=open("app/static/app.css").read()
+    assert "lb-stage" in js and "data-lb-group" in js and "by-codes" in js and "history.pushState({ lb: 1 }" in js and ".lb{" in css and ".codes-box" in css
+    h=c.get(f"/p/{pid_big}/items?view=table").text; assert 'class="btn sm ghost by-codes"' in h and 'data-codes="' in h and 'class="codes-box" hidden' in h, h[:300]
+    h=c.get(f"/p/{pid_big}/items?view=list").text; assert 'data-codes="' in h, h[:300]
+    assert 'data-lb-group' in c2.get(f"/c/{itok}").text and 'data-full="/media/' in c.get(f"/p/{pi}/images").text
+    assert 'data-full="/static/help/' in c.get("/help").text
+    print("picture viewer + tick by codes ok")
     print("ALL OK")
