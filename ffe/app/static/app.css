@@ -432,6 +432,17 @@ details summary{cursor:pointer;color:var(--ink);font-weight:600;margin:0}
 .insp .insp-gallery .g.client img{outline:2px solid var(--sage);outline-offset:1px}
 .insp details.insp-add{margin-top:8px}.insp details.insp-add summary{font-size:.84rem;font-weight:600;cursor:pointer;color:var(--accent-ink)}
 .gallery .g.client img{outline:2px solid var(--sage);outline-offset:1px}
+/* room covers: the inspiration picture starred for a room, else its newest (services.room_cover): a thumbnail on the room's
+   card and in the plan's room list, a strip in the open card, a banner at the top of the room panel; the star sets it */
+.rthumb{width:40px;height:40px;border-radius:10px;object-fit:cover;flex:none;border:1px solid var(--line);background:var(--surface-2)}
+.rthumb.sm{width:28px;height:28px;border-radius:8px}
+.rcover img{display:block;width:100%;height:150px;object-fit:cover;border-radius:var(--r-sm);border:1px solid var(--line)}
+.ph-cover{margin-top:10px}.ph-cover img{display:block;width:100%;height:140px;object-fit:cover;border-radius:var(--r-sm);border:1px solid var(--line)}
+.gallery form.star{left:6px;right:auto}
+.gallery form.star .btn.on{color:#fff;background:var(--gold);border-color:var(--gold)}
+.gallery form.star .btn.on .ic{fill:currentColor}
+.gallery .g.cover img{outline:2px solid var(--gold);outline-offset:1px}
+@media(max-width:700px){.rcover img{height:120px}.ph-cover img{height:110px}}
 .gallery .g form.tag .btn{justify-self:start}
 .gallery.plans .g .cap.role{color:var(--ink-2);display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-height:22px}
 /* Images & plans: a plan filed as its own floor before layers existed ("Ground Electrical") gets a one-press fix */

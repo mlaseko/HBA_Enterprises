@@ -14,7 +14,7 @@ from ..db import get_db
 from ..models import Project, Room, Item, ProjectImage, RoomPin, ItemPin
 from urllib.parse import quote
 from ..common import render, redirect, require_login, get_project, fint
-from ..services import summary, moods_for
+from ..services import summary, moods_for, room_cover, room_covers
 from .. import drawings, config, refs
 from .items import sort_items
 
@@ -87,7 +87,7 @@ def stage_ctx(db: Session, p: Project, im: ProjectImage | None, *, sel_room: Roo
     return dict(p=p, plan=im, pins=pins, ipins=ipins, stats=stats, tabs=tabs, layers=layers, borrowed=borrowed, mode=mode, unplaced=unplaced,
                 other_rooms=other_rooms, floor_rooms=floor_rooms, sel_room=sel_room, sel_item=sel_item, base=base, anchor=anchor,
                 floor_sel=drawings.canonical_floor(p, floor_sel) if floor_sel else "", floor_sel_title=drawings.floor_title(floor_sel, p) if floor_sel else "",
-                floor_sel_rooms=floor_sel_rooms)
+                floor_sel_rooms=floor_sel_rooms, covers=room_covers(p))
 
 
 def room_ctx(db: Session, p: Project, room: Room, im: ProjectImage | None, *, sel_item: int | None = None, base: str = "",
@@ -102,7 +102,8 @@ def room_ctx(db: Session, p: Project, room: Room, im: ProjectImage | None, *, se
     ipin_of = {q.item_id: q for q in live_item_pins(im) if q.item_id in ids} if im is not None else {}  # this room's dots only
     here = f"{base}?" + (f"plan={im.id}&" if im is not None else "") + f"room={room.id}{anchor}"
     return dict(p=p, room=room, items=items, st=st, plan=im, pin=pin, ipin_of=ipin_of, here=here, sel_item=sel_item,
-                base=base, anchor=anchor, readonly=readonly, floors=drawings.floor_order(p), moods=moods_for(p, room))
+                base=base, anchor=anchor, readonly=readonly, floors=drawings.floor_order(p), moods=moods_for(p, room),
+                cover=room_cover(p, room))
 
 
 def wants_json(request: Request) -> bool:

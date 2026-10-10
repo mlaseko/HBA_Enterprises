@@ -130,6 +130,10 @@ class ProjectImage(Base):
     def by_client(self) -> bool:
         return bool(self.mood is not None and self.mood.by_client)
 
+    @property
+    def is_cover(self) -> bool:
+        return bool(self.mood is not None and self.mood.is_cover)
+
     def ensure_mood(self) -> "MoodTag":
         if self.mood is None:
             self.mood = MoodTag()
@@ -144,6 +148,9 @@ class MoodTag(Base):
     image_id: Mapped[int] = mapped_column(ForeignKey("project_images.id"), primary_key=True)
     room_id: Mapped[int | None] = mapped_column(ForeignKey("rooms.id"), nullable=True)  # None = the whole house
     by_client: Mapped[bool] = mapped_column(Boolean, default=False)
+    # The picture starred as the room's cover (one per room; the Rooms page card, the room panel, the plan's room list).
+    # Without a star the room's newest picture stands in (services.room_cover). Column added by db.COLUMN_MIGRATIONS.
+    is_cover: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     image: Mapped["ProjectImage"] = relationship(back_populates="mood")
     room: Mapped["Room | None"] = relationship(lazy="joined")
 

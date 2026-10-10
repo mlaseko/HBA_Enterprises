@@ -21,7 +21,7 @@
   <div class="eyebrow">{{ (plan.floor|floor_title) if (plan.floor and floor_rooms) else 'On this plan' }}</div>
   <div class="plan-dir">
     {% for r in dir_rooms|rejectattr('is_area')|list + dir_rooms|selectattr('is_area')|list %}{% set st = stats.get(r.id) %}
-    <a href="{{ base }}?plan={{ plan.id }}&amp;room={{ r.id }}{{ anchor }}" data-room="{{ r.id }}"{% if r.id not in placed %} class="unplaced"{% endif %}><span class="pill {{ 'area' if r.is_area else 'accent' }}">{{ r.code }}</span><span class="nm">{{ r.name }}{% if r.is_area %} <span class="muted small">· area</span>{% endif %}{% if r.id not in placed and not ro and not ref %} <span class="muted small">· not placed</span>{% endif %}</span><span class="n">{{ st.count if st else 0 }}</span></a>
+    <a href="{{ base }}?plan={{ plan.id }}&amp;room={{ r.id }}{{ anchor }}" data-room="{{ r.id }}"{% if r.id not in placed %} class="unplaced"{% endif %}>{% set cv = covers.get(r.id) if covers is defined else none %}{% if cv %}<img class="rthumb sm" src="/media/{{ cv.file_key }}" alt="" loading="lazy">{% endif %}<span class="pill {{ 'area' if r.is_area else 'accent' }}">{{ r.code }}</span><span class="nm">{{ r.name }}{% if r.is_area %} <span class="muted small">· area</span>{% endif %}{% if r.id not in placed and not ro and not ref %} <span class="muted small">· not placed</span>{% endif %}</span><span class="n">{{ st.count if st else 0 }}</span></a>
     {% endfor %}
   </div>
   {% endif %}

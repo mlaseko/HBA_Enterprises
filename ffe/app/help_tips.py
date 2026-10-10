@@ -44,7 +44,7 @@ TIPS = {
         what="The places of the house, each with a code. Codes go on every item, box and label, so a delivery lands where it will be installed.",
         steps=["The <b>Floors</b> card at the top is the list every Floor dropdown offers. <b>Add floor</b> for a new one (a floor of the house, or a separate area such as the staff quarters); rename, reorder with the arrows, <b>Merge into</b> another floor (everything on it moves, the name goes), or delete an empty one.",
                "Type a <b>code</b> (GF-KIT), a <b>name</b> (Kitchen) and pick the <b>floor</b> (or <b>+ New floor…</b>). Leave <b>Kind</b> on Auto or pick Room / Area. Press <b>Add</b>.",
-               "Open an entry to edit it, print its <b>Checklist PDF</b> or <b>Labels</b>, or jump to it on the plan. Its <b>Inspiration</b> strip holds the pictures of what the client likes for that room; add yours with a photo or a web link.",
+               "Open an entry to edit it, print its <b>Checklist PDF</b> or <b>Labels</b>, or jump to it on the plan. Its <b>Inspiration</b> strip holds the pictures of what the client likes for that room; add yours with a photo or a web link. Press the <b>star</b> on one of them to make it the room's <b>cover</b>: the picture on the card here, at the top of the room's panel on the plan and in the plan's room list. Without a star the newest picture stands in.",
                "After an Excel import, press <b>Sort rooms &amp; areas by name</b> once: entrance, corridors, stairs, balconies and the carport become areas."],
         tips=["A room is a space you furnish; an area is a zone that still gets items. Both work the same way; they are only listed and counted apart.",
               "A plan and its rooms find each other through the floor: pick the same one from the list on both.",
@@ -56,7 +56,7 @@ TIPS = {
                "For a PDF you then <b>pick the pages</b>: the plan pages arrive ticked with floor, sheet and what they show filled in from the title block.",
                "Give every plan its <b>floor</b> and what it <b>shows</b>: <b>Main plan</b> for the general floor plan of the floor; Furniture layout, Electrical, Plumbing, Ceiling or Flooring for the other plans of that floor; <b>Windows &amp; doors</b> for a reference sheet of drawings (the list is edited under <b>Studio settings</b>). Press <b>Save</b> on it. Then open the plan and <b>mark rooms</b> on the main plan.",
                "Under each plan the page says what it is: <b>Main plan</b> of its floor or a <b>Layer</b> of it. A plan from before layers that was filed as its own floor (\"Ground Electrical\") gets a yellow note: one press makes it a layer of that floor.",
-               "<b>Add images</b> uploads the cover and the mood board; a web link works too. A mood-board picture <b>for one room</b> is that room's inspiration: it shows on the room's panel, the Rooms page, its item list and the client's link. The mood board lists the whole house first, then each room; a picture can be moved to another room from there."],
+               "<b>Add images</b> uploads the cover and the mood board; a web link works too. A mood-board picture <b>for one room</b> is that room's inspiration: it shows on the room's panel, the Rooms page, its item list and the client's link. The mood board lists the whole house first, then each room; a picture can be moved to another room from there. The <b>star</b> on a room's picture makes it that room's cover (the Rooms page, the room panel, the plan's room list)."],
         tips=["Drawings are a reference only: rooms and items are never created from them.",
               "Floor plans keep more pixels than photos so the room names stay readable. Tap any picture here to open it full size, with zoom."]),
     "pdf_pages": dict(
@@ -71,7 +71,7 @@ TIPS = {
     "plan": dict(
         title="The plan", anchor="plan",
         what="Browse and update the house room by room, straight on the drawing.",
-        steps=["<b>Tap a room</b>: its items come up beside the plan (in a sheet at the bottom on a phone), under its <b>Inspiration</b> strip: the pictures of what the client likes for that room, yours and theirs, with <b>Add inspiration</b> for a photo or a web link.",
+        steps=["<b>Tap a room</b>: its items come up beside the plan (in a sheet at the bottom on a phone), under its <b>Inspiration</b> strip: the pictures of what the client likes for that room, yours and theirs, with <b>Add inspiration</b> for a photo or a web link. The room's <b>cover</b> (the starred picture, else the newest) sits at the top of the panel.",
                "Change a <b>status</b> there, press <b>Add item</b> or <b>Capture</b> for that room, or open an item.",
                "To mark where an item goes, tap the <b>pin</b> on the item, then the spot on the drawing. Drag a dot to move it.",
                "Switch floors with the tabs: one per floor of the list on the Rooms page, in that order. A floor with no plan yet has a dashed tab that lists its rooms and areas, with a button to add its plan. Zoom with <b>−</b> / <b>Fit</b> / <b>+</b> or pinch.",

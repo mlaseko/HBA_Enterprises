@@ -12,6 +12,7 @@
     </div>
     <a class="btn ghost sm icon close" href="{{ base }}{% if plan %}?plan={{ plan.id }}{% endif %}{{ anchor }}" aria-label="Close" title="Close"><svg class="ic"><use href="#i-x"/></svg></a>
   </div>
+  {% if cover is defined and cover %}<div class="ph-cover"><img src="/media/{{ cover.file_key }}" alt="{{ cover.caption }}" data-full="/media/{{ cover.file_key }}" data-caption="{{ room.name }}{% if cover.caption %} · {{ cover.caption }}{% endif %}"></div>{% endif %}
   <div class="ph-stats">
     <div><div class="v">{{ n }}</div><div class="l">Item{{ 's' if n != 1 }}</div></div>
     {% if ro %}<div><div class="v">${{ ((st.total if st else 0) / usd)|money }}</div><div class="l">Total USD</div></div>

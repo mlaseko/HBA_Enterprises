@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Project, ProjectImage, Room, Item, DrawingSet, PlanTag, DrawingPage
 from ..common import render, redirect, require_login, get_project, get_settings, ffloat, fint, content_disposition, safe_next
-from ..services import summary, mood_groups, client_moods
+from ..services import summary, mood_groups, client_moods, moods_for
 from .. import storage, webimage, drawings, config, layers
 from urllib.parse import quote
 from ..models import token as new_token
@@ -335,9 +335,30 @@ def edit_image(image_id: int, p: Project = Depends(get_project), db: Session = D
         room = db.get(Room, fint(room_id)) if fint(room_id) else None
         rid = room.id if room is not None and room.project_id == p.id else None
         if rid is not None or im.mood is not None:
-            im.ensure_mood().room_id = rid
+            m = im.ensure_mood()
+            if m.room_id != rid:
+                m.is_cover = False  # a cover belongs to its room: moved away, the room shows its newest picture again
+            m.room_id = rid
     db.commit()
     return redirect(f"/p/{p.id}/images#img-{im.id}")
+
+
+@router.post("/p/{project_id}/images/{image_id}/cover")
+def set_cover(image_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), next: str = Form("")):
+    """The star on an inspiration picture: make it its room's cover (the Rooms page card, the room panel, the plan's room
+    list), or, pressed on the cover itself, let the room's newest picture stand in again. One cover per room; a picture
+    that is not filed under a room is left alone."""
+    im = db.get(ProjectImage, image_id)
+    if not im or im.project_id != p.id:
+        raise HTTPException(404)
+    if im.kind == "mood" and im.mood is not None and im.mood.room_id is not None:
+        was = im.mood.is_cover
+        for other in moods_for(p, im.mood.room):
+            if other.mood is not None:
+                other.mood.is_cover = False
+        im.mood.is_cover = not was
+        db.commit()
+    return redirect(safe_next(next, f"/p/{p.id}/images#img-{im.id}"))
 
 
 @router.post("/p/{project_id}/images/{image_id}/delete")
