@@ -231,7 +231,15 @@ table.floors select.in{padding-right:28px;min-width:150px}
 .floors-add .in{max-width:280px}
 .floors-add select.in{width:auto;max-width:none}
 table.sheets .words{min-width:220px}
+table.sheets select.kind{min-width:150px}
 #sheet-cats select.in{width:100%}
+/* Match drawings to items (plan/match.html): the references found on a reference sheet, each with its cut-out drawing */
+table.match td{vertical-align:middle}
+table.match td.ref{font-weight:600;white-space:nowrap}
+table.match .where{max-width:260px}
+table.match .crop img{display:block;max-width:220px;max-height:150px;border:1px solid var(--line);border-radius:8px;background:#fff}
+table.match .items .pill{margin-right:6px}
+table.match input[type=checkbox]{width:20px;height:20px}
 /* sortable tables (app.js): a header with data-sort is a button; the small arrow shows the current order */
 table.sortable th[data-sort]{cursor:pointer;user-select:none}
 table.sortable th[data-sort]:hover,table.sortable th[aria-sort]{color:var(--ink)}

@@ -109,6 +109,13 @@ class ProjectImage(Base):
         from . import config
         return (self.layer or config.MAIN_LAYER) == config.MAIN_LAYER
 
+    @property
+    def is_reference(self) -> bool:
+        """A reference sheet (window elevations, a door schedule): its drawings are tied to items by dots; it shows no room
+        boxes and is never a floor's main plan (layers.kind)."""
+        from . import layers
+        return layers.kind(self.layer) == "reference"
+
     def ensure_tag(self) -> "PlanTag":
         if self.tag is None:
             self.tag = PlanTag()
@@ -198,6 +205,10 @@ class PlanLayer(Base):
     key: Mapped[str] = mapped_column(String(20), primary_key=True)
     title: Mapped[str] = mapped_column(String(60))
     sort: Mapped[int] = mapped_column(Integer, default=0)
+    # plan = a plan of the floor (room boxes, borrowed from the main plan until it has its own); reference = a sheet of
+    # drawings tied to items by their dots (window elevations, a door schedule): no room boxes, never the main plan.
+    # Column added by db.COLUMN_MIGRATIONS (layers.KINDS).
+    kind: Mapped[str] = mapped_column(String(10), default="plan", server_default="plan")
     words: Mapped[str] = mapped_column(String(255), default="")
     categories: Mapped[str] = mapped_column(String(255), default="")
 
@@ -422,6 +433,9 @@ class ItemPhoto(Base):
     # photo without one yet (Settings → "Make small versions"), '-' = the original could not be read. Added by db.COLUMN_MIGRATIONS.
     thumb_key: Mapped[str] = mapped_column(String(255), default="", server_default="")
     caption: Mapped[str] = mapped_column(String(200), default="")
+    # "" = a photo the designer added; "sheet:<image id>" = the item's drawing cut out of that reference sheet around its
+    # dot (refs.attach_drawing); replaced when the dot moves, removed with the dot. Added by db.COLUMN_MIGRATIONS.
+    source: Mapped[str] = mapped_column(String(40), default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     item: Mapped["Item"] = relationship(back_populates="photos")
 

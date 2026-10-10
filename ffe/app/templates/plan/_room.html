@@ -20,14 +20,14 @@
   </div>
   {% include "plan/_inspiration.html" %}
   {% if not ro %}
-  {% if plan and not pin %}<div class="alert info small">Not placed on this plan yet. <a href="{{ base }}?plan={{ plan.id }}&amp;mode=mark&amp;room={{ room.id }}">Mark it</a></div>{% endif %}
+  {% if plan and not pin and not plan.is_reference %}<div class="alert info small">Not placed on this plan yet. <a href="{{ base }}?plan={{ plan.id }}&amp;mode=mark&amp;room={{ room.id }}">Mark it</a></div>{% endif %}
   <div class="ph-actions">
     <a class="btn sm" href="/p/{{ p.id }}/items/new?room={{ room.id }}"><svg class="ic"><use href="#i-plus"/></svg>Add item</a>
     <a class="btn sm accent" href="/p/{{ p.id }}/capture?room={{ room.id }}"><svg class="ic"><use href="#i-camera"/></svg>Capture</a>
     <a class="btn sm sec" href="/p/{{ p.id }}/items?room={{ room.id }}" title="Open this {{ 'area' if room.is_area else 'room' }} in the item list"><svg class="ic"><use href="#i-grid"/></svg>List</a>
     <a class="btn sm sec" href="/p/{{ p.id }}/export/room/{{ room.id }}.pdf" target="_blank" title="Checklist PDF"><svg class="ic"><use href="#i-file"/></svg>PDF</a>
   </div>
-  {% if plan and n %}<div class="small muted ph-tip"><span data-placed>{{ ipin_of|length }}</span> of {{ n }} item{{ 's' if n != 1 }} placed on this plan. Tap <svg class="ic sm"><use href="#i-map"/></svg> on an item, then the spot on the plan where it goes.</div>{% endif %}
+  {% if plan and n %}<div class="small muted ph-tip"><span data-placed>{{ ipin_of|length }}</span> of {{ n }} item{{ 's' if n != 1 }} {{ 'tied to a drawing on this sheet' if plan.is_reference else 'placed on this plan' }}. Tap <svg class="ic sm"><use href="#i-map"/></svg> on an item, then {{ 'its drawing on the sheet: it becomes the item\'s picture' if plan.is_reference else 'the spot on the plan where it goes' }}.</div>{% endif %}
   {% endif %}
   <div class="ph-items">
     {% set ns = namespace(last='') %}

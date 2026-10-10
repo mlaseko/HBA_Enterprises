@@ -37,14 +37,14 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)  # pages with hundreds of 
 @app.on_event("startup")
 def startup():
     Base.metadata.create_all(bind=engine)
-    migrate(engine)  # columns added to existing tables (db.COLUMN_MIGRATIONS)
+    added = migrate(engine)  # columns added to existing tables (db.COLUMN_MIGRATIONS)
     with engine.begin() as conn:
         s = conn.execute(text("SELECT id FROM settings WHERE id=1")).first()
         if not s:
             conn.execute(text("INSERT INTO settings (id, studio_name, studio_email, studio_phone, studio_website, default_rate, logo_key) "
                               "VALUES (1, 'My Design Studio', '', '', '', 7.10, '')"))
     with SessionLocal() as db:
-        layers.seed(db)  # the built-in plan sheet types on an empty list (Studio settings → Plan sheet types edits it)
+        layers.seed(db, kind_added="plan_layers.kind" in added)  # the built-in plan sheet types on an empty list (Studio settings → Plan sheet types edits it)
 
 
 @app.exception_handler(LoginRequired)
@@ -102,8 +102,8 @@ def _sheets_back(err: str = "", ok: str = ""):
 
 
 @app.post("/settings/layers", dependencies=[Depends(require_login)])
-def settings_layer_add(db: Session = Depends(get_db), title: str = Form(""), words: str = Form("")):
-    ok, err = layers.add(db, title, words)
+def settings_layer_add(db: Session = Depends(get_db), title: str = Form(""), words: str = Form(""), kind: str = Form("plan")):
+    ok, err = layers.add(db, title, words, kind)
     return _sheets_back(err=err, ok=ok)
 
 
@@ -117,8 +117,8 @@ async def settings_layer_categories(request: Request, db: Session = Depends(get_
 
 
 @app.post("/settings/layers/{key}", dependencies=[Depends(require_login)])
-def settings_layer_save(key: str, db: Session = Depends(get_db), title: str = Form(""), words: str = Form("")):
-    ok, err = layers.rename(db, key, title, words)
+def settings_layer_save(key: str, db: Session = Depends(get_db), title: str = Form(""), words: str = Form(""), kind: str = Form("")):
+    ok, err = layers.rename(db, key, title, words, kind)
     return _sheets_back(err=err, ok=ok)
 
 

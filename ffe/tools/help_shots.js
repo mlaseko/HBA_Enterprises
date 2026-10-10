@@ -18,6 +18,8 @@ const DESKTOP = [
   ['pdf-pages', `/p/${pid}/images/sets/${ids.set2}`],
   ['plan-browse', `/p/${pid}/plan?plan=${ground}&room=${kit}`],
   ['plan-mark', `/p/${pid}/plan?plan=${ground}&mode=mark`],
+  ['plan-match', `/p/${pid}/plan/match?plan=${ids.ref_plan}`],
+  ['plan-reference', `/p/${pid}/plan/match?plan=${ids.ref_plan}`, async p => { await p.click('#match button.btn'); await p.waitForTimeout(400); await Promise.all([p.waitForNavigation(), p.click('#app-dialog [data-dialog-yes]')]); await p.waitForLoadState('networkidle'); await p.waitForTimeout(300); }],
   ['items', `/p/${pid}/items?room=${kit}`],
   ['items-table', `/p/${pid}/items?view=table&category=Tiles`],
   ['items-list', `/p/${pid}/items?view=list`, async p => { await p.click('th[data-sort]:has-text("Rooms")'); await p.click('th[data-sort]:has-text("Rooms")'); await p.waitForTimeout(200); }],

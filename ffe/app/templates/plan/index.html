@@ -9,11 +9,12 @@
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a>{% if marking %}<svg class="ic"><use href="#i-chevron-right"/></svg><a href="{{ base }}{% if plan %}?plan={{ plan.id }}{% endif %}">Plan</a>{% endif %}</div>
     <h1>{{ 'Mark rooms' if marking else 'Plan' }}{% if plan %} <span class="h-note">{{ plan_caption(plan) or 'Floor plan' }}</span>{% endif %}</h1>
-    <p class="sub">{% if marking %}Pick a room on the list, then drag a box over it on the plan. Drag a box to move it, pull its corner to resize it. Everything saves as you go.{% else %}Tap a room to see its items, change a status or open an item. Tap the pin on an item, then the spot on the plan where it goes. Pinch or use the zoom buttons to read the drawing.{% endif %}</p>
+    <p class="sub">{% if marking %}Pick a room on the list, then drag a box over it on the plan. Drag a box to move it, pull its corner to resize it. Everything saves as you go.{% elif plan and plan.is_reference %}A reference sheet: drawings of the items, not the floor plan. Open a room from the list, tap the pin on an item and then its drawing; the drawing becomes the item's picture. Tap a dot to open its item. Or match the drawings by the references printed on the sheet.{% else %}Tap a room to see its items, change a status or open an item. Tap the pin on an item, then the spot on the plan where it goes. Pinch or use the zoom buttons to read the drawing.{% endif %}</p>
   </div>
   <div class="actions">
     {% if plan %}
       {% if marking %}<a class="btn" href="{{ base }}?plan={{ plan.id }}"><svg class="ic"><use href="#i-check"/></svg>Done marking</a>
+      {% elif plan.is_reference %}<a class="btn sec" href="/p/{{ p.id }}/plan/match?plan={{ plan.id }}"><svg class="ic"><use href="#i-sparkle"/></svg>Match drawings</a>
       {% else %}<a class="btn sec" href="{{ base }}?plan={{ plan.id }}&amp;mode=mark"><svg class="ic"><use href="#i-edit"/></svg>Mark rooms</a>{% endif %}
       <a class="btn sec hide-m" href="/media/{{ plan.best_key }}" target="_blank"><svg class="ic"><use href="#i-image"/></svg>Full size</a>
     {% endif %}
@@ -22,6 +23,8 @@
 </div>
 
 {% include "plan/_tabs.html" %}
+{% if err %}<div class="alert err">{{ err }}</div>{% endif %}
+{% if ok %}<div class="alert info">{{ ok }}</div>{% endif %}
 {% if not plan and floor_sel %}
 {% set cur = tabs|selectattr('on')|first %}
 <div class="card plan-nofloor" id="plan-nofloor">

@@ -2,6 +2,7 @@
    placed. Needs: p, plan, pins, ipins, stats, floor_rooms, unplaced, sel_room, sel_item, mode, base, anchor, readonly. #}
 {% set marking = mode == 'mark' %}
 {% set ro = readonly is defined and readonly %}
+{% set ref = plan.is_reference %}
 <div class="card tight plan-card">
   <div class="plan-tools">
     <div class="zoom" role="group" aria-label="Zoom">
@@ -10,12 +11,13 @@
       <button type="button" class="btn sec sm icon" data-zoom="+" aria-label="Zoom in" title="Zoom in">+</button>
     </div>
     {% if not marking %}<button type="button" class="btn sec sm toggle-items" id="plan-items" aria-pressed="true" title="Show or hide the item dots"><svg class="ic"><use href="#i-tag"/></svg><span class="hide-m">Items</span><span class="n">{{ ipins|length }}</span></button>{% endif %}
-    {% set hint = 'Pick a room, then drag a box over it on the plan.' if marking else ('Tap a room to see what goes in it.' if ro else 'Tap a room to see its items.') %}
+    {% set hint = 'Pick a room, then drag a box over it on the plan.' if marking else (('Tap a dot to see its item.' if ro else 'Open a room from the list, then pin its items onto their drawings.') if ref else ('Tap a room to see what goes in it.' if ro else 'Tap a room to see its items.')) %}
     <span class="hint small muted" id="plan-hint" data-default="{{ hint }}">{{ hint }}</span>
     <button type="button" class="btn sm soft" id="plan-cancel" hidden>Cancel</button>
     <span class="sp"></span>
     {% if borrowed and not ro %}<span class="small muted" title="This sheet shows the room boxes of the floor's main plan">boxes from the {{ borrowed.layer_title|lower }}</span>{% endif %}
     {% if ro %}<a class="btn sec sm" href="/media/{{ plan.best_key }}" target="_blank" title="Open the drawing full size"><svg class="ic"><use href="#i-image"/></svg><span class="hide-m">Full size</span></a>
+    {% elif ref %}<span class="pill" id="plan-count" data-total="{{ floor_rooms|length }}" title="Items tied to a drawing on this sheet">{{ ipins|length }} drawing{{ 's' if ipins|length != 1 }} linked</span>
     {% else %}<span class="pill" id="plan-count" data-total="{{ floor_rooms|length }}">{{ pins|length }} of {{ floor_rooms|length }} placed</span>{% endif %}
   </div>
   <div class="plan-viewport" id="plan-viewport">
@@ -40,7 +42,7 @@
       <div class="plan-draw" id="plan-draw" hidden></div>
     </div>
   </div>
-  {% if unplaced and not marking and not ro %}
+  {% if unplaced and not marking and not ro and not ref %}
   <div class="plan-unplaced">
     <span class="small muted">Not on this plan yet:</span>
     {% for r in unplaced %}<a class="pill" href="{{ base }}?plan={{ plan.id }}&amp;room={{ r.id }}" data-room="{{ r.id }}">{{ r.code }} <span class="muted">{{ r.name }}</span></a>{% endfor %}

@@ -26,7 +26,9 @@ openpyxl. Hosted on Replit (autoscale deployment, imports from GitHub).
 ```
 app/main.py            app, login/logout, /settings (+ /settings/layers…: plan sheet types), /help (user guide = templates/help.html), /media/<key>
 app/layers.py          plan sheet types: what a plan can show (plan_layers rows, cached; DEFAULTS seeded at start; from_title(),
-                       for_category(), caption_re(), plan_re(); add/rename/move/remove/set_categories for the settings page)
+                       for_category(), caption_re(), plan_re(), kind()/is_reference(); add/rename/move/remove/set_categories for the settings page)
+app/refs.py            reference sheets: page_refs() (reference codes on a PDF page with positions), item_refs(), match(), ink_block()
+                       (cut a drawing out of the rendered sheet around a point), attach_drawing()/drop_drawing() (ItemPhoto.source)
 app/config.py          env vars + constant lists (CATEGORIES, STATUSES, UNITS …)
 app/db.py              engine/session; create_all on startup + migrate(): COLUMN_MIGRATIONS adds columns to existing tables
 app/models.py          Settings, Project, ProjectImage, PlanTag, RoomPin, ItemPin, DrawingSet, DrawingPage (title block per page),
@@ -64,7 +66,8 @@ app/routers/           projects, rooms, items, suppliers, payments, cartons, sha
                        capture (/p/<id>/capture camera page → draft items; /p/<id>/drafts complete or discard),
                        clip (/clip: "Save to HBA" bookmarklet + save-from-web form → draft item or mood-board image),
                        plan (/p/<id>/plan interactive plan + ?mode=mark, /plan/room/<id> panel fragment, /plan/pins and
-                       /plan/item-pins save/delete; stage_ctx()/room_ctx() are reused by share.py for the client's read-only plan)
+                       /plan/item-pins save/delete, /plan/match preview + apply for reference sheets; stage_ctx()/room_ctx() are
+                       reused by share.py for the client's read-only plan)
 app/pdf/theme.py       the look of the PDFs: bundled fonts (static/fonts: Inter + EB Garamond, OFL), the app's palette, text styles (T),
                        Doc (landscape A4, painted cover page, running header/footer, contents entries from flowables with a `toc`
                        attribute), Section, kpi_row, clean_table_style, Bar, PlanFigure (plan + room boxes), picture()
@@ -216,6 +219,14 @@ Deploy = push to GitHub, then in Replit pull the repo and redeploy. Secrets (Rep
   categories column of each sheet type, edited on the settings page) decides which sheet a category's items are read
   from in the PDFs; keep the "never place anything automatically" rule. Titles, dropdown options and the title-block
   words all come from `layers.rows()` (a 30 s cache; every write in `layers.py` drops it), so a new sheet type needs no code.
+- Reference sheets: a sheet type of kind `reference` (`PlanLayer.kind`, `layers.kind()`, `ProjectImage.is_reference`; Windows &
+  doors by default) shows drawings of items, not the floor. `pins_for()` returns nothing for it, `borrowed_from()` never
+  borrows from or for it, `main_plan()` / `plan_with_room()` / `default_plan()` skip it, `plan_role()` says `reference`, the
+  Plan page refuses mark mode on it and the panel offers the floor's rooms to pin from. A dot on a reference sheet (by hand
+  through `POST /plan/item-pins`, or from `POST /plan/match`) calls `refs.attach_drawing()`: the drawing around the dot is cut
+  out (`refs.ink_block`: the rows of ink touching the point without a white gap, then the columns) and stored with
+  `storage.save_photo` as an `ItemPhoto` with `source = "sheet:<image id>"`; moving the dot recuts, `delete_item_pin` drops it.
+  `room_zoom()` frames a room's dots on such a sheet (`pin` is None there: guard it wherever a zoom is drawn).
 
 ## Schema changes so far
 
@@ -227,6 +238,8 @@ ALTER TABLE rooms ADD COLUMN kind  VARCHAR(10) NOT NULL DEFAULT 'room';  -- room
 ALTER TABLE project_images ADD COLUMN layer VARCHAR(20) NOT NULL DEFAULT 'main';       -- what a floor plan shows
 UPDATE project_images SET layer = 'main' WHERE layer = 'furniture';                      -- db.DATA_MIGRATIONS: the main plan's old name
 ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';           -- the small copy of a photo
+ALTER TABLE plan_layers ADD COLUMN kind VARCHAR(10) NOT NULL DEFAULT 'plan';              -- plan of the floor | reference sheet
+ALTER TABLE item_photos ADD COLUMN source VARCHAR(40) NOT NULL DEFAULT '';               -- 'sheet:<image id>' for a cut-out drawing
 ```
 
 ## Done
@@ -426,6 +439,24 @@ ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';  
   reorder, delete (refused while a plan shows it, `layers.usage`), and the categories → sheet table (`POST
   /settings/layers/categories`, fields `c<i>` in `config.CATEGORIES` order). `projects._layer()` still maps unknown keys to
   the main plan, so a deleted key never reaches the database.
+
+- **Reference sheets and Match drawings to items.** `PlanLayer.kind` (`plan` | `reference`, `layers.KINDS`; a column added by
+  `db.COLUMN_MIGRATIONS`, and `layers.seed(db, kind_added=True)` gives the built-in `windows` type its kind once when the
+  column arrives on a list seeded before it existed). The settings card has a Kind select per type and on the add form.
+  A reference sheet shows no room boxes, cannot be marked, lists the floor's rooms in the panel ("Reference sheet" intro
+  with a **Match drawings to items** button), counts "N drawings linked", and the Images page names it. `app/refs.py`:
+  `TOKEN_RE` (F2-W07, GF-W12, D-03, W07), `page_refs(pdf, page_no)` reads a PDF page's text with `get_charbox` positions
+  (rotation handled) and marks an occurrence `strong` when the code opens its line (a drawing title) rather than a mention
+  in a note or list; `item_refs(items)` finds the codes in name / spec / size / finish / brand / notes; `match(db, p, im)`
+  picks the title occurrence per code and pairs it with the items; `ink_block(img, cx, cy)` finds the drawing around a point
+  (row profile of a window around the point, the inked rows without a GAP_Y white gap, then the columns without a GAP_X gap,
+  plus PAD; a fixed box when nothing is inked); `attach_drawing()` stores the cut (`storage.save_photo`) as an ItemPhoto
+  with `source = "sheet:<image id>"`, replacing the earlier cut from that sheet, `drop_drawing()` removes it. Routes:
+  `GET /p/<id>/plan/match?plan=` (the preview: every reference, where it is, its items, a data-URI cut-out; a picture upload
+  or a scan says it has no readable text) and `POST /p/<id>/plan/match` (`image_id`, `ref` list: a dot per ticked pair, moved
+  if it exists, and the cut-out; `?ok=` message on the plan). `save_item_pin` cuts on reference sheets too (by hand), never on
+  plans; `delete_item_pin` drops the cut. `layers.plan_re()` also ticks "WINDOW ELEVATIONS" / "DOOR SCHEDULE" pages in the
+  picker for reference types. The room checklist's sheet page frames the room's dots (`drawings.dots_rect`) and says SHEET.
 
 ## Backlog (in priority order)
 

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Match drawings · {{ p.name }} · {{ APP_NAME }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/plan?plan={{ plan.id }}">Plan</a></div>
+    <h1>Match drawings to items <span class="h-note">{{ plan_caption(plan) or 'Reference sheet' }}</span></h1>
+    <p class="sub">The references printed on this sheet and the items that carry them (in their notes, spec or name). Tick what to link and confirm: a dot goes on each drawing and the drawing is cut out as the item's picture. Nothing is placed until you confirm.</p>
+  </div>
+  <div class="actions">
+    <a class="btn sec" href="/p/{{ p.id }}/plan?plan={{ plan.id }}"><svg class="ic"><use href="#i-map"/></svg>Back to the sheet</a>
+    <a class="btn ghost hide-m" href="/media/{{ plan.best_key }}" target="_blank"><svg class="ic"><use href="#i-image"/></svg>Full size</a>
+  </div>
+</div>
+
+{% if not readable %}
+<div class="card empty" id="match-unreadable">
+  <div class="ring"><svg class="ic"><use href="#i-image"/></svg></div>
+  <h3>No readable text on this sheet</h3>
+  <p>{% if is_pdf %}This page carries no text layer (a scanned drawing), so its references cannot be read.{% else %}This sheet was uploaded as a picture, so it has no text to read. A page picked from the architect's PDF has one.{% endif %} Tie the drawings by hand instead: on the sheet, open a room, press the pin on an item and tap its drawing. The drawing is cut out as the item's picture all the same.</p>
+  <a class="btn" href="/p/{{ p.id }}/plan?plan={{ plan.id }}"><svg class="ic"><use href="#i-map"/></svg>Open the sheet</a>
+</div>
+{% elif not rows %}
+<div class="card empty" id="match-none">
+  <div class="ring"><svg class="ic"><use href="#i-search"/></svg></div>
+  <h3>No references on this sheet</h3>
+  <p>Nothing on this page reads like a reference code (F2-W07, D-03, W12). Tie the drawings by hand: on the sheet, open a room, press the pin on an item and tap its drawing.</p>
+  <a class="btn" href="/p/{{ p.id }}/plan?plan={{ plan.id }}"><svg class="ic"><use href="#i-map"/></svg>Open the sheet</a>
+</div>
+{% else %}
+<form method="post" action="/p/{{ p.id }}/plan/match" class="card" id="match" data-confirm="Link the ticked drawings to their items? A dot goes on each drawing and the drawing becomes the item's picture; an earlier dot or drawing from this sheet is replaced.">
+  <input type="hidden" name="image_id" value="{{ plan.id }}">
+  <div class="row between">
+    <h2 class="mb-0">{{ found }} reference{{ 's' if found != 1 }} on the sheet, {{ matched }} with an item</h2>
+    <span class="small muted">A reference matches an item when the item's notes, spec or name carry the same code.</span>
+  </div>
+  <div class="tbl mt"><table class="match">
+    <thead><tr><th>Link</th><th>Reference</th><th>On the sheet</th><th>Item</th><th>Drawing to cut out</th></tr></thead>
+    <tbody>
+    {% for q in rows %}
+    <tr>
+      <td>{% if q['items'] %}<input type="checkbox" name="ref" value="{{ q['ref'] }}" aria-label="Link {{ q['ref'] }}"{% if q['strong'] %} checked{% endif %}>{% endif %}</td>
+      <td class="ref">{{ q['ref'] }}</td>
+      <td class="where small">{% if q['strong'] %}<span class="pill sage">Title</span> {{ q['line'] }}{% else %}<span class="pill">Mentioned</span> {{ q['line'] }}<div class="muted">Not a drawing title: only tick it if the drawing is at this spot.</div>{% endif %}</td>
+      <td class="items">{% for i in q['items'] %}<div><span class="pill accent">{{ i.code }}</span>{{ i.name }}{% if i.room %} <span class="muted small">· {{ i.room.name }}</span>{% endif %}{% if i.id in q['placed'] %} <span class="muted small">· already on this sheet, its dot moves here</span>{% endif %}</div>{% else %}<span class="muted small">No item carries this reference</span>{% endfor %}</td>
+      <td class="crop">{% if q['preview'] %}<img src="{{ q['preview'] }}" alt="Drawing {{ q['ref'] }}">{% elif q['items'] %}<span class="muted small">Could not cut it out; the dot is still placed.</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <div class="form-actions">
+    <button class="btn"><svg class="ic"><use href="#i-check"/></svg>Link the ticked drawings</button>
+    <a class="btn ghost" href="/p/{{ p.id }}/plan?plan={{ plan.id }}">Back</a>
+    <span class="small muted">The cut-out follows the ink around the title: the elevation with its dimensions, not its neighbour. Drag the dot on the sheet afterwards to cut again.</span>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

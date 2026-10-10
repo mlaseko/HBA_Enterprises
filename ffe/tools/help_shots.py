@@ -266,6 +266,27 @@ def drawing_set_pdf() -> bytes:
     c.drawString(PLAN_X0, PLAN_Y0 + 160 * mm, "SECTION A-A   SCALE 1:50   FOR SECTION LINE SEE GROUND FLOOR PLAN")
     title_block(c, "SECTION A-A", "A-301")
     c.showPage()
+    # 8. window elevations: a reference sheet (drawings tied to items by the references printed on it, no room boxes)
+    c.setLineWidth(1.5)
+    for k, (ref, w_mm, h_mm, room) in enumerate((("GF-W01", 2140, 2810, "LIVING ROOM"), ("GF-W02", 1425, 1040, "KITCHEN"), ("GF-W03", 1915, 1980, "GUEST BEDROOM"))):
+        X = PLAN_X0 + 45 * mm + k * 125 * mm
+        Y = PLAN_Y0 + 55 * mm
+        wd, ht = w_mm / 35 * mm, h_mm / 35 * mm
+        c.setFont("Helvetica-Bold", 14)
+        c.drawCentredString(X, Y + ht + 22 * mm, f"{ref}  -  TYPE A")
+        c.setFont("Helvetica", 9)
+        c.drawCentredString(X, Y + ht + 15 * mm, f"{room}   {w_mm} x {h_mm}   QTY 1")
+        c.drawCentredString(X, Y + ht + 9 * mm, "DOUBLE GLAZED   TINTED")
+        c.rect(X - wd / 2, Y, wd, ht)
+        c.line(X - wd / 2, Y + ht * 0.78, X + wd / 2, Y + ht * 0.78)
+        c.line(X, Y, X, Y + ht * 0.78)
+        c.setFont("Helvetica", 8)
+        c.drawCentredString(X, Y - 6 * mm, str(w_mm))
+        c.line(X - wd / 2, Y - 4 * mm, X + wd / 2, Y - 4 * mm)
+    c.setFont("Helvetica", 9)
+    c.drawString(PLAN_X0, PLAN_Y0 + 18 * mm, "Applies to: GF-W01, GF-W02, GF-W03.  Sizes are site-measured openings; the supplier deducts the fitting tolerance.")
+    title_block(c, "WINDOW ELEVATIONS - GROUND FLOOR", "W-01")
+    c.showPage()
     c.save()
     return buf.getvalue()
 
@@ -372,7 +393,7 @@ def seed() -> dict:
         ids.update(rooms=rooms, sups=sups)
         # the architect's PDF, picked once for the plans and uploaded again (unpicked) for the page-picker picture
         pdf = drawing_set_pdf()
-        for k, want in ((1, False), (2, True), (3, True), (4, True), (5, True), (6, False), (7, False)):
+        for k, want in ((1, False), (2, True), (3, True), (4, True), (5, True), (6, False), (7, False), (8, True)):
             tb = drawings.read_title_block(drawings.page_text(pdf, k))
             assert tb["is_plan"] is want, (k, tb)
         c.post(f"/p/{pid}/images/plans", data={"floor": "", "sheet": ""}, files=[("files", ("Msasani Villa - Rev B.pdf", pdf, "application/pdf"))], follow_redirects=False)
@@ -381,13 +402,15 @@ def seed() -> dict:
         db.close()
         c.post(f"/p/{pid}/images/sets/{set1}/pick", data={"page_3": "on", "floor_3": "Ground", "sheet_3": "A-101", "caption_3": "Furniture Layout",
                                                           "page_4": "on", "floor_4": "First", "sheet_4": "A-102", "caption_4": "Furniture Layout",
-                                                          "page_5": "on", "floor_5": "Roof", "sheet_5": "A-103", "caption_5": ""}, follow_redirects=False)
+                                                          "page_5": "on", "floor_5": "Roof", "sheet_5": "A-103", "caption_5": "",
+                                                          "page_8": "on", "floor_8": "Ground", "sheet_8": "W-01", "caption_8": "", "layer_8": "windows"}, follow_redirects=False)
         c.post(f"/p/{pid}/images/plans", data={"floor": "", "sheet": ""}, files=[("files", ("Msasani Villa - Rev C.pdf", pdf, "application/pdf"))], follow_redirects=False)
         db = SessionLocal()
         sets = [s.id for s in db.query(DrawingSet).filter(DrawingSet.project_id == pid).order_by(DrawingSet.id)]
-        plans = {im.floor: im.id for im in db.query(ProjectImage).filter(ProjectImage.project_id == pid, ProjectImage.kind == "floorplan")}
+        plans = {im.floor: im.id for im in db.query(ProjectImage).filter(ProjectImage.project_id == pid, ProjectImage.kind == "floorplan") if im.is_main_layer}
+        ref_plan = next(im.id for im in db.query(ProjectImage).filter(ProjectImage.project_id == pid, ProjectImage.kind == "floorplan") if im.layer == "windows")
         db.close()
-        ids.update(set2=sets[1], plans=plans)
+        ids.update(set2=sets[1], plans=plans, ref_plan=ref_plan)
         # cover and mood board
         c.post(f"/p/{pid}/images", data={"kind": "cover", "caption": ""}, files=[("files", ("cover.jpg", gradient("#2B211D", "#B9593A", text="Msasani Villa"), "image/jpeg"))], follow_redirects=False)
         for i, (a, b2, cap) in enumerate((("#D9CDB8", "#B9593A", "Warm wood & linen"), ("#6F8B74", "#E7EFE8", "Sea-green tiles"), ("#C9A227", "#F8F0D6", "Brushed brass"))):
@@ -403,6 +426,11 @@ def seed() -> dict:
             if room:
                 data["room_ids"] = [str(rooms[room])]
             c.post(f"/p/{pid}/items/new", data=data, files=[("photos", ("sample.jpg", swatch(kind, colour), "image/jpeg"))], follow_redirects=False)
+        # the windows, carrying the designer's references: the elevation sheet's drawings match them (Match drawings to items)
+        for room, ref, size in (("GF-LIV", "GF-W01", "2140 x 2810 mm"), ("GF-KIT", "GF-W02", "1425 x 1040 mm"), ("GF-GST", "GF-W03", "1915 x 1980 mm")):
+            c.post(f"/p/{pid}/items/new", data={"room_ids": [str(rooms[room])], "category": "Windows & Doors", "name": "Sliding window", "spec": "2-panel sliding, fixed fanlight over, double glazed, tinted",
+                                               "size": size, "qty": "1", "unit": "pcs", "unit_price": "2800", "price_currency": "CNY", "supplier_id": "", "status": "Quoted", "lead_time": "6 weeks",
+                                               "notes": f"Designer ref {ref}"}, follow_redirects=False)
         # the same product in several rooms: one line per room in the schedule, one line on the Item list view
         db = SessionLocal()
         beds = [x.id for x in db.query(Room).filter(Room.project_id == pid) if x.group == "bedroom"]

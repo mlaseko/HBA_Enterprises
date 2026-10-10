@@ -123,8 +123,8 @@ def room_checklist(p, studio, room) -> bytes:
                 crop2 = drawings.render_room_crop(data2, z2)
             except Exception:
                 continue
-            story += [Paragraph(f"ON THE {escape(layer_im.layer_title.upper())} PLAN &mdash; {escape(room.label)}", S["h1"]),
-                      Paragraph(escape(f"{drawings.plan_caption(layer_im)}. The dots are this room's items placed on this sheet."), S["grey"]),
+            story += [Paragraph(f"ON THE {escape(layer_im.layer_title.upper())} {'SHEET' if layer_im.is_reference else 'PLAN'} &mdash; {escape(room.label)}", S["h1"]),
+                      Paragraph(escape(f"{drawings.plan_caption(layer_im)}. " + ("The dots mark this room's items on their drawings." if layer_im.is_reference else "The dots are this room's items placed on this sheet.")), S["grey"]),
                       img_flowable_bytes(crop2, W, doc.height - 26 * mm), PageBreak()]
     elif plan:  # page 1: the whole floor plan the room is on, so the site team finds the room before unpacking
         story += [Paragraph(f"FLOOR PLAN &mdash; {escape(room.label)}", S["h1"]),

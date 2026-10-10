@@ -5,8 +5,9 @@ carries the room boxes) is always there and cannot be deleted or moved.
 
 Read through a short-lived cache (TTL seconds) so pages, PDFs and the title-block reader never query the table per plan;
 every write goes through this module and drops the cache. Each sheet type carries the words the page picker looks for in
-a drawing title ("window, door" → a title containing WINDOW or DOORS is that sheet) and the categories whose items the
-PDFs read from that sheet (Lighting from the electrical sheet, Tiles from the flooring sheet)."""
+a drawing title ("window, door" → a title containing WINDOW or DOORS is that sheet), the categories whose items the
+PDFs read from that sheet (Lighting from the electrical sheet, Tiles from the flooring sheet) and its kind: a plan of the
+floor (room boxes) or a reference sheet (drawings tied to items by dots: window elevations, a door schedule)."""
 import re
 import time
 from sqlalchemy import func
@@ -18,16 +19,18 @@ from .models import PlanLayer, ProjectImage
 MAIN = config.MAIN_LAYER
 TTL = 30.0
 KEY_LEN = 20  # ProjectImage.layer is VARCHAR(20)
+KINDS = ["plan", "reference"]
+KIND_TITLES = {"plan": "Plan of the floor", "reference": "Reference sheet"}
 # The built-in sheet types, in order. The furniture layout's key is "furnishing" because "furniture" used to mean the main
 # plan (db.DATA_MIGRATIONS relabels those rows).
 DEFAULTS = [
-    dict(key=MAIN, title="Main plan", words="", categories=""),
-    dict(key="furnishing", title="Furniture layout", words="furniture|furnish", categories="Furniture|Curtains & Soft"),
-    dict(key="electrical", title="Electrical & lighting", words="electric|lighting|power|socket|switch", categories="Lighting|Electrical"),
-    dict(key="plumbing", title="Plumbing & sanitary", words="plumb|sanit|drain|water supply", categories="Plumbing & Sanitary|Water Treatment"),
-    dict(key="ceiling", title="Ceiling", words="ceiling|reflected|rcp", categories=""),
-    dict(key="flooring", title="Flooring & tiles", words="floor finish|flooring|tile|tiling", categories="Tiles|Flooring"),
-    dict(key="windows", title="Windows & doors", words="window|door|joinery", categories="Windows & Doors"),
+    dict(key=MAIN, title="Main plan", words="", categories="", kind="plan"),
+    dict(key="furnishing", title="Furniture layout", words="furniture|furnish", categories="Furniture|Curtains & Soft", kind="plan"),
+    dict(key="electrical", title="Electrical & lighting", words="electric|lighting|power|socket|switch", categories="Lighting|Electrical", kind="plan"),
+    dict(key="plumbing", title="Plumbing & sanitary", words="plumb|sanit|drain|water supply", categories="Plumbing & Sanitary|Water Treatment", kind="plan"),
+    dict(key="ceiling", title="Ceiling", words="ceiling|reflected|rcp", categories="", kind="plan"),
+    dict(key="flooring", title="Flooring & tiles", words="floor finish|flooring|tile|tiling", categories="Tiles|Flooring", kind="plan"),
+    dict(key="windows", title="Windows & doors", words="window|door|joinery", categories="Windows & Doors", kind="reference"),
 ]
 _NEVER = re.compile(r"(?!)")  # matches nothing: a sheet type without words
 _cache: dict = {"until": 0.0, "rows": None}
@@ -58,20 +61,20 @@ def _rx(words: list[str]):
     return re.compile(r"\b(?:" + "|".join(r"\s+".join(re.escape(t) for t in w.upper().split()) for w in words) + ")")
 
 
-def _row(key: str, title: str, sort: int, words: str, categories: str) -> dict:
+def _row(key: str, title: str, sort: int, words: str, categories: str, kind: str = "plan") -> dict:
     ws = parse_words(words)
     return dict(key=key, title=title, sort=sort, words=ws, words_text=words_text(ws), rx=_rx(ws),
-                categories=[c for c in (categories or "").split("|") if c])
+                categories=[c for c in (categories or "").split("|") if c], kind=kind if kind in KINDS and key != MAIN else "plan")
 
 
 def _load() -> list[dict]:
     try:
         with SessionLocal() as db:
-            rows = [_row(r.key, r.title, r.sort, r.words, r.categories) for r in db.query(PlanLayer).all()]
+            rows = [_row(r.key, r.title, r.sort, r.words, r.categories, r.kind) for r in db.query(PlanLayer).all()]
     except SQLAlchemyError:
         rows = []
     if not rows:  # before the table is seeded (a unit test, the very first start): the built-in list
-        rows = [_row(d["key"], d["title"], i, d["words"], d["categories"]) for i, d in enumerate(DEFAULTS)]
+        rows = [_row(d["key"], d["title"], i, d["words"], d["categories"], d["kind"]) for i, d in enumerate(DEFAULTS)]
     elif not any(r["key"] == MAIN for r in rows):
         rows.insert(0, _row(MAIN, "Main plan", 0, "", ""))
     rows.sort(key=lambda r: (r["key"] != MAIN, r["sort"], r["key"]))  # the main plan first, whatever its sort
@@ -79,7 +82,7 @@ def _load() -> list[dict]:
 
 
 def rows() -> list[dict]:
-    """The sheet types in order, the main plan first: {key, title, sort, words, words_text, rx, categories}."""
+    """The sheet types in order, the main plan first: {key, title, sort, words, words_text, rx, categories, kind}."""
     now = time.monotonic()
     if _cache["rows"] is None or now > _cache["until"]:
         _cache["rows"], _cache["until"] = _load(), now + TTL
@@ -99,6 +102,16 @@ def title(key: str) -> str:
     k = key or MAIN
     t = titles().get(k)
     return t if t else (k.replace("-", " ").strip().capitalize() or "Main plan")
+
+
+def kind(key: str) -> str:
+    """'plan' or 'reference'; a key no longer in the list counts as a plan."""
+    k = key or MAIN
+    return next((r["kind"] for r in rows() if r["key"] == k), "plan")
+
+
+def is_reference(key: str) -> bool:
+    return kind(key) == "reference"
 
 
 def options() -> list[tuple[str, str]]:
@@ -141,33 +154,48 @@ def caption_re():
 
 
 def plan_re():
-    """A drawing title that is a plan of one of the sheet types: one of their words followed by PLAN or LAYOUT ('WINDOW &
-    DOOR PLAN', 'LANDSCAPE LAYOUT'); upper-case input, like drawings._PLAN_RE."""
-    key = tuple(w for r in rows() if r["key"] != MAIN for w in r["words"])
+    """A drawing title that is a sheet of one of the types: one of a plan type's words followed by PLAN or LAYOUT ('WINDOW
+    & DOOR PLAN', 'LANDSCAPE LAYOUT'), or one of a reference type's words followed by those, ELEVATIONS, SCHEDULE, DETAILS
+    or TYPES ('WINDOW ELEVATIONS', 'DOOR SCHEDULE'); upper-case input, like drawings._PLAN_RE."""
+    key = tuple((w, r["kind"]) for r in rows() if r["key"] != MAIN for w in r["words"])
     if _cache.get("plan_key") != key:
-        alts = [r"\s+".join(re.escape(t) for t in w.upper().split()) for w in key]
-        _cache["plan_key"], _cache["plan_re"] = key, (re.compile(r"\b(?:" + "|".join(alts) + r")[A-Z]*\s+(?:LAYOUT\s+PLAN|LAYOUT|PLAN)\b") if alts else _NEVER)
+        def alt(ws):
+            return "|".join(r"\s+".join(re.escape(t) for t in w.upper().split()) for w in ws)
+        plan_words, ref_words = [w for w, k in key if k != "reference"], [w for w, k in key if k == "reference"]
+        parts = []
+        if plan_words:
+            parts.append(r"(?:" + alt(plan_words) + r")[A-Z]*\s+(?:LAYOUT\s+PLAN|LAYOUT|PLAN)")
+        if ref_words:
+            parts.append(r"(?:" + alt(ref_words) + r")[A-Z]*\s+(?:LAYOUT\s+PLAN|LAYOUT|PLAN|ELEVATIONS?|SCHEDULES?|DETAILS?|TYPES)")
+        _cache["plan_key"], _cache["plan_re"] = key, (re.compile(r"\b(?:" + "|".join(parts) + r")\b") if parts else _NEVER)
     return _cache["plan_re"]
 
 
 # ---- writing (Studio settings → Plan sheet types) ---------------------------------------------------------------------
 
-def seed(db) -> int:
-    """Fill an empty plan_layers table with DEFAULTS; make sure the main plan is there. Returns the rows added. Runs at
-    every start and by several instances at once: it only ever adds what is missing."""
-    have = {r.key for r in db.query(PlanLayer).all()}
-    added = 0
+def seed(db, kind_added: bool = False) -> int:
+    """Fill an empty plan_layers table with DEFAULTS; make sure the main plan is there. Returns the rows added or changed.
+    Runs at every start and by several instances at once: it only ever adds what is missing. `kind_added` = the kind column
+    was created at this start (db.migrate): the built-in reference types seeded before it existed get their kind once."""
+    have = {r.key: r for r in db.query(PlanLayer).all()}
+    changed = 0
     if not have:
         for i, d in enumerate(DEFAULTS):
-            db.add(PlanLayer(key=d["key"], title=d["title"], sort=i, words=d["words"], categories=d["categories"]))
-            added += 1
+            db.add(PlanLayer(key=d["key"], title=d["title"], sort=i, words=d["words"], categories=d["categories"], kind=d["kind"]))
+            changed += 1
     elif MAIN not in have:
-        db.add(PlanLayer(key=MAIN, title="Main plan", sort=0, words="", categories=""))
-        added += 1
-    if added:
+        db.add(PlanLayer(key=MAIN, title="Main plan", sort=0, words="", categories="", kind="plan"))
+        changed += 1
+    if kind_added:
+        for d in DEFAULTS:
+            row = have.get(d["key"])
+            if row is not None and d["kind"] == "reference" and row.kind != "reference":
+                row.kind = "reference"
+                changed += 1
+    if changed:
         db.commit()
         invalidate()
-    return added
+    return changed
 
 
 def usage(db) -> dict[str, int]:
@@ -197,33 +225,42 @@ def _clean_title(db, title: str, key: str = "") -> tuple[str, str]:
     return t, ""
 
 
-def add(db, title: str, words: str) -> tuple[str, str]:
+def add(db, title: str, words: str, kind: str = "plan") -> tuple[str, str]:
     """A new sheet type at the end of the list. Returns (message, error)."""
     t, why = _clean_title(db, title)
     if why:
         return "", why
     existing = db.query(PlanLayer).all()
     row = PlanLayer(key=slug(t, {r.key for r in existing}), title=t, sort=max([r.sort for r in existing] + [0]) + 1,
-                    words="|".join(parse_words(words)), categories="")
+                    words="|".join(parse_words(words)), categories="", kind=kind if kind in KINDS else "plan")
     db.add(row)
     db.commit()
     invalidate()
-    return f'"{t}" added: it is in every Shows dropdown now.' + (" The page picker ticks it for titles with " + " / ".join(parse_words(words)) + "." if parse_words(words) else ""), ""
+    what = "a reference sheet: drawings tied to items, no room boxes" if row.kind == "reference" else "a plan of its floor"
+    return f'"{t}" added as {what}: it is in every Shows dropdown now.' + (" The page picker ticks it for titles with " + " / ".join(parse_words(words)) + "." if parse_words(words) else ""), ""
 
 
-def rename(db, key: str, title: str, words: str) -> tuple[str, str]:
+def rename(db, key: str, title: str, words: str, kind: str = "") -> tuple[str, str]:
     row = db.get(PlanLayer, key)
     if row is None:
         return "", "That sheet type is not in the list."
     t, why = _clean_title(db, title, key)
     if why:
         return "", why
-    old = row.title
+    old, old_kind = row.title, row.kind
     row.title = t
     if key != MAIN:
         row.words = "|".join(parse_words(words))
+        if kind in KINDS:
+            row.kind = kind
     db.commit()
     invalidate()
+    if row.kind != old_kind:
+        n = usage(db).get(key, 0)
+        one = n == 1
+        what = (f"show{'s' if one else ''} no room boxes any more, only dots." if row.kind == "reference"
+                else f"borrow{'s' if one else ''} the room boxes of {'its' if one else 'their'} floor again.")
+        return f'"{t}" is now {KIND_TITLES[row.kind].lower()}' + (f": its {n} plan{'' if one else 's'} {what}" if n else "."), ""
     return (f'"{old}" is now "{t}" on every plan that shows it.' if t != old else f'"{t}" saved.'), ""
 
 
