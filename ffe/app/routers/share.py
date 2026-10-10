@@ -1,14 +1,16 @@
 """Links that work without login: /s/<token> for a supplier to list their cartons, /c/<token> for the client to view the schedule."""
-from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi import APIRouter, Request, Depends, HTTPException, Form, UploadFile, File
+from urllib.parse import urlencode
 from sqlalchemy.orm import Session
 from ..db import get_db
-from ..models import Project, SupplierLink, Carton, Item
+from ..models import Project, SupplierLink, Carton, Item, Room, ProjectImage
 from ..common import render, redirect, get_settings, fint
-from ..services import carton_positions, summary
-from .. import drawings
+from ..services import carton_positions, summary, moods_for
+from .. import drawings, webimage, storage, config
 from .cartons import save_carton
 from .items import sort_items
 from . import plan as planmod
+from .projects import add_mood
 
 router = APIRouter()
 
@@ -62,8 +64,10 @@ def _client_project(db: Session, token: str) -> Project:
 
 
 @router.get("/c/{token}")
-def client_page(request: Request, token: str, db: Session = Depends(get_db), plan: str = "", room: str = "", item: str = ""):
-    """The client's read-only schedule. `?plan=` / `?room=` open the interactive plan on a room (deep link / no JavaScript)."""
+def client_page(request: Request, token: str, db: Session = Depends(get_db), plan: str = "", room: str = "", item: str = "", err: str = "",
+                ok: str = ""):
+    """The client's read-only schedule. `?plan=` / `?room=` open the interactive plan on a room (deep link / no JavaScript).
+    The one thing the client may add: inspiration pictures (POST /c/<token>/inspiration), for a room or the whole house."""
     p = _client_project(db, token)
     s = summary(db, p)
     items = sort_items(p.live_items, p)
@@ -77,7 +81,8 @@ def client_page(request: Request, token: str, db: Session = Depends(get_db), pla
         it = db.get(Item, sel_item)
         sel_room = it.room if it is not None and it.project_id == p.id and not it.draft and it.room is not None else None
     im = planmod.pick_plan(p, fint(plan), sel_room)
-    ctx = dict(p=p, s=s, groups=groups, studio=get_settings(db), token=token, plans=drawings.client_plans(p), room=None, readonly=True)
+    ctx = dict(p=p, s=s, groups=groups, studio=get_settings(db), token=token, plans=drawings.client_plans(p), room=None, readonly=True,
+               house_moods=moods_for(p), err=err[:200], ok=ok[:200])
     ctx.update(planmod.stage_ctx(db, p, im, sel_room=sel_room, sel_item=sel_item, base=base, anchor="#plan-section"))
     if sel_room is not None:
         ctx.update(planmod.room_ctx(db, p, sel_room, im, sel_item=sel_item, base=base, anchor="#plan-section", readonly=True))
@@ -92,6 +97,62 @@ def client_room_panel(request: Request, token: str, room_id: int, db: Session = 
     r = planmod.find_room(p, room_id)
     if r is None:
         raise HTTPException(404, "Room not found")
-    return render(request, "plan/_room.html", nav=None, public=True,
+    return render(request, "plan/_room.html", nav=None, public=True, token=token,
                   **planmod.room_ctx(db, p, r, planmod.find_plan(p, fint(plan)), sel_item=fint(item), base=f"/c/{token}",
                                      anchor="#plan-section", readonly=True))
+
+
+def _client_back(token: str, room_id, err: str = "", ok: str = "") -> str:
+    q = urlencode({k: v for k, v in dict(room=room_id or "", err=err, ok=ok).items() if v})
+    return f"/c/{token}" + (f"?{q}" if q else "") + ("#plan-section" if room_id else "#mood")
+
+
+@router.post("/c/{token}/inspiration")
+async def client_add_inspiration(token: str, db: Session = Depends(get_db), room_id: str = Form(""), caption: str = Form(""), url: str = Form(""),
+                                 files: list[UploadFile] | None = File(None)):
+    """The client adds pictures of what they like, for one room or the whole house: photos from the phone, or a web link,
+    with a line of text. Marked as theirs (MoodTag.by_client), capped per room (config.MAX_CLIENT_INSPIRATION), and
+    the only thing the link lets them change."""
+    p = _client_project(db, token)
+    room = db.get(Room, fint(room_id)) if fint(room_id) else None
+    if room is not None and room.project_id != p.id:
+        room = None
+    rid = room.id if room is not None else None
+    datas = []
+    for f in (files or [])[:6]:
+        data = await f.read()
+        if data:
+            datas.append(data)
+    if url.strip():
+        try:
+            datas.append(webimage.fetch_image(url.strip()))
+        except webimage.WebImageError as e:
+            return redirect(_client_back(token, rid, err=str(e)))
+    if not datas:
+        return redirect(_client_back(token, rid, err="Choose a photo or paste a web link first."))
+    have = sum(1 for im in moods_for(p, room) if im.by_client)
+    if have + len(datas) > config.MAX_CLIENT_INSPIRATION:
+        return redirect(_client_back(token, rid, err=f"Up to {config.MAX_CLIENT_INSPIRATION} pictures per room: remove one of yours first."))
+    added = 0
+    for data in datas:
+        try:
+            add_mood(db, p, data, caption, rid, by_client=True)
+            added += 1
+        except (OSError, ValueError):  # not a picture the server can read
+            pass
+    db.commit()
+    if not added:
+        return redirect(_client_back(token, rid, err="That picture could not be read: try a JPG or PNG photo."))
+    return redirect(_client_back(token, rid, ok=f"{added} picture{'s' if added != 1 else ''} added. The designer sees {'them' if added != 1 else 'it'} on the room."))
+
+
+@router.post("/c/{token}/inspiration/{image_id}/delete")
+def client_delete_inspiration(token: str, image_id: int, db: Session = Depends(get_db), room_id: str = Form("")):
+    """The client removes one of their own pictures; the designer's stay."""
+    p = _client_project(db, token)
+    im = db.get(ProjectImage, image_id)
+    if im is not None and im.project_id == p.id and im.kind == "mood" and im.by_client:
+        storage.delete_image(im.file_key)
+        db.delete(im)
+        db.commit()
+    return redirect(_client_back(token, fint(room_id) or ""))

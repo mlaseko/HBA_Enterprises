@@ -21,13 +21,13 @@
   <div class="kpi"><div class="v">{{ s.cartons_received }}/{{ s.cartons }}</div><div class="l">boxes received</div><svg class="ic"><use href="#i-box"/></svg></div>
 </div>
 
-{% set moods = p.images|selectattr('kind','equalto','mood')|list %}
-{% if moods %}
-<div class="group-title"><h2>Mood board</h2><span class="n">{{ moods|length }} image{{ '' if moods|length == 1 else 's' }}</span></div>
-<div class="gallery wide">
-  {% for im in moods %}<div class="g"><img src="/media/{{ im.file_key }}" alt="{{ im.caption }}">{% if im.caption %}<div class="cap">{{ im.caption }}</div>{% endif %}</div>{% endfor %}
+{% if err %}<div class="alert err">{{ err }}</div>{% endif %}
+{% if ok %}<div class="alert info">{{ ok }}</div>{% endif %}
+<div class="group-title" id="mood"><h2>Mood board</h2><span class="n">{{ house_moods|length }} image{{ '' if house_moods|length == 1 else 's' }}</span></div>
+<div class="card">
+  <p class="small muted">The look of the house, and anything you like: add your own pictures here for the whole house, or on a room below the plan, and the designer sees them when buying.</p>
+  {% with room = none, moods = house_moods, here = '/c/' ~ token ~ '#mood' %}{% include "plan/_inspiration.html" %}{% endwith %}
 </div>
-{% endif %}
 
 {% if plan %}
 <section id="plan-section">

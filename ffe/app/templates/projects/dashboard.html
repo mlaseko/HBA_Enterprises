@@ -71,6 +71,7 @@
   </div>
 </div>
 
+{% if client_moods %}<div class="alert info"><svg class="ic sm"><use href="#i-image"/></svg> The client added {{ client_moods|length }} inspiration picture{{ 's' if client_moods|length != 1 }} through their link: {% for im in client_moods %}{% if loop.index <= 4 %}<a class="b" href="{% if im.mood.room %}/p/{{ p.id }}/items?room={{ im.mood.room_id }}{% else %}/p/{{ p.id }}/images#mood{% endif %}">{{ im.mood.room.name if im.mood.room else 'whole house' }}</a>{% if not loop.last and loop.index < 4 %}, {% endif %}{% endif %}{% endfor %}{% if client_moods|length > 4 %}…{% endif %}. <a href="/p/{{ p.id }}/images#mood">All on the mood board</a>.</div>{% endif %}
 <div class="card" id="documents">
   <div class="row between top">
     <div><h2 class="mb-0">Documents</h2><div class="small muted">Generated live from the current items, rooms and cartons.</div></div>

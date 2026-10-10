@@ -39,6 +39,7 @@ ROOM_KINDS = ["room", "area"]
 # The floor list (models.Floor): a floor of the house, or a separate area (another building, an outdoor zone) whose title is
 # printed as it is. A new floor named with one of these words starts as a separate area (drawings.guess_floor_kind).
 FLOOR_KINDS = ["floor", "area"]
+MAX_CLIENT_INSPIRATION = 12  # pictures the client may add per room (and for the whole house) through their link
 FLOOR_AREA_WORDS = ["quarter", "staff", "servant", "boys", "annex", "guest house", "guesthouse", "outbuilding", "outhouse", "cabana",
                     "garden", "pool", "compound", "yard", "gatehouse", "gate house", "garage", "workshop", "outside", "exterior"]
 # What a floor plan shows (ProjectImage.layer). One main plan per floor, the architect's general floor plan, carries the room

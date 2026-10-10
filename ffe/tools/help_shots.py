@@ -392,6 +392,10 @@ def seed() -> dict:
         c.post(f"/p/{pid}/images", data={"kind": "cover", "caption": ""}, files=[("files", ("cover.jpg", gradient("#2B211D", "#B9593A", text="Msasani Villa"), "image/jpeg"))], follow_redirects=False)
         for i, (a, b2, cap) in enumerate((("#D9CDB8", "#B9593A", "Warm wood & linen"), ("#6F8B74", "#E7EFE8", "Sea-green tiles"), ("#C9A227", "#F8F0D6", "Brushed brass"))):
             c.post(f"/p/{pid}/images", data={"kind": "mood", "caption": cap}, files=[("files", (f"mood{i}.jpg", gradient(a, b2), "image/jpeg"))], follow_redirects=False)
+        # room inspiration: one from the designer, one from the client through their link (the kitchen)
+        db = SessionLocal(); pr = db.get(Project, pid); kit_id = next(r_.id for r_ in pr.rooms if r_.code == "GF-KIT"); ctok = pr.client_token; db.close()
+        c.post(f"/p/{pid}/images", data={"kind": "mood", "caption": "Black taps on warm wood", "room_id": str(kit_id)}, files=[("files", ("insp1.jpg", gradient("#2B211D", "#B9593A"), "image/jpeg"))], follow_redirects=False)
+        TestClient(app).post(f"/c/{ctok}/inspiration", data={"room_id": str(kit_id), "caption": "I like this green"}, files=[("files", ("insp2.jpg", gradient("#3E5A44", "#7FA79A"), "image/jpeg"))], follow_redirects=False)
         # items, with a sample photo each
         for room, cat, name, spec, brand, size, finish, qty, unit, price, cur, sup, status, lead, (kind, colour) in ITEMS:
             data = {"category": cat, "name": name, "spec": spec, "brand": brand, "size": size, "finish": finish, "lead_time": lead, "qty": str(qty), "unit": unit,

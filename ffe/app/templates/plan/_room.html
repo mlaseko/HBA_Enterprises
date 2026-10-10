@@ -18,6 +18,7 @@
     {% else %}<div><div class="v">¥{{ (st.total if st else 0)|money }}</div><div class="l">Total CNY</div></div>{% endif %}
     <div><div class="v"><span data-received>{{ st.received if st else 0 }}</span><span class="of">/{{ n }}</span></div><div class="l">Received</div></div>
   </div>
+  {% include "plan/_inspiration.html" %}
   {% if not ro %}
   {% if plan and not pin %}<div class="alert info small">Not placed on this plan yet. <a href="{{ base }}?plan={{ plan.id }}&amp;mode=mark&amp;room={{ room.id }}">Mark it</a></div>{% endif %}
   <div class="ph-actions">

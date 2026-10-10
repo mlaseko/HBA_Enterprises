@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Project, Item, ItemPhoto, Supplier, Room
 from ..common import render, redirect, require_login, get_project, ffloat, fint, safe_next
-from ..services import next_code, set_price, copy_price, sort_items  # noqa: F401  (sort_items is imported from here by share.py and plan.py)
+from ..services import next_code, set_price, copy_price, sort_items, moods_for  # noqa: F401  (sort_items is imported from here by share.py and plan.py)
 from .. import storage, config, webimage, ai, drawings
 
 router = APIRouter(dependencies=[Depends(require_login)])
@@ -80,7 +80,7 @@ def list_items(request: Request, p: Project = Depends(get_project), db: Session 
     qs = urlencode({k: v for k, v in f.items() if v and k != "view"})  # the filters, for the view switch links
     rows = group_items(items) if view == "list" else None  # the Item list view: one line per product across its rooms
     return render(request, "items/list.html", p=p, items=items, suppliers=suppliers, total=total, drafts=drafts, room_obj=room_obj, zoom=zoom,
-                  f=f, qs=qs, rows=rows, deleted=deleted)
+                  f=f, qs=qs, rows=rows, deleted=deleted, moods=moods_for(p, room_obj) if room_obj is not None else [])
 
 
 @router.post("/p/{project_id}/items/delete-selected")

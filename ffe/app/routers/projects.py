@@ -4,8 +4,8 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Project, ProjectImage, Room, Item, DrawingSet, PlanTag, DrawingPage
-from ..common import render, redirect, require_login, get_project, get_settings, ffloat, fint, content_disposition
-from ..services import summary
+from ..common import render, redirect, require_login, get_project, get_settings, ffloat, fint, content_disposition, safe_next
+from ..services import summary, mood_groups, client_moods
 from .. import storage, webimage, drawings, config
 from urllib.parse import quote
 from ..models import token as new_token
@@ -45,7 +45,7 @@ def create_project(request: Request, db: Session = Depends(get_db), client_name:
 def dashboard(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db)):
     s = summary(db, p)
     recent = db.query(Item).filter(Item.project_id == p.id, Item.draft == False).order_by(Item.updated_at.desc()).limit(6).all()  # noqa: E712
-    return render(request, "projects/dashboard.html", p=p, s=s, recent=recent)
+    return render(request, "projects/dashboard.html", p=p, s=s, recent=recent, client_moods=client_moods(p))
 
 
 @router.get("/p/{project_id}/edit")
@@ -94,7 +94,7 @@ def _plan_sets_ctx(p: Project) -> dict:
 def images(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), err: str = "", ok: str = ""):
     if drawings.sync_floors(db, p):  # floors named by plans or rooms from before the floor list join it
         db.commit()
-    return render(request, "projects/images.html", p=p, err=err[:200], ok=ok[:200], **_plan_sets_ctx(p))
+    return render(request, "projects/images.html", p=p, err=err[:200], ok=ok[:200], mood_groups=mood_groups(p), **_plan_sets_ctx(p))
 
 
 def _layer(value) -> str:
@@ -119,9 +119,22 @@ def _add_plan(db: Session, p: Project, floor: str, sheet: str, caption: str, *, 
     return im
 
 
+def add_mood(db: Session, p: Project, data: bytes, caption: str, room_id, by_client: bool = False) -> ProjectImage:
+    """A mood-board picture, for one room of the project (room_id) or the whole house (blank). The room must be the
+    project's; anything else means the whole house."""
+    room = db.get(Room, fint(room_id)) if fint(room_id) else None
+    im = ProjectImage(project_id=p.id, kind="mood", caption=caption.strip()[:200], file_key=storage.save_image(data, f"p{p.id}"))
+    if (room is not None and room.project_id == p.id) or by_client:
+        m = im.ensure_mood()
+        m.room_id, m.by_client = (room.id if room is not None and room.project_id == p.id else None), by_client
+    db.add(im)
+    return im
+
+
 @router.post("/p/{project_id}/images/url")
 def add_image_url(p: Project = Depends(get_project), db: Session = Depends(get_db), kind: str = Form("mood"),
-                  caption: str = Form(""), url: str = Form(""), floor: str = Form(""), sheet: str = Form("")):
+                  caption: str = Form(""), url: str = Form(""), floor: str = Form(""), sheet: str = Form(""), room_id: str = Form(""),
+                  next: str = Form("")):
     """Add a mood-board / cover / floor-plan image from any web link (direct image or a page)."""
     try:
         data = webimage.fetch_image(url)
@@ -130,24 +143,45 @@ def add_image_url(p: Project = Depends(get_project), db: Session = Depends(get_d
     kind = kind if kind in ("mood", "floorplan", "cover") else "mood"
     if kind == "floorplan":
         _add_plan(db, p, floor, sheet, caption, data=data)
+    elif kind == "mood":
+        add_mood(db, p, data, caption, room_id)
     else:
         db.add(ProjectImage(project_id=p.id, kind=kind, caption=caption, file_key=storage.save_image(data, f"p{p.id}")))
     db.commit()
-    return redirect(f"/p/{p.id}/images")
+    return redirect(safe_next(next, f"/p/{p.id}/images"))
 
 
 @router.post("/p/{project_id}/images")
 async def upload_images(p: Project = Depends(get_project), db: Session = Depends(get_db), kind: str = Form("mood"),
-                        caption: str = Form(""), files: list[UploadFile] = File(...)):
-    kind = kind if kind in ("mood", "floorplan", "cover") else "mood"  # floorplan here = untagged plan (old forms, /clip)
-    for f in files:
+                        caption: str = Form(""), files: list[UploadFile] | None = File(None), url: str = Form(""), room_id: str = Form(""),
+                        next: str = Form("")):
+    """Pictures for the mood board (whole house or one room: the inspiration strip on the room's panel posts here with
+    room_id and next), the cover, or untagged plans (old forms, /clip). A web link may come instead of, or with, files."""
+    kind = kind if kind in ("mood", "floorplan", "cover") else "mood"
+    back = safe_next(next, f"/p/{p.id}/images")
+    datas = []
+    for f in files or []:
         data = await f.read()
-        if not data:
-            continue
-        key = storage.save_image(data, f"p{p.id}")
-        db.add(ProjectImage(project_id=p.id, kind=kind, caption=caption, file_key=key))
+        if data:
+            datas.append(data)
+    if url.strip():
+        try:
+            datas.append(webimage.fetch_image(url.strip()))
+        except webimage.WebImageError as e:
+            return redirect(back + ("&" if "?" in back else "?") + f"err={quote(str(e))}")
+    bad = 0
+    for data in datas:
+        try:
+            if kind == "mood":
+                add_mood(db, p, data, caption, room_id)
+            else:
+                db.add(ProjectImage(project_id=p.id, kind=kind, caption=caption, file_key=storage.save_image(data, f"p{p.id}")))
+        except (OSError, ValueError):  # not a picture the server can read (a broken file, a PDF named .jpg)
+            bad += 1
     db.commit()
-    return redirect(f"/p/{p.id}/images")
+    if bad:
+        return redirect(back + ("&" if "?" in back else "?") + "err=" + quote(f"{bad} file{'s' if bad != 1 else ''} could not be read as a picture: try a JPG or PNG."))
+    return redirect(back)
 
 
 @router.post("/p/{project_id}/images/plans")
@@ -287,7 +321,7 @@ def delete_set(set_id: int, p: Project = Depends(get_project), db: Session = Dep
 
 @router.post("/p/{project_id}/images/{image_id}")
 def edit_image(image_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), floor: str = Form(""), floor_new: str = Form(""),
-               sheet: str = Form(""), caption: str = Form(""), layer: str = Form("")):
+               sheet: str = Form(""), caption: str = Form(""), layer: str = Form(""), room_id: str = Form("")):
     im = db.get(ProjectImage, image_id)
     if not im or im.project_id != p.id:
         raise HTTPException(404)
@@ -297,12 +331,17 @@ def edit_image(image_id: int, p: Project = Depends(get_project), db: Session = D
         t.floor, t.sheet = drawings.register_floor(db, p, drawings.floor_from_form(floor, floor_new, t.floor)), sheet.strip()[:60]
         if layer:
             im.layer = _layer(layer)
+    elif im.kind == "mood":  # a mood-board picture moved to another room, or back to the whole house
+        room = db.get(Room, fint(room_id)) if fint(room_id) else None
+        rid = room.id if room is not None and room.project_id == p.id else None
+        if rid is not None or im.mood is not None:
+            im.ensure_mood().room_id = rid
     db.commit()
     return redirect(f"/p/{p.id}/images#img-{im.id}")
 
 
 @router.post("/p/{project_id}/images/{image_id}/delete")
-def delete_image(image_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+def delete_image(image_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), next: str = Form("")):
     img = db.get(ProjectImage, image_id)
     if img and img.project_id == p.id:
         storage.delete_image(img.file_key)
@@ -310,4 +349,4 @@ def delete_image(image_id: int, p: Project = Depends(get_project), db: Session =
             storage.delete_image(img.hires_key)
         db.delete(img)
         db.commit()
-    return redirect(f"/p/{p.id}/images")
+    return redirect(safe_next(next, f"/p/{p.id}/images"))

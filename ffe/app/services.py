@@ -150,3 +150,26 @@ def carton_positions(cartons: list[Carton]) -> dict[int, tuple[int, int]]:
         for n, cid in enumerate(ids, 1):
             pos[cid] = (n, len(ids))
     return pos
+
+
+# ---- inspiration: mood-board pictures per room (ProjectImage kind="mood" + MoodTag) --------------------------------------
+
+def moods_for(p: Project, room=None) -> list:
+    """The mood-board pictures of one room, or of the whole house (room None), oldest first."""
+    rid = room.id if room is not None else None
+    return [im for im in p.images if im.kind == "mood" and im.room_id == rid]
+
+
+def mood_groups(p: Project) -> list[tuple]:
+    """[(room or None, pictures)]: the whole house first, then every room that has pictures, in room order."""
+    out = [(None, moods_for(p))]
+    for r in p.rooms:
+        ms = moods_for(p, r)
+        if ms:
+            out.append((r, ms))
+    return [g for g in out if g[1] or g[0] is None]
+
+
+def client_moods(p: Project) -> list:
+    """The pictures the client added through their link, any room."""
+    return [im for im in p.images if im.kind == "mood" and im.by_client]

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Project, Room, Item, ProjectImage, RoomPin, ItemPin
 from ..common import render, redirect, require_login, get_project, fint
-from ..services import summary
+from ..services import summary, moods_for
 from .. import drawings, config
 from .items import sort_items
 
@@ -101,7 +101,7 @@ def room_ctx(db: Session, p: Project, room: Room, im: ProjectImage | None, *, se
     ipin_of = {q.item_id: q for q in live_item_pins(im) if q.item_id in ids} if im is not None else {}  # this room's dots only
     here = f"{base}?" + (f"plan={im.id}&" if im is not None else "") + f"room={room.id}{anchor}"
     return dict(p=p, room=room, items=items, st=st, plan=im, pin=pin, ipin_of=ipin_of, here=here, sel_item=sel_item,
-                base=base, anchor=anchor, readonly=readonly, floors=drawings.floor_order(p))
+                base=base, anchor=anchor, readonly=readonly, floors=drawings.floor_order(p), moods=moods_for(p, room))
 
 
 def wants_json(request: Request) -> bool:

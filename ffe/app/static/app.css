@@ -413,6 +413,12 @@ details summary{cursor:pointer;color:var(--ink);font-weight:600;margin:0}
 .gallery.plans img{width:220px;height:150px;object-fit:contain;background:#fff}
 .gallery.plans .g .cap,.gallery.plans .g form.tag{max-width:220px}
 .gallery .g form.tag{position:static;margin-top:6px;display:grid;gap:4px}
+/* inspiration: the mood-board pictures of one room (plan/_inspiration.html) on the room panel, the Rooms page, the item list and the client link */
+.insp{padding:10px 12px;border:1px solid var(--line-2);border-radius:var(--r-sm);background:var(--surface-2)}
+.insp .insp-gallery{margin-top:8px}.insp .insp-gallery img{width:92px;height:92px;border-radius:10px}.insp .insp-gallery .g .cap{max-width:92px;font-size:.7rem}
+.insp .insp-gallery .g.client img{outline:2px solid var(--sage);outline-offset:1px}
+.insp details.insp-add{margin-top:8px}.insp details.insp-add summary{font-size:.84rem;font-weight:600;cursor:pointer;color:var(--accent-ink)}
+.gallery .g.client img{outline:2px solid var(--sage);outline-offset:1px}
 .gallery .g form.tag .btn{justify-self:start}
 .gallery.plans .g .cap.role{color:var(--ink-2);display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-height:22px}
 /* Images & plans: a plan filed as its own floor before layers existed ("Ground Electrical") gets a one-press fix */

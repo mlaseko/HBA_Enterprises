@@ -63,6 +63,7 @@
       <a class="btn sm sec" href="/p/{{ p.id }}/export/room/{{ room_obj.id }}.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Checklist PDF</a>
       <a class="btn sm ghost" href="/p/{{ p.id }}/rooms"><svg class="ic"><use href="#i-layout"/></svg>Rooms &amp; areas</a>
     </div>
+    <div class="mt">{% with room = room_obj, here = '/p/' ~ p.id ~ '/items?room=' ~ room_obj.id %}{% include "plan/_inspiration.html" %}{% endwith %}</div>
   </div>
 </div>
 {% endif %}

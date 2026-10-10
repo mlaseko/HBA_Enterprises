@@ -129,7 +129,7 @@ templates.env.globals.update(AI_ENABLED=lambda: bool(__import__('os').getenv('AN
                              PAYMENT_KINDS=config.PAYMENT_KINDS, PRICE_CURRENCIES=config.PRICE_CURRENCIES, plan_caption=drawings.plan_caption,
                              count_label=drawings.count_label, help_shots=help_tips.shots, PLAN_LAYERS=config.PLAN_LAYERS, LAYER_OPTIONS=config.LAYER_OPTIONS, MAIN_LAYER=config.MAIN_LAYER, STATIC_V=STATIC_V,
                              PLAN_MAX_PX=config.PLAN_MAX_PX, MAX_PDF_MB=config.MAX_PDF_MB, MAX_PDF_PAGES=config.MAX_PDF_PAGES,
-                             PICK_MAX_PAGES=config.PICK_MAX_PAGES)
+                             PICK_MAX_PAGES=config.PICK_MAX_PAGES, MAX_CLIENT_INSPIRATION=config.MAX_CLIENT_INSPIRATION)
 
 
 PUBLIC_TEMPLATES = {"login.html"}  # plus everything under share/: pages without the app shell

@@ -4,7 +4,7 @@ from ..db import get_db
 from urllib.parse import urlencode
 from ..models import Project, Room, Carton, Floor
 from ..common import render, redirect, require_login, get_project, ffloat, fint, safe_next
-from ..services import summary, guess_kind
+from ..services import summary, guess_kind, moods_for
 from .. import drawings, config
 
 router = APIRouter(dependencies=[Depends(require_login)])
@@ -20,7 +20,7 @@ def rooms(request: Request, p: Project = Depends(get_project), db: Session = Dep
     zooms = {r.id: z for r in p.rooms if (z := drawings.room_zoom(p, r)) is not None}  # each marked entry, zoomed on its plan
     return render(request, "rooms.html", p=p, stats=stats, groups=drawings.rooms_by_floor(p), floors=drawings.floor_order(p),
                   floor_rows=drawings.floor_rows(p), pins=drawings.pins_by_room(p), n_rooms=len(rooms), n_areas=len(areas), zooms=zooms,
-                  err=err[:200], ok=ok[:200])
+                  err=err[:200], ok=ok[:200], moods_by_room={r.id: moods_for(p, r) for r in p.rooms})
 
 
 # ---- the floor list (models.Floor): add, rename, reorder, merge, delete ----
@@ -174,6 +174,8 @@ def delete_room(room_id: int, p: Project = Depends(get_project), db: Session = D
             i.room_id = None
             i.pins.clear()  # the dots sat in this room's box
         db.query(Carton).filter(Carton.room_id == r.id).update({"room_id": None}, synchronize_session=False)  # boxes keep their rows
+        for im in moods_for(p, r):
+            im.mood.room_id = None  # its inspiration pictures stay, as whole-house ones
         db.delete(r)
         db.commit()
     return redirect(f"/p/{p.id}/rooms")
