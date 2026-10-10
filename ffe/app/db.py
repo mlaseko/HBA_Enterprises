@@ -35,7 +35,7 @@ def get_db():
 COLUMN_MIGRATIONS = [
     ("items", "draft", "BOOLEAN NOT NULL DEFAULT FALSE"),           # quick-capture drafts
     ("rooms", "kind", "VARCHAR(10) NOT NULL DEFAULT 'room'"),       # room | area
-    ("project_images", "layer", "VARCHAR(20) NOT NULL DEFAULT 'main'"),  # what a floor plan shows (config.PLAN_LAYERS)
+    ("project_images", "layer", "VARCHAR(20) NOT NULL DEFAULT 'main'"),  # what a floor plan shows (a plan_layers key, layers.py)
     ("item_photos", "thumb_key", "VARCHAR(255) NOT NULL DEFAULT ''"),  # the small copy of a photo ('' = not made yet, '-' = cannot be made)
 ]
 

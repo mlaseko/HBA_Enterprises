@@ -687,6 +687,48 @@ with TestClient(app) as c:
     db=SessionLocal(); prt=db.get(_P,int(pid_t)); assert _dr2.main_plan(prt,"Ground").id==tp["A-101"] and _dr2.plan_role(prt, db.get(ProjectImage, tp["A-100"]))=="twin" and _dr2.plan_for_room(prt, db.get(Room, tk)).id==tp["A-101"]; db.close()  # the marked sheet is the main plan
     r=c.get(f"/p/{pid_t}/images"); h=r.text; assert '<span class="pill">Not the main plan</span> another sheet of Ground floor is the main plan and carries the boxes' in h and h.count('<span class="pill accent">Main plan</span> Ground floor')==1
     print("legacy layers + main plan ok")
+    # plan sheet types: the Shows list is data (Studio settings → Plan sheet types), seeded with the built-ins and a windows & doors sheet
+    from app import layers as _ly, config as _cfg
+    r=c.get("/settings"); h=r.text; assert 'id="sheets"' in h and 'id="ly-windows"' in h and 'id="ly-main"' in h and "Windows &amp; doors" in h and 'value="window, door, joinery"' in h and h.count('class="btn sm ghost danger"')==6 and 'id="sheet-cats"' in h
+    assert [k for k,_ in _ly.options()]==["main","furnishing","electrical","plumbing","ceiling","flooring","windows"] and _ly.options()[0][1]=="Main plan (general floor plan)" and _ly.title("windows")=="Windows & doors" and _ly.title("")=="Main plan" and _ly.title("old-sheet")=="Old sheet"
+    assert _dr2.layer_from_title("GROUND FLOOR WINDOW & DOOR PLAN")=="windows" and _dr2.layer_for_category("Windows & Doors")=="windows" and _dr2.layer_for_category("Lighting")=="electrical" and _dr2.layer_for_category("Paint")=="main" and _dr2.layer_from_title("Textile Plan")=="main"
+    tb=_dr2.read_title_block("WINDOW & DOOR PLAN - FIRST FLOOR\nDRAWING NO: W-01"); assert tb["is_plan"] is True and tb["floor"]=="First" and tb["sheet"]=="W-01" and _dr2.layer_from_title(tb["title"])=="windows", tb
+    r=c.get(f"/p/{pid_l}/images"); assert 'value="windows">Windows &amp; doors</option>' in r.text and 'href="/settings#sheets"' in r.text
+    # a windows sheet of Ground floor: named after the type, under the floor's Sheet switch, borrowing the boxes; the type cannot go while a plan shows it
+    c.post(f"/p/{pid_l}/images/plans", data={"floor":"Ground","sheet":"W-01","layer":"windows"}, files=[("files",("w.jpg",img("green"),"image/jpeg"))], follow_redirects=False)
+    db=SessionLocal(); wim=next(im for im in db.query(ProjectImage).filter(ProjectImage.project_id==int(pid_l)) if im.sheet=="W-01"); assert wim.layer=="windows" and _dr2.plan_caption(wim)=="Ground floor · Windows & doors · W-01" and not wim.is_main_layer and _dr2.plan_role(db.get(_P,int(pid_l)), wim)=="layer"; wid=wim.id; db.close()
+    r=c.get(f"/p/{pid_l}/plan?plan={wid}"); assert "Windows &amp; doors" in r.text and "boxes from the main plan" in r.text and "4 sheets" in r.text
+    r=c.post("/settings/layers/windows/delete", follow_redirects=False); assert "still%20shown%20by%201%20plan." in r.headers["location"] and r.headers["location"].endswith("#sheets")
+    r=c.post("/settings/layers/main/delete", follow_redirects=False); assert "stays%20in%20the%20list" in r.headers["location"]
+    r=c.get("/settings"); assert 'disabled title="1 plan still shows it' in r.text and "windows" in _ly.titles()
+    # add a type with its words: in every dropdown at once, the page picker recognises its titles; rename, reorder, delete
+    r=c.post("/settings/layers", data={"title":"Landscape","words":"landscape, garden | Planting"}, follow_redirects=False); assert r.headers["location"].startswith("/settings?ok=") and "landscape%20/%20garden%20/%20planting" in r.headers["location"]
+    assert [k for k,_ in _ly.options()][-1]=="landscape" and _ly.title("landscape")=="Landscape" and _dr2.layer_from_title("Landscape Layout Plan")=="landscape" and _dr2.layer_from_title("Ground Floor Plan")=="main"
+    tb=_dr2.read_title_block("GARDEN PLANTING PLAN\nL-01"); assert tb["is_plan"] is True and tb["sheet"]=="L-01" and _dr2.layer_from_title(tb["title"])=="landscape" and _dr2.caption_from_title("Garden Planting Plan", "landscape")=="" and _dr2.caption_from_title("Garden Planting Plan (Rev B)", "landscape")=="Rev B", tb
+    r=c.get(f"/p/{pid_l}/images"); assert 'value="landscape">Landscape</option>' in r.text
+    r=c.post("/settings/layers", data={"title":" landscape ","words":""}, follow_redirects=False); assert "already%20in%20the%20list" in r.headers["location"]
+    r=c.post("/settings/layers", data={"title":"","words":"x"}, follow_redirects=False); assert "Give%20the%20sheet%20type%20a%20title" in r.headers["location"]
+    r=c.post("/settings/layers", data={"title":"Landscape","words":""}, follow_redirects=False); assert "already" in r.headers["location"]  # same title again: refused, not a second key
+    r=c.post("/settings/layers/landscape", data={"title":"Landscape & garden","words":"landscape;garden"}, follow_redirects=False); assert "is%20now" in r.headers["location"]
+    assert _ly.title("landscape")=="Landscape & garden" and _ly.rows()[-1]["words"]==["landscape","garden"] and _ly.rows()[-1]["words_text"]=="landscape, garden"
+    r=c.post("/settings/layers/main", data={"title":"General plan","words":"ignored"}, follow_redirects=False); assert "is%20now" in r.headers["location"] and _ly.options()[0]==("main","General plan (general floor plan)") and _ly.rows()[0]["words"]==[]
+    c.post("/settings/layers/main", data={"title":"Main plan"}, follow_redirects=False); assert _ly.title("main")=="Main plan"
+    r=c.post("/settings/layers/nope", data={"title":"X"}, follow_redirects=False); assert "not%20in%20the%20list" in r.headers["location"]
+    c.post("/settings/layers/landscape/move", data={"dir":"up"}, follow_redirects=False); assert [k for k,_ in _ly.options()][-2:]==["landscape","windows"]
+    c.post("/settings/layers/main/move", data={"dir":"down"}, follow_redirects=False); assert [k for k,_ in _ly.options()][0]=="main"  # the main plan is always first
+    c.post("/settings/layers/landscape/move", data={"dir":"down"}, follow_redirects=False); assert [k for k,_ in _ly.options()][-1]=="landscape"
+    r=c.get(f"/p/{pid_l}/plan?plan={wid}"); assert "Windows &amp; doors" in r.text
+    # the categories table: which sheet a category's items are read from in the PDFs
+    cats={f"c{i}":"main" for i in range(len(_cfg.CATEGORIES))}; cats[f"c{_cfg.CATEGORIES.index('Lighting')}"]="electrical"; cats[f"c{_cfg.CATEGORIES.index('Windows & Doors')}"]="landscape"; cats[f"c{_cfg.CATEGORIES.index('Paint')}"]="bogus"
+    r=c.post("/settings/layers/categories", data=cats, follow_redirects=False); assert "2%20categories%20are%20read" in r.headers["location"]
+    assert _dr2.layer_for_category("Windows & Doors")=="landscape" and _dr2.layer_for_category("Lighting")=="electrical" and _dr2.layer_for_category("Tiles")=="main" and _dr2.layer_for_category("Paint")=="main" and _ly.category_map()=={"Lighting":"electrical","Windows & Doors":"landscape"}
+    h=c.get("/settings").text; wd=re.search(r'<select class="in" id="cat-%d"[^>]*>(.*?)</select>' % _cfg.CATEGORIES.index("Windows & Doors"), h, re.S).group(1); assert 'value="landscape" selected>Landscape &amp; garden<' in wd and 'value="main" >' in wd
+    r=c.post("/settings/layers/landscape/delete", follow_redirects=False); assert "removed%20from%20the%20list" in r.headers["location"] and "landscape" not in _ly.titles() and _dr2.layer_for_category("Windows & Doors")=="main"
+    db=SessionLocal(); _ly.set_categories(db, {cat:d["key"] for d in _ly.DEFAULTS for cat in d["categories"].split("|") if cat}); assert _ly.seed(db)==0; db.close()  # back to the built-in map; seeding never adds to a filled list
+    assert _ly.category_map()=={"Furniture":"furnishing","Curtains & Soft":"furnishing","Lighting":"electrical","Electrical":"electrical","Plumbing & Sanitary":"plumbing","Water Treatment":"plumbing","Tiles":"flooring","Flooring":"flooring","Windows & Doors":"windows"}
+    assert _ly.slug("Windows & doors", set())=="windows-doors" and _ly.slug("Windows & doors", {"windows-doors"})=="windows-doors-2" and len(_ly.slug("A very long sheet type title indeed", set()))<=20 and _ly.slug("***", set())=="sheet" and _ly.parse_words("Window, door|JOINERY; x; a-b, window")==["window","door","joinery","a-b"]
+    r=c2.get("/settings/layers", follow_redirects=False); assert r.status_code in (303, 405) and c2.post("/settings/layers", data={"title":"Sneak"}, follow_redirects=False).status_code==303 and "sneak" not in _ly.titles()  # login required
+    print("plan sheet types ok")
     # the Items page: sortable table columns, and the Item list (one line per product across its rooms)
     from app.routers.items import group_items as _gi
     from app.services import sort_items as _si

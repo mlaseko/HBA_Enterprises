@@ -230,6 +230,8 @@ table.floors .nm{min-width:150px}
 table.floors select.in{padding-right:28px;min-width:150px}
 .floors-add .in{max-width:280px}
 .floors-add select.in{width:auto;max-width:none}
+table.sheets .words{min-width:220px}
+#sheet-cats select.in{width:100%}
 /* sortable tables (app.js): a header with data-sort is a button; the small arrow shows the current order */
 table.sortable th[data-sort]{cursor:pointer;user-select:none}
 table.sortable th[data-sort]:hover,table.sortable th[aria-sort]{color:var(--ink)}

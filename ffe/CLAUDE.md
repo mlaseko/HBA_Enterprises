@@ -24,7 +24,9 @@ ReportLab for PDFs (pure Python — do not add WeasyPrint or anything needing sy
 openpyxl. Hosted on Replit (autoscale deployment, imports from GitHub).
 
 ```
-app/main.py            app, login/logout, /settings, /help (user guide = templates/help.html), /media/<key>
+app/main.py            app, login/logout, /settings (+ /settings/layers…: plan sheet types), /help (user guide = templates/help.html), /media/<key>
+app/layers.py          plan sheet types: what a plan can show (plan_layers rows, cached; DEFAULTS seeded at start; from_title(),
+                       for_category(), caption_re(), plan_re(); add/rename/move/remove/set_categories for the settings page)
 app/config.py          env vars + constant lists (CATEGORIES, STATUSES, UNITS …)
 app/db.py              engine/session; create_all on startup + migrate(): COLUMN_MIGRATIONS adds columns to existing tables
 app/models.py          Settings, Project, ProjectImage, PlanTag, RoomPin, ItemPin, DrawingSet, DrawingPage (title block per page),
@@ -204,12 +206,16 @@ Deploy = push to GitHub, then in Replit pull the repo and redeploy. Secrets (Rep
 `APP_PASSWORD`, `SECRET_KEY`, `DATABASE_URL` (Neon), `ANTHROPIC_API_KEY` (optional), `STORAGE_BACKEND=replit` (+ Object Storage bucket) or
 `s3` with `S3_*`.
 
-- Plan layers: `ProjectImage.layer` (config.PLAN_LAYERS; `main` = the floor's general floor plan, `furnishing` = a furniture
-  layout, then electrical / plumbing / ceiling / flooring; `config.MAIN_LAYER`). Room boxes live on the main plan;
+- Plan layers: `ProjectImage.layer` is the key of a `PlanLayer` row (table `plan_layers`, read through `layers.py`;
+  `main` = the floor's general floor plan, `furnishing` = a furniture layout, then electrical / plumbing / ceiling /
+  flooring / windows and whatever the studio adds under Studio settings → Plan sheet types; only `config.MAIN_LAYER` is
+  fixed, never hard-code another key). Room boxes live on the main plan;
   another sheet of the same floor shows them through `drawings.pins_for()` (borrowed) until it has `RoomPin`s of its own
   (`POST /plan/pins/copy`). Always read boxes through `pins_for()` / `room_zoom()`, never `im.pins`, unless you mean "own boxes"
-  (the Images page count, `pins_by_room`, mark mode). Item dots (`ItemPin`) stay per sheet. `CATEGORY_LAYER` decides which
-  sheet a category's items are read from in the PDFs; keep the "never place anything automatically" rule.
+  (the Images page count, `pins_by_room`, mark mode). Item dots (`ItemPin`) stay per sheet. `layers.for_category()` (the
+  categories column of each sheet type, edited on the settings page) decides which sheet a category's items are read
+  from in the PDFs; keep the "never place anything automatically" rule. Titles, dropdown options and the title-block
+  words all come from `layers.rows()` (a 30 s cache; every write in `layers.py` drops it), so a new sheet type needs no code.
 
 ## Schema changes so far
 
@@ -297,8 +303,8 @@ ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';  
   Project collections stay lazy because the project switcher loads every project on every page). Measured on the Kinondoni
   import with 40 photos: Overview 49 → 20 queries, Items 220 → 16, client link 256 → 23, schedule PDF 218 → 18.
 
-- **Plan layers.** `ProjectImage.layer` (main | furnishing | electrical | plumbing | ceiling | flooring, `config.PLAN_LAYERS`; the
-  main plan was first stored as "furniture", relabelled by `db.DATA_MIGRATIONS`); the
+- **Plan layers.** `ProjectImage.layer` (main | furnishing | electrical | plumbing | ceiling | flooring | windows | …, the keys of
+  `plan_layers`, see "Plan sheet types" below; the main plan was first stored as "furniture", relabelled by `db.DATA_MIGRATIONS`); the
   Plan page has one tab per floor and a `plan-layers` switch for the floor's sheets (`stage_ctx` → `tabs`, `layers`,
   `borrowed`); boxes are borrowed from the main plan (`drawings.pins_for`), "Mark rooms" on a borrowing sheet shows the
   copy card (`copy_from`) and `POST /plan/pins/copy` copies them. Upload form, page picker (`layer_<k>`, prefilled by
@@ -406,6 +412,20 @@ ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';  
   `room_id`, `url` and `next`) and for the client route; `edit_image` moves a mood picture between rooms (`room_id`);
   `delete_image` takes `next`; `delete_room` nulls its pictures' rooms. The schedule's mood pages print the house first,
   then room by room with the room name in the caption; the Overview shows `client_moods`.
+
+- **Plan sheet types.** The "Shows" list is data: `plan_layers` (`models.PlanLayer`: key = `ProjectImage.layer`, title, sort,
+  `words`, `categories`, both "|"-separated), seeded at startup by `layers.seed()` from `layers.DEFAULTS` (the six built-ins
+  plus `windows` "Windows & doors") only when the table is empty, so deletions stick; `main` is always there, first, and
+  never deleted. `layers.rows()` caches the list (TTL 30 s, dropped by every write); `options()` feeds the `layer_options()`
+  template global (upload form, page picker, tag form), `title()` feeds `ProjectImage.layer_title`, `from_title()` replaces
+  the old `_LAYER_WORDS` regexes (a word matches the start of a word in the upper-cased title: "electric" → ELECTRICAL,
+  "tile" → TILES, not TEXTILE; first type in order wins), `caption_re()` the old `_LAYER_CAPTION_RE`, `plan_re()` extends
+  `_PLAN_RE` so "WINDOW & DOOR PLAN" or "LANDSCAPE LAYOUT" counts as a plan title (`drawings._plan_match`), and
+  `for_category()` replaces `CATEGORY_LAYER`. Studio settings → **Plan sheet types** (`#sheets`): add (title + words; the key
+  is a slug of the title, unique, ≤ 20 chars), rename (every plan follows, the title is the only thing stored), words,
+  reorder, delete (refused while a plan shows it, `layers.usage`), and the categories → sheet table (`POST
+  /settings/layers/categories`, fields `c<i>` in `config.CATEGORIES` order). `projects._layer()` still maps unknown keys to
+  the main plan, so a deleted key never reaches the database.
 
 ## Backlog (in priority order)
 

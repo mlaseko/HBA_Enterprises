@@ -68,9 +68,9 @@ class ProjectImage(Base):
     caption: Mapped[str] = mapped_column(String(200), default="")
     file_key: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
-    # Floor plans only: what the sheet shows (config.PLAN_LAYERS): main (the floor's general floor plan, carries the room
-    # boxes) | furnishing | electrical | plumbing | ceiling | flooring. Column added by db.COLUMN_MIGRATIONS; rows that
-    # still said "furniture" (the old name of the main plan) are relabelled by db.DATA_MIGRATIONS.
+    # Floor plans only: what the sheet shows, the key of a PlanLayer: main (the floor's general floor plan, carries the room
+    # boxes) | furnishing | electrical | plumbing | ceiling | flooring | windows | what the studio added. Column added by
+    # db.COLUMN_MIGRATIONS; rows that still said "furniture" (the old name of the main plan) are relabelled by db.DATA_MIGRATIONS.
     layer: Mapped[str] = mapped_column(String(20), default="main", server_default="main")  # config.MAIN_LAYER
     project: Mapped["Project"] = relationship(back_populates="images")
     # Floor plans only: which floor the plan shows, sheet reference, full-size copy. No row = untagged plan.
@@ -101,8 +101,8 @@ class ProjectImage(Base):
 
     @property
     def layer_title(self) -> str:
-        from . import config
-        return config.LAYER_TITLES.get(self.layer or config.MAIN_LAYER, "Main plan")
+        from . import layers
+        return layers.title(self.layer)
 
     @property
     def is_main_layer(self) -> bool:
@@ -186,6 +186,20 @@ class DrawingPage(Base):
     floor: Mapped[str] = mapped_column(String(40), default="")
     is_plan: Mapped[bool] = mapped_column(Boolean, default=False)
     set: Mapped["DrawingSet"] = relationship(back_populates="page_meta")
+
+
+class PlanLayer(Base):
+    """One sheet type a floor plan can show (the "Shows" dropdown; ProjectImage.layer stores the key): the main plan and the
+    other sheets of a floor (furniture layout, electrical, plumbing, ceiling, flooring, windows & doors, or whatever the
+    studio adds). Edited under Studio settings → Plan sheet types, read through layers.py, seeded at first start from
+    layers.DEFAULTS. `words` are the title-block words the page picker looks for, `categories` the item categories the PDFs
+    read from this sheet; both "|"-separated."""
+    __tablename__ = "plan_layers"
+    key: Mapped[str] = mapped_column(String(20), primary_key=True)
+    title: Mapped[str] = mapped_column(String(60))
+    sort: Mapped[int] = mapped_column(Integer, default=0)
+    words: Mapped[str] = mapped_column(String(255), default="")
+    categories: Mapped[str] = mapped_column(String(255), default="")
 
 
 class Floor(Base):
