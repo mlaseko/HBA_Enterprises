@@ -60,7 +60,7 @@ def col(h, row, *names):
 
 @router.get("/p/{project_id}/import")
 def import_page(request: Request, p: Project = Depends(get_project)):
-    return render(request, "import.html", p=p, result=None)
+    return render(request, "import.html", p=p, floors=drawings.floor_order(p), result=None)
 
 
 # ---- the workbook: what the import reads, prefilled with this project's rooms (and, for the export, its items) ----------------
@@ -135,7 +135,7 @@ def quick_picks(p) -> list[tuple[str, str]]:
         out.append(("All bathrooms", "every bathroom"))
     for f in drawings.floor_order(p):
         if any(drawings.floor_key(r.floor) == drawings.floor_key(f) for r in rooms):
-            out.append((f"All on {drawings.floor_title(f)}", f"every room and area on the {drawings.floor_title(f).lower()}"))
+            out.append((f"All on {drawings.floor_title(f, p)}", f"every room and area on the {drawings.floor_title(f, p).lower()}"))
     return [(label, f"Quick pick for the Shopping List: a new item in {what}. Not a room; leave this row as it is.") for label, what in out]
 
 
@@ -458,7 +458,7 @@ def run_import(p: Project, db: Session, wb, replace: bool, dry: bool, photos: li
     `photos` = [(file name, bytes)] uploaded with the sheet; with the pictures placed over the sheet's Photo cells they go
     to the items they name (code or item name) when those have no photo yet, after the commit."""
     result = {"rooms": 0, "items": 0, "updated": 0, "unchanged": 0, "suppliers": 0, "skipped": 0, "deleted": 0, "warnings": [],
-              "new": [], "changes": [], "new_rooms": [], "new_suppliers": [], "photos": 0, "photos_kept": 0, "error": None, "dry": dry}
+              "new": [], "changes": [], "new_rooms": [], "new_floors": [], "floors": 0, "room_changes": [], "new_suppliers": [], "photos": 0, "photos_kept": 0, "error": None, "dry": dry}
     photos = photos or []
     warnings: list[str] = []
 
@@ -506,7 +506,14 @@ def run_import(p: Project, db: Session, wb, replace: bool, dry: bool, photos: li
                         r = Room(project_id=p.id, code=code, name=name.strip(), sort=sort)
                         db.add(r)
                         result["rooms"] += 1
-                    r.floor = str(col(h, row, "floor") or r.floor or "")
+                    before = None if new_room else (r.floor, r.kind)
+                    floor_cell = text(col(h, row, "floor"))
+                    if floor_cell:
+                        if not drawings.is_pseudo(floor_cell) and drawings.floor_entry(p, floor_cell) is None:
+                            result["new_floors"].append(" ".join(floor_cell.split())[:40])  # joins the floor list (Rooms page)
+                        r.floor = drawings.register_floor(db, p, floor_cell)
+                    else:
+                        r.floor = r.floor or ""
                     if kind in ("room", "area"):
                         r.kind = kind
                     elif new_room:
@@ -519,6 +526,10 @@ def run_import(p: Project, db: Session, wb, replace: bool, dry: bool, photos: li
                     idx.add(r)
                     if new_room:
                         result["new_rooms"].append(f"{r.label} ({r.floor or 'no floor'}, {r.kind})")
+                    elif (r.floor, r.kind) != before:  # an existing room moved or reclassified: say so in the preview
+                        what = ([f"floor {before[0] or 'none'} → {r.floor or 'none'}"] if r.floor != before[0] else []) + ([f"{before[1]} → {r.kind}"] if r.kind != before[1] else [])
+                        result["room_changes"].append(f"{r.label}: " + ", ".join(what))
+                result["floors"] = len(result["new_floors"])
 
         # ---- items ----
         sheet = next((n for n in wb.sheetnames if n.lower() in ("shopping list", "items", "master list")), None)
@@ -698,12 +709,12 @@ async def do_import(request: Request, p: Project = Depends(get_project), db: Ses
     if key:
         data = storage.read_image(key)
         if not data:
-            return render(request, "import.html", p=p, result={"error": "The uploaded file is no longer here. Choose it again."})
+            return render(request, "import.html", p=p, floors=drawings.floor_order(p), result={"error": "The uploaded file is no longer here. Choose it again."})
         pics = _load_photos(key)
     else:
         data = await file.read() if file is not None else b""
         if not data:
-            return render(request, "import.html", p=p, result={"error": "Choose an .xlsx file first."})
+            return render(request, "import.html", p=p, floors=drawings.floor_order(p), result={"error": "Choose an .xlsx file first."})
         for up in photos:
             pdata = await up.read()
             if pdata and up.filename:
@@ -711,12 +722,12 @@ async def do_import(request: Request, p: Project = Depends(get_project), db: Ses
     try:
         wb = load_workbook(io.BytesIO(data), data_only=True)
     except Exception as e:
-        return render(request, "import.html", p=p, result={"error": f"Could not read the file: {e}"})
+        return render(request, "import.html", p=p, floors=drawings.floor_order(p), result={"error": f"Could not read the file: {e}"})
     if apply == "1":
         result = run_import(p, db, wb, replace == "1", dry=False, photos=pics)
         if key:
             _drop_kept(key)
-        return render(request, "import.html", p=p, result=result)
+        return render(request, "import.html", p=p, floors=drawings.floor_order(p), result=result)
     if not key:
         key = storage.save_blob(data, f"imports/p{p.id}/{uuid.uuid4().hex}.xlsx", XLSX)
         if pics:
@@ -729,8 +740,8 @@ async def do_import(request: Request, p: Project = Depends(get_project), db: Ses
     preview = run_import(p, db, wb, replace == "1", dry=True, photos=pics)
     if preview["error"]:
         _drop_kept(key)
-        return render(request, "import.html", p=p, result=preview)
-    return render(request, "import.html", p=p, result=None, preview=preview, key=key, replace=replace == "1")
+        return render(request, "import.html", p=p, floors=drawings.floor_order(p), result=preview)
+    return render(request, "import.html", p=p, floors=drawings.floor_order(p), result=None, preview=preview, key=key, replace=replace == "1")
 
 
 @router.post("/p/{project_id}/import/cancel")

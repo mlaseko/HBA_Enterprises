@@ -107,7 +107,7 @@ def _boxes(p, im) -> list[dict]:
 def _plan_page(p, im, height: float, caption: str | None = None) -> list:
     """A plan on its own page. caption None = the floor's title; "" = none (the section opener above already names it)."""
     sub = drawings.plan_caption(im)
-    cap = caption if caption is not None else (drawings.floor_title(im.floor) if im.floor else "Floor plan")
+    cap = caption if caption is not None else (drawings.floor_title(im.floor, p) if im.floor else "Floor plan")
     if sub == cap:
         sub = ""
     return [PlanFigure(storage.read_image(im.best_key), W, height, _boxes(p, im), cap, sub), PageBreak()]
@@ -310,7 +310,7 @@ def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=T
             fl_plans = by.get(k, [])
             if not groups and not fl_plans:
                 continue
-            title = drawings.floor_title(f)
+            title = drawings.floor_title(f, p)
             n_items = sum(len(g[2]) for g in groups)
             meta = f"{len(groups)} room{'s' if len(groups) != 1 else ''} · {n_items} item{'s' if n_items != 1 else ''}" + (f" · {mny.sym}{mny.fmt(sum(i.total for _, _, its in groups for i in its), 0)}" if show_prices else "")
             story += [Section(title, meta), Spacer(1, 6)]
@@ -358,7 +358,7 @@ def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=T
             layer = drawings.layer_for_category(c)
             layer_plans = [im for im in drawings.client_plans(p) if im.layer == layer and im.id not in mains] if layer != MAIN_LAYER else []
             for n, im in enumerate(layer_plans):  # the sheets this category is read from: the electrical plans before the lighting schedule
-                story += _plan_page(p, im, H - 44 if n == 0 else H, caption=f"{drawings.floor_title(im.floor) if im.floor else c} · {im.layer_title.lower()} plan")
+                story += _plan_page(p, im, H - 44 if n == 0 else H, caption=f"{drawings.floor_title(im.floor, p) if im.floor else c} · {im.layer_title.lower()} plan")
             if layer_plans:
                 story += [Paragraph(f"{esc(c)} · schedule", T["h2"]), Spacer(1, 6)]
             story += [_table(items, mny, show_prices, include_photos, where="room", total_label=f"Total for {c}"), PageBreak()]

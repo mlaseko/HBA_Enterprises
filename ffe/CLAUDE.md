@@ -28,7 +28,7 @@ app/main.py            app, login/logout, /settings, /help (user guide = templat
 app/config.py          env vars + constant lists (CATEGORIES, STATUSES, UNITS …)
 app/db.py              engine/session; create_all on startup + migrate(): COLUMN_MIGRATIONS adds columns to existing tables
 app/models.py          Settings, Project, ProjectImage, PlanTag, RoomPin, ItemPin, DrawingSet, DrawingPage (title block per page),
-                       Room (kind = room | area; is_area), Supplier, SupplierLink, Item, ItemPhoto,
+                       Floor (the project's floor list: name, kind floor | area, sort), Room (kind = room | area; is_area), Supplier, SupplierLink, Item, ItemPhoto,
                        ItemPrice (the typed USD price; Item.price_currency / price_amount), Payment, Carton
                        Item.draft = quick-capture draft (no name/code yet); Project.live_items / Project.drafts split them
 app/common.py          templates, auth helpers, number filters, render()/redirect() (render injects `help_tip` for the ? drawer)
@@ -41,8 +41,9 @@ app/storage.py         save_image(max_px=)/save_blob/read_image/delete_image —
                        default when REPL_ID is set; read_image copies a photo found only on local disk into the bucket);
                        save_photo() = full + small copy (thumb_key), save_thumb(), delete_photo(), prefetch() (parallel warm-up),
                        an in-memory LRU of served pictures (MEDIA_CACHE_MB) that read_image() fills and delete_image() drops
-app/drawings.py        floor plans: render_page()/page_count() via pypdfium2 (optional import), floor_key()/floor_title()
-                       matching plans to Room.floor, rooms_by_floor(), plan_for_room(), client_plans();
+app/drawings.py        floor plans: render_page()/page_count() via pypdfium2 (optional import), floor_key()/floor_title(s, p)
+                       matching plans to Room.floor, rooms_by_floor(), plan_for_room(), client_plans(); the floor list: floor_entry(),
+                       canonical_floor(), register_floor(), sync_floors(), rename_floor(), merge_floor(), floor_rows(), floor_from_form();
                        interactive plan: rooms_for_plan(), pins_by_room(), plan_with_room(), default_plan(), clamp_box(), clamp_point();
                        layers: main_plan(), plans_for_floor() (main first: the general plan with boxes; a lone layer stands in), borrowed_from(), pins_for(),
                        layer_from_title(), layer_for_category(), plan_role() (main | twin | layer), legacy_layer_hint() ("Ground Electrical" → layer);
@@ -164,6 +165,16 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
   `models.py` **and** a line in `db.COLUMN_MIGRATIONS` (table, column, SQL type/default); `migrate()` adds it at startup
   on SQLite and Neon, so nothing is run by hand. Still prefer a new table when the data is optional (e.g. `plan_tags`).
   Adding Alembic is a welcome backlog item.
+- **Floors are a list** (`models.Floor`, table `floors`, `Project.floors`), not just text. Rooms and plans still store the floor as
+  text (`Room.floor`, `PlanTag.floor`, matched by `drawings.floor_key`), but every value written there goes through
+  `drawings.register_floor(db, p, name)`: the listed spelling when the floor is known, else a new `Floor` row (kind guessed by
+  `guess_floor_kind`, `config.FLOOR_AREA_WORDS`). `floor_order(p)` is the list's order (then legacy names until `sync_floors`
+  lists them, which the Rooms and Images pages do on load); `floor_title(s, p)` prints a separate area (`kind == "area"`) as it is;
+  the Jinja `floor_title` filter reads `p` from the context. Forms use the `floor_select` macro (`_macros.html`: the list plus
+  "+ New floor…" revealing `<name>_new`, resolved by `floor_from_form`); never a free-text floor box again. Pseudo floors
+  (`drawings.PSEUDO`: All, Site, Outside…) are never listed. Routes: `POST /p/<id>/floors` (add), `/floors/<fid>` (rename: rooms
+  and plans follow), `/floors/<fid>/move`, `/floors/<fid>/merge` (`into`), `/floors/<fid>/delete` (empty floors only), all in
+  routers/rooms.py, answering with `?err=` / `?ok=` on the Rooms page.
 - Rooms vs areas: `Room.kind` is `room` or `area`. Both carry codes, items, boxes and pins identically; the difference is
   wording, grouping and counting: list rooms first, then areas under a sub-title (`drawings.rooms_by_floor` gives
   `rooms` / `areas` / `all`; `summary()['by_room']` rows carry `kind`; the `_macros.html` `room_options` macro groups
@@ -366,6 +377,21 @@ ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';  
   (`question()` reads it at submit time); `data-photos` on a box counts its lines with photos for the "Untick the ones
   with photos" button. The bar sticks under the top bar while something is ticked (`.has-sel`). A filter never deletes
   anything on its own; the redirect keeps the filter and adds `?deleted=N` for the message.
+
+- **The floor list.** `models.Floor` + the Floors card on the Rooms page (add, rename with rooms and plans following, arrows
+  to reorder, Merge into, Delete when empty; a floor of the house or a separate area that prints under its own name);
+  `drawings.register_floor` behind every floor written by the room forms, the plan forms (`_add_plan`, `edit_image`, the
+  page picker) and the importer, which reports `new_floors` and `room_changes` (floor / kind changes of existing rooms) in
+  the preview. `sync_floors` lists what older projects already named.
+
+- **Filtered exports and the plan's floor navigation.** `GET /p/<id>/export/items.xlsx` takes the Items page filters
+  (`room`, `category`, `status`, `supplier`, `q`, through `items.item_query`) plus `floor` (rooms on that floor), builds the
+  same editable workbook with only those items and names the file after the choice; the Items page's Export button
+  carries the current filter (`qs`), and the Import page has the "Export a part" picker (`#export-pick`: category, floor,
+  room, status). `plan.stage_ctx` builds one tab per listed floor (`floor_order`), with its main plan or without one
+  (`im=None`, `?floor=<key>`, hidden on the client page); `plan_page(floor=)` opens the floor's main plan or, when it has
+  none, the `plan-nofloor` card with `floor_sel_rooms`; `plan/_intro.html` lists the whole floor (`floor_rooms`, rooms
+  then areas, "not placed" for the designer) instead of only the placed rooms.
 
 ## Backlog (in priority order)
 

@@ -261,10 +261,10 @@ with TestClient(app) as c:
     # tag edit; floor matching is case-insensitive and ignores "floor"
     r=c.post(f"/p/{pid}/images/{gid}", data={"floor":" ground floor ","sheet":"A-101 Rev B","caption":"Ground plan"}, follow_redirects=False)
     assert r.status_code==303 and r.headers["location"].endswith(f"#img-{gid}")
-    db=SessionLocal(); im=db.get(ProjectImage,gid); assert im.tag.floor=="ground floor" and im.sheet=="A-101 Rev B" and im.caption=="Ground plan"
+    db=SessionLocal(); im=db.get(ProjectImage,gid); assert im.tag.floor=="Ground" and im.sheet=="A-101 Rev B" and im.caption=="Ground plan"  # stored as the floor list spells it
     pr=db.get(_P,int(pid)); assert _dr.plan_for_room(pr, db.get(Room, room.id)).id==gid and [g["title"] for g in _dr.rooms_by_floor(pr)]==["Ground floor","First floor","Roof","Whole house / other"]
     plan_prev=im.file_key; db.close()
-    r=c.get(f"/p/{pid}/rooms"); assert "Ground floor" in r.text and "A-101 Rev B" in r.text and plan_prev in r.text and "Plan A-101 Rev B" in r.text and 'list="floors"' in r.text
+    r=c.get(f"/p/{pid}/rooms"); assert "Ground floor" in r.text and "A-101 Rev B" in r.text and plan_prev in r.text and "Plan A-101 Rev B" in r.text and 'class="in floor-sel"' in r.text
     assert "No plan for this floor yet" not in r.text and "Whole house / other" in r.text
     r=c2.get(f"/c/{ctok}"); assert "Floor plans" in r.text and plan_prev in r.text and "layout=floor" in r.text
     r=c2.get(f"/c/{ctok}/schedule.pdf?layout=floor"); assert r.status_code==200 and r.headers["content-type"]=="application/pdf"
@@ -302,7 +302,7 @@ with TestClient(app) as c:
     # deleting the PDF keeps the pages already added
     r=c.post(f"/p/{pid}/images/sets/{sid}/delete", follow_redirects=False); assert r.status_code==303
     assert _st.read_image(set_key) is None and _st.read_image(thumb1) is None and c.get(f"/p/{pid}/images/sets/{sid}").status_code==404
-    db=SessionLocal(); im=db.get(ProjectImage,gid); assert im is not None and im.tag.set_id is None and im.tag.page_no is None and im.floor=="ground floor"; db.close()
+    db=SessionLocal(); im=db.get(ProjectImage,gid); assert im is not None and im.tag.set_id is None and im.tag.page_no is None and im.floor=="Ground"; db.close()
     # without pypdfium2: PDFs are refused with a clear message, image plans still work
     _real=_dr.pdfium; _dr.pdfium=None
     try:
@@ -1072,4 +1072,79 @@ with TestClient(app) as c:
     assert "data-confirm=" in c.get(f"/p/{pid}/items/{d3}").text and "data-removal=" in c.get(f"/p/{pid}/items/{d3}").text
     assert "window.appConfirm" in Path("app/static/app.js").read_text()
     print("no system dialogs ok")
+    # ---- floors: the floor list on the Rooms page (models.Floor): add, rename, reorder, merge, delete; every dropdown, title and the import follow ----
+    r=c.post("/projects/new", data={"client_name":"Floors","name":"Floors test","rate":"7"}, follow_redirects=False); pf=r.headers["location"].rstrip("/").split("/")[-1]
+    c.post(f"/p/{pf}/rooms", data={"code":"GF-LIV","name":"Living room","floor":"Ground"}, follow_redirects=False)
+    c.post(f"/p/{pf}/rooms", data={"code":"FF-BR1","name":"Bedroom 1","floor":"first floor"}, follow_redirects=False)  # a new floor starts with a capital
+    c.post(f"/p/{pf}/rooms", data={"code":"GF-KIT","name":"Kitchen","floor":"ground floor"}, follow_redirects=False)  # the same floor as Ground: stored as "Ground"
+    c.post(f"/p/{pf}/rooms", data={"code":"RF-GYM","name":"Gym","floor":"Roof"}, follow_redirects=False)
+    c.post(f"/p/{pf}/rooms", data={"code":"BQ","name":"Boys' Quarter","floor":"__new__","floor_new":"Staff quarters"}, follow_redirects=False)  # the dropdown's "+ New floor…"
+    c.post(f"/p/{pf}/rooms", data={"code":"EXT","name":"Garden","floor":"Site","kind":"area"}, follow_redirects=False)  # a pseudo floor: never listed
+    r=c.post(f"/p/{pf}/images/plans", data={"floor":"roof","sheet":"A-103"}, files=[("files",("roof.jpg",img("white"),"image/jpeg"))], follow_redirects=False); assert r.status_code==303
+    db=SessionLocal(); pr=db.get(_P,int(pf)); fl={f.name:f for f in pr.floors}
+    assert list(fl)==["Ground","First floor","Roof","Staff quarters"], list(fl)
+    assert fl["Staff quarters"].kind=="area" and fl["Ground"].kind=="floor" and _dr.plans(pr)[0].floor=="Roof"
+    assert {x.code:x.floor for x in pr.rooms if x.code!="ALL"}=={"GF-LIV":"Ground","FF-BR1":"First floor","GF-KIT":"Ground","RF-GYM":"Roof","BQ":"Staff quarters","EXT":"Site"}
+    assert _dr.floor_order(pr)==["Ground","First floor","Roof","Staff quarters"] and _dr.floor_title("staff quarters",pr)=="Staff quarters" and _dr.floor_title("ground floor",pr)=="Ground floor" and _dr.floor_title("Site",pr)=="Site"
+    roof_id, ground_id, sq_id, first_id = fl["Roof"].id, fl["Ground"].id, fl["Staff quarters"].id, fl["First floor"].id; bq_id=next(x.id for x in pr.rooms if x.code=="BQ"); db.close()
+    h=c.get(f"/p/{pf}/rooms").text
+    assert 'id="floors"' in h and h.count('class="in floor-sel"')>=7 and "+ New floor…" in h and f'action="/p/{pf}/floors/{roof_id}/merge"' in h and 'list="floors"' not in h and h.count("<option value=\"Staff quarters\"")>=7
+    assert "Staff quarters</h2>" in h and "Roof</h2>" in h  # group titles: a separate area prints as it is
+    # add: a duplicate (any spelling) and a pseudo floor are refused with a message; a real one joins the list
+    r=c.post(f"/p/{pf}/floors", data={"name":"GROUND FLOOR"}, follow_redirects=False); assert "already in the list" in c.get(r.headers["location"]).text
+    r=c.post(f"/p/{pf}/floors", data={"name":"Site"}, follow_redirects=False); assert "not a floor" in c.get(r.headers["location"]).text
+    r=c.post(f"/p/{pf}/floors", data={"name":"Second","kind":"floor"}, follow_redirects=False); assert "added" in c.get(r.headers["location"]).text
+    db=SessionLocal(); pr=db.get(_P,int(pf)); second_id=next(f.id for f in pr.floors if f.name=="Second"); db.close()
+    # rename: its rooms and plans follow the new spelling; a rename onto another listed floor is refused (merge instead)
+    r=c.post(f"/p/{pf}/floors/{first_id}", data={"name":"First","kind":"floor"}, follow_redirects=False); assert "1 entry follows" in c.get(r.headers["location"]).text
+    r=c.post(f"/p/{pf}/floors/{first_id}", data={"name":"ground","kind":"floor"}, follow_redirects=False); assert "use Merge into" in c.get(r.headers["location"]).text
+    db=SessionLocal(); pr=db.get(_P,int(pf)); assert next(x for x in pr.rooms if x.code=="FF-BR1").floor=="First" and _dr.floor_title("first floor",pr)=="First floor"; db.close()
+    # merge Roof into Second: the gym and the roof plan move, Roof leaves the list; then Second moves up under First
+    r=c.post(f"/p/{pf}/floors/{roof_id}/merge", data={"into":str(second_id)}, follow_redirects=False); assert "merged into" in c.get(r.headers["location"]).text
+    db=SessionLocal(); pr=db.get(_P,int(pf)); assert [f.name for f in pr.floors]==["Ground","First","Staff quarters","Second"] and next(x for x in pr.rooms if x.code=="RF-GYM").floor=="Second"
+    assert all(im.floor=="Second" for im in _dr.plans(pr)) and [g["title"] for g in _dr.rooms_by_floor(pr)]==["Ground floor","First floor","Staff quarters","Second floor","Whole house / other"]; db.close()
+    c.post(f"/p/{pf}/floors/{second_id}/move", data={"dir":"up"}, follow_redirects=False)
+    db=SessionLocal(); pr=db.get(_P,int(pf)); assert _dr.floor_order(pr)==["Ground","First","Second","Staff quarters"]; db.close()
+    # delete: refused while something is on it, fine once empty
+    r=c.post(f"/p/{pf}/floors/{sq_id}/delete", data={}, follow_redirects=False); assert "still has 1 room" in c.get(r.headers["location"]).text
+    c.post(f"/p/{pf}/rooms/{bq_id}", data={"code":"BQ","name":"Boys' Quarter","floor":"Second"}, follow_redirects=False)
+    r=c.post(f"/p/{pf}/floors/{sq_id}/delete", data={}, follow_redirects=False); assert "deleted" in c.get(r.headers["location"]).text
+    # a plan tag typed another way lands on the listed spelling; the import registers a new floor and says what moves
+    db=SessionLocal(); pr=db.get(_P,int(pf)); plan_id=_dr.plans(pr)[0].id; db.close()
+    c.post(f"/p/{pf}/images/{plan_id}", data={"floor":" second floor ","sheet":"A-103"}, follow_redirects=False)
+    db=SessionLocal(); assert db.get(ProjectImage,plan_id).tag.floor=="Second"; db.close()
+    import openpyxl as _ox, io as _io
+    wb=_ox.Workbook(); ws=wb.active; ws.title="Rooms"; ws.append(["Room","Floor","Kind"]); ws.append(["BQ - Boys' Quarter","Guest house","room"]); ws.append(["GH-BR - Guest bedroom","Guest house","room"])
+    ws2=wb.create_sheet("Shopping List"); ws2.append(["Code","Room","Category","Item","Qty","Unit"]); ws2.append(["","GH-BR - Guest bedroom","Furniture","Bed","1","pcs"])
+    buf=_io.BytesIO(); wb.save(buf)
+    r=c.post(f"/p/{pf}/import", files={"file":("floors.xlsx",buf.getvalue(),"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}); h=r.text
+    assert "1 new floor" in h and "1 room changed" in h and "floor Second → Guest house" in h and "1 new room" in h, h[:400]
+    key=re.search(r'name="key" value="([^"]+)"', h).group(1); r=c.post(f"/p/{pf}/import", data={"key":key,"apply":"1"}, follow_redirects=False); assert r.status_code in (200,303)
+    db=SessionLocal(); pr=db.get(_P,int(pf)); gh=next(f for f in pr.floors if f.name=="Guest house"); assert gh.kind=="area" and {x.code:x.floor for x in pr.rooms if x.code in ("BQ","GH-BR")}=={"BQ":"Guest house","GH-BR":"Guest house"}; db.close()
+    r=c.get(f"/p/{pf}/export/schedule.pdf?layout=floor"); assert r.status_code==200 and "GUEST HOUSE" in pdf_text(r.content).upper() and "GUEST HOUSE FLOOR" not in pdf_text(r.content).upper()
+    print("floors ok")
+    # ---- the plan page follows the floor list: a tab per listed floor (with or without a plan), a floor without a plan lists its rooms ----
+    db=SessionLocal(); pr=db.get(_P,int(pf)); liv_id=next(x.id for x in pr.rooms if x.code=="GF-LIV"); gym_id=next(x.id for x in pr.rooms if x.code=="RF-GYM"); ctok=pr.client_token; db.close()
+    h=c.get(f"/p/{pf}/plan").text
+    assert 'class="plan-tabs"' in h and "?floor=ground" in h and "?floor=first" in h and "?floor=guest%20house" in h and "No plan yet" in h and "Second floor" in h, h[:300]
+    assert h.count("No plan yet")==3 and "· 2 rooms" in h  # Ground has two rooms, no plan
+    h=c.get(f"/p/{pf}/plan?floor=ground").text
+    assert "No plan for Ground floor yet" in h and f'href="/p/{pf}/items?room={liv_id}"' in h and "GF-KIT" in h and "Add its plan" in h and 'id="plan-stage"' not in h
+    h=c.get(f"/p/{pf}/plan?floor=second").text  # the floor's plan opens; the side panel lists the floor's rooms, placed or not
+    assert 'id="plan-stage"' in h and f'room={gym_id}' in h and "not placed" in h and "Second floor</div>" in h
+    assert "No plan for" in c.get(f"/p/{pf}/plan?floor=Guest%20House").text  # any spelling of a listed floor
+    h=c.get(f"/c/{ctok}").text; assert "?floor=" not in h and "not placed" not in h  # the client never sees floors without a plan or designer hints
+    # ---- filtered exports: the Items page filters and a floor, the same editable sheet, named after the choice ----
+    r=c.post(f"/p/{pf}/items/new", data={"room_ids":[str(liv_id)],"category":"Furniture","name":"Sofa","qty":"1","unit":"pcs","status":"To buy"}, follow_redirects=False); assert r.status_code==303
+    r=c.post(f"/p/{pf}/items/new", data={"room_ids":[str(gym_id)],"category":"Lighting","name":"Spot light","qty":"4","unit":"pcs","status":"To buy"}, follow_redirects=False); assert r.status_code==303
+    def xrows(resp): wb_=_ox.load_workbook(_io.BytesIO(resp.content), data_only=True); return [x for x in wb_["Shopping List"].iter_rows(min_row=2, values_only=True) if x[0]]
+    r=c.get(f"/p/{pf}/export/items.xlsx"); assert r.status_code==200 and len(xrows(r))==3 and "-items.xlsx" in r.headers["content-disposition"]
+    r=c.get(f"/p/{pf}/export/items.xlsx?category=Lighting"); assert [x[2] for x in xrows(r)]==["Lighting"] and "-Lighting.xlsx" in r.headers["content-disposition"]
+    r=c.get(f"/p/{pf}/export/items.xlsx?floor=ground%20floor"); assert [x[3] for x in xrows(r)]==["Sofa"] and "Ground-floor" in r.headers["content-disposition"]
+    r=c.get(f"/p/{pf}/export/items.xlsx?room={gym_id}&status=To+buy"); assert [x[3] for x in xrows(r)]==["Spot light"] and "RF-GYM-To-buy" in r.headers["content-disposition"]
+    assert xrows(c.get(f"/p/{pf}/export/items.xlsx?category=Tiles"))==[]  # an empty filter: a sheet with the rooms and no rows
+    h=c.get(f"/p/{pf}/items?category=Lighting").text; assert "Export these 1" in h and f'href="/p/{pf}/export/items.xlsx?category=Lighting"' in h
+    h=c.get(f"/p/{pf}/items").text; assert f'href="/p/{pf}/export/items.xlsx"' in h and "Export these" not in h
+    h=c.get(f"/p/{pf}/import").text; assert f'action="/p/{pf}/export/items.xlsx"' in h and 'name="floor"' in h and 'value="Guest house"' in h and "Export a part" in h
+    print("exports and plan navigation ok")
     print("ALL OK")

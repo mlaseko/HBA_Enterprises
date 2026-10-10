@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import room_options %}
 {% block title %}Import — {{ p.name }}{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -10,9 +11,20 @@
   <div class="actions">
     <a class="btn" href="/p/{{ p.id }}/import/template.xlsx"><svg class="ic"><use href="#i-download"/></svg>Download the template</a>
     <a class="btn sec" href="/p/{{ p.id }}/export/items.xlsx"><svg class="ic"><use href="#i-download"/></svg>Export all items</a>
+    <a class="btn sec" href="#export-pick"><svg class="ic"><use href="#i-search"/></svg>Export a part</a>
     <a class="btn sec sm" href="/p/{{ p.id }}/items"><svg class="ic"><use href="#i-grid"/></svg>Items</a>
   </div>
 </div>
+
+<form method="get" action="/p/{{ p.id }}/export/items.xlsx" class="card filters export-pick" id="export-pick">
+  <span class="small"><b>Export a part</b> to edit and import back:</span>
+  <select name="category" class="in" aria-label="Category"><option value="">All categories</option>{% for c in CATEGORIES %}<option>{{ c }}</option>{% endfor %}</select>
+  <select name="floor" class="in" aria-label="Floor"><option value="">All floors</option>{% for f in floors %}<option value="{{ f }}">{{ f|floor_title }}</option>{% endfor %}</select>
+  <select name="room" class="in" aria-label="Room"><option value="">All rooms &amp; areas</option>{{ room_options(p.rooms, '') }}<option value="none">No room (whole house)</option></select>
+  <select name="status" class="in" aria-label="Status"><option value="">Any status</option>{% for st in STATUSES %}<option>{{ st }}</option>{% endfor %}</select>
+  <button class="btn sm"><svg class="ic"><use href="#i-download"/></svg>Export</button>
+  <span class="small muted">Nothing chosen = every item. The Items page exports what its filter shows, too.</span>
+</form>
 
 {% if preview %}
 <div class="card" id="preview">
@@ -26,12 +38,16 @@
     <span class="pill {{ 'accent' if preview.updated }}">{{ preview.updated }} updated</span>
     <span class="pill">{{ preview.unchanged }} unchanged</span>
     <span class="pill {{ 'accent' if preview.rooms }}">{{ preview.rooms }} new room{{ 's' if preview.rooms != 1 }}</span>
+    {% if preview.room_changes %}<span class="pill accent">{{ preview.room_changes|length }} room{{ 's' if preview.room_changes|length != 1 }} changed</span>{% endif %}
+    {% if preview.floors %}<span class="pill accent">{{ preview.floors }} new floor{{ 's' if preview.floors != 1 }}</span>{% endif %}
     <span class="pill {{ 'accent' if preview.suppliers }}">{{ preview.suppliers }} new supplier{{ 's' if preview.suppliers != 1 }}</span>
     <span class="pill">{{ preview.skipped }} skipped</span>
     <span class="pill {{ 'accent' if preview.photos }}">{{ preview.photos }} picture{{ 's' if preview.photos != 1 }}</span>
   </div>
   {% if preview.warnings %}<div class="alert info mt"><b>Check these:</b><ul class="mt mb-0">{% for w in preview.warnings %}<li>{{ w }}</li>{% endfor %}</ul></div>{% endif %}
   {% if preview.new_rooms %}<div class="mt"><span class="eyebrow">New rooms</span><div class="small">{{ preview.new_rooms|join(' · ') }}</div></div>{% endif %}
+  {% if preview.new_floors %}<div class="mt"><span class="eyebrow">New floors</span><div class="small">{{ preview.new_floors|join(' · ') }} <span class="muted">(added to the floor list on the Rooms page; set the kind there)</span></div></div>{% endif %}
+  {% if preview.room_changes %}<div class="mt"><span class="eyebrow">Rooms that change</span><div class="small">{{ preview.room_changes|join(' · ') }}</div></div>{% endif %}
   {% if preview.new_suppliers %}<div class="mt"><span class="eyebrow">New suppliers</span><div class="small">{{ preview.new_suppliers|join(' · ') }}</div></div>{% endif %}
   {% if preview.changes %}
   <div class="eyebrow mt">Updated items</div>
@@ -69,7 +85,7 @@
     <div>
       <h2>Upload the Excel</h2>
       <p class="small muted"><b>Adding:</b> start from <b>Download the template</b>. Its <b>Rooms</b> sheet lists this project's rooms and areas (add a floor, a room or an area as a new row) and its <b>Shopping List</b> has dropdowns for the room, category, unit and status. The Room dropdown also offers <b>All bedrooms</b>, <b>All bathrooms</b>, <b>All rooms</b>, <b>All areas</b> and <b>All on Ground floor</b>; several rooms can be typed with <b>;</b> between them. One row then becomes one item per room, each with its own code.</p>
-      <p class="small muted"><b>Updating:</b> press <b>Export all items</b> (it carries each item's picture), change what you need in Excel and import the file. A row whose <b>Code</b> is an existing item's code updates that item: only the cells you fill in change, a <b>-</b> clears a cell, and the code never changes. Rows without a code are added as new items.</p>
+      <p class="small muted"><b>Updating:</b> press <b>Export all items</b>, or export just a category, floor, room or status (the file carries each item's picture), change what you need in Excel and import the file. A row whose <b>Code</b> is an existing item's code updates that item: only the cells you fill in change, a <b>-</b> clears a cell, and the code never changes. Rows without a code are added as new items.</p>
       <div class="eyebrow">Recognised columns</div>
       <div class="row mt">
         <span class="pill">Code</span><span class="pill">Room</span><span class="pill">Category</span><span class="pill">Item</span><span class="pill">Photo</span><span class="pill">Must-have spec</span><span class="pill">Brand</span><span class="pill">Size / Finish</span><span class="pill">Qty</span><span class="pill">Unit</span><span class="pill">Price (CNY)</span><span class="pill">Supplier</span><span class="pill">Lead time</span><span class="pill">Status</span><span class="pill">Optional</span><span class="pill">Notes</span>

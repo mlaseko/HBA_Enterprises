@@ -1,3 +1,4 @@
+{% from "_macros.html" import floor_select %}
 {# One room's panel on the Plan page. Rendered inline (?room=) and served as a fragment by GET <base>/room/<room>.
    readonly = the client link: photos, USD, status badges; no suppliers, notes, prices in CNY or any control. #}
 {% set n = items|length %}
@@ -65,11 +66,10 @@
     <form method="post" action="/p/{{ p.id }}/rooms/{{ room.id }}" class="mt">
       <input type="hidden" name="next" value="{{ here }}">
       <input type="hidden" name="sort" value="{{ room.sort }}">
-      <datalist id="plan-floors">{% for f in floors %}<option value="{{ f }}">{% endfor %}</datalist>
       <div class="grid g2">
         <div><label>Code</label><input class="in" type="text" name="code" value="{{ room.code }}" required></div>
         <div><label>Name</label><input class="in" type="text" name="name" value="{{ room.name }}" required></div>
-        <div><label>Floor</label><input class="in" type="text" name="floor" list="plan-floors" value="{{ room.floor }}" autocomplete="off"></div>
+        <div><label>Floor</label>{{ floor_select('floor', room.floor, floors, none_label='No floor (whole house / outside)') }}</div>
         <div><label>Floor area m²</label><input class="in" type="number" step="0.1" name="floor_area" value="{{ room.floor_area }}"></div>
         <div><label>Wall tile m²</label><input class="in" type="number" step="0.1" name="wall_area" value="{{ room.wall_area }}"></div>
         <div class="span2"><label>Notes</label><input class="in" type="text" name="notes" value="{{ room.notes }}" placeholder="Finish level, access, anything the installers should know"></div>

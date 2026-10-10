@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import room_pill %}
+{% from "_macros.html" import room_pill, floor_select %}
 {% block title %}Rooms &amp; areas · {{ p.name }} · {{ APP_NAME }}{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -15,7 +15,39 @@
   </div>
 </div>
 
-<datalist id="floors">{% for f in floors %}<option value="{{ f }}">{% endfor %}</datalist>
+{% if err %}<div class="alert err">{{ err }}</div>{% endif %}
+{% if ok %}<div class="alert info">{{ ok }}</div>{% endif %}
+<div class="card" id="floors">
+  <div class="row between">
+    <h2 class="mb-0">Floors</h2>
+    <span class="small muted">Every room and plan belongs to one. Rename, reorder or merge them here; the Floor dropdowns follow.</span>
+  </div>
+  {% if floor_rows %}
+  <div class="tbl mt"><table class="floors">
+    <thead><tr><th>Order</th><th>Name</th><th>Kind</th><th class="num">Rooms</th><th class="num">Plans</th><th>Merge into</th><th></th></tr></thead>
+    <tbody>
+    {% for fr in floor_rows %}{% set f = fr.floor %}
+    <tr>
+      <td class="nowrap"><form method="post" action="/p/{{ p.id }}/floors/{{ f.id }}/move" class="inl"><button class="btn sm icon ghost" name="dir" value="up" title="Move up" aria-label="Move {{ f.name }} up"{% if loop.first %} disabled{% endif %}>↑</button><button class="btn sm icon ghost" name="dir" value="down" title="Move down" aria-label="Move {{ f.name }} down"{% if loop.last %} disabled{% endif %}>↓</button></form></td>
+      <td><form method="post" action="/p/{{ p.id }}/floors/{{ f.id }}" class="inl" id="fl-{{ f.id }}"><input class="in nm" type="text" name="name" value="{{ f.name }}" aria-label="Name of the floor" required></form></td>
+      <td><select class="in" name="kind" form="fl-{{ f.id }}" aria-label="Kind"><option value="floor" {{ 'selected' if not f.is_area }}>Floor</option><option value="area" {{ 'selected' if f.is_area }}>Separate area</option></select></td>
+      <td class="num">{{ fr.rooms }}</td>
+      <td class="num">{{ fr.plans }}</td>
+      <td>{% if floor_rows|length > 1 %}<form method="post" action="/p/{{ p.id }}/floors/{{ f.id }}/merge" class="inl" data-confirm="Merge {{ f.name }} into the chosen floor? Its {{ fr.rooms }} room{{ 's' if fr.rooms != 1 }} and {{ fr.plans }} plan{{ 's' if fr.plans != 1 }} move there, and {{ f.name }} leaves the list."><select class="in" name="into" aria-label="Merge {{ f.name }} into" required><option value="">Choose…</option>{% for o in floor_rows if o.floor.id != f.id %}<option value="{{ o.floor.id }}">{{ o.floor.name }}</option>{% endfor %}</select><button class="btn sm sec">Merge</button></form>{% endif %}</td>
+      <td class="nowrap"><button class="btn sm" form="fl-{{ f.id }}"><svg class="ic"><use href="#i-check"/></svg>Save</button> <form method="post" action="/p/{{ p.id }}/floors/{{ f.id }}/delete" class="inl" data-confirm="Delete {{ f.name }} from the list? It has no rooms or plans, so nothing else changes."><button class="btn sm ghost danger"{% if fr.rooms or fr.plans %} disabled title="Move its rooms and plans to another floor first, or merge it"{% endif %}><svg class="ic"><use href="#i-trash"/></svg>Delete</button></form></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<p class="small muted mt">No floors yet. Add the first one here, or give a room a floor: it joins the list.</p>{% endif %}
+  <form method="post" action="/p/{{ p.id }}/floors" class="row mt floors-add">
+    <input class="in" type="text" name="name" placeholder="New floor, e.g. Second or Staff quarters" aria-label="Name of the new floor" required>
+    <select class="in" name="kind" aria-label="Kind of the new floor"><option value="">Kind: from the name</option><option value="floor">Floor of the house</option><option value="area">Separate area (another building, outdoors)</option></select>
+    <button class="btn sm"><svg class="ic"><use href="#i-plus"/></svg>Add floor</button>
+  </form>
+  <p class="small muted mt">A <b>floor of the house</b> prints as "Ground floor"; a <b>separate area</b> (the staff quarters, a guest house, the garden) prints with its own name and gets its own plan. "Whole house", "Site" and "Outside" are not floors: entries with those are listed under Whole house / other.</p>
+</div>
+
 <form method="post" class="card">
   <div class="row between">
     <h2 class="mb-0">Add a room</h2>
@@ -27,7 +59,7 @@
     <div><label>Floor area m²</label><input class="in" type="number" step="0.1" name="floor_area" placeholder="0"></div>
     <div><label>Wall tile m²</label><input class="in" type="number" step="0.1" name="wall_area" placeholder="0"></div>
     <div class="span2"><label>Notes</label><input class="in" type="text" name="notes" placeholder="Finish level, access, anything the installers should know"></div>
-    <div><label>Floor</label><input class="in" type="text" name="floor" list="floors" placeholder="Ground" autocomplete="off"></div>
+    <div><label>Floor</label>{{ floor_select('floor', '', floors, none_label='No floor (whole house / outside)') }}</div>
     <div><label>Kind</label><select class="in" name="kind"><option value="auto">Auto (by name)</option><option value="room">Room</option><option value="area">Area</option></select></div>
     <div class="btn-cell"><button class="btn"><svg class="ic"><use href="#i-plus"/></svg>Add</button></div>
   </div>
@@ -60,7 +92,7 @@
     <div class="grid stack g4">
       <div><label>Code</label><input class="in" type="text" name="code" value="{{ r.code }}"></div>
       <div><label>Name</label><input class="in" type="text" name="name" value="{{ r.name }}"></div>
-      <div><label>Floor</label><input class="in" type="text" name="floor" list="floors" value="{{ r.floor }}" autocomplete="off"></div>
+      <div><label>Floor</label>{{ floor_select('floor', r.floor, floors, none_label='No floor (whole house / outside)') }}</div>
       <div><label>Kind</label><select class="in" name="kind"><option value="room" {{ 'selected' if not r.is_area }}>Room</option><option value="area" {{ 'selected' if r.is_area }}>Area</option></select></div>
       <div><label>Order</label><input class="in" type="number" name="sort" value="{{ r.sort }}"></div>
       <div><label>Floor area m²</label><input class="in" type="number" step="0.1" name="floor_area" value="{{ r.floor_area }}"></div>

@@ -91,7 +91,9 @@ def _plan_sets_ctx(p: Project) -> dict:
 
 
 @router.get("/p/{project_id}/images")
-def images(request: Request, p: Project = Depends(get_project), err: str = "", ok: str = ""):
+def images(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), err: str = "", ok: str = ""):
+    if drawings.sync_floors(db, p):  # floors named by plans or rooms from before the floor list join it
+        db.commit()
     return render(request, "projects/images.html", p=p, err=err[:200], ok=ok[:200], **_plan_sets_ctx(p))
 
 
@@ -112,7 +114,7 @@ def _add_plan(db: Session, p: Project, floor: str, sheet: str, caption: str, *, 
         prev_key = storage.save_image(hires, f"p{p.id}")
     im = ProjectImage(project_id=p.id, kind="floorplan", caption=caption.strip()[:200], file_key=prev_key, layer=_layer(layer))
     t = im.ensure_tag()
-    t.floor, t.sheet, t.hires_key, t.set_id, t.page_no = floor.strip()[:40], sheet.strip()[:60], hires_key, set_id, page_no
+    t.floor, t.sheet, t.hires_key, t.set_id, t.page_no = drawings.register_floor(db, p, floor), sheet.strip()[:60], hires_key, set_id, page_no
     db.add(im)
     return im
 
@@ -149,12 +151,13 @@ async def upload_images(p: Project = Depends(get_project), db: Session = Depends
 
 
 @router.post("/p/{project_id}/images/plans")
-async def upload_plans(p: Project = Depends(get_project), db: Session = Depends(get_db), floor: str = Form(""),
+async def upload_plans(p: Project = Depends(get_project), db: Session = Depends(get_db), floor: str = Form(""), floor_new: str = Form(""),
                        sheet: str = Form(""), caption: str = Form(""), layer: str = Form(config.MAIN_LAYER), files: list[UploadFile] = File(...)):
     """Floor plans: JPG/PNG are added at once (tagged); a PDF becomes a drawing set whose pages are picked next.
 
     One bad file never loses the others: every file is tried, what worked is committed, and the errors are shown together.
     """
+    floor = drawings.floor_from_form(floor, floor_new)  # the Floor dropdown, or the name typed after "+ New floor…"
     added, bad, errs, first_set = 0, 0, [], None
     cap = config.MAX_PDF_MB * 1024 * 1024
     for f in files:
@@ -283,7 +286,7 @@ def delete_set(set_id: int, p: Project = Depends(get_project), db: Session = Dep
 
 
 @router.post("/p/{project_id}/images/{image_id}")
-def edit_image(image_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), floor: str = Form(""),
+def edit_image(image_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), floor: str = Form(""), floor_new: str = Form(""),
                sheet: str = Form(""), caption: str = Form(""), layer: str = Form("")):
     im = db.get(ProjectImage, image_id)
     if not im or im.project_id != p.id:
@@ -291,7 +294,7 @@ def edit_image(image_id: int, p: Project = Depends(get_project), db: Session = D
     im.caption = caption.strip()[:200]
     if im.kind == "floorplan":
         t = im.ensure_tag()
-        t.floor, t.sheet = floor.strip()[:40], sheet.strip()[:60]
+        t.floor, t.sheet = drawings.register_floor(db, p, drawings.floor_from_form(floor, floor_new, t.floor)), sheet.strip()[:60]
         if layer:
             im.layer = _layer(layer)
     db.commit()

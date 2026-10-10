@@ -50,9 +50,10 @@ def live_item_pins(im: ProjectImage) -> list[ItemPin]:
 
 
 def stage_ctx(db: Session, p: Project, im: ProjectImage | None, *, sel_room: Room | None = None, sel_item: int | None = None,
-              mode: str = "", base: str = "", anchor: str = "") -> dict:
+              mode: str = "", base: str = "", anchor: str = "", floor_sel: str = "") -> dict:
     """Everything plan/_stage.html and plan/_tabs.html need. `base` is the page URL the room/dot links point at
-    (`/p/<id>/plan` or `/c/<token>`), `anchor` an optional '#plan' so a no-JS tap scrolls back to the plan."""
+    (`/p/<id>/plan` or `/c/<token>`), `anchor` an optional '#plan' so a no-JS tap scrolls back to the plan. `floor_sel` is a
+    listed floor opened without a plan (?floor=): the page shows its rooms instead of a drawing."""
     s = summary(db, p)
     stats = {r["key"]: r for r in s["by_room"]}
     borrowed = drawings.borrowed_from(p, im)  # another layer of the floor shows the main plan's boxes until it has its own
@@ -62,24 +63,30 @@ def stage_ctx(db: Session, p: Project, im: ProjectImage | None, *, sel_room: Roo
     floor_rooms = drawings.rooms_for_plan(p, im) if im is not None else []
     unplaced = [r for r in floor_rooms if r.id not in pinned]
     other_rooms = [r for r in p.rooms if r.id not in pinned and r not in floor_rooms]
-    tabs, layers, seen = [], [], set()
-    for x in drawings.client_plans(p):  # one tab per tagged floor (its main plan), then whole-house and untagged plans
-        k = drawings.floor_key(x.floor)
-        if k and not drawings.is_pseudo(k):
-            if k in seen:
-                continue
-            seen.add(k)
-            fl = drawings.plans_for_floor(p, x.floor)
+    tabs, layers = [], []
+    for f in drawings.floor_order(p):  # one tab per listed floor, in the list's order, with its main plan or without a plan yet
+        k = drawings.floor_key(f)
+        fl = drawings.plans_for_floor(p, f)
+        entry = drawings.floor_entry(p, f)
+        tab = {"key": k, "title": drawings.floor_title(f, p), "kind": entry.kind if entry is not None else "floor",
+               "rooms": sum(1 for r in p.rooms if drawings.floor_key(r.floor) == k)}
+        if fl:
             on = im is not None and drawings.floor_key(im.floor) == k
-            tabs.append({"im": fl[0], "title": drawings.floor_title(x.floor), "sheet": fl[0].sheet, "n": len(drawings.pins_for(p, fl[0])), "on": on,
-                         "layers": len(fl)})
+            tabs.append(dict(tab, im=fl[0], sheet=fl[0].sheet, n=len(drawings.pins_for(p, fl[0])), on=on, layers=len(fl)))
             if on and len(fl) > 1:
                 layers = [{"im": y, "title": y.layer_title, "sheet": y.sheet, "on": y.id == im.id, "n": len(live_item_pins(y))} for y in fl]
         else:
-            tabs.append({"im": x, "title": drawings.floor_title(x.floor) or (x.caption or "Plan"), "sheet": x.sheet, "n": len(x.pins),
-                         "on": im is not None and x.id == im.id, "layers": 1})
+            tabs.append(dict(tab, im=None, sheet="", n=0, layers=0, on=im is None and bool(floor_sel) and drawings.floor_key(floor_sel) == k))
+    for x in drawings.client_plans(p):  # then the whole-house and untagged plans
+        if not (drawings.floor_key(x.floor) and not drawings.is_pseudo(x.floor)):
+            tabs.append({"im": x, "key": "", "kind": "", "rooms": 0, "title": drawings.floor_title(x.floor, p) or (x.caption or "Plan"), "sheet": x.sheet,
+                         "n": len(x.pins), "on": im is not None and x.id == im.id, "layers": 1})
+    fk = drawings.floor_key(floor_sel) if floor_sel else ""
+    floor_sel_rooms = sorted([r for r in p.rooms if fk and drawings.floor_key(r.floor) == fk], key=lambda r: (r.is_area, r.sort)) if im is None else []
     return dict(p=p, plan=im, pins=pins, ipins=ipins, stats=stats, tabs=tabs, layers=layers, borrowed=borrowed, mode=mode, unplaced=unplaced,
-                other_rooms=other_rooms, floor_rooms=floor_rooms, sel_room=sel_room, sel_item=sel_item, base=base, anchor=anchor)
+                other_rooms=other_rooms, floor_rooms=floor_rooms, sel_room=sel_room, sel_item=sel_item, base=base, anchor=anchor,
+                floor_sel=drawings.canonical_floor(p, floor_sel) if floor_sel else "", floor_sel_title=drawings.floor_title(floor_sel, p) if floor_sel else "",
+                floor_sel_rooms=floor_sel_rooms)
 
 
 def room_ctx(db: Session, p: Project, room: Room, im: ProjectImage | None, *, sel_item: int | None = None, base: str = "",
@@ -114,19 +121,25 @@ def item_pin_dict(pin: ItemPin) -> dict:
 
 @router.get("/p/{project_id}/plan")
 def plan_page(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), plan: str = "",
-              room: str = "", item: str = "", mode: str = ""):
+              room: str = "", item: str = "", mode: str = "", floor: str = ""):
     mode = "mark" if mode == "mark" else ""
     sel_room = find_room(p, fint(room))
     sel_item = fint(item)
     if sel_item is not None and sel_room is None:  # ?item= alone: open the item's room
         it = db.get(Item, sel_item)
         sel_room = it.room if it is not None and it.project_id == p.id and it.room is not None else None
-    im = pick_plan(p, fint(plan), sel_room)
+    floor_sel = ""
+    if floor and not plan and sel_room is None:  # a floor tab: its main plan, or the floor's rooms when it has no plan yet
+        im = drawings.main_plan(p, floor)
+        if im is None:
+            floor_sel = floor[:40]
+    else:
+        im = pick_plan(p, fint(plan), sel_room)
     base = f"/p/{p.id}/plan"
     copy_from = drawings.borrowed_from(p, im) if mode == "mark" else None
     if copy_from is not None:
         mode = ""  # a layer with borrowed boxes cannot be marked until it has its own: the panel offers to copy them
-    ctx = stage_ctx(db, p, im, sel_room=sel_room, sel_item=sel_item, mode=mode, base=base)
+    ctx = stage_ctx(db, p, im, sel_room=sel_room, sel_item=sel_item, mode=mode, base=base, floor_sel=floor_sel)
     ctx["copy_from"] = copy_from
     ctx["room"] = None
     if sel_room is not None:

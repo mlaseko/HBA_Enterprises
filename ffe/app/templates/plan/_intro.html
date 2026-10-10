@@ -7,12 +7,14 @@
     <p>{% if ro %}What goes in it comes up here, with photos and delivery state. The dots on the plan show where each item sits.{% else %}Its items, totals and delivery state come up here. Change a status on the spot, open an item to edit it, or tap where each item goes.{% endif %}</p>
     {% if not ro and (unplaced or other_rooms) %}<a class="btn sec sm" href="{{ base }}?plan={{ plan.id }}&amp;mode=mark"><svg class="ic"><use href="#i-edit"/></svg>Mark rooms on this plan</a>{% endif %}
   </div>
-  {% if pins %}
+  {% set placed = pins|map(attribute='room_id')|list %}
+  {% set dir_rooms = floor_rooms if floor_rooms else pins|map(attribute='room')|list %}
+  {% if dir_rooms %}
   <div class="divider"></div>
-  <div class="eyebrow">On this plan</div>
+  <div class="eyebrow">{{ (plan.floor|floor_title) if (plan.floor and floor_rooms) else 'On this plan' }}</div>
   <div class="plan-dir">
-    {% for pin in pins %}{% set st = stats.get(pin.room_id) %}
-    <a href="{{ base }}?plan={{ plan.id }}&amp;room={{ pin.room_id }}{{ anchor }}" data-room="{{ pin.room_id }}"><span class="pill {{ 'area' if pin.room.is_area else 'accent' }}">{{ pin.room.code }}</span><span class="nm">{{ pin.room.name }}{% if pin.room.is_area %} <span class="muted small">· area</span>{% endif %}</span><span class="n">{{ st.count if st else 0 }}</span></a>
+    {% for r in dir_rooms|rejectattr('is_area')|list + dir_rooms|selectattr('is_area')|list %}{% set st = stats.get(r.id) %}
+    <a href="{{ base }}?plan={{ plan.id }}&amp;room={{ r.id }}{{ anchor }}" data-room="{{ r.id }}"{% if r.id not in placed %} class="unplaced"{% endif %}><span class="pill {{ 'area' if r.is_area else 'accent' }}">{{ r.code }}</span><span class="nm">{{ r.name }}{% if r.is_area %} <span class="muted small">· area</span>{% endif %}{% if r.id not in placed and not ro %} <span class="muted small">· not placed</span>{% endif %}</span><span class="n">{{ st.count if st else 0 }}</span></a>
     {% endfor %}
   </div>
   {% endif %}

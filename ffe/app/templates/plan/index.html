@@ -21,7 +21,24 @@
   </div>
 </div>
 
-{% if not plan %}
+{% include "plan/_tabs.html" %}
+{% if not plan and floor_sel %}
+{% set cur = tabs|selectattr('on')|first %}
+<div class="card plan-nofloor" id="plan-nofloor">
+  <div class="row between top">
+    <div><div class="eyebrow">{{ 'Separate area' if cur and cur.kind == 'area' else 'Floor' }}</div><h2 class="mb-0">No plan for {{ floor_sel_title }} yet</h2>
+      <p class="small muted mt">Upload its drawing on Images &amp; plans with the floor "{{ floor_sel }}", then mark the rooms on it here. Meanwhile its rooms and areas are listed below: open one for its items.</p></div>
+    <a class="btn" href="/p/{{ p.id }}/images#plans"><svg class="ic"><use href="#i-upload"/></svg>Add its plan</a>
+  </div>
+  {% if floor_sel_rooms %}
+  <div class="plan-dir mt">
+    {% for r in floor_sel_rooms %}{% set st = stats.get(r.id) %}
+    <a href="/p/{{ p.id }}/items?room={{ r.id }}"><span class="pill {{ 'area' if r.is_area else 'accent' }}">{{ r.code }}</span><span class="nm">{{ r.name }}{% if r.is_area %} <span class="muted small">· area</span>{% endif %}</span><span class="n">{{ st.count if st else 0 }}</span></a>
+    {% endfor %}
+  </div>
+  {% else %}<p class="small muted mt">No rooms on it yet. <a class="b" href="/p/{{ p.id }}/rooms">Add them on the Rooms page</a> and pick this floor.</p>{% endif %}
+</div>
+{% elif not plan %}
 <div class="card empty">
   <div class="ring"><svg class="ic"><use href="#i-map"/></svg></div>
   <h3>No floor plan yet</h3>
@@ -31,8 +48,6 @@
   <a class="btn ghost" href="#help"><svg class="ic"><use href="#i-help"/></svg>How this works</a>
 </div>
 {% else %}
-
-{% include "plan/_tabs.html" %}
 
 <div class="plan-layout{{ ' marking' if marking }}" id="plan" data-project="{{ p.id }}" data-plan="{{ plan.id }}" data-mode="{{ mode }}" data-base="{{ base }}"
      data-room-base="{{ base }}/room/" data-hires="/media/{{ plan.best_key }}" data-sel="{{ sel_room.id if sel_room else '' }}" data-sel-item="{{ sel_item or '' }}" data-readonly="">

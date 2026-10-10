@@ -36,6 +36,11 @@ PRICE_CURRENCIES = ["CNY", "USD"]  # a unit price can be typed in either; it is 
 # Rooms vs areas. Both carry a code and hold items and boxes; an area is a zone (entrance, corridors, stairs, balconies,
 # carport, whole house) rather than a room. Areas are listed after rooms everywhere and counted separately.
 ROOM_KINDS = ["room", "area"]
+# The floor list (models.Floor): a floor of the house, or a separate area (another building, an outdoor zone) whose title is
+# printed as it is. A new floor named with one of these words starts as a separate area (drawings.guess_floor_kind).
+FLOOR_KINDS = ["floor", "area"]
+FLOOR_AREA_WORDS = ["quarter", "staff", "servant", "boys", "annex", "guest house", "guesthouse", "outbuilding", "outhouse", "cabana",
+                    "garden", "pool", "compound", "yard", "gatehouse", "gate house", "garage", "workshop", "outside", "exterior"]
 # What a floor plan shows (ProjectImage.layer). One main plan per floor, the architect's general floor plan, carries the room
 # boxes; the other sheets of the same floor (furniture layout, electrical, plumbing, ceiling, flooring) are layers that borrow
 # those boxes until they get their own. Item dots stay per sheet. The main plan used to be stored as "furniture" (relabelled

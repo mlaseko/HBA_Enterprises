@@ -48,6 +48,7 @@ class Project(Base):
     payments: Mapped[list["Payment"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     cartons: Mapped[list["Carton"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     links: Mapped[list["SupplierLink"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    floors: Mapped[list["Floor"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="Floor.sort")
 
     @property
     def live_items(self) -> list["Item"]:
@@ -156,6 +157,30 @@ class DrawingPage(Base):
     floor: Mapped[str] = mapped_column(String(40), default="")
     is_plan: Mapped[bool] = mapped_column(Boolean, default=False)
     set: Mapped["DrawingSet"] = relationship(back_populates="page_meta")
+
+
+class Floor(Base):
+    """One entry of the project's floor list (Rooms page → Floors): a floor of the house ("Ground", printed "Ground floor") or
+    a separate area ("Staff quarters", a guest house, the garden: printed as it is). Rooms and plans still carry the floor as
+    text (Room.floor, PlanTag.floor, matched through drawings.floor_key); this row fixes its spelling, its place in the
+    order and its kind, and is what every Floor dropdown lists. drawings.sync_floors registers floors named by rooms or
+    plans from before this table existed."""
+    __tablename__ = "floors"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
+    name: Mapped[str] = mapped_column(String(40))
+    kind: Mapped[str] = mapped_column(String(10), default="floor")  # floor | area (config.FLOOR_KINDS)
+    sort: Mapped[int] = mapped_column(Integer, default=0)
+    notes: Mapped[str] = mapped_column(String(255), default="")
+    project: Mapped["Project"] = relationship(back_populates="floors")
+
+    @property
+    def is_area(self) -> bool:
+        return self.kind == "area"
+
+    @property
+    def kind_title(self) -> str:
+        return "Separate area" if self.is_area else "Floor of the house"
 
 
 class Room(Base):
