@@ -787,7 +787,10 @@ with TestClient(app) as c:
     r=c.post("/settings/layers", data={"title":"Joinery details","kind":"reference","words":"joinery"}, follow_redirects=False); assert "added%20as%20a%20reference%20sheet" in r.headers["location"] and _ly.kind("joinery-details")=="reference"
     r=c.get("/settings"); assert '<select class="in kind" name="kind" form="ly-windows"' in r.text and 'name="kind" form="ly-main"' not in r.text and 'value="reference" selected>Reference sheet' in r.text  # no kind select on the main plan
     c.post("/settings/layers/joinery-details/delete", follow_redirects=False); assert "joinery-details" not in _ly.titles()
-    db=SessionLocal(); db.get(_PL,"windows").kind="plan"; db.commit(); _ly.invalidate(); assert _ly.kind("windows")=="plan" and _ly.seed(db, kind_added=True)==1 and _ly.kind("windows")=="reference" and _ly.seed(db, kind_added=True)==0; db.close()  # the kind column arriving later gives the built-in reference types their kind once
+    from app.models import SchemaMark as _SM
+    db=SessionLocal(); assert db.get(_SM, _ly.KIND_MARK) is not None; db.get(_PL,"windows").kind="plan"; db.commit(); _ly.invalidate(); assert _ly.kind("windows")=="plan" and _ly.seed(db)==0 and _ly.kind("windows")=="plan"  # marked as upgraded: the studio's choice of plan stays
+    assert _ly.seed(db, kind_added=True)==1 and _ly.kind("windows")=="reference" and _ly.seed(db, kind_added=True)==0  # the kind column arriving later gives the built-in reference types their kind once
+    db.get(_PL,"windows").kind="plan"; db.delete(db.get(_SM, _ly.KIND_MARK)); db.commit(); _ly.invalidate(); assert _ly.seed(db)==1 and _ly.kind("windows")=="reference" and db.get(_SM, _ly.KIND_MARK) is not None and _ly.seed(db)==0; db.close()  # no mark yet (a start that lost the race to add the column): upgraded and marked
     print("reference sheets + match by reference ok")
     # the Items page: sortable table columns, and the Item list (one line per product across its rooms)
     from app.routers.items import group_items as _gi

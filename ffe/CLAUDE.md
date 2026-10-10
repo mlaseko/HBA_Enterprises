@@ -31,7 +31,7 @@ app/refs.py            reference sheets: page_refs() (reference codes on a PDF p
                        (cut a drawing out of the rendered sheet around a point), attach_drawing()/drop_drawing() (ItemPhoto.source)
 app/config.py          env vars + constant lists (CATEGORIES, STATUSES, UNITS …)
 app/db.py              engine/session; create_all on startup + migrate(): COLUMN_MIGRATIONS adds columns to existing tables
-app/models.py          Settings, Project, ProjectImage, PlanTag, RoomPin, ItemPin, DrawingSet, DrawingPage (title block per page),
+app/models.py          Settings, SchemaMark (one-time data upgrades that ran), Project, ProjectImage, PlanTag, RoomPin, ItemPin, DrawingSet, DrawingPage (title block per page),
                        Floor (the project's floor list: name, kind floor | area, sort), MoodTag (a mood-board picture's room and whether the client added it),
                        Room (kind = room | area; is_area), Supplier, SupplierLink, Item, ItemPhoto,
                        ItemPrice (the typed USD price; Item.price_currency / price_amount), Payment, Carton
@@ -441,8 +441,11 @@ ALTER TABLE item_photos ADD COLUMN source VARCHAR(40) NOT NULL DEFAULT '';      
   the main plan, so a deleted key never reaches the database.
 
 - **Reference sheets and Match drawings to items.** `PlanLayer.kind` (`plan` | `reference`, `layers.KINDS`; a column added by
-  `db.COLUMN_MIGRATIONS`, and `layers.seed(db, kind_added=True)` gives the built-in `windows` type its kind once when the
-  column arrives on a list seeded before it existed). The settings card has a Kind select per type and on the add form.
+  `db.COLUMN_MIGRATIONS`, and `layers.seed()` gives the built-in `windows` type its kind once when the column arrives on a
+  list seeded before it existed: when `migrate()` just added it, or while the `SchemaMark` "plan_layers.kind" (table
+  `schema_marks`: one-time data upgrades that ran) is missing, so a lost autoscale race or a start that died halfway
+  cannot leave it a plan; the mark is written afterwards and the kind is the studio's from then on). The settings card has
+  a Kind select per type and on the add form.
   A reference sheet shows no room boxes, cannot be marked, lists the floor's rooms in the panel ("Reference sheet" intro
   with a **Match drawings to items** button), counts "N drawings linked", and the Images page names it. `app/refs.py`:
   `TOKEN_RE` (F2-W07, GF-W12, D-03, W07), `page_refs(pdf, page_no)` reads a PDF page's text with `get_charbox` positions
