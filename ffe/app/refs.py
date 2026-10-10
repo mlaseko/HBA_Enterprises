@@ -25,9 +25,11 @@ except Exception:  # optional: without it a sheet has no readable text and dots 
 TOKEN_RE = re.compile(r"\b(?:[A-Z]{1,4}\d{0,3}-(?:[A-Z]{1,4}\d{1,3}|\d{1,3})[A-Z]?|[WD]\d{2,3}[A-Z]?)\b")
 SOURCE = "sheet:{}"
 INK = 160  # grey level below which a pixel is ink
-# The window searched around a point (fractions of the sheet), the white gap that ends a drawing (fractions), the margin.
+# The window searched around a point (fractions of the sheet), the band under the point that decides the drawing's rows,
+# the white gap that ends a drawing (fractions), the margin.
 WIN_X, WIN_Y = 0.19, 0.28
-GAP_X, GAP_Y = 0.04, 0.03
+BAND_X = 0.08
+GAP_X, GAP_Y = 0.03, 0.045
 PAD = 0.012
 
 
@@ -201,24 +203,42 @@ def _extent(profile: list[float], start: int, gap: int, ink: float = 1.5) -> tup
     return lo, hi
 
 
-def ink_block(img, cx: float, cy: float) -> tuple[float, float, float, float]:
+def ink_block(img, cx: float, cy: float, others=()) -> tuple[float, float, float, float]:
     """The drawing around a point on a rendered sheet: (x, y, w, h) in fractions of the image. Within a window around the
-    point, the rows of ink that touch the point's row without a white gap of GAP_Y, then the columns of that band that
-    touch the point's column without a gap of GAP_X, plus a margin: a window elevation with its title and its dimension
-    lines, not its neighbour. Falls back to a fixed box around the point when nothing is inked there."""
+    point, cut short halfway to any other drawing's point (`others`: the other titles or dots on the sheet), the rows of
+    ink under the point that touch its row without a white gap of GAP_Y (read in a narrow band, so a neighbour's rows do
+    not count), then the columns of that band that touch the point's column without a gap of GAP_X, then the rows again
+    within those columns, plus a margin: a window elevation with its title and its dimension lines, not its neighbour.
+    Falls back to a fixed box around the point when nothing is inked there."""
     W, H = img.size
-    x0, x1 = int(max(0.0, cx - WIN_X) * W), int(min(1.0, cx + WIN_X) * W)
-    y0, y1 = int(max(0.0, cy - WIN_Y) * H), int(min(1.0, cy + WIN_Y) * H)
+    fx0, fx1 = max(0.0, cx - WIN_X), min(1.0, cx + WIN_X)
+    fy0, fy1 = max(0.0, cy - WIN_Y), min(1.0, cy + WIN_Y)
+    for ox, oy in others:  # a neighbouring drawing: never past the middle between the two points
+        if abs(oy - cy) < 0.2 and abs(ox - cx) > 0.02:
+            if ox < cx:
+                fx0 = max(fx0, (ox + cx) / 2)
+            else:
+                fx1 = min(fx1, (ox + cx) / 2)
+        if abs(ox - cx) < 0.2 and abs(oy - cy) > 0.02:
+            if oy < cy:
+                fy0 = max(fy0, (oy + cy) / 2)
+            else:
+                fy1 = min(fy1, oy - 0.02)  # a title sits on top of its drawing: the drawing above may reach down to just above the next title
+    x0, x1, y0, y1 = int(fx0 * W), int(fx1 * W), int(fy0 * H), int(fy1 * H)
     if x1 - x0 < 4 or y1 - y0 < 4:
         return _fixed(cx, cy)
     mask = img.convert("L").crop((x0, y0, x1, y1)).point(lambda v: 255 if v < INK else 0)
-    rows = _extent(_profile(mask, 1), int(cy * H) - y0, max(2, int(GAP_Y * H)))
+    px, py = int(cx * W) - x0, int(cy * H) - y0
+    bx = (max(0, px - int(BAND_X * W)), min(mask.width, px + int(BAND_X * W)))
+    gap_y, gap_x = max(2, int(GAP_Y * H)), max(2, int(GAP_X * W))
+    rows = _extent(_profile(mask.crop((bx[0], 0, max(bx[0] + 1, bx[1]), mask.height)), 1), py, gap_y)
     if rows is None:
         return _fixed(cx, cy)
-    band = mask.crop((0, rows[0], mask.width, rows[1] + 1))
-    cols = _extent(_profile(band, 0), int(cx * W) - x0, max(2, int(GAP_X * W)))
+    cols = _extent(_profile(mask.crop((0, rows[0], mask.width, rows[1] + 1)), 0), px, gap_x)
     if cols is None:
         return _fixed(cx, cy)
+    rows2 = _extent(_profile(mask.crop((cols[0], 0, cols[1] + 1, mask.height)), 1), py, gap_y)
+    rows = rows2 or rows
     bx0, bx1 = (x0 + cols[0]) / W - PAD, (x0 + cols[1] + 1) / W + PAD
     by0, by1 = (y0 + rows[0]) / H - PAD, (y0 + rows[1] + 1) / H + PAD
     bx0, by0, bx1, by1 = max(0.0, bx0), max(0.0, by0), min(1.0, bx1), min(1.0, by1)
@@ -265,13 +285,16 @@ def sheet_image(im):
 
 # ---- the item's drawing -------------------------------------------------------------------------------------------------
 
-def attach_drawing(db, p, im, item, x: float, y: float, img=None, caption: str = ""):
+def attach_drawing(db, p, im, item, x: float, y: float, img=None, caption: str = "", others=None):
     """Cut the drawing around (x, y) out of the reference sheet and make it the item's picture from that sheet, replacing
-    the one an earlier dot made. Returns the new ItemPhoto, or None when the sheet cannot be read."""
+    the one an earlier dot made. `others` = the other drawings' points on the sheet (default: the sheet's other dots), so
+    the cut stops halfway to a neighbour. Returns the new ItemPhoto, or None when the sheet cannot be read."""
     img = img if img is not None else sheet_image(im)
     if img is None:
         return None
-    rect = ink_block(img, x, y)
+    if others is None:
+        others = [(q.x, q.y) for q in im.item_pins if q.item_id != item.id]
+    rect = ink_block(img, x, y, others)
     jpeg = crop_bytes(img, rect)
     src = source_of(im)
     old = [ph for ph in item.photos if ph.source == src]

@@ -271,11 +271,12 @@ def match_page(request: Request, p: Project = Depends(get_project), db: Session 
     img = refs.sheet_image(im) if res["matched"] else None
     linked = {q.item_id: q for q in im.item_pins}
     rows = []
+    points = [(q["x"], q["y"]) for q in res["pairs"]]
     for q in res["pairs"]:
         uri = ""
         if q["items"] and img is not None:
             try:
-                uri = refs.preview_uri(img, refs.ink_block(img, q["x"], q["y"]))
+                uri = refs.preview_uri(img, refs.ink_block(img, q["x"], q["y"], [pt for pt in points if pt != (q["x"], q["y"])]))
             except Exception:
                 uri = ""
         rows.append(dict(q, preview=uri, placed=[i.id for i in q["items"] if i.id in linked]))
@@ -295,6 +296,7 @@ async def match_apply(request: Request, p: Project = Depends(get_project), db: S
     res = refs.match(db, p, im)
     img = refs.sheet_image(im)
     caption = f"Drawing on {drawings.plan_caption(im) or 'the sheet'}"
+    points = [(q["x"], q["y"]) for q in res["pairs"]]
     n_dots = n_pics = 0
     for q in res["pairs"]:
         if q["ref"] not in ticked or not q["items"]:
@@ -308,7 +310,7 @@ async def match_apply(request: Request, p: Project = Depends(get_project), db: S
             n_dots += 1
             if img is not None:
                 try:
-                    if refs.attach_drawing(db, p, im, it, q["x"], q["y"], img=img, caption=caption) is not None:
+                    if refs.attach_drawing(db, p, im, it, q["x"], q["y"], img=img, caption=caption, others=[pt for pt in points if pt != (q["x"], q["y"])]) is not None:
                         n_pics += 1
                 except Exception:
                     pass

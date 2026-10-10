@@ -592,6 +592,9 @@ def read_title_block(text: str) -> dict:
             seg = seg + " " + up[idx + 1]  # a title wrapped onto a second line in the title block
         cands.append(_tidy_title(seg))
     distinct = list(dict.fromkeys(cands))
+    # the same title twice, long in the page header and short in the title block ("Floor 1 (Ground Floor) - Window
+    # Elevations" and "Window Elevations"), is one drawing: keep the long one
+    distinct = [c for c in distinct if not any(o != c and c.upper() in o.upper() for o in distinct)]
     title = distinct[0] if distinct else ""
     is_plan = len(distinct) == 1  # several different plan titles on one page = a cover sheet with a drawing list
     floor = ""
@@ -613,6 +616,7 @@ def caption_from_title(title: str, layer: str | None = None) -> str:
     if (layer or layer_from_title(title)) != config.MAIN_LAYER:
         t = _layer_caption_re().sub(" ", t)  # the layer label already says "Electrical & lighting"; no need to repeat it
     t = t.replace("(", " ").replace(")", " ")
+    t = _re.sub(r"\s+\d{2,4}$", "", t.strip())  # a dimension printed on the same line as the header ("Window Elevations 630")
     t = " ".join(t.split()).strip(" -:;,")
     if t.lower() in ("layout", "plan", "floor", "layout plan"):
         return ""
