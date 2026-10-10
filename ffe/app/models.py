@@ -195,6 +195,14 @@ class DrawingPage(Base):
     set: Mapped["DrawingSet"] = relationship(back_populates="page_meta")
 
 
+class SchemaMark(Base):
+    """A one-time data upgrade that has run (key = what it was, e.g. "plan_layers.kind"), so it never runs again even when
+    the start that added the column did not finish it (several instances start at once on an autoscale deployment)."""
+    __tablename__ = "schema_marks"
+    key: Mapped[str] = mapped_column(String(40), primary_key=True)
+    done_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
 class PlanLayer(Base):
     """One sheet type a floor plan can show (the "Shows" dropdown; ProjectImage.layer stores the key): the main plan and the
     other sheets of a floor (furniture layout, electrical, plumbing, ceiling, flooring, windows & doors, or whatever the

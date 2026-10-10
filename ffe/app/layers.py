@@ -13,8 +13,9 @@ import time
 from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 from . import config
+from sqlalchemy.exc import IntegrityError
 from .db import SessionLocal
-from .models import PlanLayer, ProjectImage
+from .models import PlanLayer, ProjectImage, SchemaMark
 
 MAIN = config.MAIN_LAYER
 TTL = 30.0
@@ -173,10 +174,16 @@ def plan_re():
 
 # ---- writing (Studio settings → Plan sheet types) ---------------------------------------------------------------------
 
+KIND_MARK = "plan_layers.kind"  # the one-time upgrade of a list seeded before sheet types had a kind (models.SchemaMark)
+
+
 def seed(db, kind_added: bool = False) -> int:
     """Fill an empty plan_layers table with DEFAULTS; make sure the main plan is there. Returns the rows added or changed.
-    Runs at every start and by several instances at once: it only ever adds what is missing. `kind_added` = the kind column
-    was created at this start (db.migrate): the built-in reference types seeded before it existed get their kind once."""
+    Runs at every start and by several instances at once: it only ever adds what is missing. A list seeded before the kind
+    column existed gets the built-in reference types their kind once: when the column was created at this start
+    (`kind_added`, db.migrate) or while the SchemaMark for it is missing, so an instance that lost the race to add the
+    column, or a start that died halfway, still ends with Windows & doors as a reference sheet. The mark is written once
+    the upgrade (or a fresh seed, which needs none) is in; after that the kind is the studio's to change."""
     have = {r.key: r for r in db.query(PlanLayer).all()}
     changed = 0
     if not have:
@@ -186,7 +193,8 @@ def seed(db, kind_added: bool = False) -> int:
     elif MAIN not in have:
         db.add(PlanLayer(key=MAIN, title="Main plan", sort=0, words="", categories="", kind="plan"))
         changed += 1
-    if kind_added:
+    marked = db.get(SchemaMark, KIND_MARK) is not None
+    if have and (kind_added or not marked):
         for d in DEFAULTS:
             row = have.get(d["key"])
             if row is not None and d["kind"] == "reference" and row.kind != "reference":
@@ -195,6 +203,12 @@ def seed(db, kind_added: bool = False) -> int:
     if changed:
         db.commit()
         invalidate()
+    if not marked:
+        try:
+            db.add(SchemaMark(key=KIND_MARK))
+            db.commit()
+        except IntegrityError:  # another instance wrote it a moment ago
+            db.rollback()
     return changed
 
 
