@@ -68,7 +68,7 @@ def group_items(items: list[Item]) -> list[dict]:
 
 @router.get("/p/{project_id}/items")
 def list_items(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), room: str = "",
-               category: str = "", status: str = "", supplier: str = "", q: str = "", view: str = ""):
+               category: str = "", status: str = "", supplier: str = "", q: str = "", view: str = "", deleted: int = 0):
     items = sort_items(item_query(db, p, room, category, status, supplier, q).all(), p)
     suppliers = db.query(Supplier).order_by(Supplier.name).all()
     total = sum(i.total for i in items)
@@ -80,7 +80,24 @@ def list_items(request: Request, p: Project = Depends(get_project), db: Session 
     qs = urlencode({k: v for k, v in f.items() if v and k != "view"})  # the filters, for the view switch links
     rows = group_items(items) if view == "list" else None  # the Item list view: one line per product across its rooms
     return render(request, "items/list.html", p=p, items=items, suppliers=suppliers, total=total, drafts=drafts, room_obj=room_obj, zoom=zoom,
-                  f=f, qs=qs, rows=rows)
+                  f=f, qs=qs, rows=rows, deleted=deleted)
+
+
+@router.post("/p/{project_id}/items/delete-filtered")
+def delete_filtered(p: Project = Depends(get_project), db: Session = Depends(get_db), room: str = Form(""), category: str = Form(""),
+                    status: str = Form(""), supplier: str = Form(""), q: str = Form(""), view: str = Form("")):
+    """Deletes every item the Items page filter shows, photos included. At least one filter must be set: never the whole
+    project in one press. The filter stays on the page afterwards so what is left can be checked."""
+    if not any([room, category, status, supplier, q.strip()]):
+        return redirect(f"/p/{p.id}/items")
+    items = item_query(db, p, room, category, status, supplier, q).all()
+    for i in items:
+        for ph in i.photos:
+            storage.delete_photo(ph)
+        db.delete(i)
+    db.commit()
+    keep = urlencode({k: v for k, v in dict(room=room, category=category, status=status, supplier=supplier, q=q, view=view).items() if v})
+    return redirect(f"/p/{p.id}/items?{keep}&deleted={len(items)}")
 
 
 @router.get("/p/{project_id}/items/new")

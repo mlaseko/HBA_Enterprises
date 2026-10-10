@@ -1030,6 +1030,29 @@ with TestClient(app) as c:
         _ex.build_schedule=_orig_build
     assert c.get(f"/p/{pid}/export/schedule.pdf").status_code==200
     print("pdf error page ok")
+    # a big project (70 rooms): the two-column summary paginates instead of overflowing the page (ReportLab LayoutError)
+    r=c.post("/projects/new", data={"client_name":"Big","name":"Big house","rate":"7.1"}, follow_redirects=False); pid_big=r.headers["location"].split("/")[-1]
+    for k in range(70):
+        c.post(f"/p/{pid_big}/rooms", data={"code":f"R{k:02d}","name":f"Room number {k} with a longer name","floor":["Ground","First","Second"][k%3]}, follow_redirects=False)
+    big_rids=re.findall(r'name="room_ids" value="(\d+)"', c.get(f"/p/{pid_big}/items/new").text); assert len(big_rids)>=70
+    r=c.post(f"/p/{pid_big}/items/new", data={"room_ids":big_rids,"category":"Lighting","name":"Pendant light","qty":"2","unit":"pcs","unit_price":"120","status":"To buy"}, follow_redirects=False); assert r.status_code==303
+    for q in ("", "?layout=floor", "?prices=0"):
+        r=c.get(f"/p/{pid_big}/export/schedule.pdf{q}"); assert r.status_code==200 and r.headers["content-type"]=="application/pdf", (q, r.status_code, r.text[:300])
+    tb=pdf_text(c.get(f"/p/{pid_big}/export/schedule.pdf?layout=floor").content); assert tb.count("R69 - Room number 69")>=1 and "Grand total" in tb
+    print("big project summary ok")
+    # delete by filter: everything the filter shows goes (photos too), nothing else; no filter = nothing happens
+    r=c.post(f"/p/{pid_big}/items/new", data={"room_ids":[big_rids[0]],"category":"Tiles","name":"Floor tiles","qty":"10","unit":"m²","status":"To buy"}, follow_redirects=False); keep_id=int(r.headers["location"].rstrip("/").split("/")[-1])
+    db=SessionLocal(); first=db.query(Item).filter(Item.project_id==int(pid_big), Item.category=="Lighting").first(); first_id=first.id; db.close()
+    c.post(f"/p/{pid_big}/items/{first_id}", data={"room_id":big_rids[0],"category":"Lighting","name":"Pendant light","qty":"2","unit":"pcs","status":"To buy"}, files={"photos":("p.jpg",img("pink"),"image/jpeg")}, follow_redirects=False)
+    db=SessionLocal(); ph_key=db.get(Item,first_id).photos[0].file_key; db.close(); assert _st.read_image(ph_key) is not None
+    h=c.get(f"/p/{pid_big}/items?category=Lighting").text; assert "Delete these 71 items" in h and 'data-confirm="Delete these 71 items?' in h and 'name="category" value="Lighting"' in h
+    assert "bulk-delete" not in c.get(f"/p/{pid_big}/items").text  # no filter, no button
+    r=c.post(f"/p/{pid_big}/items/delete-filtered", data={}, follow_redirects=False); assert r.status_code==303 and "deleted" not in r.headers["location"]
+    db=SessionLocal(); assert db.query(Item).filter(Item.project_id==int(pid_big)).count()==72; db.close()
+    r=c.post(f"/p/{pid_big}/items/delete-filtered", data={"category":"Lighting"}, follow_redirects=False); assert r.status_code==303 and r.headers["location"].endswith("category=Lighting&deleted=71")
+    db=SessionLocal(); left=db.query(Item).filter(Item.project_id==int(pid_big)).all(); assert [i.id for i in left]==[keep_id]; db.close()
+    assert _st.read_image(ph_key) is None and "71 items deleted." in c.get(f"/p/{pid_big}/items?category=Lighting&deleted=71").text
+    print("delete by filter ok")
     # messages and confirmations are the app's own dialog (app.js appConfirm/appAlert, .modal), never the browser's system boxes
     import re as _re; from pathlib import Path
     for f in list(Path("app/templates").rglob("*.html")) + list(Path("app/static").glob("*.js")):

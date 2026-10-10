@@ -20,6 +20,7 @@
   </div>
 </div>
 
+{% if deleted %}<div class="alert">{{ deleted }} item{{ 's' if deleted != 1 }} deleted.</div>{% endif %}
 <form method="get" class="card filters">
   <select name="room" class="in" aria-label="Room"><option value="">All rooms &amp; areas</option>{{ room_options(p.rooms, f.room) }}<option value="none" {{ 'selected' if f.room == 'none' }}>Unassigned</option></select>
   <select name="category" class="in" aria-label="Category"><option value="">All categories</option>{% for c in CATEGORIES %}<option {{ 'selected' if f.category == c }}>{{ c }}</option>{% endfor %}</select>
@@ -36,6 +37,14 @@
     <a href="/p/{{ p.id }}/items?{{ qs_ }}view=list" class="{{ 'on' if view == 'list' }}"{% if view == 'list' %} aria-current="page"{% endif %} title="One line per item across its rooms"><svg class="ic"><use href="#i-tag"/></svg>Item list</a>
   </nav>
 </form>
+{% if filtering and items %}
+<form method="post" action="/p/{{ p.id }}/items/delete-filtered" class="row mb bulk-delete" data-confirm="Delete these {{ items|length }} item{{ 's' if items|length != 1 }}? Their photos and plan dots go with them. Everything outside this filter stays.">
+  {% for k in ['room', 'category', 'status', 'supplier', 'q'] %}{% if f[k] %}<input type="hidden" name="{{ k }}" value="{{ f[k] }}">{% endif %}{% endfor %}
+  {% if view != 'list' %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
+  <span class="small muted">This filter shows {{ items|length }} room line{{ 's' if items|length != 1 }}.</span>
+  <button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete these {{ items|length }} item{{ 's' if items|length != 1 }}</button>
+</form>
+{% endif %}
 
 {% if room_obj %}
 <div class="card tight room-head">

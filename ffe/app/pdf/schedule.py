@@ -203,16 +203,37 @@ def _summary(p, all_items, mny: Money, show_prices: bool, studio, by_floor: bool
         t.setStyle(st)
         return t
 
-    if len(specs) > 13:  # two columns, cut at a group or areas boundary near the middle when there is one
-        mid = len(specs) // 2
-        cands = [k for k, sp in enumerate(specs) if 3 < k < len(specs) - 3 and sp[0] in ("group", "areas")]
-        cut = min(cands, key=lambda k: abs(k - mid)) if cands else mid
+    if len(specs) > 13:
+        # Two columns side by side. A table inside a table cannot break across pages, so each pair of columns is cut to
+        # what fits on its page, measured by laying the column out: a long project becomes several pairs, one per page.
         gap = 16
         half = (W - gap) / 2
-        outer = Table([[make(specs[:cut], half), make(specs[cut:], half)]], colWidths=[half + gap / 2, half + gap / 2])
-        outer.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (0, 0), 0), ("RIGHTPADDING", (0, 0), (0, 0), gap / 2),
-                                   ("LEFTPADDING", (1, 0), (1, 0), gap / 2), ("RIGHTPADDING", (1, 0), (1, 0), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]))
-        out.append(outer)
+
+        def fits(part, limit):
+            """The longest prefix of part whose column stays within limit points; never ends on a group or Areas row."""
+            lo, hi = 1, len(part)
+            while lo < hi:
+                mid = (lo + hi + 1) // 2
+                if make(part[:mid], half).wrap(half, 100000)[1] <= limit:
+                    lo = mid
+                else:
+                    hi = mid - 1
+            while lo > 1 and part[lo - 1][0] in ("group", "areas") and lo < len(part):
+                lo -= 1
+            return lo
+
+        rest, limit = list(specs), H - 60  # the first pair sits under the section opener
+        while rest:
+            n = fits(rest, limit); left, rest = rest[:n], rest[n:]
+            n = fits(rest, limit) if rest else 0; right, rest = rest[:n], rest[n:]
+            cells = [make(left, half), make(right, half) if right else ""]
+            pair = Table([cells], colWidths=[half + gap / 2, half + gap / 2])
+            pair.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (0, 0), 0), ("RIGHTPADDING", (0, 0), (0, 0), gap / 2),
+                                      ("LEFTPADDING", (1, 0), (1, 0), gap / 2), ("RIGHTPADDING", (1, 0), (1, 0), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]))
+            out.append(pair)
+            limit = H - 24  # the next pairs get a page of their own
+            if rest:
+                out.append(Spacer(1, 10))
     else:
         out.append(make(specs, W))
     foot = Table([[para("<b>Grand total</b>", "cellb"), para(f"<b>{len(all_items)} items</b>", "numb")] + ([para(f"<b>{mny.sym}{mny.fmt(grand, 0)}</b>", "numb")] if show_prices else [])],
