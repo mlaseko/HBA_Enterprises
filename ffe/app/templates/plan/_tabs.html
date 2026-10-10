@@ -1,8 +1,10 @@
 {# Floor tabs, one per floor (its main plan), then the whole-house and untagged plans; under them the layer switch when the
    floor has more than one sheet. Needs: tabs, layers, base, mode, anchor. #}
-{% if tabs|length > 1 %}
-<nav class="plan-tabs" aria-label="Floor plans">
-  {% for t in tabs %}<a class="{{ 'on' if t.on }}" href="{{ base }}?plan={{ t.im.id }}{% if mode == 'mark' %}&amp;mode=mark{% endif %}{{ anchor }}" {% if t.on %}aria-current="page"{% endif %}><span class="t">{{ t.title }}</span><span class="s">{{ t.sheet or (t.im.caption if t.im.caption != t.title else '') or '&nbsp;'|safe }}{% if t.layers > 1 %} · {{ t.layers }} sheets{% endif %}</span><span class="n" title="Rooms placed">{{ t.n }}</span></a>{% endfor %}
+{% set client = base.startswith('/c/') %}{% set shown = tabs if not client else tabs|selectattr('im')|list %}
+{% if shown|length > 1 %}
+<nav class="plan-tabs" aria-label="Floors">
+  {% for t in shown %}{% if t.im %}<a class="{{ 'on' if t.on }}" href="{{ base }}?plan={{ t.im.id }}{% if mode == 'mark' %}&amp;mode=mark{% endif %}{{ anchor }}" {% if t.on %}aria-current="page"{% endif %}><span class="t">{{ t.title }}</span><span class="s">{{ t.sheet or (t.im.caption if t.im.caption != t.title else '') or '&nbsp;'|safe }}{% if t.layers > 1 %} · {{ t.layers }} sheets{% endif %}</span><span class="n" title="Rooms placed">{{ t.n }}</span></a>
+  {% else %}<a class="noplan{{ ' on' if t.on }}" href="{{ base }}?floor={{ t.key|urlencode }}" {% if t.on %}aria-current="page"{% endif %} title="No plan for this floor yet"><span class="t">{{ t.title }}</span><span class="s">No plan yet{% if t.rooms %} · {{ t.rooms }} room{{ 's' if t.rooms != 1 }}{% endif %}</span></a>{% endif %}{% endfor %}
 </nav>
 {% endif %}
 {% if layers|length > 1 %}

@@ -60,7 +60,7 @@ def col(h, row, *names):
 
 @router.get("/p/{project_id}/import")
 def import_page(request: Request, p: Project = Depends(get_project)):
-    return render(request, "import.html", p=p, result=None)
+    return render(request, "import.html", p=p, floors=drawings.floor_order(p), result=None)
 
 
 # ---- the workbook: what the import reads, prefilled with this project's rooms (and, for the export, its items) ----------------
@@ -709,12 +709,12 @@ async def do_import(request: Request, p: Project = Depends(get_project), db: Ses
     if key:
         data = storage.read_image(key)
         if not data:
-            return render(request, "import.html", p=p, result={"error": "The uploaded file is no longer here. Choose it again."})
+            return render(request, "import.html", p=p, floors=drawings.floor_order(p), result={"error": "The uploaded file is no longer here. Choose it again."})
         pics = _load_photos(key)
     else:
         data = await file.read() if file is not None else b""
         if not data:
-            return render(request, "import.html", p=p, result={"error": "Choose an .xlsx file first."})
+            return render(request, "import.html", p=p, floors=drawings.floor_order(p), result={"error": "Choose an .xlsx file first."})
         for up in photos:
             pdata = await up.read()
             if pdata and up.filename:
@@ -722,12 +722,12 @@ async def do_import(request: Request, p: Project = Depends(get_project), db: Ses
     try:
         wb = load_workbook(io.BytesIO(data), data_only=True)
     except Exception as e:
-        return render(request, "import.html", p=p, result={"error": f"Could not read the file: {e}"})
+        return render(request, "import.html", p=p, floors=drawings.floor_order(p), result={"error": f"Could not read the file: {e}"})
     if apply == "1":
         result = run_import(p, db, wb, replace == "1", dry=False, photos=pics)
         if key:
             _drop_kept(key)
-        return render(request, "import.html", p=p, result=result)
+        return render(request, "import.html", p=p, floors=drawings.floor_order(p), result=result)
     if not key:
         key = storage.save_blob(data, f"imports/p{p.id}/{uuid.uuid4().hex}.xlsx", XLSX)
         if pics:
@@ -740,8 +740,8 @@ async def do_import(request: Request, p: Project = Depends(get_project), db: Ses
     preview = run_import(p, db, wb, replace == "1", dry=True, photos=pics)
     if preview["error"]:
         _drop_kept(key)
-        return render(request, "import.html", p=p, result=preview)
-    return render(request, "import.html", p=p, result=None, preview=preview, key=key, replace=replace == "1")
+        return render(request, "import.html", p=p, floors=drawings.floor_order(p), result=preview)
+    return render(request, "import.html", p=p, floors=drawings.floor_order(p), result=None, preview=preview, key=key, replace=replace == "1")
 
 
 @router.post("/p/{project_id}/import/cancel")

@@ -16,6 +16,7 @@
     {% if qroom %}<a class="btn sec" href="/p/{{ p.id }}/plan?room={{ qroom }}" title="Show this room on the floor plan"><svg class="ic"><use href="#i-map"/></svg>On the plan</a>{% endif %}
     <a class="btn accent" href="/p/{{ p.id }}/capture?room={{ qroom }}&amp;category={{ f.category }}"><svg class="ic"><use href="#i-camera"/></svg>Quick capture</a>
     {% if drafts %}<a class="btn sec" href="/p/{{ p.id }}/drafts">Drafts ({{ drafts }})</a>{% endif %}
+    <a class="btn ghost" href="/p/{{ p.id }}/export/items.xlsx{% if qs %}?{{ qs }}{% endif %}" title="{{ 'Excel of the items this filter shows' if filtering else 'Excel of all items' }}, to edit and import back"><svg class="ic"><use href="#i-download"/></svg>Export{% if filtering %} these {{ items|length }}{% endif %}</a>
     <a class="btn" href="/p/{{ p.id }}/items/new?room={{ qroom }}&amp;category={{ f.category }}"><svg class="ic"><use href="#i-plus"/></svg>Add item</a>
   </div>
 </div>

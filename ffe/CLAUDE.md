@@ -384,6 +384,15 @@ ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';  
   page picker) and the importer, which reports `new_floors` and `room_changes` (floor / kind changes of existing rooms) in
   the preview. `sync_floors` lists what older projects already named.
 
+- **Filtered exports and the plan's floor navigation.** `GET /p/<id>/export/items.xlsx` takes the Items page filters
+  (`room`, `category`, `status`, `supplier`, `q`, through `items.item_query`) plus `floor` (rooms on that floor), builds the
+  same editable workbook with only those items and names the file after the choice; the Items page's Export button
+  carries the current filter (`qs`), and the Import page has the "Export a part" picker (`#export-pick`: category, floor,
+  room, status). `plan.stage_ctx` builds one tab per listed floor (`floor_order`), with its main plan or without one
+  (`im=None`, `?floor=<key>`, hidden on the client page); `plan_page(floor=)` opens the floor's main plan or, when it has
+  none, the `plan-nofloor` card with `floor_sel_rooms`; `plan/_intro.html` lists the whole floor (`floor_rooms`, rooms
+  then areas, "not placed" for the designer) instead of only the placed rooms.
+
 ## Backlog (in priority order)
 
 1. **Receiving on the phone.** Per-room checklist page with tap-to-tick for packed / received / installed per

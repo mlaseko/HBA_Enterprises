@@ -1123,4 +1123,28 @@ with TestClient(app) as c:
     db=SessionLocal(); pr=db.get(_P,int(pf)); gh=next(f for f in pr.floors if f.name=="Guest house"); assert gh.kind=="area" and {x.code:x.floor for x in pr.rooms if x.code in ("BQ","GH-BR")}=={"BQ":"Guest house","GH-BR":"Guest house"}; db.close()
     r=c.get(f"/p/{pf}/export/schedule.pdf?layout=floor"); assert r.status_code==200 and "GUEST HOUSE" in pdf_text(r.content).upper() and "GUEST HOUSE FLOOR" not in pdf_text(r.content).upper()
     print("floors ok")
+    # ---- the plan page follows the floor list: a tab per listed floor (with or without a plan), a floor without a plan lists its rooms ----
+    db=SessionLocal(); pr=db.get(_P,int(pf)); liv_id=next(x.id for x in pr.rooms if x.code=="GF-LIV"); gym_id=next(x.id for x in pr.rooms if x.code=="RF-GYM"); ctok=pr.client_token; db.close()
+    h=c.get(f"/p/{pf}/plan").text
+    assert 'class="plan-tabs"' in h and "?floor=ground" in h and "?floor=first" in h and "?floor=guest%20house" in h and "No plan yet" in h and "Second floor" in h, h[:300]
+    assert h.count("No plan yet")==3 and "· 2 rooms" in h  # Ground has two rooms, no plan
+    h=c.get(f"/p/{pf}/plan?floor=ground").text
+    assert "No plan for Ground floor yet" in h and f'href="/p/{pf}/items?room={liv_id}"' in h and "GF-KIT" in h and "Add its plan" in h and 'id="plan-stage"' not in h
+    h=c.get(f"/p/{pf}/plan?floor=second").text  # the floor's plan opens; the side panel lists the floor's rooms, placed or not
+    assert 'id="plan-stage"' in h and f'room={gym_id}' in h and "not placed" in h and "Second floor</div>" in h
+    assert "No plan for" in c.get(f"/p/{pf}/plan?floor=Guest%20House").text  # any spelling of a listed floor
+    h=c.get(f"/c/{ctok}").text; assert "?floor=" not in h and "not placed" not in h  # the client never sees floors without a plan or designer hints
+    # ---- filtered exports: the Items page filters and a floor, the same editable sheet, named after the choice ----
+    r=c.post(f"/p/{pf}/items/new", data={"room_ids":[str(liv_id)],"category":"Furniture","name":"Sofa","qty":"1","unit":"pcs","status":"To buy"}, follow_redirects=False); assert r.status_code==303
+    r=c.post(f"/p/{pf}/items/new", data={"room_ids":[str(gym_id)],"category":"Lighting","name":"Spot light","qty":"4","unit":"pcs","status":"To buy"}, follow_redirects=False); assert r.status_code==303
+    def xrows(resp): wb_=_ox.load_workbook(_io.BytesIO(resp.content), data_only=True); return [x for x in wb_["Shopping List"].iter_rows(min_row=2, values_only=True) if x[0]]
+    r=c.get(f"/p/{pf}/export/items.xlsx"); assert r.status_code==200 and len(xrows(r))==3 and "-items.xlsx" in r.headers["content-disposition"]
+    r=c.get(f"/p/{pf}/export/items.xlsx?category=Lighting"); assert [x[2] for x in xrows(r)]==["Lighting"] and "-Lighting.xlsx" in r.headers["content-disposition"]
+    r=c.get(f"/p/{pf}/export/items.xlsx?floor=ground%20floor"); assert [x[3] for x in xrows(r)]==["Sofa"] and "Ground-floor" in r.headers["content-disposition"]
+    r=c.get(f"/p/{pf}/export/items.xlsx?room={gym_id}&status=To+buy"); assert [x[3] for x in xrows(r)]==["Spot light"] and "RF-GYM-To-buy" in r.headers["content-disposition"]
+    assert xrows(c.get(f"/p/{pf}/export/items.xlsx?category=Tiles"))==[]  # an empty filter: a sheet with the rooms and no rows
+    h=c.get(f"/p/{pf}/items?category=Lighting").text; assert "Export these 1" in h and f'href="/p/{pf}/export/items.xlsx?category=Lighting"' in h
+    h=c.get(f"/p/{pf}/items").text; assert f'href="/p/{pf}/export/items.xlsx"' in h and "Export these" not in h
+    h=c.get(f"/p/{pf}/import").text; assert f'action="/p/{pf}/export/items.xlsx"' in h and 'name="floor"' in h and 'value="Guest house"' in h and "Export a part" in h
+    print("exports and plan navigation ok")
     print("ALL OK")
