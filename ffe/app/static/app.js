@@ -264,6 +264,50 @@
   });
 })();
 
+// Delete by selection on the Items page. Nothing goes straight from a filter: the user ticks lines (td.sel in the Table and
+// the Item list, the Select box on a card), the bar above the list (form.select-bar) counts them, and its Delete button
+// takes the count and stays disabled until something is ticked. A box in the Item list carries every room line of its
+// product ("12 13 14"); data-photos counts the lines with photos, so the bar can untick them in one press. The header
+// box ticks all shown; shift-click ticks a range. The confirmation text is rewritten from the live count, so the dialog
+// (data-confirm, read at submit time) always says what goes.
+(function () {
+  var bar = document.querySelector('form.select-bar'); if (!bar) return;
+  var boxes = [].slice.call(document.querySelectorAll('input.sel-box')), masters = [].slice.call(document.querySelectorAll('input.sel-all'));
+  var count = bar.querySelector('.count'), hint = count.textContent, lbl = bar.querySelector('.lbl'), go = bar.querySelector('button.danger');
+  var unphoto = bar.querySelector('.unphoto'), clear = bar.querySelector('.clear'), last = null;
+  function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
+  function refresh() {
+    var n = 0, lines = 0, photos = 0;
+    boxes.forEach(function (b) {
+      var row = b.closest('tr, .item-card'); if (row) row.classList.toggle('selected', b.checked);
+      if (!b.checked) return;
+      n++; lines += b.value.split(' ').length; photos += parseInt(b.dataset.photos || '0', 10) || 0;
+    });
+    bar.classList.toggle('has-sel', n > 0);
+    go.disabled = n === 0;
+    lbl.textContent = n ? 'Delete ' + plural(n, 'item') : 'Delete selected';
+    count.textContent = n ? plural(n, 'item') + ' selected' + (lines !== n ? ' · ' + plural(lines, 'room line') : '') + (photos ? ' · ' + photos + ' with photos' : '') : hint;
+    unphoto.hidden = !photos; clear.hidden = !n;
+    masters.forEach(function (m) { m.checked = n > 0 && n === boxes.length; m.indeterminate = n > 0 && n < boxes.length; });
+    var ph = !photos ? '' : lines === 1 ? 'It has photos. ' : photos === lines ? 'All of them have photos. ' : photos === 1 ? 'One of them has photos. ' : photos + ' of them have photos. ';
+    bar.dataset.confirm = 'Delete ' + plural(n, 'item') + (lines !== n ? ' (' + plural(lines, 'room line') + ')' : '') + '? ' + ph + 'Their photos and plan dots go with them; everything not ticked stays.';
+  }
+  masters.forEach(function (m) { m.addEventListener('change', function () { boxes.forEach(function (b) { b.checked = m.checked; }); refresh(); }); });
+  boxes.forEach(function (b) {
+    b.addEventListener('click', function (e) {
+      if (e.shiftKey && last && last !== b) {  // shift-click: the whole range since the last box clicked follows this one
+        var i = boxes.indexOf(last), j = boxes.indexOf(b);
+        boxes.slice(Math.min(i, j), Math.max(i, j) + 1).forEach(function (x) { x.checked = b.checked; });
+      }
+      last = b; refresh();
+    });
+  });
+  unphoto.addEventListener('click', function () { boxes.forEach(function (b) { if (b.dataset.photos) b.checked = false; }); refresh(); });
+  clear.addEventListener('click', function () { boxes.forEach(function (b) { b.checked = false; }); refresh(); });
+  window.addEventListener('pageshow', refresh);  // the browser may bring ticks back on Back
+  refresh();
+})();
+
 // "Help for this page": the ? button in the top bar opens a drawer with the steps for this page (base.html, help_tips.py).
 // A one-time nudge points at the button the first time a page is seen; #help in the address opens the drawer.
 (function () {

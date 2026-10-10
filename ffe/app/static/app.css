@@ -206,6 +206,20 @@ td.nowrap{white-space:nowrap}
 /* the page picker: the Shows select gets a label of its own, so main plan vs layer is a visible choice */
 .pages .page .shows{display:grid;gap:4px}
 .pages .page .shows label{font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+/* delete by selection (Items page, app.js): a box per line in the Table and Item list (td.sel), a Select box on each card; the bar
+   above the list counts the ticks, its Delete button takes the count, and the bar sticks under the top bar while something is ticked */
+.select-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 12px;margin-bottom:12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface);box-shadow:var(--sh-1);font-size:.86rem}
+.select-bar.has-sel{position:sticky;top:calc(var(--top-h) + 8px);z-index:20;border-color:var(--accent);box-shadow:var(--sh-2)}
+.select-bar.has-sel .count{color:var(--ink);font-weight:600}
+.select-bar label.check{margin:0;font-size:.86rem}
+.btn[hidden]{display:none}  /* the class sets display, so the attribute alone would not hide a button */
+.select-bar .count{flex:1;min-width:180px}
+td.sel,th.sel{width:1%;padding-right:2px}
+td.sel label,th.sel label{display:flex;align-items:center;margin:-10px -6px;padding:10px 6px;cursor:pointer}
+td.sel input,th.sel input{margin:0}
+tr.selected td,tbody tr.selected:hover td{background:var(--accent-soft)}
+.item-card.selected{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.item-card .foot label.sel{display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--muted);cursor:pointer;margin-left:auto}
 /* sortable tables (app.js): a header with data-sort is a button; the small arrow shows the current order */
 table.sortable th[data-sort]{cursor:pointer;user-select:none}
 table.sortable th[data-sort]:hover,table.sortable th[aria-sort]{color:var(--ink)}
