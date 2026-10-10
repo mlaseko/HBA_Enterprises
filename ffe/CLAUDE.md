@@ -358,7 +358,8 @@ ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';  
 
 - **Delete by filter.** `POST /p/<id>/items/delete-filtered` (routers/items.py) deletes every live item the Items page filter
   shows (`item_query` with the same room / category / status / supplier / q), photos through `storage.delete_photo`, pins by
-  cascade; it refuses when no filter is set. The form sits under the filter bar (`filtering and items`), asks through
+  cascade; it refuses when no filter is set, and `keep_photos=1` (the form's box, ticked by default when any line has a photo)
+  spares the lines that have photos. The form sits under the filter bar (`filtering and items`), asks through
   `data-confirm`, and redirects back to the same filter with `?deleted=N` for the message.
 
 ## Backlog (in priority order)
