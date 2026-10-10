@@ -268,18 +268,18 @@ with TestClient(app) as c:
     assert "No plan for this floor yet" not in r.text and "Whole house / other" in r.text
     r=c2.get(f"/c/{ctok}"); assert "Floor plans" in r.text and plan_prev in r.text and "layout=floor" in r.text
     r=c2.get(f"/c/{ctok}/schedule.pdf?layout=floor"); assert r.status_code==200 and r.headers["content-type"]=="application/pdf"
-    tc=pdf_text(r.content); assert "GROUND FLOOR" in tc and "WHOLE HOUSE" in tc and "FLOOR PLAN OVERVIEW" not in tc  # the client link really gets the by-floor layout
+    tc=pdf_text(r.content); assert tc.index("GROUND FLOOR") < tc.index("WHOLE HOUSE") < tc.index("SUMMARY") and "At a glance" in tc  # the client link really gets the by-floor layout
     # schedules: by category unchanged in structure, by floor = plan page then that floor's rooms, whole house, summary
     a=c.get(f"/p/{pid}/export/schedule.pdf"); b=c.get(f"/p/{pid}/export/schedule.pdf?layout=floor"); b2=c.get(f"/p/{pid}/export/schedule.pdf?layout=floor")
     assert a.status_code==b.status_code==200 and len(b.content)==len(b2.content) and len(a.content)!=len(b.content)
     assert c.get(f"/p/{pid}/export/schedule.pdf?layout=floor&currency=CNY&prices=0").status_code==200
     t_=pdf_text(b.content)
-    assert t_.index("GROUND FLOOR") < t_.index("FIRST FLOOR") < t_.index("ROOF") < t_.index("WHOLE HOUSE") < t_.index("SUMMARY BY ROOM"), t_[:3000]
-    assert "A-101 Rev B" in t_ and "GF-KIT - Kitchen" in t_ and "FLOOR PLAN OVERVIEW" not in t_
+    assert t_.index("GROUND FLOOR") < t_.index("FIRST FLOOR") < t_.index("ROOF") < t_.index("WHOLE HOUSE") < t_.index("SUMMARY"), t_[:3000]
+    assert "A-101 Rev B" in t_ and "GF-KIT - Kitchen" in t_ and "At a glance" in t_ and "Contents" in t_
     # the pseudo-floor room (ALL) prints only in the whole-house section, never under a real floor
-    assert t_.index("WHOLE HOUSE") < t_.index("ALL - Whole house") < t_.index("SUMMARY BY ROOM") and "ALL - Whole house" not in t_[:t_.index("WHOLE HOUSE")]
+    assert t_.index("WHOLE HOUSE") < t_.index("ALL - Whole house") and "ALL - Whole house" not in t_[:t_.index("WHOLE HOUSE")]
     assert t_.count("Whole house / other") == 1, t_.count("Whole house / other")
-    ta=pdf_text(a.content); assert "FLOOR PLAN OVERVIEW" in ta and "SCHEDULE" in ta and "Ground floor · A-101 Rev B · Ground plan" in ta
+    ta=pdf_text(a.content); assert "FLOOR PLANS" in ta and "SCHEDULE" in ta and "Ground floor · A-101 Rev B · Ground plan" in ta and "Contents" in ta
     # room checklist: the room's floor plan is page 1
     r=c.get(f"/p/{pid}/export/room/{room.id}.pdf"); assert r.status_code==200 and len(r.content)>room_len and len(_pf.PdfDocument(r.content))>=2
     assert "Find GF-KIT - Kitchen on: Ground floor" in pdf_text(r.content) and "A-101 Rev B" in pdf_text(r.content)
@@ -297,8 +297,8 @@ with TestClient(app) as c:
     c.post(f"/p/{pid2}/rooms/{all_id}/delete", follow_redirects=False)  # its item becomes loose (room_id NULL)
     c.post(f"/p/{pid2}/images/plans", data={"floor":"Site","sheet":"A-000"}, files=[("files",("site.jpg",big_img("gray",900,600),"image/jpeg"))], follow_redirects=False)
     t2=pdf_text(c.get(f"/p/{pid2}/export/schedule.pdf?layout=floor").content)
-    assert t2.index("GROUND FLOOR") < t2.index("Lamp") < t2.index("WHOLE HOUSE") < t2.index("Loose lamp") < t2.index("SUMMARY BY ROOM"), t2[:2000]
-    assert t2.count("Whole house / other")==1 and t2.count("Unassigned")==1 and "Unassigned 1 " in t2.split("SUMMARY BY ROOM")[1], t2[-1500:]
+    assert t2.index("GROUND FLOOR") < t2.index("Lamp") < t2.index("WHOLE HOUSE") < t2.index("Loose lamp") < t2.index("SUMMARY"), t2[:2000]
+    assert t2.count("Whole house / other")==1 and "Whole house / not room-specific" in t2.split("SUMMARY", 1)[1], t2[-1500:]
     # deleting the PDF keeps the pages already added
     r=c.post(f"/p/{pid}/images/sets/{sid}/delete", follow_redirects=False); assert r.status_code==303
     assert _st.read_image(set_key) is None and _st.read_image(thumb1) is None and c.get(f"/p/{pid}/images/sets/{sid}").status_code==404
@@ -651,7 +651,7 @@ with TestClient(app) as c:
     z2=_dr2.room_zoom(prl, kit_l, plan=db.get(ProjectImage, eid_l)); assert z2["plan"].id==eid_l and [d["code"] for d in z2["dots"]]==["GF-KIT-01"] and z2["pin"].image_id==gid_l  # borrowed box, this sheet's dots
     assert _dr2.plan_for_room(prl, kit_l).id==gid_l and _dr2.default_plan(prl).id==gid_l and [im.id for im in _dr2.plans_for_floor(prl, "ground")]==[gid_l, eid_l]; db.close()
     tx=pdf_text(c.get(f"/p/{pid_l}/export/room/{lr['GF-KIT']}.pdf").content); assert "ON THE PLAN" in tx and "ON THE ELECTRICAL & LIGHTING PLAN" in tx
-    ts=pdf_text(c.get(f"/p/{pid_l}/export/schedule.pdf").content); assert "FLOOR PLAN OVERVIEW" in ts and "LIGHTING — ELECTRICAL & LIGHTING PLAN" in ts and ts.count("Ground floor · A-101 · Furniture Layout")==1 and ts.count("Ground floor · Electrical & lighting · E-01")==1
+    ts=pdf_text(c.get(f"/p/{pid_l}/export/schedule.pdf").content); assert "FLOOR PLANS" in ts and "Ground floor · electrical & lighting plan" in ts and ts.count("Ground floor · A-101 · Furniture Layout")==1 and ts.count("Ground floor · Electrical & lighting · E-01")==1
     r=c.post(f"/p/{pid_l}/plan/pins/copy", data={"image_id":eid_l}, follow_redirects=False); assert r.status_code==303 and r.headers["location"].endswith(f"plan={eid_l}&mode=mark")
     db=SessionLocal(); assert db.query(RoomPin).filter(RoomPin.image_id==eid_l).count()==2; db.close()
     r=c.get(f"/p/{pid_l}/plan?plan={eid_l}&mode=mark"); assert "Done marking" in r.text and "Boxes borrowed" not in r.text  # own boxes now
@@ -863,7 +863,7 @@ with TestClient(app) as c:
     pl=r.text.split('id="plan-rooms"')[1]; assert pl.index('<span>Rooms</span>') < pl.index("GF-KIT") < pl.index('<span>Areas</span>') < pl.index("GF-ENT")
     r=c.get(f"/p/{pid}/plan?plan={gid}&room={ent.id}"); head=r.text.split('class="card tight plan-room"')[1][:400]; assert 'class="pill area"' in head and ">Area<" in head  # an area's panel says so
     # PDFs: the summary lists rooms, then an Areas row, then areas; the checklist of an area says so
-    tf=pdf_text(c.get(f"/p/{pid}/export/schedule.pdf?layout=floor").content); summ=tf.split("SUMMARY BY ROOM")[1]
+    tf=pdf_text(c.get(f"/p/{pid}/export/schedule.pdf?layout=floor").content); summ=tf.split("SUMMARY", 1)[1]
     assert summ.index("GF-KIT - Kitchen") < summ.index("Areas") < summ.index("GF-ENT - Entrance"), summ[:800]
     assert "AREA CHECKLIST" in pdf_text(c.get(f"/p/{pid}/export/room/{ent.id}.pdf").content) and "ROOM CHECKLIST" in pdf_text(c.get(f"/p/{pid}/export/room/{room.id}.pdf").content)
     # the title block reader

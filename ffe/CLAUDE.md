@@ -60,10 +60,13 @@ app/routers/           projects, rooms, items, suppliers, payments, cartons, sha
                        clip (/clip: "Save to HBA" bookmarklet + save-from-web form → draft item or mood-board image),
                        plan (/p/<id>/plan interactive plan + ?mode=mark, /plan/room/<id> panel fragment, /plan/pins and
                        /plan/item-pins save/delete; stage_ctx()/room_ctx() are reused by share.py for the client's read-only plan)
-app/pdf/common.py      styles, table style, image flowable, footer
-app/pdf/schedule.py    client schedule PDF: layout="category" (cover, contents, floor plans, mood board, table per category,
-                       summary by room) or "floor" (each floor's plan, then its rooms in one table with room sub-headers,
-                       whole-house section, summary grouped by floor)
+app/pdf/theme.py       the look of the PDFs: bundled fonts (static/fonts: Inter + EB Garamond, OFL), the app's palette, text styles (T),
+                       Doc (landscape A4, painted cover page, running header/footer, contents entries from flowables with a `toc`
+                       attribute), Section, kpi_row, clean_table_style, Bar, PlanFigure (plan + room boxes), picture()
+app/pdf/common.py      the older styles, table style, image flowable and footer still used by packing.py
+app/pdf/schedule.py    client schedule PDF on theme.py: layout="category" (cover, at a glance + contents, floor plans with room
+                       boxes, mood board, a section per category, summary) or "floor" (each floor's plan, then its rooms in one
+                       table with room sub-headers, whole-house section, summary grouped by floor); never suppliers, notes or CNY
 app/pdf/packing.py     packing list, 6-per-page labels, room checklist (page 1 = the room's floor plan), purchase order
 app/templates/         base.html = app shell (desktop sidebar, top bar + project switcher, phone bottom tab bar,
                        "More" sheet, inline SVG icon sprite, public bar for share pages) + pages
@@ -341,6 +344,17 @@ ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';  
   (one query over all live items) feeds `<datalist id="dl-name|size|finish|brand">` on the item form and `dl-name` on the
   Drafts page: this project's values first, most used first, one spelling per key.
 
+- **Client schedule redesign.** `pdf/theme.py` is the look of the PDFs (fonts bundled in `app/static/fonts`: Inter 400/500/600/700
+  and EB Garamond, registered as `Sans*` / `Serif`; the app's palette; `T` styles; `Doc` with a painted cover template and a body
+  template whose `onPageEnd` draws the running header / footer; `afterFlowable` turns any flowable with a `toc` attribute into a
+  contents entry and the header's section name; `multiBuild` fills the page numbers). `schedule.py` builds the client schedule
+  on it: cover (`draw_cover_image` crops the cover photo to the page, an 82 % ink band carries the title; no photo = linen page
+  with a terracotta panel), At a glance (`kpi_row` tiles, the project description, `toc_flowable`), `PlanFigure` pages (the plan
+  with `drawings.pins_for` boxes and room codes), mood board grid, `_table` (clean hairline table; the product cell carries name,
+  spec and brand · finish · size; room sub-header rows in the by-floor layout), `_summary` (two columns past 13 rows, share bars,
+  the pricing note, Prepared by with the studio logo). Suppliers, notes and CNY are never printed (parity with the client link).
+  `packing.py` still uses `common.py`; moving it to the theme is the next step of the redesign.
+
 ## Backlog (in priority order)
 
 1. **Receiving on the phone.** Per-room checklist page with tap-to-tick for packed / received / installed per
@@ -353,7 +367,8 @@ ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';  
 4. **Chinese fields for suppliers.** Optional `name_cn` / `spec_cn` on Item; show on the PO PDF and the
    supplier packing link when present. (ReportLab needs a CJK font: bundle a free one, e.g. Noto Sans SC,
    in `app/static/fonts` and register it in `pdf/common.py`.)
-5. **Studio branding on PDFs.** Logo (Settings.logo_key) on cover/footer, accent colour setting.
+5. **Studio branding on PDFs.** The schedule carries the logo (cover, Prepared by); still to do: an accent colour setting,
+   and the packing list, labels, checklist and PO on `pdf/theme.py`.
 6. **Alembic migrations** replacing `create_all` + manual ALTERs.
 7. **Flaky-network resilience.** Save-draft on the item form (localStorage), retry on upload failure,
    clear error messages instead of silent failures.
