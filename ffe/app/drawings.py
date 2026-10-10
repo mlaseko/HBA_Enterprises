@@ -259,34 +259,37 @@ def plans_by_floor(p) -> dict[str, list]:
 
 
 def plans_for_floor(p, floor) -> list:
-    """The plans of a floor, the main one first, then the other layers in id order. The main plan is the sheet set to
-    "Main plan" (the general floor plan); with two of them on one floor the one that carries room boxes comes first, so
-    the sheet the designer marked is the one the others borrow from. A floor with only layers (a lone furniture layout)
-    gets its first layer as the stand-in main plan."""
+    """The plans of a floor, the main one first, then the other layers in id order, the reference sheets last. The main
+    plan is the sheet set to "Main plan" (the general floor plan); with two of them on one floor the one that carries
+    room boxes comes first, so the sheet the designer marked is the one the others borrow from. A floor with only layers
+    (a lone furniture layout) gets its first layer as the stand-in main plan; a reference sheet never stands in."""
     fl = plans_by_floor(p).get(floor_key(floor), [])
-    return sorted(fl, key=lambda im: (not im.is_main_layer, not im.pins, im.id))
+    return sorted(fl, key=lambda im: (im.is_reference, not im.is_main_layer, not im.pins, im.id))
 
 
 def main_plan(p, floor):
-    """The main plan of a floor: its general floor plan, else its first sheet. None without a plan on that floor."""
-    fl = plans_for_floor(p, floor)
+    """The main plan of a floor: its general floor plan, else its first plan sheet; never a reference sheet. None without
+    a plan on that floor."""
+    fl = [im for im in plans_for_floor(p, floor) if not im.is_reference]
     return fl[0] if fl else None
 
 
 def borrowed_from(p, im):
     """The plan whose room boxes `im` shows: another layer of the same floor borrows the main plan's boxes while it has
-    none of its own (the architect's sheets of one floor share the same frame). None = own boxes (or nothing to borrow)."""
-    if im is None or im.pins or not im.floor or is_pseudo(im.floor):
+    none of its own (the architect's sheets of one floor share the same frame). None = own boxes (or nothing to borrow).
+    A reference sheet never borrows and is never borrowed from: its drawings are not the floor."""
+    if im is None or im.is_reference or im.pins or not im.floor or is_pseudo(im.floor):
         return None
     for other in plans_for_floor(p, im.floor):
-        if other.id != im.id and other.pins:
+        if other.id != im.id and other.pins and not other.is_reference:
             return other
     return None
 
 
 def pins_for(p, im) -> list:
-    """The room boxes to show on a plan: its own, else the ones borrowed from the floor's main plan."""
-    if im is None:
+    """The room boxes to show on a plan: its own, else the ones borrowed from the floor's main plan. None on a reference
+    sheet (window elevations, a door schedule): it shows drawings of items, not the floor."""
+    if im is None or im.is_reference:
         return []
     src = borrowed_from(p, im)
     return list(src.pins) if src is not None else list(im.pins)
@@ -295,9 +298,12 @@ def pins_for(p, im) -> list:
 def plan_role(p, im) -> str:
     """What a floor plan is to its floor, for the Images & plans page: 'main' (the plan the others borrow boxes from; a lone
     furniture layout stands in), 'twin' (a second general plan of a floor that already has a main plan), 'layer'
-    (furniture layout, electrical, plumbing, ceiling, flooring), '' (untagged or a whole-house / outside plan)."""
+    (furniture layout, electrical, plumbing, ceiling, flooring), 'reference' (a reference sheet: drawings tied to items),
+    '' (untagged or a whole-house / outside plan)."""
     if im is None or not im.floor or is_pseudo(im.floor):
         return ""
+    if im.is_reference:
+        return "reference"
     main = main_plan(p, im.floor)
     if main is not None and main.id == im.id:
         return "main"
@@ -412,14 +418,15 @@ def plan_with_room(p, room):
     if room is None:
         return None
     for im in client_plans(p):
-        if any(pin.room_id == room.id for pin in im.pins):
+        if not im.is_reference and any(pin.room_id == room.id for pin in im.pins):
             return im
     return plan_for_room(p, room)
 
 
 def default_plan(p):
-    """The plan the Plan page opens on: the first tagged floor's plan, else the first plan at all."""
+    """The plan the Plan page opens on: the first tagged floor's plan, else the first plan at all (a reference sheet last)."""
     ps = client_plans(p)
+    ps = [im for im in ps if not im.is_reference] or ps
     return ps[0] if ps else None
 
 
@@ -617,7 +624,18 @@ def caption_from_title(title: str, layer: str | None = None) -> str:
 def crop_rect(pin, pad: float = 0.25, min_frac: float = 0.22) -> tuple[float, float, float, float]:
     """(x, y, w, h) in fractions of the plan image: the room's box with a margin around it, at least min_frac of the
     image each way (a tiny room is not shown as a blur), shifted to stay inside the image."""
-    x0, y0, x1, y1 = pin.x - pin.w * pad, pin.y - pin.h * pad, pin.x + pin.w * (1 + pad), pin.y + pin.h * (1 + pad)
+    return fit_rect(pin.x - pin.w * pad, pin.y - pin.h * pad, pin.x + pin.w * (1 + pad), pin.y + pin.h * (1 + pad), min_frac)
+
+
+def dots_rect(dots, pad: float = 0.06, min_frac: float = 0.3) -> tuple[float, float, float, float]:
+    """(x, y, w, h) around a set of dots (dicts with x, y): the frame of a room's items on a reference sheet, which has no
+    room box to crop to."""
+    xs, ys = [d["x"] for d in dots], [d["y"] for d in dots]
+    return fit_rect(min(xs) - pad, min(ys) - pad, max(xs) + pad, max(ys) + pad, min_frac)
+
+
+def fit_rect(x0: float, y0: float, x1: float, y1: float, min_frac: float) -> tuple[float, float, float, float]:
+    """A crop rectangle at least min_frac of the image each way, shifted to stay inside the image."""
     out = []
     for lo, hi in ((x0, x1), (y0, y1)):
         if hi - lo < min_frac:
@@ -633,17 +651,17 @@ def crop_rect(pin, pad: float = 0.25, min_frac: float = 0.22) -> tuple[float, fl
 
 
 def room_zoom(p, room, items=None, plan=None) -> dict | None:
-    """What the zoomed-room card and the checklist page need: {plan, pin, rect, dots}. None when the room has no box.
-    dots = this room's live items that have a dot on that plan, labelled with the number part of their code.
-    `plan` picks another layer of the room's floor (its boxes may be borrowed from the main plan); default: the plan the
-    room is marked on."""
+    """What the zoomed-room card and the checklist page need: {plan, pin, rect, dots}. None when the room has no box
+    (on a reference sheet: no dots). dots = this room's live items that have a dot on that plan, labelled with the number
+    part of their code. `plan` picks another layer of the room's floor (its boxes may be borrowed from the main plan; a
+    reference sheet has none, so the frame is the room's dots); default: the plan the room is marked on."""
     if room is None:
         return None
     im = plan if plan is not None else plan_with_room(p, room)
     if im is None:
         return None
     pin = next((x for x in pins_for(p, im) if x.room_id == room.id), None)
-    if pin is None:
+    if pin is None and not im.is_reference:
         return None
     its = items if items is not None else [i for i in room.items if not i.draft]
     ids = {i.id for i in its if not i.draft}
@@ -655,6 +673,10 @@ def room_zoom(p, room, items=None, plan=None) -> dict | None:
         label = i.code.rsplit("-", 1)[-1] if i.code else "•"
         dots.append({"x": q.x, "y": q.y, "label": label, "code": i.code, "name": i.name, "status": i.status,
                      "color": config.STATUS_COLORS.get(i.status, "#857C72"), "item_id": i.id})
+    if pin is None:  # a reference sheet: no room box, the frame is the room's dots on it
+        if not dots:
+            return None
+        return {"plan": im, "pin": None, "rect": dots_rect(dots), "dots": dots}
     return {"plan": im, "pin": pin, "rect": crop_rect(pin), "dots": dots}
 
 
@@ -676,11 +698,12 @@ def render_room_crop(data: bytes, zoom: dict, max_px: int = 1600) -> bytes:
     sx, sy = crop.width / (box[2] - box[0]), crop.height / (box[3] - box[1])  # image px -> crop px
     draw = ImageDraw.Draw(crop, "RGBA")
     pin = zoom["pin"]
-    rx0, ry0 = (pin.x * W - box[0]) * sx, (pin.y * H - box[1]) * sy
-    rx1, ry1 = ((pin.x + pin.w) * W - box[0]) * sx, ((pin.y + pin.h) * H - box[1]) * sy
-    lw = max(3, round(crop.width * 0.004))
-    draw.rectangle([rx0, ry0, rx1, ry1], outline=(185, 89, 58, 255), width=lw)
-    draw.rectangle([rx0, ry0, rx1, ry1], fill=(185, 89, 58, 22))
+    if pin is not None:  # a reference sheet has no room box: only the dots
+        rx0, ry0 = (pin.x * W - box[0]) * sx, (pin.y * H - box[1]) * sy
+        rx1, ry1 = ((pin.x + pin.w) * W - box[0]) * sx, ((pin.y + pin.h) * H - box[1]) * sy
+        lw = max(3, round(crop.width * 0.004))
+        draw.rectangle([rx0, ry0, rx1, ry1], outline=(185, 89, 58, 255), width=lw)
+        draw.rectangle([rx0, ry0, rx1, ry1], fill=(185, 89, 58, 22))
     r = max(11, round(crop.width * 0.017))
     try:
         font = ImageFont.load_default(size=int(r * 1.05))

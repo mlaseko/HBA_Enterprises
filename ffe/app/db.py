@@ -37,6 +37,8 @@ COLUMN_MIGRATIONS = [
     ("rooms", "kind", "VARCHAR(10) NOT NULL DEFAULT 'room'"),       # room | area
     ("project_images", "layer", "VARCHAR(20) NOT NULL DEFAULT 'main'"),  # what a floor plan shows (a plan_layers key, layers.py)
     ("item_photos", "thumb_key", "VARCHAR(255) NOT NULL DEFAULT ''"),  # the small copy of a photo ('' = not made yet, '-' = cannot be made)
+    ("plan_layers", "kind", "VARCHAR(10) NOT NULL DEFAULT 'plan'"),  # a plan of the floor | a reference sheet (layers.KINDS)
+    ("item_photos", "source", "VARCHAR(40) NOT NULL DEFAULT ''"),  # 'sheet:<image id>' for a drawing cut out of a reference sheet
 ]
 
 # Data fixes for rows written by an older version. Each must be idempotent (safe to run at every start, by several instances):

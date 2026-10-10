@@ -12,9 +12,10 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Project, Room, Item, ProjectImage, RoomPin, ItemPin
+from urllib.parse import quote
 from ..common import render, redirect, require_login, get_project, fint
 from ..services import summary, moods_for
-from .. import drawings, config
+from .. import drawings, config, refs
 from .items import sort_items
 
 router = APIRouter(dependencies=[Depends(require_login)])
@@ -121,7 +122,7 @@ def item_pin_dict(pin: ItemPin) -> dict:
 
 @router.get("/p/{project_id}/plan")
 def plan_page(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), plan: str = "",
-              room: str = "", item: str = "", mode: str = "", floor: str = ""):
+              room: str = "", item: str = "", mode: str = "", floor: str = "", ok: str = "", err: str = ""):
     mode = "mark" if mode == "mark" else ""
     sel_room = find_room(p, fint(room))
     sel_item = fint(item)
@@ -136,12 +137,15 @@ def plan_page(request: Request, p: Project = Depends(get_project), db: Session =
     else:
         im = pick_plan(p, fint(plan), sel_room)
     base = f"/p/{p.id}/plan"
+    if im is not None and im.is_reference:
+        mode = ""  # a reference sheet has no room boxes to mark: its drawings are tied to items by their dots
     copy_from = drawings.borrowed_from(p, im) if mode == "mark" else None
     if copy_from is not None:
         mode = ""  # a layer with borrowed boxes cannot be marked until it has its own: the panel offers to copy them
     ctx = stage_ctx(db, p, im, sel_room=sel_room, sel_item=sel_item, mode=mode, base=base, floor_sel=floor_sel)
     ctx["copy_from"] = copy_from
     ctx["room"] = None
+    ctx["ok"], ctx["err"] = ok[:300], err[:300]
     if sel_room is not None:
         ctx.update(room_ctx(db, p, sel_room, im, sel_item=sel_item, base=base))  # inline panel: deep link / no JavaScript
     return render(request, "plan/index.html", **ctx)
@@ -226,8 +230,14 @@ def save_item_pin(request: Request, p: Project = Depends(get_project), db: Sessi
         pin = ItemPin(image_id=im.id, item_id=it.id)
         db.add(pin)
     pin.x, pin.y = pt
+    if im.is_reference:  # the dot marks the item's drawing: cut it out as the item's picture from this sheet
+        try:
+            refs.attach_drawing(db, p, im, it, pt[0], pt[1], caption=f"Drawing on {drawings.plan_caption(im) or 'the sheet'}")
+        except Exception:
+            pass  # the dot still saves; the picture can be added by hand
     db.commit()
     db.refresh(pin)
+    db.expire(it, ["photos"])
     if wants_json(request):
         return JSONResponse({"ok": True, "pin": item_pin_dict(pin)})
     return redirect(f"/p/{p.id}/plan?plan={im.id}" + (f"&room={it.room_id}&item={it.id}" if it.room_id else ""))
@@ -239,11 +249,73 @@ def delete_item_pin(request: Request, pin_id: int, p: Project = Depends(get_proj
     if pin is None or pin.image.project_id != p.id:
         return _fail(request, p, "Pin not found", 404)
     image_id, it = pin.image_id, pin.item
+    if pin.image.is_reference:
+        refs.drop_drawing(db, pin.image, it)  # the drawing cut out by this dot goes with it
     db.delete(pin)
     db.commit()
     if wants_json(request):
         return JSONResponse({"ok": True, "id": pin_id})
     return redirect(f"/p/{p.id}/plan?plan={image_id}" + (f"&room={it.room_id}&item={it.id}" if it.room_id else ""))
+
+
+# ---- a reference sheet: match its drawings to the items by the references printed on it --------------------------------
+
+@router.get("/p/{project_id}/plan/match")
+def match_page(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), plan: str = ""):
+    """The references found on a reference sheet and the items that carry them, each with its cut-out drawing: the designer
+    ticks what to link and confirms. Nothing is placed by this page."""
+    im = find_plan(p, fint(plan))
+    if im is None or not im.is_reference:
+        return redirect(f"/p/{p.id}/plan" + (f"?plan={im.id}" if im is not None else ""))
+    res = refs.match(db, p, im)
+    img = refs.sheet_image(im) if res["matched"] else None
+    linked = {q.item_id: q for q in im.item_pins}
+    rows = []
+    for q in res["pairs"]:
+        uri = ""
+        if q["items"] and img is not None:
+            try:
+                uri = refs.preview_uri(img, refs.ink_block(img, q["x"], q["y"]))
+            except Exception:
+                uri = ""
+        rows.append(dict(q, preview=uri, placed=[i.id for i in q["items"] if i.id in linked]))
+    return render(request, "plan/match.html", p=p, plan=im, rows=rows, readable=res["readable"], found=res["found"], matched=res["matched"],
+                  is_pdf=refs.sheet_pdf(db, im)[0] is not None)
+
+
+@router.post("/p/{project_id}/plan/match")
+async def match_apply(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """Link the ticked references: a dot on each drawing (moved if the item already had one on this sheet) and the drawing
+    cut out as the item's picture from this sheet (replacing an earlier cut)."""
+    form = await request.form()
+    im = find_plan(p, fint(form.get("image_id")))
+    if im is None or not im.is_reference:
+        return redirect(f"/p/{p.id}/plan")
+    ticked = {str(v).strip().upper() for v in form.getlist("ref")}
+    res = refs.match(db, p, im)
+    img = refs.sheet_image(im)
+    caption = f"Drawing on {drawings.plan_caption(im) or 'the sheet'}"
+    n_dots = n_pics = 0
+    for q in res["pairs"]:
+        if q["ref"] not in ticked or not q["items"]:
+            continue
+        for it in q["items"]:
+            pin = next((x for x in im.item_pins if x.item_id == it.id), None)
+            if pin is None:
+                pin = ItemPin(image_id=im.id, item_id=it.id)
+                db.add(pin)
+            pin.x, pin.y = q["x"], q["y"]
+            n_dots += 1
+            if img is not None:
+                try:
+                    if refs.attach_drawing(db, p, im, it, q["x"], q["y"], img=img, caption=caption) is not None:
+                        n_pics += 1
+                except Exception:
+                    pass
+    db.commit()
+    msg = (f"{n_dots} drawing{'s' if n_dots != 1 else ''} linked: a dot on each, and {n_pics} picture{'s' if n_pics != 1 else ''} cut out for the items."
+           if n_dots else "Nothing was ticked, so nothing changed.")
+    return redirect(f"/p/{p.id}/plan?plan={im.id}&ok={quote(msg)}")
 
 
 def _fail(request: Request, p: Project, msg: str, code: int):

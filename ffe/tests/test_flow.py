@@ -696,8 +696,8 @@ with TestClient(app) as c:
     r=c.get(f"/p/{pid_l}/images"); assert 'value="windows">Windows &amp; doors</option>' in r.text and 'href="/settings#sheets"' in r.text
     # a windows sheet of Ground floor: named after the type, under the floor's Sheet switch, borrowing the boxes; the type cannot go while a plan shows it
     c.post(f"/p/{pid_l}/images/plans", data={"floor":"Ground","sheet":"W-01","layer":"windows"}, files=[("files",("w.jpg",img("green"),"image/jpeg"))], follow_redirects=False)
-    db=SessionLocal(); wim=next(im for im in db.query(ProjectImage).filter(ProjectImage.project_id==int(pid_l)) if im.sheet=="W-01"); assert wim.layer=="windows" and _dr2.plan_caption(wim)=="Ground floor · Windows & doors · W-01" and not wim.is_main_layer and _dr2.plan_role(db.get(_P,int(pid_l)), wim)=="layer"; wid=wim.id; db.close()
-    r=c.get(f"/p/{pid_l}/plan?plan={wid}"); assert "Windows &amp; doors" in r.text and "boxes from the main plan" in r.text and "4 sheets" in r.text
+    db=SessionLocal(); wim=next(im for im in db.query(ProjectImage).filter(ProjectImage.project_id==int(pid_l)) if im.sheet=="W-01"); assert wim.layer=="windows" and _dr2.plan_caption(wim)=="Ground floor · Windows & doors · W-01" and not wim.is_main_layer and _dr2.plan_role(db.get(_P,int(pid_l)), wim)=="reference"; wid=wim.id; db.close()
+    r=c.get(f"/p/{pid_l}/plan?plan={wid}"); assert "Windows &amp; doors" in r.text and "Reference sheet" in r.text and "4 sheets" in r.text  # a reference sheet: no borrowed boxes (tested below)
     r=c.post("/settings/layers/windows/delete", follow_redirects=False); assert "still%20shown%20by%201%20plan." in r.headers["location"] and r.headers["location"].endswith("#sheets")
     r=c.post("/settings/layers/main/delete", follow_redirects=False); assert "stays%20in%20the%20list" in r.headers["location"]
     r=c.get("/settings"); assert 'disabled title="1 plan still shows it' in r.text and "windows" in _ly.titles()
@@ -729,6 +729,64 @@ with TestClient(app) as c:
     assert _ly.slug("Windows & doors", set())=="windows-doors" and _ly.slug("Windows & doors", {"windows-doors"})=="windows-doors-2" and len(_ly.slug("A very long sheet type title indeed", set()))<=20 and _ly.slug("***", set())=="sheet" and _ly.parse_words("Window, door|JOINERY; x; a-b, window")==["window","door","joinery","a-b"]
     r=c2.get("/settings/layers", follow_redirects=False); assert r.status_code in (303, 405) and c2.post("/settings/layers", data={"title":"Sneak"}, follow_redirects=False).status_code==303 and "sneak" not in _ly.titles()  # login required
     print("plan sheet types ok")
+    # reference sheets: a windows sheet shows drawings of items, not the floor: no borrowed boxes, no mark mode; a dot on it cuts the drawing out as the item's picture
+    from app import refs as _refs, storage as _st2
+    from app.models import ItemPhoto as _IPh, PlanLayer as _PL
+    assert _ly.kind("windows")=="reference" and _ly.kind("electrical")=="plan" and _ly.kind("main")=="plan" and _ly.kind("nope")=="plan" and _ly.rows()[-1]["kind"]=="reference"
+    db=SessionLocal(); prl=db.get(_P,int(pid_l)); wim=db.get(ProjectImage, wid); assert wim.is_reference and _dr2.pins_for(prl, wim)==[] and _dr2.borrowed_from(prl, wim) is None and _dr2.main_plan(prl,"Ground").id==gid_l and _dr2.plans_for_floor(prl,"Ground")[-1].id==wid and _dr2.plan_role(prl, wim)=="reference" and _dr2.default_plan(prl).id!=wid; db.close()
+    r=c.get(f"/p/{pid_l}/plan?plan={wid}"); h=r.text; assert len(re.findall(r'class="pin[" ]', h))==0 and "boxes from the main plan" not in h and "Reference sheet" in h and "Match drawings to items" in h and "0 drawings linked" in h and "Mark rooms</a>" not in h and "not placed" not in h and 'class="plan-dir"' in h
+    r=c.get(f"/p/{pid_l}/plan?plan={wid}&mode=mark"); assert 'data-mode=""' in r.text and "Done marking" not in r.text and "Boxes borrowed" not in r.text  # nothing to mark on a reference sheet
+    r=c.get(f"/p/{pid_l}/images"); assert "Reference sheet</span> of Ground floor" in r.text and "0 drawings linked · match drawings" in r.text
+    r=c.get(f"/p/{pid_l}/plan/room/{lr['GF-KIT']}?plan={wid}"); assert "Not placed on this plan yet" not in r.text and "tied to a drawing on this sheet" in r.text
+    # a dot placed by hand on the reference sheet cuts the drawing around it as the item's picture; moving it cuts again; removing it takes the picture away
+    r=c.post(f"/p/{pid_l}/items/new", data={"room_id":lr["GF-KIT"],"category":"Windows & Doors","name":"Sliding window","size":"1915 x 1980 mm","qty":"1","unit":"pcs","status":"To buy","notes":"Designer ref F2-W07 · Chumba (Bedroom)"}, follow_redirects=False); win_id=int(r.headers["location"].split("/")[-1])
+    r=c.post(f"/p/{pid_l}/plan/item-pins", data={"image_id":wid,"item_id":win_id,"x":"0.3","y":"0.4"}, headers={"Accept":"application/json"}); j=r.json(); assert j["ok"] and j["pin"]["photo"], j
+    db=SessionLocal(); wi=db.get(Item, win_id); assert len(wi.photos)==1 and wi.photos[0].source==f"sheet:{wid}" and wi.photos[0].caption.startswith("Drawing on Ground floor · Windows & doors · W-01") and wi.photos[0].thumb_key; k1=wi.photos[0].file_key; db.close()
+    r=c.post(f"/p/{pid_l}/plan/item-pins", data={"image_id":wid,"item_id":win_id,"x":"0.6","y":"0.5"}, headers={"Accept":"application/json"}); assert r.json()["ok"]
+    db=SessionLocal(); wi=db.get(Item, win_id); assert len(wi.photos)==1 and wi.photos[0].file_key!=k1 and _st2.read_image(k1) is None; pin_id=next(q.id for q in wi.pins); db.close()  # cut again, the old cut gone from storage
+    r=c.post(f"/p/{pid_l}/plan/item-pins/{pin_id}/delete", headers={"Accept":"application/json"}); assert r.json()["ok"]
+    db=SessionLocal(); wi=db.get(Item, win_id); assert wi.photos==[] and db.query(ItemPin).filter(ItemPin.item_id==win_id).count()==0; db.close()
+    r=c.post(f"/p/{pid_l}/plan/item-pins", data={"image_id":gid_l,"item_id":win_id,"x":"0.2","y":"0.2"}, headers={"Accept":"application/json"}); assert r.json()["ok"] and not r.json()["pin"]["photo"]  # a dot on a plan of the floor cuts nothing
+    db=SessionLocal(); assert db.get(Item, win_id).photos==[]; db.close()
+    # match drawings to items by the references printed on the sheet: a PDF page with two titled drawings and a list of refs in a note
+    assert _refs.tokens("Designer ref F2-W07 · R11 anti-slip · A3 · 1:40 · W12 · D-03 · 1915 x 1980 mm · F2-W07")==["F2-W07","W12","D-03"] and _refs.page_refs(b"not a pdf", 1) is None
+    b=io.BytesIO(); k=_cv.Canvas(b, pagesize=_A4)
+    k.setFont("Helvetica-Bold",14); k.drawString(100,700,"F2-W07 - TYPE A"); k.setFont("Helvetica",9); k.drawString(100,688,"Chumba (Bedroom) · 1915 x 1980 · Qty 1"); k.setLineWidth(2); k.rect(100,450,150,230); k.line(100,620,250,620); k.drawString(160,440,"1915")
+    k.setFont("Helvetica-Bold",14); k.drawString(350,700,"F2-W08 - TYPE A"); k.setLineWidth(2); k.rect(350,500,120,180)
+    k.setFont("Helvetica-Bold",14); k.drawString(100,350,"F2-W09 - TYPE B"); k.setLineWidth(2); k.rect(100,250,100,80)
+    k.setFont("Helvetica",9); k.drawString(100,150,"Applies to: F2-W07, F2-W08, F2-W09, F2-W10"); k.drawString(100,120,"Elevations F2-W07 to F2-W09"); k.setFont("Helvetica",12); k.drawString(100,60,"WINDOW ELEVATIONS - GROUND FLOOR     DRAWING NO: W-02"); k.showPage(); k.save(); pdfw=b.getvalue()
+    tb=_dr2.read_title_block(pdf_text(pdfw)); assert tb["is_plan"] is True and tb["floor"]=="Ground" and _dr2.layer_from_title(tb["title"])=="windows", tb  # a reference type's words + ELEVATIONS: ticked and prefilled
+    found=_refs.page_refs(pdfw, 1); assert [f["ref"] for f in found if f["strong"]]==["F2-W07","F2-W08","F2-W09"] and {f["ref"] for f in found}=={"F2-W07","F2-W08","F2-W09","F2-W10","W-02"} and found[0]["strong"] and all(not f["strong"] for f in found if "Applies" in f["line"] or "DRAWING NO" in f["line"]) and 0.15<found[0]["x"]<0.2 and 0.15<found[0]["y"]<0.19, found
+    c.post(f"/p/{pid_l}/images/plans", data={"floor":"","sheet":""}, files=[("files",("windows.pdf",pdfw,"application/pdf"))], follow_redirects=False)
+    db=SessionLocal(); dsw=db.query(DrawingSet).filter(DrawingSet.project_id==int(pid_l)).order_by(DrawingSet.id.desc()).first().id; db.close()
+    r=c.get(f"/p/{pid_l}/images/sets/{dsw}"); h=r.text; assert 'name="page_1" checked' in h and 'value="windows" selected' in h and 'name="floor_1" list="floors" value="Ground"' in h
+    r=c.post(f"/p/{pid_l}/images/sets/{dsw}/pick", data={"page_1":"on","floor_1":"Ground","sheet_1":"W-02","caption_1":"","layer_1":"windows"}, follow_redirects=False); assert r.status_code==303
+    db=SessionLocal(); wid2=next(im.id for im in db.query(ProjectImage).filter(ProjectImage.project_id==int(pid_l)) if im.sheet=="W-02"); db.close()
+    r=c.post(f"/p/{pid_l}/items/new", data={"room_id":lr["GF-LIV"],"category":"Windows & Doors","name":"Sliding window","size":"975 x 1030 mm","spec":"Ref F2-W08, frosted","qty":"1","unit":"pcs","status":"To buy"}, follow_redirects=False); win2=int(r.headers["location"].split("/")[-1])
+    r=c.get(f"/p/{pid_l}/plan/match?plan={wid2}"); h=r.text; assert r.status_code==200 and "3 references on the sheet, 2 with an item" in h and h.count('name="ref"')==2 and 'value="F2-W07" aria-label="Link F2-W07" checked' in h and "No item carries this reference" in h and h.count("data:image/jpeg;base64,")==2 and 'class="pill sage">Title</span> F2-W07 - TYPE A' in h and "F2-W10" not in h and "W-02</td>" not in h  # a code only mentioned that no item carries, and the sheet's own number, are left out
+    r=c.get(f"/p/{pid_l}/plan/match?plan={wid}"); assert "No readable text on this sheet" in r.text and "uploaded as a picture" in r.text  # a JPG upload has no text
+    r=c.get(f"/p/{pid_l}/plan/match?plan={gid_l}", follow_redirects=False); assert r.status_code==303  # not a reference sheet
+    r=c.post(f"/p/{pid_l}/plan/match", data={"image_id":wid2,"ref":["F2-W07","F2-W08","F2-W09","F2-W10"]}, follow_redirects=False); assert "2%20drawings%20linked" in r.headers["location"] and "2%20pictures" in r.headers["location"], r.headers["location"]
+    r=c.get(r.headers["location"]); assert "2 drawings linked" in r.text and "2 drawings linked</span>" in r.text
+    db=SessionLocal(); pins={q.item_id:q for q in db.query(ItemPin).filter(ItemPin.image_id==wid2)}; assert set(pins)=={win_id, win2} and abs(pins[win_id].x-0.21)<0.06 and abs(pins[win_id].y-0.175)<0.03 and pins[win2].x>0.55, {k_:(v.x,v.y) for k_,v in pins.items()}
+    wi=db.get(Item, win_id); assert len(wi.photos)==1 and wi.photos[0].source==f"sheet:{wid2}" and wi.cover.thumb; cut=Image.open(io.BytesIO(_st2.read_image(wi.photos[0].file_key))); page=Image.open(io.BytesIO(_st2.read_image(db.get(ProjectImage, wid2).best_key))); db.close()
+    assert cut.width<0.45*page.width and cut.height<0.5*page.height and cut.height>cut.width and cut.width>0.15*page.width, (cut.size, page.size)  # the drawing with its title and dimension, not the neighbour
+    r=c.post(f"/p/{pid_l}/plan/match", data={"image_id":wid2,"ref":["F2-W07"]}, follow_redirects=False); assert "1%20drawing%20linked" in r.headers["location"]
+    db=SessionLocal(); assert db.query(ItemPin).filter(ItemPin.image_id==wid2).count()==2 and len(db.get(Item, win_id).photos)==1 and db.query(_IPh).filter(_IPh.source==f"sheet:{wid2}").count()==2; db.close()  # linked again: moved and recut, never doubled
+    r=c.post(f"/p/{pid_l}/plan/match", data={"image_id":wid2}, follow_redirects=False); assert "nothing%20changed" in r.headers["location"]
+    r=c.get(f"/p/{pid_l}/export/room/{lr['GF-KIT']}.pdf"); assert r.status_code==200 and "ON THE WINDOWS & DOORS SHEET" in pdf_text(r.content)  # the checklist frames the room's dots on the sheet
+    r=c2.get(f"/c/{ltok}?plan={wid2}"); h=r.text; assert r.status_code==200 and len(re.findall(r'class="pin[" ]', h))==0 and "Tap a dot to see its item" in h and h.count('class="ipin')==2
+    # the kind is set on the settings page: a plan type turned reference loses its borrowed boxes, and back; the main plan stays a plan
+    r=c.post("/settings/layers/ceiling", data={"title":"Ceiling","words":"ceiling, reflected, rcp","kind":"reference"}, follow_redirects=False); assert "now%20reference%20sheet" in r.headers["location"] and "1%20plan%20shows%20no%20room%20boxes" in r.headers["location"], r.headers["location"]  # E-01 is the ceiling sheet
+    assert _ly.kind("ceiling")=="reference"; r=c.get(f"/p/{pid_l}/plan?plan={eid_l}"); assert len(re.findall(r'class="pin[" ]', r.text))==0 and "Reference sheet" in r.text
+    r=c.post("/settings/layers/ceiling", data={"title":"Ceiling","words":"ceiling, reflected, rcp","kind":"plan"}, follow_redirects=False); assert "1%20plan%20borrows%20the%20room%20boxes%20of%20its%20floor" in r.headers["location"], r.headers["location"]
+    r=c.get(f"/p/{pid_l}/plan?plan={eid_l}"); assert len(re.findall(r'class="pin[" ]', r.text))==2 and "Reference sheet" not in r.text and _ly.kind("ceiling")=="plan"  # its boxes (own, copied earlier) are back
+    c.post("/settings/layers/main", data={"title":"Main plan","kind":"reference"}, follow_redirects=False); assert _ly.kind("main")=="plan"
+    r=c.post("/settings/layers", data={"title":"Joinery details","kind":"reference","words":"joinery"}, follow_redirects=False); assert "added%20as%20a%20reference%20sheet" in r.headers["location"] and _ly.kind("joinery-details")=="reference"
+    r=c.get("/settings"); assert '<select class="in kind" name="kind" form="ly-windows"' in r.text and 'name="kind" form="ly-main"' not in r.text and 'value="reference" selected>Reference sheet' in r.text  # no kind select on the main plan
+    c.post("/settings/layers/joinery-details/delete", follow_redirects=False); assert "joinery-details" not in _ly.titles()
+    db=SessionLocal(); db.get(_PL,"windows").kind="plan"; db.commit(); _ly.invalidate(); assert _ly.kind("windows")=="plan" and _ly.seed(db, kind_added=True)==1 and _ly.kind("windows")=="reference" and _ly.seed(db, kind_added=True)==0; db.close()  # the kind column arriving later gives the built-in reference types their kind once
+    print("reference sheets + match by reference ok")
     # the Items page: sortable table columns, and the Item list (one line per product across its rooms)
     from app.routers.items import group_items as _gi
     from app.services import sort_items as _si
@@ -868,7 +926,7 @@ with TestClient(app) as c:
         cn.execute(_text("INSERT INTO rooms (code, name) VALUES ('X', 'Old room')"))
         cn.execute(_text("INSERT INTO project_images (kind) VALUES ('floorplan')"))
         cn.execute(_text("INSERT INTO item_photos (file_key) VALUES ('p1/old.jpg')"))
-    assert _migrate(_eng)==["items.draft", "rooms.kind", "project_images.layer", "item_photos.thumb_key"] and _migrate(_eng)==[]
+    assert _migrate(_eng)==["items.draft", "rooms.kind", "project_images.layer", "item_photos.thumb_key", "item_photos.source"] and _migrate(_eng)==[]
     with _eng.begin() as cn: cn.execute(_text("INSERT INTO project_images (kind, layer) VALUES ('floorplan', 'furniture')")); cn.execute(_text("INSERT INTO project_images (kind, layer) VALUES ('floorplan', 'furnishing')"))
     assert _migrate(_eng)==["project_images.layer: 1 rows relabelled"] and _migrate(_eng)==[]  # the old name of the main plan; a furniture layout stays
     with _eng.connect() as cn: assert sorted(r[0] for r in cn.execute(_text("SELECT layer FROM project_images")))==["furnishing", "main", "main"]
