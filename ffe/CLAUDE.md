@@ -53,7 +53,8 @@ app/webimage.py        fetch_image(url): picture bytes from a direct image link 
 app/ai.py              Claude auto-fill (off without ANTHROPIC_API_KEY): suggest_item(image, page_text, url, rooms) → dict via
                        structured output, apply_suggestion(item, s, rooms, only_empty) fills fields; all failures → None
 app/routers/           projects, rooms, items, suppliers, payments, cartons, share (public /s/<token>, /c/<token>),
-                       exports (PDF + xlsx; items.xlsx = importer.build_workbook filled), importer (Excel import: new rows, multi-room
+                       exports (PDF + xlsx; items.xlsx = importer.build_workbook filled; try_build() wraps the schedule builders: a
+                       failure logs the traceback and renders pdf_error.html with the error text, never a bare 500), importer (Excel import: new rows, multi-room
                        rows via rooms_from_cell(), updates by Code; run_import(dry=True) previews, the file waits in storage under
                        imports/p<id>/ until apply=1 or /import/cancel; GET /p/<id>/import/template.xlsx = build_workbook empty),
                        capture (/p/<id>/capture camera page → draft items; /p/<id>/drafts complete or discard),

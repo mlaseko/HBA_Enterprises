@@ -4,24 +4,44 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Project, Supplier, Room, Payment
 from . import importer
-from ..common import require_login, get_project, get_settings, content_disposition
+from ..common import require_login, get_project, get_settings, content_disposition, render
+import logging
 from ..pdf.schedule import build_schedule
 from ..pdf.packing import packing_list, labels, room_checklist, purchase_order
 from .items import sort_items
 
 router = APIRouter()
+log = logging.getLogger("ffe.pdf")
 
 
 def pdf(data: bytes, name: str, inline=True):
     return Response(content=data, media_type="application/pdf", headers=content_disposition(name, inline=inline))
 
 
+def try_build(builder, *args, **kw):
+    """(pdf bytes, "") or (None, "ErrorType: message"). A document that cannot be built is logged with its traceback and
+    explained on the page, never a bare Internal Server Error."""
+    try:
+        return builder(*args, **kw), ""
+    except Exception as e:  # noqa: BLE001 - anything from ReportLab, Pillow or storage
+        log.exception("PDF build failed: %s", getattr(builder, "__name__", builder))
+        return None, f"{type(e).__name__}: {e}"
+
+
+def build_error(request: Request, p: Project, doc: str, err: str):
+    resp = render(request, "pdf_error.html", p=p, doc=doc, err=err)
+    resp.status_code = 500
+    return resp
+
+
 @router.get("/p/{project_id}/export/schedule.pdf", dependencies=[Depends(require_login)])
-def schedule_pdf(p: Project = Depends(get_project), db: Session = Depends(get_db), currency: str = "USD", prices: int = 1, photos: int = 1,
-                 layout: str = "category"):
+def schedule_pdf(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), currency: str = "USD", prices: int = 1,
+                 photos: int = 1, layout: str = "category"):
     by_floor = layout == "floor"
-    data = build_schedule(p, get_settings(db), currency=("CNY" if currency == "CNY" else "USD"), show_prices=bool(prices),
+    data, err = try_build(build_schedule, p, get_settings(db), currency=("CNY" if currency == "CNY" else "USD"), show_prices=bool(prices),
                           include_photos=bool(photos), layout="floor" if by_floor else "category")
+    if err:
+        return build_error(request, p, "Client schedule" + (" by floor" if by_floor else ""), err)
     return pdf(data, f"FFE-Schedule-{p.name}{'-by-floor' if by_floor else ''}.pdf")
 
 
@@ -31,7 +51,9 @@ def client_schedule_pdf(token: str, db: Session = Depends(get_db), currency: str
     if not p:
         raise HTTPException(404)
     by_floor = layout == "floor"
-    data = build_schedule(p, get_settings(db), currency=("CNY" if currency == "CNY" else "USD"), layout="floor" if by_floor else "category")
+    data, err = try_build(build_schedule, p, get_settings(db), currency=("CNY" if currency == "CNY" else "USD"), layout="floor" if by_floor else "category")
+    if err:
+        raise HTTPException(500, "The schedule could not be built right now. Please tell the designer.")
     return pdf(data, f"FFE-Schedule-{p.name}{'-by-floor' if by_floor else ''}.pdf")
 
 

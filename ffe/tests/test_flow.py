@@ -1018,6 +1018,18 @@ with TestClient(app) as c:
     db=SessionLocal(); assert db.get(Item,t2).unit_price==80 and db.get(Item,t2).lead_time=="" and db.get(Item,t2).status=="Quoted" and db.get(Item,t3).unit_price==80; db.close()  # ticked: twins follow, the other size untouched
     assert 'name="apply_all" value="1" checked>' in c.get(f"/p/{pid}/items/{t1}").text and '<datalist id="dl-name">' in c.get(f"/p/{pid}/drafts").text
     print("product identity ok")
+    # a document that cannot be built explains itself (the designer's route) instead of a bare 500; the client gets a plain message
+    from app.routers import exports as _ex
+    _orig_build=_ex.build_schedule
+    def _boom(*a, **k): raise ValueError("picture 12 cannot be read")
+    _ex.build_schedule=_boom
+    try:
+        r=c.get(f"/p/{pid}/export/schedule.pdf"); assert r.status_code==500 and "Client schedule could not be built" in r.text and "ValueError: picture 12 cannot be read" in r.text and "Try again" in r.text
+        r=c2.get(f"/c/{ctok}/schedule.pdf"); assert r.status_code==500 and "could not be built" in r.text and "ValueError" not in r.text
+    finally:
+        _ex.build_schedule=_orig_build
+    assert c.get(f"/p/{pid}/export/schedule.pdf").status_code==200
+    print("pdf error page ok")
     # messages and confirmations are the app's own dialog (app.js appConfirm/appAlert, .modal), never the browser's system boxes
     import re as _re; from pathlib import Path
     for f in list(Path("app/templates").rglob("*.html")) + list(Path("app/static").glob("*.js")):
