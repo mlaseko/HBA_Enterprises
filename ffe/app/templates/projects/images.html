@@ -121,7 +121,8 @@
   <div class="sub-title mt"><span>{{ grp_room.label if grp_room else 'Whole house' }}</span><span class="muted small">{{ grp|length }} picture{{ 's' if grp|length != 1 }}{% if grp|selectattr('by_client')|list %} · {{ grp|selectattr('by_client')|list|length }} from the client{% endif %}</span></div>
   <div class="gallery">
   {% for im in grp %}
-    <div class="g{{ ' client' if im.by_client }}" id="img-{{ im.id }}"><img src="/media/{{ im.file_key }}" alt="{{ im.caption }}" data-full="/media/{{ im.file_key }}" data-caption="{{ im.caption or (grp_room.label if grp_room else 'Whole house') }}">
+    <div class="g{{ ' client' if im.by_client }}{{ ' cover' if im.is_cover }}" id="img-{{ im.id }}"><img src="/media/{{ im.file_key }}" alt="{{ im.caption }}" data-full="/media/{{ im.file_key }}" data-caption="{{ im.caption or (grp_room.label if grp_room else 'Whole house') }}">
+      {% if grp_room %}<form method="post" action="/p/{{ p.id }}/images/{{ im.id }}/cover" class="star"><input type="hidden" name="next" value="/p/{{ p.id }}/images#img-{{ im.id }}"><button class="btn sm icon{{ ' on' if im.is_cover }}" title="{{ 'The cover of ' ~ grp_room.name ~ '. Press again and its newest picture stands in.' if im.is_cover else 'Use as the cover of ' ~ grp_room.name }}" aria-label="{{ 'The cover' if im.is_cover else 'Use as cover' }}"><svg class="ic"><use href="#i-star"/></svg></button></form>{% endif %}
       <form method="post" action="/p/{{ p.id }}/images/{{ im.id }}/delete" data-confirm="Delete this picture? It comes off the project and its PDFs."><button class="btn sm icon danger" title="Delete picture" aria-label="Delete picture"><svg class="ic"><use href="#i-x"/></svg></button></form>
       <form method="post" action="/p/{{ p.id }}/images/{{ im.id }}" class="tag">
         {% if im.by_client %}<span class="pill sage">from the client</span>{% endif %}

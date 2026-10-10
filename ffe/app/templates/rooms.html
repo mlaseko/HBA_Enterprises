@@ -80,13 +80,15 @@
 {% if r.is_area and (loop.first or not loop.previtem.is_area) %}<div class="sub-title"><span>Areas</span><span class="muted small">zones with a code, items and boxes, but not rooms</span></div>{% endif %}
 {% set st = stats.get(r.id) %}
 <details class="card tight{{ ' area' if r.is_area }}" id="room-{{ r.id }}">
+  {% set cv = covers.get(r.id) if covers is defined else none %}
   <summary>
-    {{ room_pill(r) }}
+    {{ room_pill(r) }}{% if cv %}<img class="rthumb" src="/media/{{ cv.file_key }}" alt="" loading="lazy">{% endif %}
     <span class="b">{{ r.name }}</span>{% if r.is_area %}<span class="muted small">Area</span>{% endif %}{% if r.floor %}<span class="muted small">{{ r.floor }}</span>{% endif %}
     <span class="sp"></span>
     {% set n = st.count if st else 0 %}<span class="pill">{{ n }} item{{ 's' if n != 1 }}<span class="hide-m">· ¥{{ (st.total if st else 0)|money }}{% if st and st.received %} · {{ st.received }} recv{% endif %}</span></span>
   </summary>
   <div class="small muted hide-d mt">¥{{ (st.total if st else 0)|money }} ordered{% if st and st.received %} · {{ st.received }} received{% endif %}</div>
+  {% if cv %}<div class="rcover mt"><img src="/media/{{ cv.file_key }}" alt="{{ cv.caption }}" data-full="/media/{{ cv.file_key }}" data-caption="{{ r.name }}{% if cv.caption %} · {{ cv.caption }}{% endif %}" loading="lazy"></div>{% endif %}
   {% set zoom = zooms.get(r.id) %}{% if zoom %}<div class="mt">{% set room = r %}{% set cls = 'sm' %}{% include "plan/_zoom.html" %}</div>{% endif %}
   <div class="mt">{% with room = r, moods = moods_by_room.get(r.id, []), here = '/p/' ~ p.id ~ '/rooms#room-' ~ r.id %}{% include "plan/_inspiration.html" %}{% endwith %}</div>
   <form method="post" action="/p/{{ p.id }}/rooms/{{ r.id }}" class="mt">

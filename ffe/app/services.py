@@ -173,3 +173,27 @@ def mood_groups(p: Project) -> list[tuple]:
 def client_moods(p: Project) -> list:
     """The pictures the client added through their link, any room."""
     return [im for im in p.images if im.kind == "mood" and im.by_client]
+
+
+def room_cover(p: Project, room):
+    """The picture that stands for a room (the Rooms page card, the room panel, the plan's room list): the inspiration
+    picture starred as its cover (MoodTag.is_cover), else the newest one the designer added, else the client's newest.
+    None when the room has no pictures."""
+    ms = moods_for(p, room)
+    if not ms:
+        return None
+    starred = [im for im in ms if im.is_cover]
+    if starred:
+        return starred[-1]
+    mine = [im for im in ms if not im.by_client]
+    return (mine or ms)[-1]
+
+
+def room_covers(p: Project) -> dict:
+    """{room id: cover picture} for every room that has one."""
+    out = {}
+    for r in p.rooms:
+        im = room_cover(p, r)
+        if im is not None:
+            out[r.id] = im
+    return out

@@ -246,6 +246,7 @@ UPDATE project_images SET layer = 'main' WHERE layer = 'furniture';             
 ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';           -- the small copy of a photo
 ALTER TABLE plan_layers ADD COLUMN kind VARCHAR(10) NOT NULL DEFAULT 'plan';              -- plan of the floor | reference sheet
 ALTER TABLE item_photos ADD COLUMN source VARCHAR(40) NOT NULL DEFAULT '';               -- 'sheet:<image id>' for a cut-out drawing
+ALTER TABLE mood_tags ADD COLUMN is_cover BOOLEAN NOT NULL DEFAULT FALSE;                 -- the picture starred as its room's cover
 ```
 
 ## Done
@@ -476,6 +477,14 @@ ALTER TABLE item_photos ADD COLUMN source VARCHAR(40) NOT NULL DEFAULT '';      
   room panel. Help pictures open too. Tick by codes (Items page, `.select-bar .codes-box`): every `.sel-box` carries
   `data-codes` (the Item list box lists every room line's code); the pasted text is scanned for codes (`[A-Z][A-Z0-9]*(-…)*-digits`),
   a box is ticked when all its codes are wanted, and the bar names the codes not on the page and the shared boxes.
+- **Room covers.** `MoodTag.is_cover` (column via `db.COLUMN_MIGRATIONS`; `ProjectImage.is_cover`) marks the inspiration
+  picture that stands for a room; `services.room_cover(p, room)` returns it, else the room's newest picture (the designer's
+  before the client's), `room_covers(p)` the dict for a page. `POST /p/<id>/images/<image_id>/cover` (`next`) toggles the
+  star and clears the room's other stars; moving a picture to another room (`edit_image`) or deleting its room clears it;
+  a whole-house picture is never a cover. Shown as `.rthumb` in the room's `<summary>` on the Rooms page and in the plan's
+  room directory (`_intro.html`, `covers` from `stage_ctx`), `.rcover` in the open card, `.ph-cover` at the top of the room
+  panel (`room_ctx` passes `cover`; the client sees it too, never the star). The star (`form.star`, `#i-star`) sits top-left
+  on the pictures of the inspiration strip and the mood board; `.g.cover` rings the chosen one gold.
 
 ## Backlog (in priority order)
 

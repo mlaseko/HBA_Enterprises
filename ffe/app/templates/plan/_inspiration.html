@@ -11,8 +11,9 @@
   {% if moods %}
   <div class="gallery insp-gallery">
     {% for im in moods %}
-    <div class="g{{ ' client' if im.by_client }}">
+    <div class="g{{ ' client' if im.by_client }}{{ ' cover' if im.is_cover }}">
       <a href="/media/{{ im.file_key }}" target="_blank" title="Open full size"><img src="/media/{{ im.file_key }}" alt="{{ im.caption }}" loading="lazy"></a>
+      {% if not ro and room %}<form method="post" action="/p/{{ p.id }}/images/{{ im.id }}/cover" class="star"><input type="hidden" name="next" value="{{ here }}"><button class="btn sm icon{{ ' on' if im.is_cover }}" title="{{ 'The cover of this ' ~ ('area' if room.is_area else 'room') ~ '. Press again and the newest picture stands in.' if im.is_cover else 'Use as the cover of this ' ~ ('area' if room.is_area else 'room') }}" aria-label="{{ 'The cover' if im.is_cover else 'Use as cover' }}"><svg class="ic"><use href="#i-star"/></svg></button></form>{% endif %}
       {% if not ro %}<form method="post" action="/p/{{ p.id }}/images/{{ im.id }}/delete" data-confirm="Delete this picture? It comes off the {{ room.name if room else 'house' }} and the PDFs."><input type="hidden" name="next" value="{{ here }}"><button class="btn sm icon danger" title="Delete picture" aria-label="Delete picture"><svg class="ic"><use href="#i-x"/></svg></button></form>
       {% elif im.by_client %}<form method="post" action="/c/{{ token }}/inspiration/{{ im.id }}/delete" data-confirm="Remove your picture? The designer will no longer see it."><input type="hidden" name="room_id" value="{{ room.id if room else '' }}"><button class="btn sm icon danger" title="Remove my picture" aria-label="Remove my picture"><svg class="ic"><use href="#i-x"/></svg></button></form>{% endif %}
       <div class="cap">{% if im.by_client %}<span class="pill sage">{{ 'you' if ro else 'client' }}</span> {% endif %}{{ im.caption }}</div>

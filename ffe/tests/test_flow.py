@@ -1275,6 +1275,24 @@ with TestClient(app) as c:
     h=c2.get(f"/c/{itok}/plan/room/{kit}").text; assert "Like this green" in h and ">you</span>" in h and f'action="/c/{itok}/inspiration/{cpid}/delete"' in h and f'/images/{kpic}/delete' not in h and "Black taps" in h
     h=c.get(f"/p/{pi}/plan/room/{kit}").text; assert "Like this green" in h and ">client</span>" in h and "1 from the client" in h
     assert "1 inspiration picture" in c.get(f"/p/{pi}").text and "1 from the client" in c.get(f"/p/{pi}/images").text
+    # room covers: the designer's newest picture stands in, the star picks one; it shows on the card, in the panel (the client's too) and rings the picture
+    from app.services import room_cover as _rc
+    from app.models import Room as _Rm
+    db=SessionLocal(); pr=db.get(_P,int(pi)); assert _rc(pr,db.get(_Rm,kit)).id==kpic and _rc(pr,db.get(_Rm,liv)) is None; db.close()  # the designer's, although the client's is newer
+    h=c.get(f"/p/{pi}/rooms").text; assert 'class="rthumb" src="/media/' in h and 'class="rcover mt"' in h and f'action="/p/{pi}/images/{kpic}/cover"' in h and f'action="/p/{pi}/images/{cpid}/cover"' in h
+    r=c.post(f"/p/{pi}/images/{cpid}/cover", data={"next":f"/p/{pi}/rooms#room-{kit}"}, follow_redirects=False); assert r.status_code==303 and r.headers["location"]==f"/p/{pi}/rooms#room-{kit}"
+    db=SessionLocal(); pr=db.get(_P,int(pi)); cv=_rc(pr,db.get(_Rm,kit)); assert cv.id==cpid and cv.is_cover and not db.get(ProjectImage,kpic).is_cover; ck=cv.file_key; db.close()
+    h=c.get(f"/p/{pi}/plan/room/{kit}").text; assert f'<div class="ph-cover"><img src="/media/{ck}"' in h and 'class="btn sm icon on"' in h
+    h=c2.get(f"/c/{itok}/plan/room/{kit}").text; assert f'<div class="ph-cover"><img src="/media/{ck}"' in h and "/cover\"" not in h  # the client sees the cover, never the star
+    h=c.get(f"/p/{pi}/images").text; assert 'class="g client cover"' in h and f'action="/p/{pi}/images/{cpid}/cover"' in h
+    c.post(f"/p/{pi}/images/{cpid}/cover", data={"next":""}, follow_redirects=False); db=SessionLocal(); pr=db.get(_P,int(pi)); assert not db.get(ProjectImage,cpid).is_cover and _rc(pr,db.get(_Rm,kit)).id==kpic; db.close()  # the star again: the newest stands in
+    c.post(f"/p/{pi}/images/{kpic}/cover", data={"next":""}, follow_redirects=False)
+    c.post(f"/p/{pi}/images/{kpic}", data={"caption":"Black taps","room_id":str(liv)}, follow_redirects=False); db=SessionLocal(); assert not db.get(ProjectImage,kpic).is_cover; db.close()  # moved to another room: no longer the kitchen's cover
+    c.post(f"/p/{pi}/images/{kpic}", data={"caption":"Black taps","room_id":str(kit)}, follow_redirects=False)
+    db=SessionLocal(); wh=next(im.id for im in db.get(_P,int(pi)).images if im.kind=="mood" and im.room_id is None); db.close()
+    r=c.post(f"/p/{pi}/images/{wh}/cover", data={"next":""}, follow_redirects=False); db=SessionLocal(); assert r.status_code==303 and not db.get(ProjectImage,wh).is_cover; db.close()  # a whole-house picture is never a room's cover
+    assert c.post(f"/p/{pi}/images/999999/cover", data={"next":""}, follow_redirects=False).status_code==404
+    print("room covers ok")
     # nothing chosen, a bad link, the cap per room, someone else's picture, a wrong token
     r=c2.post(f"/c/{itok}/inspiration", data={"room_id":str(kit)}, follow_redirects=False); assert "err=" in r.headers["location"]
     r=c2.post(f"/c/{itok}/inspiration", data={"room_id":str(kit),"url":"https://shop.example/empty"}, follow_redirects=False); assert "err=" in r.headers["location"]
