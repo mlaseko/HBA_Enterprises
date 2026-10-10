@@ -1030,6 +1030,16 @@ with TestClient(app) as c:
         _ex.build_schedule=_orig_build
     assert c.get(f"/p/{pid}/export/schedule.pdf").status_code==200
     print("pdf error page ok")
+    # a big project (70 rooms): the two-column summary paginates instead of overflowing the page (ReportLab LayoutError)
+    r=c.post("/projects/new", data={"client_name":"Big","name":"Big house","rate":"7.1"}, follow_redirects=False); pid_big=r.headers["location"].split("/")[-1]
+    for k in range(70):
+        c.post(f"/p/{pid_big}/rooms", data={"code":f"R{k:02d}","name":f"Room number {k} with a longer name","floor":["Ground","First","Second"][k%3]}, follow_redirects=False)
+    big_rids=re.findall(r'name="room_ids" value="(\d+)"', c.get(f"/p/{pid_big}/items/new").text); assert len(big_rids)>=70
+    r=c.post(f"/p/{pid_big}/items/new", data={"room_ids":big_rids,"category":"Lighting","name":"Pendant light","qty":"2","unit":"pcs","unit_price":"120","status":"To buy"}, follow_redirects=False); assert r.status_code==303
+    for q in ("", "?layout=floor", "?prices=0"):
+        r=c.get(f"/p/{pid_big}/export/schedule.pdf{q}"); assert r.status_code==200 and r.headers["content-type"]=="application/pdf", (q, r.status_code, r.text[:300])
+    tb=pdf_text(c.get(f"/p/{pid_big}/export/schedule.pdf?layout=floor").content); assert tb.count("R69 - Room number 69")>=1 and "Grand total" in tb
+    print("big project summary ok")
     # messages and confirmations are the app's own dialog (app.js appConfirm/appAlert, .modal), never the browser's system boxes
     import re as _re; from pathlib import Path
     for f in list(Path("app/templates").rglob("*.html")) + list(Path("app/static").glob("*.js")):
