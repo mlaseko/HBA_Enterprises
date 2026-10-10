@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Help &amp; guide · {{ APP_NAME }}{% endblock %}
-{% macro shot(name, caption, cls='') %}{% set wh = help_shots().get(name) %}<figure class="shot {{ cls }}"><img src="/static/help/{{ name }}.webp" alt="{{ caption|striptags }}"{% if wh %} width="{{ wh[0] }}" height="{{ wh[1] }}"{% endif %} loading="lazy" decoding="async"><figcaption>{{ caption|safe }}</figcaption></figure>{% endmacro %}
+{% macro shot(name, caption, cls='') %}{% set wh = help_shots().get(name) %}<figure class="shot {{ cls }}"><img src="/static/help/{{ name }}.webp" alt="{{ caption|striptags }}" data-full="/static/help/{{ name }}.webp"{% if wh %} width="{{ wh[0] }}" height="{{ wh[1] }}"{% endif %} loading="lazy" decoding="async"><figcaption>{{ caption|safe }}</figcaption></figure>{% endmacro %}
 {% block content %}
 <div class="page-head">
   <div>
@@ -140,6 +140,8 @@
       <li><b>Save it from the web.</b> Paste a supplier page, Taobao listing or Pinterest pin into the item's web-link field, or use the one-click <b>Save from web</b> button. The picture is downloaded and stored with the item.</li>
     </ol>
     <p>Two rules worth knowing now: the <b>category</b> decides which page of the client schedule the item prints on, and the <b>status</b> starts at <span class="badge" style="--c:{{ STATUS_COLORS['To buy'] }}">To buy</span> and follows the purchase from there.</p>
+    <p>Every picture in the app opens <b>on top of the page</b> when you tap it: item photos, floor plans and drawing pages, the mood board, receipts. It arrives fitted to the window and sharp (the full-size file is fetched, not the small copy from the list); zoom with the buttons, the mouse wheel, a pinch or a double tap, drag to move, ‹ › walk through the gallery, and × or Esc, or the phone's Back button, land you back where you were. <b>Open</b> in its corner shows the file on its own, to save it.</p>
+    {{ shot('viewer', 'A floor plan opened from its Full size button: fitted to the window, the zoom pill at the bottom, Open and × at the top.') }}
     <div class="shots">
       {{ shot('item-new', 'New item: tick every room that gets it. Each ticked room gets its own line with its own code.') }}
       {{ shot('items', 'Items filtered by one room: the room zoomed in on its plan, then its item list.') }}
@@ -379,7 +381,7 @@
   <h3>The list</h3>
   <ul>
     <li>Filter by room or area, category, status, supplier or a search word (name, code, spec, brand). A dropdown applies as soon as you pick; the <b>Filter</b> button (or Enter) is for the search box. Three views, all keeping the filters: the <b>Item list</b> (the page opens on it) shows one line per item whatever the rooms: the same product in several rooms is counted once, with its rooms, the total quantity and value, its suppliers and a count per status (an item in one room has the status dropdown right there); <b>Table</b> is the compact sheet, one line per room, with the status dropdown; <b>Cards</b> groups by category with photos.</li>
-    <li><b>Delete selected.</b> Tick the lines to delete (a box per line in the Table and the Item list, <b>Select</b> on a card; the box at the top of the table ticks all shown, and shift-click ticks a range), then press <b>Delete selected</b> in the bar above the list. The bar counts the ticks and says how many of them have photos, with <b>Untick the ones with photos</b> to spare those in one press; the confirmation repeats the count before anything goes, plan dots included. In the Item list one box stands for the product in all its rooms. A filter only narrows what you see: it never deletes anything on its own, so to clear a category before importing it again, filter by it, tick all shown and press the button.</li>
+    <li><b>Delete selected.</b> Tick the lines to delete (a box per line in the Table and the Item list, <b>Select</b> on a card; the box at the top of the table ticks all shown, and shift-click ticks a range), then press <b>Delete selected</b> in the bar above the list. The bar counts the ticks and says how many of them have photos, with <b>Untick the ones with photos</b> to spare those in one press; the confirmation repeats the count before anything goes, plan dots included. In the Item list one box stands for the product in all its rooms. A filter only narrows what you see: it never deletes anything on its own, so to clear a category before importing it again, filter by it, tick all shown and press the button. <b>Tick by codes</b>, in the same bar, takes a pasted list of item codes (an Excel column, a message, a duplicate check; any order, anything around them) and ticks those lines, then says how many it found and which are not on the page; in the Item list a box that also covers lines you did not name stays unticked and is listed, so do this in the Table view.</li>
     <li><b>Sorting.</b> In the Table and the Item list, press a column heading to sort: text A to Z, numbers smallest first, Status in purchase order (To buy first), Rooms by how many. Press the heading again for the other way; blank cells go last.</li>
     <li>Filtered by one room, the top of the list shows that room <b>zoomed in on its plan</b> with a numbered dot per placed item. Tap a dot to jump to the item; tap the picture to open the plan. Rooms not yet marked show a link to mark them.</li>
     <li><b>Quick capture</b> and <b>Add item</b> from here keep the current room and category.</li>
@@ -388,6 +390,7 @@
     {{ shot('items-table', 'Table view, filtered by category: the compact sheet with a status dropdown per row. Press a heading to sort.') }}
     {{ shot('items-list', 'Item list, sorted by rooms: the same product in several rooms is one line, with its rooms, the total quantity and a count per status.') }}
     {{ shot('items-select', 'Two lines ticked: the bar counts them and its button says how many go. Nothing is deleted until you press it and confirm.') }}
+      {{ shot('items-codes', 'Tick by codes: three codes pasted and ticked, one not on the page named in the bar.') }}
     {{ shot('phone-items', 'The same room filter on a phone: the zoomed room first, then the item list.', 'phone') }}
   </div>
   <h3>Editing an item</h3>
@@ -553,6 +556,7 @@
     <li>The bottom bar has the pages you use most: <b>Overview</b>, <b>Items</b>, <b>Capture</b> in the middle, <b>Plan</b>, <b>Packing</b>. Everything else, and switching project, is under <b>More</b>.</li>
     <li>Photos are shrunk on the phone before they upload, so they go through on slow Wi-Fi. Floor plans keep more detail.</li>
     <li>On the plan, pinch to zoom and tap a room; the room's items come up from the bottom. Tap the pin on an item, then the drawing, to place it.</li>
+    <li>Tap any picture to open it full screen: pinch to zoom, drag to move, and the Back button closes it.</li>
     <li>Nothing here needs Google or any outside service, so it works in China.</li>
   </ul>
   <div class="shots">

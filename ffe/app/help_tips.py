@@ -58,7 +58,7 @@ TIPS = {
                "Under each plan the page says what it is: <b>Main plan</b> of its floor or a <b>Layer</b> of it. A plan from before layers that was filed as its own floor (\"Ground Electrical\") gets a yellow note: one press makes it a layer of that floor.",
                "<b>Add images</b> uploads the cover and the mood board; a web link works too. A mood-board picture <b>for one room</b> is that room's inspiration: it shows on the room's panel, the Rooms page, its item list and the client's link. The mood board lists the whole house first, then each room; a picture can be moved to another room from there."],
         tips=["Drawings are a reference only: rooms and items are never created from them.",
-              "Floor plans keep more pixels than photos so the room names stay readable."]),
+              "Floor plans keep more pixels than photos so the room names stay readable. Tap any picture here to open it full size, with zoom."]),
     "pdf_pages": dict(
         title="Pick the plan pages", anchor="plans",
         what="Which pages of this PDF are floor plans, and which floor each one shows.",
@@ -107,7 +107,8 @@ TIPS = {
                "In the Table and the Item list, press a <b>column heading</b> to sort: A to Z or smallest first, press again for the other way.",
                "<b>Export</b> at the top gives the Excel of what the filter shows (all items without a filter), ready to edit and import back.",
                "Filtered by one room, the top shows that room zoomed in on the plan; tap a dot to jump to its item.",
-               "To delete several at once, <b>tick</b> the lines (the box at the top of the Table or Item list ticks all shown) and press <b>Delete selected</b>; the bar says how many are ticked and how many of those have photos, and you confirm before anything goes. A filter on its own never deletes anything."],
+               "To delete several at once, <b>tick</b> the lines (the box at the top of the Table or Item list ticks all shown) and press <b>Delete selected</b>; the bar says how many are ticked and how many of those have photos, and you confirm before anything goes. A filter on its own never deletes anything.",
+               "To tick many lines by their codes, press <b>Tick by codes</b> in the bar, paste the codes (from Excel, a message or a duplicate check, in any order) and press <b>Tick these</b>: the bar says how many it found and which are not on the page. Best in the Table view, where every room line has its own box."],
         tips=["The status follows the purchase: To buy → Quoted → Ordered → Paid → Shipped → Received.",
               "The category decides which page of the client schedule the item prints on."]),
     "item_new": dict(
@@ -127,6 +128,7 @@ TIPS = {
                "<b>Rooms with this item</b> is a checklist of every room: tick one to copy the item there with its own code, untick one to take the item out of that room (its line is deleted, with its photos). The chips tick a whole group at once; this line's own room is locked.",
                "<b>Plan</b> / <b>On the plan</b> opens the room on the drawing."],
         tips=["Quantity, status, notes and photos always stay per room.",
+              "Tap a photo to see it full size on top of the page: zoom with the buttons, the wheel or a pinch, drag to move, ‹ › for the next one, and × (or Back on the phone) brings you back here.",
               "Deleting removes the item and its photos. Codes are never reused or renumbered."]),
     "capture": dict(
         title="Quick capture", anchor="capture",

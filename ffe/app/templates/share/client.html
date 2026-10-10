@@ -46,12 +46,13 @@
 <template id="plan-intro-tpl">{% include "plan/_intro.html" %}</template>
 {% endif %}
 
+<div data-lb-group>
 {% for cat, items in groups.items() %}
 <div class="group-title"><h2>{{ cat }}</h2><span class="n">{{ items|length }} item{{ '' if items|length == 1 else 's' }}</span></div>
 <div class="cards">
   {% for i in items %}
   <div class="item-card">
-    {% if i.cover %}<div class="pic"><img src="/media/{{ i.cover.thumb }}" alt="{{ i.name }}"></div>{% else %}<div class="pic empty">no photo</div>{% endif %}
+    {% if i.cover %}<div class="pic"><img src="/media/{{ i.cover.thumb }}" alt="{{ i.name }}" data-full="/media/{{ i.cover.file_key }}"></div>{% else %}<div class="pic empty">no photo</div>{% endif %}
     <div class="body">
       <div class="t">{{ i.name }}</div>
       <div class="m">{{ i.room.name if i.room else 'Whole house' }} · {{ i.qty|num }} {{ i.unit }}{% if i.brand %} · {{ i.brand }}{% endif %}{% if i.size %} · {{ i.size }}{% endif %}{% if i.finish %} · {{ i.finish }}{% endif %}</div>
@@ -68,6 +69,7 @@
   <p>Your designer is still putting the selection together. Check back soon.</p>
 </div>
 {% endfor %}
+</div>
 
 <div class="divider mt-l"></div>
 <div class="pub-foot"><img class="foot-logo" src="/static/brand/logo-ink.png" alt=""></div>

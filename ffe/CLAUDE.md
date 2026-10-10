@@ -162,6 +162,12 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
   link writes exactly one thing: inspiration pictures (`POST /c/<token>/inspiration`, `…/inspiration/<id>/delete` for
   their own only), capped by `config.MAX_CLIENT_INSPIRATION` per room and marked `MoodTag.by_client`; keep every other
   client route read-only.
+- Pictures open in the viewer (`app.js`, `.lb` in `app.css`): any `<a href="/media/…">` to a picture (not a PDF) and any
+  `<img data-full="…">` opens on top of the page, fitted, with zoom, drag, ‹ › through the nearest `[data-lb-group]`
+  (else `.gallery`, `.cards`, `.tbl`, `.pages`, `.shots`) and × / Esc / Back to close (one history entry, so Back lands on
+  the page). `data-caption` names it, `data-thumb` is the copy shown while the full file loads (an inner `<img>` otherwise),
+  `data-nolb` keeps a link out. Keep `target="_blank"` on the link as the no-JavaScript fallback. A thumbnail that leads
+  to a page (an item in a list) is navigation, not a picture: leave it alone.
 - Photos: compressed in the browser (`app.js`) and again server-side (`storage.process_image`, max 1600 px JPEG).
   Always go through `storage.py`; never write files directly. An item photo is made with `storage.save_photo()` (full copy +
   small copy, `ItemPhoto.thumb_key`) and removed with `storage.delete_photo(ph)`; anywhere a photo is a thumbnail (lists,
@@ -460,6 +466,16 @@ ALTER TABLE item_photos ADD COLUMN source VARCHAR(40) NOT NULL DEFAULT '';      
   if it exists, and the cut-out; `?ok=` message on the plan). `save_item_pin` cuts on reference sheets too (by hand), never on
   plans; `delete_item_pin` drops the cut. `layers.plan_re()` also ticks "WINDOW ELEVATIONS" / "DOOR SCHEDULE" pages in the
   picker for reference types. The room checklist's sheet page frames the room's dots (`drawings.dots_rect`) and says SHEET.
+- **Picture viewer and Tick by codes.** The viewer is the last module of `app.js` (a delegated click handler; the `.lb`
+  overlay is built once): the small copy shows at once, the full file (`ItemPhoto.file_key`, `ProjectImage.best_key`)
+  replaces it at the same size on screen, the fit is recomputed on each load, zoom is `translate(tx,ty) scale(s)` on the
+  stage image with the scale clamped to fit×0.5 … max(fit×10, 4), pointer events do drag and pinch (a tap beside the
+  picture closes), `history.pushState({lb:1})` on open and `history.back()` on close so the phone's Back button closes it.
+  Hooks: `data-full` on the client, supplier and room-panel item pictures and the mood galleries, `data-caption` /
+  `data-thumb` on the Full size buttons and galleries, `data-lb-group` on the client page, the supplier's phone list and the
+  room panel. Help pictures open too. Tick by codes (Items page, `.select-bar .codes-box`): every `.sel-box` carries
+  `data-codes` (the Item list box lists every room line's code); the pasted text is scanned for codes (`[A-Z][A-Z0-9]*(-…)*-digits`),
+  a box is ticked when all its codes are wanted, and the bar names the codes not on the page and the shared boxes.
 
 ## Backlog (in priority order)
 

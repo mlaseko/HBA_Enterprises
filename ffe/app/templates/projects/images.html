@@ -121,7 +121,7 @@
   <div class="sub-title mt"><span>{{ grp_room.label if grp_room else 'Whole house' }}</span><span class="muted small">{{ grp|length }} picture{{ 's' if grp|length != 1 }}{% if grp|selectattr('by_client')|list %} · {{ grp|selectattr('by_client')|list|length }} from the client{% endif %}</span></div>
   <div class="gallery">
   {% for im in grp %}
-    <div class="g{{ ' client' if im.by_client }}" id="img-{{ im.id }}"><img src="/media/{{ im.file_key }}" alt="{{ im.caption }}">
+    <div class="g{{ ' client' if im.by_client }}" id="img-{{ im.id }}"><img src="/media/{{ im.file_key }}" alt="{{ im.caption }}" data-full="/media/{{ im.file_key }}" data-caption="{{ im.caption or (grp_room.label if grp_room else 'Whole house') }}">
       <form method="post" action="/p/{{ p.id }}/images/{{ im.id }}/delete" data-confirm="Delete this picture? It comes off the project and its PDFs."><button class="btn sm icon danger" title="Delete picture" aria-label="Delete picture"><svg class="ic"><use href="#i-x"/></svg></button></form>
       <form method="post" action="/p/{{ p.id }}/images/{{ im.id }}" class="tag">
         {% if im.by_client %}<span class="pill sage">from the client</span>{% endif %}
@@ -138,7 +138,7 @@
   {% else %}
   <div class="gallery mt">
   {% for im in imgs %}
-    <div class="g"><img src="/media/{{ im.file_key }}" alt="{{ im.caption }}">
+    <div class="g"><img src="/media/{{ im.file_key }}" alt="{{ im.caption }}" data-full="/media/{{ im.file_key }}" data-caption="{{ im.caption or title }}">
       <form method="post" action="/p/{{ p.id }}/images/{{ im.id }}/delete" data-confirm="Delete this image? It comes off the project and its PDFs."><button class="btn sm icon danger" title="Delete image" aria-label="Delete image"><svg class="ic"><use href="#i-x"/></svg></button></form>
       {% if im.caption %}<div class="cap">{{ im.caption }}</div>{% endif %}</div>
   {% else %}
