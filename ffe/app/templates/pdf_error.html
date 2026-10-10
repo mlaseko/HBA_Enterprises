@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ doc }} · {{ p.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg>Documents</div>
+    <h1>{{ doc }} could not be built</h1>
+    <p class="sub">The PDF stopped half-way. Nothing in the project was changed.</p>
+  </div>
+</div>
+<div class="alert err"><b>What went wrong:</b> {{ err }}</div>
+<div class="card">
+  <p>Try again in a moment. If it keeps happening, copy the line above and send it with the project name: it says exactly where the document stopped, so it can be fixed quickly. Usually it is one picture or one line of data the document cannot read.</p>
+  <div class="row mt">
+    <a class="btn" href="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}"><svg class="ic"><use href="#i-file"/></svg>Try again</a>
+    <a class="btn sec" href="/p/{{ p.id }}#documents"><svg class="ic"><use href="#i-arrow-left"/></svg>Back to Documents</a>
+  </div>
+</div>
+{% endblock %}

@@ -124,9 +124,20 @@ def picture(data: bytes | None, w: float, h: float, align="CENTER"):
         return Spacer(w, h)
 
 
-def draw_cover_image(canv, data: bytes, x, y, w, h):
+def image_reader(data: bytes | None):
+    """An ImageReader for picture bytes, or None when there are none or Pillow cannot read them."""
+    if not data:
+        return None
+    try:
+        reader = ImageReader(io.BytesIO(data))
+        reader.getSize()
+        return reader
+    except Exception:
+        return None
+
+
+def draw_cover_image(canv, reader, x, y, w, h):
     """A picture scaled to fill the box, cropped around its centre."""
-    reader = ImageReader(io.BytesIO(data))
     iw, ih = reader.getSize()
     s = max(w / iw, h / ih)
     dw, dh = iw * s, ih * s
@@ -173,14 +184,16 @@ class Doc(BaseDocTemplate):
     def afterFlowable(self, fl):
         t = getattr(fl, "toc", None)
         if t:
-            self.section = t
-            self.notify("TOCEntry", (0, t, self.page))
+            self.section = str(t)
+            self.notify("TOCEntry", (0, escape(str(t)), self.page))  # the contents are paragraphs: markup must be escaped
 
     def _paint_cover(self, canv, doc):
         c, W, H = self.cover, PAGE_W, PAGE_H
         canv.saveState()
-        if c.get("image"):
-            draw_cover_image(canv, c["image"], 0, 0, W, H)
+        photo = image_reader(c.get("image"))
+        c = {**c, "image": photo}
+        if photo is not None:
+            draw_cover_image(canv, photo, 0, 0, W, H)
             band = 92 * mm
             canv.setFillColor(INK); canv.setFillAlpha(0.82); canv.rect(0, 0, W, band, fill=1, stroke=0); canv.setFillAlpha(1)
             text, soft = WHITE, colors.HexColor("#D9D2C8")
@@ -192,15 +205,15 @@ class Doc(BaseDocTemplate):
         y0 = 22 * mm
         canv.setFillColor(ACCENT if c.get("image") else GOLD); canv.rect(x, y0 + 56 * mm, 14 * mm, 1.2, fill=1, stroke=0)
         spaced(canv, x, y0 + 48 * mm, c.get("eyebrow", "Furniture & fixture schedule"), SANS_SB, 8, ACCENT if not c.get("image") else colors.HexColor("#E7B9A5"), 1.6)
-        canv.setFillColor(text); canv.setFont(SERIF, 40); canv.drawString(x - 1, y0 + 27 * mm, c["title"])
+        canv.setFillColor(text); canv.setFont(SERIF, 40); canv.drawString(x - 1, y0 + 27 * mm, str(c.get("title") or ""))
         canv.setFillColor(soft); canv.setFont(SANS, 10.5)
         yy = y0 + 15 * mm
-        for line in [ln for ln in c.get("lines", []) if ln]:
+        for line in [str(ln) for ln in c.get("lines", []) if ln]:
             canv.drawString(x, yy, line); yy -= 5.2 * mm
         canv.setFont(SANS, 8.5); canv.setFillColor(soft)
         rx = W - MARGIN - 4 * mm
         yy = y0 + 15 * mm
-        for line in [ln for ln in c.get("right", []) if ln]:
+        for line in [str(ln) for ln in c.get("right", []) if ln]:
             canv.drawRightString(rx, yy, line); yy -= 4.6 * mm
         logo = c.get("logo")
         if logo:
@@ -217,13 +230,13 @@ class Doc(BaseDocTemplate):
     def _paint_body(self, canv, doc):
         canv.saveState()
         y = PAGE_H - TOP + 7 * mm
-        spaced(canv, MARGIN, y, self.header_left, SANS_SB, 6.6, MUTED, 1.1)
+        spaced(canv, MARGIN, y, str(self.header_left or ""), SANS_SB, 6.6, MUTED, 1.1)
         section = self._starts.get(doc.page, self.section)
         if section:
-            spaced(canv, PAGE_W - MARGIN, y, section, SANS_SB, 6.6, INK, 1.1, right=True)
+            spaced(canv, PAGE_W - MARGIN, y, str(section), SANS_SB, 6.6, INK, 1.1, right=True)
         canv.setStrokeColor(LINE); canv.setLineWidth(0.6); canv.line(MARGIN, y - 3 * mm, PAGE_W - MARGIN, y - 3 * mm)
         canv.setFont(SANS, 7); canv.setFillColor(MUTED)
-        canv.drawString(MARGIN, 7.5 * mm, self.footer_left)
+        canv.drawString(MARGIN, 7.5 * mm, str(self.footer_left or ""))
         canv.drawRightString(PAGE_W - MARGIN, 7.5 * mm, f"Page {doc.page}")
         canv.restoreState()
 
