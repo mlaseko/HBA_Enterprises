@@ -356,6 +356,11 @@ ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';  
   the pricing note, Prepared by with the studio logo). Suppliers, notes and CNY are never printed (parity with the client link).
   `packing.py` still uses `common.py`; moving it to the theme is the next step of the redesign.
 
+- **Delete by filter.** `POST /p/<id>/items/delete-filtered` (routers/items.py) deletes every live item the Items page filter
+  shows (`item_query` with the same room / category / status / supplier / q), photos through `storage.delete_photo`, pins by
+  cascade; it refuses when no filter is set. The form sits under the filter bar (`filtering and items`), asks through
+  `data-confirm`, and redirects back to the same filter with `?deleted=N` for the message.
+
 ## Backlog (in priority order)
 
 1. **Receiving on the phone.** Per-room checklist page with tap-to-tick for packed / received / installed per
