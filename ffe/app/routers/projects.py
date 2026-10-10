@@ -6,7 +6,7 @@ from ..db import get_db
 from ..models import Project, ProjectImage, Room, Item, DrawingSet, PlanTag, DrawingPage
 from ..common import render, redirect, require_login, get_project, get_settings, ffloat, fint, content_disposition, safe_next
 from ..services import summary, mood_groups, client_moods
-from .. import storage, webimage, drawings, config
+from .. import storage, webimage, drawings, config, layers
 from urllib.parse import quote
 from ..models import token as new_token
 
@@ -99,7 +99,7 @@ def images(request: Request, p: Project = Depends(get_project), db: Session = De
 
 def _layer(value) -> str:
     v = str(value or "").strip().lower()
-    return v if v in config.LAYER_TITLES else config.MAIN_LAYER  # unknown (an old "furniture" form, say) = the main plan
+    return v if v in layers.titles() else config.MAIN_LAYER  # unknown (an old "furniture" form, a deleted type) = the main plan
 
 
 def _add_plan(db: Session, p: Project, floor: str, sheet: str, caption: str, *, data: bytes | None = None,

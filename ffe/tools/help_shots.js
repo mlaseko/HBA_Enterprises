@@ -31,6 +31,7 @@ const DESKTOP = [
   ['import', `/p/${pid}/import`],
   ['import-preview', `/p/${pid}/import`, async p => { await p.setInputFiles('input[name=file]', ids.edited_xlsx); await Promise.all([p.waitForNavigation(), p.click('form[enctype] button.btn')]); await p.waitForLoadState('networkidle'); }],
   ['settings', '/settings'],
+  ['settings-sheets', '/settings#sheets', async p => { await p.evaluate(() => document.getElementById('sheets').scrollIntoView({ block: 'start' })); }],
   ['clip', '/clip'],
   ['client', `/c/${ids.token}`],
   ['client-plan', `/c/${ids.token}?room=${kit}`, async p => { await p.evaluate(() => document.getElementById('plan-section').scrollIntoView({ block: 'start' })); }],

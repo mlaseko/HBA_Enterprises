@@ -112,18 +112,17 @@ def plan_caption(im) -> str:
 
 
 def layer_from_title(title: str) -> str:
-    """Which layer a drawing title describes: 'Ground Floor Plan (Furniture Layout)' -> furnishing, 'Electrical Layout Plan'
-    -> electrical, 'Reflected Ceiling Plan' -> ceiling, 'Floor Finishes Plan' -> flooring, anything else -> main (the
-    general floor plan)."""
-    t = (title or "").upper()
-    for key, rx in _LAYER_WORDS:
-        if rx.search(t):
-            return key
-    return config.MAIN_LAYER
+    """Which layer a drawing title describes, by the words of each sheet type (Studio settings → Plan sheet types):
+    'Ground Floor Plan (Furniture Layout)' -> furnishing, 'Electrical Layout Plan' -> electrical, 'Window & Door Plan' ->
+    windows, anything else -> main (the general floor plan)."""
+    from . import layers
+    return layers.from_title(title)
 
 
 def layer_for_category(category: str) -> str:
-    return config.CATEGORY_LAYER.get(category or "", config.MAIN_LAYER)
+    """The sheet a category's items are read from in the PDFs (Studio settings → Plan sheet types); the main plan by default."""
+    from . import layers
+    return layers.for_category(category)
 
 
 def plans(p) -> list:
@@ -316,7 +315,7 @@ def legacy_layer_hint(p, im) -> dict | None:
     layer = layer_from_title(im.floor)
     floor = im.floor
     if layer != config.MAIN_LAYER:
-        floor = _FLOOR_NOISE_RE.sub(" ", _LAYER_CAPTION_RE.sub(" ", im.floor))
+        floor = _FLOOR_NOISE_RE.sub(" ", _layer_caption_re().sub(" ", im.floor))
         floor = " ".join(floor.split()).strip(" -:;,·/&")
     else:
         layer = layer_from_title(im.caption)
@@ -327,7 +326,13 @@ def legacy_layer_hint(p, im) -> dict | None:
     has_main = any(x.id != im.id and x.is_main_layer for x in plans_for_floor(p, floor))
     if layer == "furnishing" and not has_main:
         return None
-    return {"floor": floor, "layer": layer, "title": config.LAYER_TITLES[layer], "floor_title": floor_title(floor, p), "has_main": has_main}
+    return {"floor": floor, "layer": layer, "title": layer_title(layer), "floor_title": floor_title(floor, p), "has_main": has_main}
+
+
+def layer_title(layer: str) -> str:
+    """The title of a sheet type (Studio settings → Plan sheet types): "Electrical & lighting" for electrical."""
+    from . import layers
+    return layers.title(layer)
 
 
 def plan_for_room(p, room):
@@ -457,15 +462,28 @@ _PLAN_RE = _re.compile(r"\b(FLOOR\s+PLAN|ROOF\s+PLAN|SITE\s+(?:LAYOUT\s+)?PLAN|S
                        r"(?:ELECTRICAL|LIGHTING|POWER|PLUMBING|SANITARY|DRAINAGE|WATER\s+SUPPLY|CEILING|FLOOR\s+FINISH(?:ES)?|FLOORING|TILE|TILING)\s+"
                        r"(?:LAYOUT\s+PLAN|LAYOUT|PLAN)|REFLECTED\s+CEILING\s+PLAN)\b")
 # Structural, mechanical and fire drawings are not plans the designer works on. Electrical, plumbing, ceiling and flooring
-# plans are: they become layers of their floor (layer_from_title). "Detail" and "section" are not in this list on purpose:
+# plans are (and any title made of a sheet type's words + PLAN/LAYOUT, layers.plan_re): they become layers of their floor
+# (layer_from_title). "Detail" and "section" are not in this list on purpose:
 # architects title plan sheets "Ground Floor Plan (Dimension Details)". Tested on the cut title segment, not the whole line:
 # title blocks often list the consultants ("STRUCTURAL ENGINEER: ...") on the same text line as the title.
 _NOT_PLAN_RE = _re.compile(r"SEWER|STRUCT|FOUNDATION|FOOTING|BEAM|SLAB|COLUMN|FRAMING|TRUSS|REINFORC|HVAC|MECHANICAL|DUCT|"
                            r"FIRE\s+(?:FIGHTING|PROTECTION|ALARM)")
-_LAYER_WORDS = [("furnishing", _re.compile(r"FURNITURE|FURNISH")),
-                ("electrical", _re.compile(r"ELECTRIC|LIGHTING|POWER|SOCKET|SWITCH")), ("plumbing", _re.compile(r"PLUMB|SANIT|DRAIN|WATER\s+SUPPLY")),
-                ("ceiling", _re.compile(r"CEILING|REFLECTED|\bRCP\b")), ("flooring", _re.compile(r"FLOOR\s+FINISH|FLOORING|\bTIL(?:E|ES|ING)\b"))]
-_LAYER_CAPTION_RE = _re.compile(r"(?i)\b(furniture|furnishings?|electrical|lighting|power|plumbing|sanitary|drainage|water supply|ceiling|reflected|flooring|floor finish(?:es)?|tiles?|tiling|layout)\b")
+
+
+def _layer_caption_re():
+    """The words of every sheet type (layers.caption_re): what a caption or a legacy floor name may carry besides the floor."""
+    from . import layers
+    return layers.caption_re()
+
+
+def _plan_match(line_up: str):
+    """The plan-title match on an upper-cased line: _PLAN_RE, or a sheet type's word followed by PLAN/LAYOUT (layers.plan_re);
+    the earlier of the two when both hit."""
+    from . import layers
+    m, m2 = _PLAN_RE.search(line_up), layers.plan_re().search(line_up)
+    if m and m2:
+        return m if m.start() <= m2.start() else m2
+    return m or m2
 # What a legacy floor name may carry besides the floor and the layer word: "Ground Electrical Plan" -> "Ground".
 _FLOOR_NOISE_RE = _re.compile(r"(?i)\b(plan|plans|sheet|drawing|dwg|layout)\b")
 # Longer names first: "LOWER GROUND" must win over "GROUND".
@@ -555,7 +573,7 @@ def read_title_block(text: str) -> dict:
     up = [l.upper() for l in lines]
     cands = []
     for idx, (raw, l) in enumerate(zip(lines, up)):
-        m = _PLAN_RE.search(l)
+        m = _plan_match(l)
         if not m:
             continue
         if _re.search(r"\b(SEE|REFER)\b", l) or _re.match(r"^[A-Z]{1,3}-?\d{2,4}\b", l):
@@ -586,7 +604,7 @@ def caption_from_title(title: str, layer: str | None = None) -> str:
     t = _re.sub(r"(?i)\b(lower|upper)?\s*(ground|first|second|third|fourth|basement|mezzanine|penthouse|roof|site)\b", " ", t)
     t = _re.sub(r"(?i)\b(floor|plan)\b", " ", t)
     if (layer or layer_from_title(title)) != config.MAIN_LAYER:
-        t = _LAYER_CAPTION_RE.sub(" ", t)  # the layer label already says "Electrical & lighting"; no need to repeat it
+        t = _layer_caption_re().sub(" ", t)  # the layer label already says "Electrical & lighting"; no need to repeat it
     t = t.replace("(", " ").replace(")", " ")
     t = " ".join(t.split()).strip(" -:;,")
     if t.lower() in ("layout", "plan", "floor", "layout plan"):

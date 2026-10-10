@@ -43,18 +43,12 @@ MAX_CLIENT_INSPIRATION = 12  # pictures the client may add per room (and for the
 FLOOR_AREA_WORDS = ["quarter", "staff", "servant", "boys", "annex", "guest house", "guesthouse", "outbuilding", "outhouse", "cabana",
                     "garden", "pool", "compound", "yard", "gatehouse", "gate house", "garage", "workshop", "outside", "exterior"]
 # What a floor plan shows (ProjectImage.layer). One main plan per floor, the architect's general floor plan, carries the room
-# boxes; the other sheets of the same floor (furniture layout, electrical, plumbing, ceiling, flooring) are layers that borrow
-# those boxes until they get their own. Item dots stay per sheet. The main plan used to be stored as "furniture" (relabelled
-# at startup by db.DATA_MIGRATIONS), which is why the furniture layout's key is "furnishing".
+# boxes; the other sheets of the same floor (furniture layout, electrical, plumbing, ceiling, flooring, windows & doors…) are
+# layers that borrow those boxes until they get their own. Item dots stay per sheet. The list of sheet types is data
+# (plan_layers, edited under Studio settings → Plan sheet types, read through layers.py); only the main plan's key is fixed.
+# The main plan used to be stored as "furniture" (relabelled at startup by db.DATA_MIGRATIONS), which is why the furniture
+# layout's key is "furnishing".
 MAIN_LAYER = "main"
-PLAN_LAYERS = [("main", "Main plan"), ("furnishing", "Furniture layout"), ("electrical", "Electrical & lighting"),
-               ("plumbing", "Plumbing & sanitary"), ("ceiling", "Ceiling"), ("flooring", "Flooring & tiles")]
-LAYER_TITLES = dict(PLAN_LAYERS)
-# The "Shows" select on Images & plans and in the page picker: the main plan says what it is.
-LAYER_OPTIONS = [(k, t + (" (general floor plan)" if k == MAIN_LAYER else "")) for k, t in PLAN_LAYERS]
-# Which sheet a category's items are read from in the PDFs; every other category: the main plan.
-CATEGORY_LAYER = {"Furniture": "furnishing", "Curtains & Soft": "furnishing", "Lighting": "electrical", "Electrical": "electrical",
-                  "Plumbing & Sanitary": "plumbing", "Water Treatment": "plumbing", "Tiles": "flooring", "Flooring": "flooring"}
 AREA_WORDS = ["entrance", "entry", "foyer", "lobby", "hall", "corridor", "passage", "landing", "stair", "balcon", "verandah",
               "veranda", "terrace", "patio", "porch", "deck", "carport", "driveway", "parking", "garden", "yard", "outside",
               "exterior", "external", "site", "whole house", "doors", "plant", "pool", "compound", "fence", "gate"]
