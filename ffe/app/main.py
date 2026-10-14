@@ -1,3 +1,5 @@
+import threading
+import time
 from fastapi import FastAPI, Request, Depends, Form, UploadFile, File
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import RedirectResponse, Response, HTMLResponse
@@ -45,6 +47,50 @@ def startup():
                               "VALUES (1, 'My Design Studio', '', '', '', 7.10, '')"))
     with SessionLocal() as db:
         layers.seed(db, kind_added="plan_layers.kind" in added)  # the built-in plan sheet types on an empty list (Studio settings → Plan sheet types edits it)
+    if config.PHOTO_PREPARE_AT_START:
+        prepare_photos_in_background()
+
+
+def prepare_photos(db: Session, limit: int = 60) -> tuple[int, int]:
+    """Give photos from before this version their small copy and their fingerprint, a batch at a time. The fingerprint
+    lets the same picture stored for several rooms count once in the product's photos. Returns (done, left)."""
+    done = 0
+    for ph in db.query(ItemPhoto).filter((ItemPhoto.thumb_key == "") | (ItemPhoto.digest == "")).order_by(ItemPhoto.id).limit(limit).all():
+        data = storage.read_image(ph.file_key)
+        if data:
+            try:
+                if not ph.thumb_key:
+                    ph.thumb_key = storage.save_thumb(data, ph.file_key)
+                if not ph.digest:
+                    ph.digest = storage.digest_of(data)
+                done += 1
+                continue
+            except Exception:
+                pass
+        if not ph.thumb_key:
+            ph.thumb_key = "-"  # the original is gone or unreadable: the full picture keeps being used, and we stop retrying
+        if not ph.digest:
+            ph.digest = "-"
+    db.commit()
+    left = db.query(ItemPhoto).filter((ItemPhoto.thumb_key == "") | (ItemPhoto.digest == "")).count()
+    return done, left
+
+
+def prepare_photos_in_background() -> None:
+    """After the start, prepare older photos in small batches on a thread of its own, so no page and no cold start waits
+    for it (several autoscale instances may do it at once: the work is the same either way). Settings → Speed shows
+    what is left and does it by hand as well."""
+    def run():
+        while True:
+            try:
+                with SessionLocal() as db:
+                    done, left = prepare_photos(db, limit=20)
+            except Exception:
+                return
+            if not done or not left:
+                return
+            time.sleep(0.5)
+    threading.Thread(target=run, name="prepare-photos", daemon=True).start()
 
 
 @app.exception_handler(LoginRequired)
@@ -136,27 +182,8 @@ def settings_layer_delete(key: str, db: Session = Depends(get_db)):
 
 @app.post("/settings/thumbs", dependencies=[Depends(require_login)])
 def settings_thumbs(db: Session = Depends(get_db)):
-    """Make the small copies and the fingerprints of photos saved before this version, a batch at a time (the page says
-    how many are left). The fingerprint lets the same picture stored for several rooms count once."""
-    done = 0
-    for ph in db.query(ItemPhoto).filter((ItemPhoto.thumb_key == "") | (ItemPhoto.digest == "")).order_by(ItemPhoto.id).limit(60).all():
-        data = storage.read_image(ph.file_key)
-        if data:
-            try:
-                if not ph.thumb_key:
-                    ph.thumb_key = storage.save_thumb(data, ph.file_key)
-                if not ph.digest:
-                    ph.digest = storage.digest_of(data)
-                done += 1
-                continue
-            except Exception:
-                pass
-        if not ph.thumb_key:
-            ph.thumb_key = "-"  # the original is gone or unreadable: the full picture keeps being used, and we stop retrying
-        if not ph.digest:
-            ph.digest = "-"
-    db.commit()
-    left = db.query(ItemPhoto).filter((ItemPhoto.thumb_key == "") | (ItemPhoto.digest == "")).count()
+    """Settings → Speed: prepare a batch of older photos now (prepare_photos); the page says how many are left."""
+    done, left = prepare_photos(db, limit=60)
     return redirect(f"/settings?thumbs={done}&left={left}")
 
 

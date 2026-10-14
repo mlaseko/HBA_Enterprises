@@ -175,7 +175,8 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
   deleted call `services.release_photos(db, p, item, survivors)`: its photos move to a surviving twin, files are deleted
   only when none is left. `delete_photo` / `make_cover` act on the pool (a photo of a twin counts) and `delete_photo`
   also removes the same picture stored for other rooms (`same_picture`). `storage.save_photo` returns
-  `(file_key, thumb_key, digest)`; Settings → Speed backfills thumbs and digests of older photos.
+  `(file_key, thumb_key, digest)`; `main.prepare_photos()` backfills thumbs and digests of older photos: in the background after
+  each start (`prepare_photos_in_background`, off with `PHOTO_PREPARE_AT_START=0`, as the suite sets) and from Settings → Speed.
 - Photos: compressed in the browser (`app.js`) and again server-side (`storage.process_image`, max 1600 px JPEG).
   Always go through `storage.py`; never write files directly. An item photo is made with `storage.save_photo()` (full copy +
   small copy, `ItemPhoto.thumb_key`) and removed with `storage.delete_photo(ph)`; anywhere a photo is a thumbnail (lists,

@@ -4,7 +4,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _tmp=tempfile.mkdtemp()
 os.environ["DATABASE_URL"]=f"sqlite:///{_tmp}/test.db"; os.environ["LOCAL_UPLOAD_DIR"]=f"{_tmp}/uploads"; os.environ["STORAGE_BACKEND"]="local"
-os.environ["APP_PASSWORD"]="test123"; os.environ["SECRET_KEY"]="x"*32
+os.environ["APP_PASSWORD"]="test123"; os.environ["SECRET_KEY"]="x"*32; os.environ["PHOTO_PREPARE_AT_START"]="0"  # the suite drives the backfill itself
 from fastapi.testclient import TestClient
 from app.main import app
 from PIL import Image
