@@ -61,11 +61,11 @@ def clip_save(request: Request, db: Session = Depends(get_db), project_id: str =
         from urllib.parse import quote
         return redirect(f"/clip?err={quote(str(e))}&url={quote(page)}&img={quote(link)}&project={p.id}")
     if dest == "item":
-        key, tkey = storage.save_photo(data, f"p{p.id}")
+        key, tkey, dg = storage.save_photo(data, f"p{p.id}")
         item = Item(project_id=p.id, name="", code="", draft=True, notes=(f"Source: {page}" if page else ""))
         db.add(item)
         db.flush()
-        db.add(ItemPhoto(item_id=item.id, file_key=key, thumb_key=tkey, caption=caption))
+        db.add(ItemPhoto(item_id=item.id, file_key=key, thumb_key=tkey, caption=caption, digest=dg))
         filled = []
         suggestion = ai.suggest_item(storage.read_image(key), text, page or link, [r.label for r in p.rooms])
         if suggestion:

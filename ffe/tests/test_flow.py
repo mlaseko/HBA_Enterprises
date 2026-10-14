@@ -194,8 +194,8 @@ with TestClient(app) as c:
              files=[("photos",("ac.jpg",img("white"),"image/jpeg"))], follow_redirects=False)
     assert "/items?q=" in r.headers["location"], r.headers["location"]
     db=SessionLocal(); acs=db.query(Item).filter(Item.project_id==int(pid), Item.name=="Air conditioner 12000 BTU").all()
-    assert sorted(a.room_id for a in acs)==sorted(rids) and all(len(a.photos)==1 for a in acs)
-    assert len({a.photos[0].file_key for a in acs})==3 and all(a.code.split("-")[:-1]==a.room.code.split("-") for a in acs)
+    assert sorted(a.room_id for a in acs)==sorted(rids) and sum(len(a.photos) for a in acs)==1 and all(len(a.all_photos)==1 and a.cover is not None for a in acs)
+    assert len({a.cover.file_key for a in acs})==1 and all(a.code.split("-")[:-1]==a.room.code.split("-") for a in acs)
     ac_ids=[a.id for a in acs]; db.close()
     # edit specs once, applied to every room using the item; per-room qty/status stay
     db=SessionLocal(); slabs=db.query(Item).filter(Item.project_id==int(pid), Item.name=="Floor - big porcelain slab (+ extra % for cuts)").all()
@@ -213,7 +213,7 @@ with TestClient(app) as c:
     r=c.post(f"/p/{pid}/items/{ac_ids[0]}", data={"room_id":rids[0],"category":"Electrical","name":"Air conditioner 12000 BTU","spec":"Inverter split","qty":"1","unit":"pcs","unit_price":"2100","status":"Ordered","add_room_ids":[str(x) for x in extra_ids]}, follow_redirects=False)
     db=SessionLocal(); acs=db.query(Item).filter(Item.project_id==int(pid), Item.name=="Air conditioner 12000 BTU").all()
     assert len(acs)==5 and {a.room_id for a in acs}==set(rids+extra_ids)
-    new=[a for a in acs if a.room_id in extra_ids]; assert all(a.status=="To buy" and len(a.photos)==1 and a.code for a in new); db.close()
+    new=[a for a in acs if a.room_id in extra_ids]; assert all(a.status=="To buy" and a.photos==[] and a.cover is not None and a.code for a in new); db.close()
     # ---- floor plans & drawing sets: tagged plans, PDF page picker, rooms/client pages, by-floor schedule, checklist ----
     from app import drawings as _dr
     from app.models import ProjectImage, DrawingSet, PlanTag
@@ -610,12 +610,12 @@ with TestClient(app) as c:
     b=io.BytesIO(); wb3.save(b)
     db=SessionLocal(); dbc=db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Day bed").one().code; db.close()
     r=c.post(f"/p/{pid_p}/import", files=[("file",("pics.xlsx", b.getvalue())),("photos",("Photo stool.jpg", img("red"), "image/jpeg")),("photos",("photo_stool-2.JPG", img("blue"), "image/jpeg")),("photos",(f"{dbc}.jpg", img("gray"), "image/jpeg")),("photos",("nobody.jpg", img("white"), "image/jpeg"))], data={}); h=r.text
-    assert "6 pictures</span>" in h and 'Picture &#34;nobody.jpg&#34; matches no item' in h and "Embedded lamp" in h and "Photo</b>: — → 1 added" in h, re.findall(r"\d+ pictures?</span>", h)
+    assert "4 pictures</span>" in h and 'Picture &#34;nobody.jpg&#34; matches no item' in h and "Embedded lamp" in h and "Photo</b>: — → 1 added" in h, re.findall(r"\d+ pictures?</span>", h)
     key3=re.search(r'name="key" value="([^"]+)"', h).group(1); assert _stx.read_image(key3[:-5]+".json") is not None
     db=SessionLocal(); assert db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Embedded lamp").count()==0; db.close()
-    r=c.post(f"/p/{pid_p}/import", data={"key":key3,"apply":"1"}); assert "3 new items" in r.text and "6 pictures added" in r.text, re.search(r"Imported[^<]*", r.text).group(0)
+    r=c.post(f"/p/{pid_p}/import", data={"key":key3,"apply":"1"}); assert "3 new items" in r.text and "4 pictures added" in r.text, re.search(r"Imported[^<]*", r.text).group(0)
     db=SessionLocal(); its3={i.name:i for i in db.query(Item).filter(Item.project_id==int(pid_p))}
-    assert len(its3["Embedded lamp"].photos)==1 and all(len(i.photos)==2 for i in db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Photo stool")) and len(its3["Day bed"].photos)==1 and its3["Day bed"].photos[0].thumb_key
+    assert len(its3["Embedded lamp"].photos)==1 and all(len(i.all_photos)==2 for i in db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Photo stool")) and sum(len(i.photos) for i in db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Photo stool"))==2 and len(its3["Day bed"].photos)==1 and its3["Day bed"].photos[0].thumb_key
     db.close(); assert _stx.read_image(key3) is None and _stx.read_image(key3[:-5]+".json") is None
     xk=c.get(f"/p/{pid_p}/export/items.xlsx").content; r=c.post(f"/p/{pid_p}/import", files={"file":("export.xlsx", xk)}, data={}); h=r.text  # the export's own pictures are never re-added
     assert "0 pictures</span>" in h and "not added: those items already have a photo" in h; key4=re.search(r'name="key" value="([^"]+)"', h).group(1); c.post(f"/p/{pid_p}/import/cancel", data={"key":key4})
@@ -853,10 +853,10 @@ with TestClient(app) as c:
     assert not os.path.exists(f"{up}/{vk}") and (not vt or not os.path.exists(f"{up}/{vt}"))
     # settings: older photos without a small copy are counted and made in batches
     db=SessionLocal(); old_ph=db.query(_IP).filter(_IP.item_id==int(iid)).first(); old_ph.thumb_key=""; db.commit(); okey=old_ph.file_key; db.close()
-    r=c.get("/settings"); assert 'id="speed"' in r.text and "Make small versions of 1 older photo" in r.text
+    r=c.get("/settings"); assert 'id="speed"' in r.text and "Prepare 1 older photo" in r.text
     r=c.post("/settings/thumbs", follow_redirects=False); assert r.headers["location"]=="/settings?thumbs=1&left=0"
     db=SessionLocal(); old_ph=db.query(_IP).filter(_IP.file_key==okey).one(); assert old_ph.thumb_key==_st.thumb_key_for(okey) and os.path.exists(f"{up}/{old_ph.thumb_key}"); db.close()
-    assert "Every photo has a small version" in c.get("/settings?thumbs=1&left=0").text
+    assert "Every photo has its small version and fingerprint" in c.get("/settings?thumbs=1&left=0").text
     # a photo whose original is gone is marked and not retried
     db=SessionLocal(); gone=_IP(item_id=int(iid), file_key="p1/missing.jpg", thumb_key=""); db.add(gone); db.commit(); db.close()
     c.post("/settings/thumbs", follow_redirects=False); db=SessionLocal(); g2=db.query(_IP).filter(_IP.file_key=="p1/missing.jpg").one(); assert g2.thumb_key=="-" and g2.thumb=="p1/missing.jpg"; db.delete(g2); db.commit(); db.close()
@@ -931,7 +931,7 @@ with TestClient(app) as c:
         cn.execute(_text("INSERT INTO rooms (code, name) VALUES ('X', 'Old room')"))
         cn.execute(_text("INSERT INTO project_images (kind) VALUES ('floorplan')"))
         cn.execute(_text("INSERT INTO item_photos (file_key) VALUES ('p1/old.jpg')"))
-    assert _migrate(_eng)==["items.draft", "rooms.kind", "project_images.layer", "item_photos.thumb_key", "item_photos.source"] and _migrate(_eng)==[]
+    assert _migrate(_eng)==["items.draft", "rooms.kind", "project_images.layer", "item_photos.thumb_key", "item_photos.source", "item_photos.digest"] and _migrate(_eng)==[]
     with _eng.begin() as cn: cn.execute(_text("INSERT INTO project_images (kind, layer) VALUES ('floorplan', 'furniture')")); cn.execute(_text("INSERT INTO project_images (kind, layer) VALUES ('floorplan', 'furnishing')"))
     assert _migrate(_eng)==["project_images.layer: 1 rows relabelled"] and _migrate(_eng)==[]  # the old name of the main plan; a furniture layout stays
     with _eng.connect() as cn: assert sorted(r[0] for r in cn.execute(_text("SELECT layer FROM project_images")))==["furnishing", "main", "main"]
@@ -1074,7 +1074,7 @@ with TestClient(app) as c:
     r=c.get(f"/p/{pid}/items?room={r2.id}"); assert r.status_code==200 and 'class="room-zoom"' in r.text and r.text.count('class="rz-dot"')==r2_dots and f'data-cx="{zr["rect"][0]}"' in r.text
     assert f'href="/p/{pid}/plan?plan={gid}&amp;room={r2.id}"' in r.text and "Checklist PDF" in r.text and f'id="item-{r2_item}"' in r.text and f'data-item="{r2_item}"' in r.text
     r=c.get(f"/p/{pid}/items?room={room.id}"); assert 'class="room-zoom"' not in r.text and "Mark it on the plan" in r.text and f"plan?room={room.id}&amp;mode=mark" in r.text  # GF-KIT's box was removed earlier
-    r=c.get(f"/p/{pid}/items?room={r2.id}&view=table"); assert f'<tr id="item-{r2_item}">' in r.text
+    r=c.get(f"/p/{pid}/items?room={r2.id}&view=table"); assert f'<tr id="item-{r2_item}" ' in r.text
     r=c.get(f"/p/{pid}/items?room=none"); assert r.status_code==200 and "room-head" not in r.text
     r=c.get(f"/p/{pid}/rooms"); assert r.text.count('class="room-zoom sm"')>=1 and f'plan?plan={gid}&amp;room={r2.id}"' in r.text
     # the checklist PDF: page one is the zoomed room for a marked room, the whole plan for an unmarked one
@@ -1114,7 +1114,7 @@ with TestClient(app) as c:
     assert 'name="apply_all" value="1" checked>' in h and "1 other room with this exact item" in h and "differ in" not in h
     assert 'list="dl-name"' in h and '<datalist id="dl-name">' in h and '<option value="Floor tiles">' in h and '<datalist id="dl-size">' in h and '<option value="1200 x 600 mm">' in h and '<option value="Ceramic, matt, cream">' in h
     assert "only in this room so far" in c.get(f"/p/{pid}/items/{t3}").text and '<datalist id="dl-name">' in c.get(f"/p/{pid}/items/new").text
-    h=c.get(f"/p/{pid}/items?view=list&q=Floor%20tiles").text; assert h.count('<tr id="item-')==2 and "2 rooms</a>" in h and "· 800 * 400 mm · Ceramic, matt, cream" in h
+    h=c.get(f"/p/{pid}/items?view=list&q=Floor%20tiles").text; assert f'<tr id="item-{t1}"' in h and f'<tr id="item-{t3}"' in h and "2 rooms</a>" in h and "· 800 * 400 mm · Ceramic, matt, cream" in h
     c.post(f"/p/{pid}/items/{t2}/status", data={"status":"Quoted"}); assert 'name="apply_all" value="1" checked>' in c.get(f"/p/{pid}/items/{t1}").text  # status is per room: no difference that matters
     r=c.post(f"/p/{pid}/items/{t2}", data={"room_id":rids[1],"category":"Tiles","name":"Floor tiles","size":"1200*600 mm","finish":"Ceramic, matt, cream","qty":"20","unit":"m²","unit_price":"95","status":"Quoted","lead_time":"3 weeks"}, follow_redirects=False); assert r.status_code==303
     h=c.get(f"/p/{pid}/items/{t1}").text; assert 'name="apply_all" value="1">' in h and "The other rooms differ in price and lead time:" in h  # set up its own way: not overwritten by default
@@ -1293,6 +1293,37 @@ with TestClient(app) as c:
     r=c.post(f"/p/{pi}/images/{wh}/cover", data={"next":""}, follow_redirects=False); db=SessionLocal(); assert r.status_code==303 and not db.get(ProjectImage,wh).is_cover; db.close()  # a whole-house picture is never a room's cover
     assert c.post(f"/p/{pi}/images/999999/cover", data={"next":""}, follow_redirects=False).status_code==404
     print("room covers ok")
+
+    # photos belong to the product: added from any room's line (or the item list), shown on every room's line, one copy stored
+    from app.routers.items import new_photo as _np
+    from app.models import ItemPhoto
+    r=c.post("/projects/new", data={"client_name":"Shared","name":"Shared photos","rate":"7.1"}, follow_redirects=False); ps=r.headers["location"].split("/")[-1]
+    for k in range(3): c.post(f"/p/{ps}/rooms", data={"code":f"S{k}","name":f"Shared room {k}","floor":"Ground","kind":"room"}, follow_redirects=False)
+    srids=re.findall(r'name="room_ids" value="(\d+)"', c.get(f"/p/{ps}/items/new").text)[:3]
+    c.post(f"/p/{ps}/items/new", data={"room_ids":srids,"category":"Lighting","name":"Wall light","qty":"2","unit":"pcs","status":"To buy"}, files=[("photos",("a.jpg",img("red"),"image/jpeg"))], follow_redirects=False)
+    db=SessionLocal(); sits=db.query(Item).filter(Item.project_id==int(ps)).order_by(Item.id).all(); sids=[i.id for i in sits]
+    assert sum(len(i.photos) for i in sits)==1 and [len(i.all_photos) for i in sits]==[1,1,1] and len({i.cover.file_key for i in sits})==1 and len(sits[0].photos[0].digest)==40; db.close()
+    c.post(f"/p/{ps}/items/{sids[1]}/photo", files=[("photos",("b.jpg",img("blue"),"image/jpeg"))], follow_redirects=False)  # from another room's line
+    db=SessionLocal(); sits=[db.get(Item,i) for i in sids]; assert [len(i.photos) for i in sits]==[1,1,0] and [len(i.all_photos) for i in sits]==[2,2,2]; bid=sits[1].photos[0].id; bk=sits[1].photos[0].file_key; db.close()
+    h=c.get(f"/p/{ps}/items?view=table").text; assert h.count('class="thumb sm"')==3 and h.count("data-search=")==3 and 'id="live-q"' in h and 'id="live-q-hidden"' in h and 'type="text" name="q"' not in h and "Shared room 2 " in h
+    h=c.get(f"/p/{ps}/items/{sids[2]}").text; assert h.count("/photo/")==3 and "Shared with this item" in h and f"/photo/{bid}/cover" in h  # the line without photos of its own shows both, with the actions
+    c.post(f"/p/{ps}/items/{sids[2]}/photo/{bid}/cover", follow_redirects=False); db=SessionLocal(); assert all(db.get(Item,i).cover.file_key==bk for i in sids); fid=db.get(Item,sids[0]).photos[0].id; db.close()  # the cover changes for every room
+    c.post(f"/p/{ps}/items/{sids[2]}/photo/{fid}/delete", follow_redirects=False); db=SessionLocal(); sits=[db.get(Item,i) for i in sids]; assert [len(i.all_photos) for i in sits]==[1,1,1] and sum(len(i.photos) for i in sits)==1; holder=next(i for i in sits if i.photos); hid=holder.id; hk=holder.photos[0].file_key; db.close()
+    c.post(f"/p/{ps}/items/{hid}/delete", follow_redirects=False); db=SessionLocal(); rest=[db.get(Item,i) for i in sids if i!=hid]; assert [len(i.all_photos) for i in rest]==[1,1] and _st.read_image(hk) is not None and sum(len(i.photos) for i in rest)==1; db.close()  # the holder's line goes, the photo stays with the product
+    keep_s, gone_s = [i.id for i in rest]
+    r=c.post(f"/p/{ps}/items/{keep_s}", data={"room_id":str(rest[0].room_id),"category":"Lighting","name":"Wall light","qty":"2","unit":"pcs","status":"To buy","rooms_form":"1"}, follow_redirects=False)
+    db=SessionLocal(); assert r.status_code==303 and db.get(Item,gone_s) is None and len(db.get(Item,keep_s).photos)==1 and db.get(Item,keep_s).cover.file_key==hk; db.close()  # unticked room: its line goes, the photo moves
+    c.post(f"/p/{ps}/items/new", data={"room_ids":srids[:2],"category":"Tiles","name":"Floor tile","size":"600 x 600","qty":"1","unit":"m²","status":"To buy"}, follow_redirects=False)
+    db=SessionLocal(); tl=db.query(Item).filter(Item.project_id==int(ps), Item.name=="Floor tile").order_by(Item.id).all(); pr=tl[0].project; same=img("green"); db.add(_np(tl[0].id, same, pr)); db.add(_np(tl[1].id, same, pr)); db.commit(); tids=[i.id for i in tl]; db.close()
+    db=SessionLocal(); tl=[db.get(Item,i) for i in tids]; assert sum(len(i.photos) for i in tl)==2 and [len(i.all_photos) for i in tl]==[1,1]; pk=tl[0].photos[0].id; db.close()  # the same picture stored twice (before sharing) shows once
+    c.post(f"/p/{ps}/items/{tids[1]}/photo/{pk}/delete", follow_redirects=False); db=SessionLocal(); assert db.query(ItemPhoto).join(Item).filter(Item.id.in_(tids)).count()==0; db.close()  # and goes together
+    c.post(f"/p/{ps}/items/{tids[0]}/photo", files=[("photos",("c.jpg",img("gray"),"image/jpeg"))], follow_redirects=False)
+    c.post(f"/p/{ps}/items/delete-selected", data={"ids":[str(tids[0])]}, follow_redirects=False); db=SessionLocal(); t1=db.get(Item,tids[1]); assert len(t1.photos)==1 and t1.cover is not None; fk=t1.photos[0].file_key; db.close()  # bulk delete: the photo moves to the surviving room
+    c.post(f"/p/{ps}/items/delete-selected", data={"ids":[str(tids[1])]}, follow_redirects=False); assert _st.read_image(fk) is None  # the last line: the files go
+    db=SessionLocal(); ph0=db.query(ItemPhoto).join(Item).filter(Item.project_id==int(ps)).first(); ph0.digest=""; ph0id=ph0.id; db.commit(); db.close()
+    assert "Prepare 1 older photo" in c.get("/settings").text; c.post("/settings/thumbs", follow_redirects=False); db=SessionLocal(); assert len(db.get(ItemPhoto,ph0id).digest)==40; db.close()  # the backfill fingerprints older photos
+    assert "livesearch" in open("app/static/app.js").read() and ".livesearch{" in open("app/static/app.css").read()
+    print("shared photos + live search ok")
     # nothing chosen, a bad link, the cap per room, someone else's picture, a wrong token
     r=c2.post(f"/c/{itok}/inspiration", data={"room_id":str(kit)}, follow_redirects=False); assert "err=" in r.headers["location"]
     r=c2.post(f"/c/{itok}/inspiration", data={"room_id":str(kit),"url":"https://shop.example/empty"}, follow_redirects=False); assert "err=" in r.headers["location"]

@@ -88,7 +88,7 @@ def media(key: str):
 
 @app.get("/settings", dependencies=[Depends(require_login)])
 def settings_page(request: Request, db: Session = Depends(get_db), thumbs: str = "", left: str = "", err: str = "", ok: str = ""):
-    missing = db.query(ItemPhoto).filter(ItemPhoto.thumb_key == "").count()  # photos from before the small copies existed
+    missing = db.query(ItemPhoto).filter((ItemPhoto.thumb_key == "") | (ItemPhoto.digest == "")).count()  # photos from before the small copies / fingerprints
     used = layers.usage(db)
     layer_rows = [dict(r, plans=used.get(r["key"], 0)) for r in layers.rows()]
     return render(request, "settings.html", s=get_settings(db), thumbs_missing=missing, thumbs_done=ffloat(thumbs, 0), thumbs_left=left,
@@ -136,20 +136,27 @@ def settings_layer_delete(key: str, db: Session = Depends(get_db)):
 
 @app.post("/settings/thumbs", dependencies=[Depends(require_login)])
 def settings_thumbs(db: Session = Depends(get_db)):
-    """Make the small copies of photos saved before this version, a batch at a time (the page says how many are left)."""
+    """Make the small copies and the fingerprints of photos saved before this version, a batch at a time (the page says
+    how many are left). The fingerprint lets the same picture stored for several rooms count once."""
     done = 0
-    for ph in db.query(ItemPhoto).filter(ItemPhoto.thumb_key == "").order_by(ItemPhoto.id).limit(60).all():
+    for ph in db.query(ItemPhoto).filter((ItemPhoto.thumb_key == "") | (ItemPhoto.digest == "")).order_by(ItemPhoto.id).limit(60).all():
         data = storage.read_image(ph.file_key)
         if data:
             try:
-                ph.thumb_key = storage.save_thumb(data, ph.file_key)
+                if not ph.thumb_key:
+                    ph.thumb_key = storage.save_thumb(data, ph.file_key)
+                if not ph.digest:
+                    ph.digest = storage.digest_of(data)
                 done += 1
                 continue
             except Exception:
                 pass
-        ph.thumb_key = "-"  # the original is gone or unreadable: the full picture keeps being used, and we stop retrying
+        if not ph.thumb_key:
+            ph.thumb_key = "-"  # the original is gone or unreadable: the full picture keeps being used, and we stop retrying
+        if not ph.digest:
+            ph.digest = "-"
     db.commit()
-    left = db.query(ItemPhoto).filter(ItemPhoto.thumb_key == "").count()
+    left = db.query(ItemPhoto).filter((ItemPhoto.thumb_key == "") | (ItemPhoto.digest == "")).count()
     return redirect(f"/settings?thumbs={done}&left={left}")
 
 

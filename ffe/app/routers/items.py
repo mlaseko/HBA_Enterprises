@@ -2,11 +2,12 @@ from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
 from fastapi.responses import JSONResponse
 from urllib.parse import quote, urlencode
 import re
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Project, Item, ItemPhoto, Supplier, Room
 from ..common import render, redirect, require_login, get_project, ffloat, fint, safe_next
-from ..services import next_code, set_price, copy_price, sort_items, moods_for  # noqa: F401  (sort_items is imported from here by share.py and plan.py)
+from ..services import next_code, set_price, copy_price, sort_items, moods_for, product_key, _key, _SIZE_SEP_RE, photos_of, forget_pools, release_photos, same_picture  # noqa: F401  (sort_items, product_key are imported from here by share.py, plan.py, importer.py)
 from .. import storage, config, webimage, ai, drawings
 
 router = APIRouter(dependencies=[Depends(require_login)])
@@ -22,9 +23,16 @@ def item_query(db: Session, p: Project, room: str = "", category: str = "", stat
         qs = qs.filter(Item.status == status)
     if supplier:
         qs = qs.filter(Item.supplier_id == int(supplier))
-    if q:
-        like = f"%{q.strip()}%"
-        qs = qs.filter((Item.name.ilike(like)) | (Item.code.ilike(like)) | (Item.spec.ilike(like)) | (Item.brand.ilike(like)))
+    if q.strip():  # the same rule as the live search box: every word somewhere, in any field; * = anything, ? = one character
+        qs = qs.outerjoin(Room, Item.room_id == Room.id).outerjoin(Supplier, Item.supplier_id == Supplier.id)
+        fields = (Item.code, Item.name, Item.spec, Item.brand, Item.size, Item.finish, Item.category, Room.code, Room.name, Room.floor,
+                  Supplier.name, Item.status, Item.unit, Item.notes)
+        blob = func.coalesce(fields[0], "")
+        for f in fields[1:]:  # one text per line, like the data-search of the rows, so "tile*1200" can span the name and the size
+            blob = blob + " " + func.coalesce(f, "")
+        for word in q.split():
+            like = "%" + word.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_").replace("*", "%").replace("?", "_") + "%"
+            qs = qs.filter(blob.ilike(like, escape="\\"))
     return qs
 
 
@@ -89,13 +97,14 @@ def delete_selected(p: Project = Depends(get_project), db: Session = Depends(get
     """Deletes the lines ticked on the Items page and nothing else: what goes is the user's own selection, never what a
     filter happens to show. A box in the Item list stands for a product in all its rooms, so one value may carry several
     ids ("12 13 14"). Ids outside this project, drafts (they live on /drafts) and anything that is not a number are
-    ignored. Photos go through storage, pins by cascade. The filter stays on the page afterwards so what is left can be
+    ignored. A photo stays with the product's lines in other rooms and its files go only when no line is left; pins by cascade. The filter stays on the page afterwards so what is left can be
     checked; nothing ticked = straight back, no message."""
     wanted = {int(x) for v in ids for x in v.split() if x.isdigit()}
     items = db.query(Item).filter(Item.project_id == p.id, Item.draft == False, Item.id.in_(wanted)).all() if wanted else []  # noqa: E712
+    doomed = {i.id for i in items}
+    survivors = [i for i in p.live_items if i.id not in doomed]
     for i in items:
-        for ph in i.photos:
-            storage.delete_photo(ph)
+        release_photos(db, p, i, survivors)  # photos stay with the product's other rooms; deleted only when none is left
         db.delete(i)
     db.commit()
     keep = {k: v for k, v in dict(room=room, category=category, status=status, supplier=supplier, q=q, view=view).items() if v}
@@ -146,17 +155,7 @@ SHARED_FIELDS = ("name", "category", "brand", "spec", "size", "finish", "unit", 
 IDENTITY_FIELDS = ("name", "size", "finish", "brand")
 # The shared fields outside the identity: where the other rooms' lines of a product may still have been set up differently.
 DIFF_LABELS = {"category": "category", "spec": "spec", "unit": "unit", "unit_price": "price", "lead_time": "lead time", "supplier_id": "supplier"}
-_SIZE_SEP_RE = re.compile(r"(?<=\d)\s*[x×*]\s*(?=\d)")  # 1200 x 600, 1200*600 and 1200×600 are the same size
-
-
-def _key(s: str) -> str:
-    return " ".join((s or "").lower().split())
-
-
-def product_key(item: Item) -> str:
-    """The identity of a product: name + size + finish + brand, ignoring case, spacing and how the x of a size is written."""
-    k = _key(item.name)
-    return f"{k}|{_SIZE_SEP_RE.sub('x', _key(item.size)).replace(' ', '')}|{_key(item.finish)}|{_key(item.brand)}" if k else ""
+# product_key(), _key() and _SIZE_SEP_RE live in services.py (the photo pools need them too) and are imported above.
 
 
 def same_item_elsewhere(p: Project, item: Item) -> list[Item]:
@@ -223,8 +222,8 @@ def _fetch_url(url: str) -> tuple[bytes | None, str]:
 
 def new_photo(item_id: int, data: bytes, p: Project, caption: str = "") -> ItemPhoto:
     """Store a photo (full copy + small copy) and return the row to add."""
-    fk, tk = storage.save_photo(data, f"p{p.id}")
-    return ItemPhoto(item_id=item_id, file_key=fk, thumb_key=tk, caption=caption)
+    fk, tk, dg = storage.save_photo(data, f"p{p.id}")
+    return ItemPhoto(item_id=item_id, file_key=fk, thumb_key=tk, caption=caption, digest=dg)
 
 
 def _photo_from_url(item: Item, db: Session, p: Project, url: str, caption: str = "") -> str:
@@ -250,9 +249,8 @@ async def create_item(request: Request, p: Project = Depends(get_project), db: S
     db.commit()
     photos = [await f.read() for f in form.getlist("photos") if hasattr(f, "read")]
     web, err = _fetch_url(form.get("photo_url", ""))
-    for item in created:  # each room's row keeps its own copy, so deleting a photo in one room leaves the others
-        for data in [d for d in photos if d] + ([web] if web else []):
-            db.add(new_photo(item.id, data, p))
+    for data in [d for d in photos if d] + ([web] if web else []):  # stored once: every room's line of the product shows it
+        db.add(new_photo(created[0].id, data, p))
     db.commit()
     item = created[0]
     if err:
@@ -311,16 +309,9 @@ async def update_item(request: Request, item_id: int, p: Project = Depends(get_p
             if data:
                 db.add(new_photo(item.id, data, p))
     err = _photo_from_url(item, db, p, form.get("photo_url", ""))
-    db.flush()
-    db.expire(item, ["photos"])  # include the photos just added
-    for new in copies:
-        for ph in item.photos:
-            data = storage.read_image(ph.file_key)
-            if data:
-                db.add(new_photo(new.id, data, p, ph.caption))
-    for o in removed:  # taken out of that room: its line goes like a delete, photos included
-        for ph in o.photos:
-            storage.delete_photo(ph)
+    db.flush()  # the copies show the item's photos through the product's pool: nothing to copy
+    for o in removed:  # taken out of that room: its line goes like a delete; its photos stay with the item
+        release_photos(db, p, o, survivors=[item])
         db.delete(o)
     db.commit()
     nxt = safe_next(form.get("next"), "")
@@ -360,7 +351,7 @@ def suggest_fields(item_id: int, p: Project = Depends(get_project), db: Session 
     item = db.get(Item, item_id)
     if not item or item.project_id != p.id:
         return redirect(f"/p/{p.id}/items")
-    photo = storage.read_image(item.photos[0].file_key) if item.photos else None
+    photo = storage.read_image(item.cover.file_key) if item.cover else None
     text, url = "", ""
     m = re.search(r"https?://\S+", item.notes or "")
     if m:
@@ -391,24 +382,36 @@ def add_photo_url(item_id: int, p: Project = Depends(get_project), db: Session =
 
 @router.post("/p/{project_id}/items/{item_id}/photo/{photo_id}/delete")
 def delete_photo(item_id: int, photo_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """Deletes a picture of the product: from this line or from the same product's line in another room, and any copy
+    of the same picture stored for other rooms before photos were shared."""
     ph = db.get(ItemPhoto, photo_id)
-    if ph and ph.item_id == item_id and ph.item.project_id == p.id:
+    item = db.get(Item, item_id)
+    if ph and item and item.project_id == p.id and ph.item.project_id == p.id and ph in photos_of(item):
+        for o in same_picture(p, ph):
+            storage.delete_photo(o)
+            db.delete(o)
         storage.delete_photo(ph)
         db.delete(ph)
+        forget_pools(p)
         db.commit()
     return redirect(f"/p/{p.id}/items/{item_id}")
 
 
 @router.post("/p/{project_id}/items/{item_id}/photo/{photo_id}/cover")
 def make_cover(item_id: int, photo_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """The cover is the first picture of the product's pool (the smallest id across its rooms' lines): the chosen
+    picture and the first swap their files, so every room's line shows the new cover."""
     ph = db.get(ItemPhoto, photo_id)
-    if ph and ph.item_id == item_id:
-        # smallest id is the cover; swap by re-inserting
-        first = ph.item.photos[0]
-        if first.id != ph.id:
-            first.file_key, ph.file_key = ph.file_key, first.file_key
-            first.thumb_key, ph.thumb_key = ph.thumb_key, first.thumb_key
-            first.caption, ph.caption = ph.caption, first.caption
+    item = db.get(Item, item_id)
+    if ph and item and item.project_id == p.id:
+        pool = photos_of(item)
+        if ph in pool and pool[0].id != ph.id:
+            first = pool[0]
+            for f in ("file_key", "thumb_key", "caption", "source", "digest"):
+                a, b = getattr(first, f), getattr(ph, f)
+                setattr(first, f, b)
+                setattr(ph, f, a)
+            forget_pools(p)
             db.commit()
     return redirect(f"/p/{p.id}/items/{item_id}")
 
@@ -417,8 +420,7 @@ def make_cover(item_id: int, photo_id: int, p: Project = Depends(get_project), d
 def delete_item(item_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
     item = db.get(Item, item_id)
     if item and item.project_id == p.id:
-        for ph in item.photos:
-            storage.delete_photo(ph)
+        release_photos(db, p, item)  # its photos stay with the product's other rooms; deleted only when none is left
         db.delete(item)
         db.commit()
     return redirect(f"/p/{p.id}/items")

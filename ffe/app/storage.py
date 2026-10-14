@@ -1,4 +1,5 @@
 """Photo storage. Backends: local (dev), replit (Replit Object Storage), s3 (any S3-compatible: Cloudflare R2, AWS, MinIO)."""
+import hashlib
 import io
 import os
 import re
@@ -123,13 +124,19 @@ def save_thumb(data: bytes, file_key: str) -> str:
     return key
 
 
-def save_photo(data: bytes, prefix: str = "img") -> tuple[str, str]:
-    """An item photo: the full copy (MAX_IMAGE_PX) and its small copy. Returns (file_key, thumb_key)."""
+def digest_of(data: bytes) -> str:
+    """The fingerprint of a stored picture (ItemPhoto.digest): the same picture stored twice is recognised by it."""
+    return hashlib.sha1(data).hexdigest()
+
+
+def save_photo(data: bytes, prefix: str = "img") -> tuple[str, str, str]:
+    """An item photo: the full copy (MAX_IMAGE_PX), its small copy and the fingerprint of the full copy.
+    Returns (file_key, thumb_key, digest)."""
     key = f"{prefix}/{uuid.uuid4().hex}.jpg"
     full = process_image(data)
     _put(key, full, "image/jpeg")
     _cache_put(key, full)
-    return key, save_thumb(full, key)
+    return key, save_thumb(full, key), digest_of(full)
 
 
 def delete_photo(ph) -> None:

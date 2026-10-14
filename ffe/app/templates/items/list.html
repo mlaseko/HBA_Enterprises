@@ -27,10 +27,10 @@
   <select name="category" class="in" aria-label="Category"><option value="">All categories</option>{% for c in CATEGORIES %}<option {{ 'selected' if f.category == c }}>{{ c }}</option>{% endfor %}</select>
   <select name="status" class="in" aria-label="Status"><option value="">Any status</option>{% for st in STATUSES %}<option {{ 'selected' if f.status == st }}>{{ st }}</option>{% endfor %}</select>
   <select name="supplier" class="in" aria-label="Supplier"><option value="">Any supplier</option>{% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if f.supplier == s.id|string }}>{{ s.name }}</option>{% endfor %}</select>
-  <span class="search"><svg class="ic"><use href="#i-search"/></svg><input class="in" type="text" name="q" value="{{ f.q }}" placeholder="Search name, code, spec, brand" aria-label="Search"></span>
+  <input type="hidden" name="q" id="live-q-hidden" value="{{ f.q }}">
   {% if view != 'list' %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
-  <button class="btn sm">Filter</button>
-  <a class="btn ghost sm" href="/p/{{ p.id }}/items{% if view != 'list' %}?view={{ view }}{% endif %}">Clear</a>
+  <noscript><button class="btn sm">Filter</button></noscript>
+  {% if filtering %}<a class="btn ghost sm" href="/p/{{ p.id }}/items{% if view != 'list' %}?view={{ view }}{% endif %}">Clear</a>{% endif %}
   <span class="sp"></span>
   <nav class="seg" aria-label="View">
     <a href="/p/{{ p.id }}/items?{{ qs_ }}view=cards" class="{{ 'on' if view == 'cards' }}"{% if view == 'cards' %} aria-current="page"{% endif %} title="Cards grouped by category"><svg class="ic"><use href="#i-grid"/></svg>Cards</a>
@@ -38,8 +38,13 @@
     <a href="/p/{{ p.id }}/items?{{ qs_ }}view=list" class="{{ 'on' if view == 'list' }}"{% if view == 'list' %} aria-current="page"{% endif %} title="One line per item across its rooms"><svg class="ic"><use href="#i-tag"/></svg>Item list</a>
   </nav>
 </form>
+<div class="card livesearch{{ ' active' if f.q }}">
+  <span class="search"><svg class="ic"><use href="#i-search"/></svg><input class="in" type="search" id="live-q" value="{{ f.q }}" placeholder="Search as you type: name, code, spec, brand, size, room, supplier, notes… ( * stands for anything )" aria-label="Search the list" autocomplete="off"></span>
+  <span class="small muted ls-count" aria-live="polite">{% if f.q %}searched on the server · Enter again to refresh{% endif %}</span>
+  <button type="button" class="btn ghost sm ls-clear"{% if not f.q %} hidden{% endif %}>Clear</button>
+</div>
 {% if items %}
-<form method="post" id="bulk" action="/p/{{ p.id }}/items/delete-selected" class="select-bar" data-confirm="Delete the ticked items? Their photos and plan dots go with them; everything not ticked stays.">
+<form method="post" id="bulk" action="/p/{{ p.id }}/items/delete-selected" class="select-bar" data-confirm="Delete the ticked items? Their plan dots go with them. A photo stays with the same item in its other rooms and goes only when no room is left; everything not ticked stays.">
   {% for k in ['room', 'category', 'status', 'supplier', 'q'] %}{% if f[k] %}<input type="hidden" name="{{ k }}" value="{{ f[k] }}">{% endif %}{% endfor %}
   {% if view != 'list' %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
   {% if view == 'cards' %}<label class="check"><input type="checkbox" class="sel-all" aria-label="Select all shown"> All shown</label>{% endif %}
@@ -89,7 +94,7 @@
   <thead><tr><th class="sel"><label><input type="checkbox" class="sel-all" aria-label="Select all shown" title="Select all shown"></label></th><th></th><th data-sort="text">Code</th><th data-sort="text">Item</th><th data-sort="text">Room</th><th data-sort="text">Category</th><th class="num" data-sort="num">Qty</th><th class="num" data-sort="num">Unit CNY</th><th class="num" data-sort="num">Total CNY</th><th data-sort="text">Supplier</th><th data-sort="num">Status</th></tr></thead>
   <tbody>
   {% for i in items %}
-  <tr id="item-{{ i.id }}">
+  <tr id="item-{{ i.id }}" data-search="{{ i.code }} {{ i.name }} {{ i.spec[:300] }} {{ i.brand }} {{ i.size }} {{ i.finish }} {{ i.category }} {{ i.room.label if i.room else 'ALL whole house' }} {{ (i.room.floor|floor_title) if i.room and i.room.floor else '' }} {{ i.supplier.name if i.supplier else '' }} {{ i.status }} {{ i.unit }} {{ i.notes[:200] }}">
     <td class="sel"><label><input type="checkbox" class="sel-box" name="ids" value="{{ i.id }}" form="bulk"{% if i.photos %} data-photos="1"{% endif %} data-codes="{{ i.code }}" aria-label="Select {{ i.code }}"></label></td>
     <td>{% if i.cover %}<a href="/p/{{ p.id }}/items/{{ i.id }}"><img class="thumb sm" src="/media/{{ i.cover.thumb }}" alt=""></a>{% endif %}</td>
     <td class="small muted nowrap">{{ i.code }}</td>
@@ -112,7 +117,7 @@
   <tbody>
   {% for g in rows %}{% set i = g.item %}
   {% set with_photos = g.rows|selectattr('photos')|list|length %}
-  <tr id="item-{{ i.id }}" data-items="{% for r in g.rows %}{{ r.id }}{% if not loop.last %} {% endif %}{% endfor %}">
+  <tr id="item-{{ i.id }}" data-items="{% for r in g.rows %}{{ r.id }}{% if not loop.last %} {% endif %}{% endfor %}" data-search="{{ g.codes }} {{ i.name }} {{ i.spec[:300] }} {{ i.brand }} {{ i.size }} {{ i.finish }} {{ i.category }} {% for r in g.rooms %}{{ r.label if r else 'ALL whole house' }} {{ (r.floor|floor_title) if r and r.floor else '' }} {% endfor %}{% for s in g.suppliers %}{{ s.name }} {% endfor %}{{ g.statuses.keys()|join(' ') }} {{ g.unit }} {{ i.notes[:200] }}">
     <td class="sel"><label><input type="checkbox" class="sel-box" name="ids" value="{% for r in g.rows %}{{ r.id }}{% if not loop.last %} {% endif %}{% endfor %}" form="bulk"{% if with_photos %} data-photos="{{ with_photos }}"{% endif %} data-codes="{% for r in g.rows %}{{ r.code }}{% if not loop.last %} {% endif %}{% endfor %}" aria-label="Select {{ i.name }}"></label></td>
     <td>{% if g.cover %}<a href="/p/{{ p.id }}/items/{{ i.id }}"><img class="thumb sm" src="/media/{{ g.cover.thumb }}" alt=""></a>{% endif %}</td>
     <td data-v="{{ i.name }}"><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a>{% if i.optional %} <span class="pill">optional</span>{% endif %}<div class="small muted">{{ g.codes }}{% for v in [i.size, i.finish, i.brand]|select %} · {{ v }}{% endfor %}</div></td>
@@ -141,7 +146,7 @@
     <div class="cards">
     {% set ns.last = grp %}{% set ns.open = true %}
   {% endif %}
-  <div class="item-card" id="item-{{ i.id }}">
+  <div class="item-card" id="item-{{ i.id }}" data-search="{{ i.code }} {{ i.name }} {{ i.spec[:300] }} {{ i.brand }} {{ i.size }} {{ i.finish }} {{ i.category }} {{ i.room.label if i.room else 'ALL whole house' }} {{ (i.room.floor|floor_title) if i.room and i.room.floor else '' }} {{ i.supplier.name if i.supplier else '' }} {{ i.status }} {{ i.unit }} {{ i.notes[:200] }}">
     {% if i.cover %}<a class="pic" href="/p/{{ p.id }}/items/{{ i.id }}"><img src="/media/{{ i.cover.thumb }}" alt=""></a>{% else %}<a class="pic empty" href="/p/{{ p.id }}/items/{{ i.id }}">no photo</a>{% endif %}
     <div class="body">
       <div class="t"><a href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a></div>

@@ -1,8 +1,92 @@
+import re
 from collections import defaultdict
 from sqlalchemy.orm import Session
 from .models import Project, Item, Room, Carton, Payment, Supplier, ItemPrice
 from .config import CONTAINERS, STATUSES, PRICE_CURRENCIES, AREA_WORDS, CATEGORIES
-from . import drawings
+from . import drawings, storage
+
+# ---- product identity: what makes two room lines the same product (routers/items.py re-exports these) ----------------
+_SIZE_SEP_RE = re.compile(r"(?<=\d)\s*[x×*]\s*(?=\d)")  # 1200 x 600, 1200*600 and 1200×600 are the same size
+
+
+def _key(s: str) -> str:
+    return " ".join((s or "").lower().split())
+
+
+def product_key(item: Item) -> str:
+    """The identity of a product: name + size + finish + brand, ignoring case, spacing and how the x of a size is written."""
+    k = _key(item.name)
+    return f"{k}|{_SIZE_SEP_RE.sub('x', _key(item.size)).replace(' ', '')}|{_key(item.finish)}|{_key(item.brand)}" if k else ""
+
+
+def twins(p: Project, item: Item) -> list[Item]:
+    """The other rooms' lines of the same product among the project's live items."""
+    k = product_key(item)
+    return [i for i in p.live_items if i.id != item.id and product_key(i) == k] if k else []
+
+
+# ---- photos belong to the product: every room line of it shows the same pictures -----------------------------------
+def photo_pools(p: Project) -> dict:
+    """{item id: the photos every line of that product shows}: the union of the lines' photos in upload order, one per
+    picture (the same picture stored for two rooms before photos were shared counts once, by its digest). Computed
+    once per project and kept on the project instance, so a page costs no extra queries; drop it with forget_pools()
+    after a change in the same request."""
+    pools = getattr(p, "_photo_pools", None)
+    if pools is not None:
+        return pools
+    groups: dict[str, list[Item]] = {}
+    for i in p.live_items:
+        groups.setdefault(product_key(i) or f"#{i.id}", []).append(i)
+    pools = {}
+    for members in groups.values():
+        seen, pool = set(), []
+        for ph in sorted((ph for i in members for ph in i.photos), key=lambda ph: ph.id):
+            k = ph.digest or f"key:{ph.file_key}"
+            if k in seen:
+                continue
+            seen.add(k)
+            pool.append(ph)
+        for i in members:
+            pools[i.id] = pool
+    p._photo_pools = pools
+    return pools
+
+
+def forget_pools(p: Project) -> None:
+    p.__dict__.pop("_photo_pools", None)
+
+
+def photos_of(item: Item) -> list:
+    """The photos a line shows (Item.all_photos): the product's pool for a live item, its own for a draft."""
+    if item.draft or item.project is None:
+        return list(item.photos)
+    return photo_pools(item.project).get(item.id, list(item.photos))
+
+
+def same_picture(p: Project, ph) -> list:
+    """The other rows of the product that hold the same picture (same digest): copies stored for other rooms before
+    photos were shared. They go together with ph."""
+    if not ph.digest or ph.item is None:
+        return []
+    return [o for i in [ph.item] + twins(p, ph.item) for o in i.photos if o.id != ph.id and o.digest == ph.digest]
+
+
+def release_photos(db: Session, p: Project, item: Item, survivors=None) -> int:
+    """Before a room line is deleted: its photos go to another line of the same product when one survives (the pictures
+    belong to the product, not the room), else their files are deleted. survivors = the lines that stay (default: every
+    other live item of the project). Returns how many photos moved."""
+    pool = survivors if survivors is not None else [i for i in p.live_items if i.id != item.id]
+    k = product_key(item)
+    heir = next((i for i in pool if i.id != item.id and k and product_key(i) == k), None)
+    moved = 0
+    for ph in list(item.photos):
+        if heir is not None:
+            ph.item = heir
+            moved += 1
+        else:
+            storage.delete_photo(ph)
+    forget_pools(p)
+    return moved
 
 
 def next_code(db: Session, project: Project, room: Room | None) -> str:

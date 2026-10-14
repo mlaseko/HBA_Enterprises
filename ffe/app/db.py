@@ -40,6 +40,7 @@ COLUMN_MIGRATIONS = [
     ("plan_layers", "kind", "VARCHAR(10) NOT NULL DEFAULT 'plan'"),  # a plan of the floor | a reference sheet (layers.KINDS)
     ("item_photos", "source", "VARCHAR(40) NOT NULL DEFAULT ''"),  # 'sheet:<image id>' for a drawing cut out of a reference sheet
     ("mood_tags", "is_cover", "BOOLEAN NOT NULL DEFAULT FALSE"),  # the inspiration picture starred as its room's cover
+    ("item_photos", "digest", "VARCHAR(40) NOT NULL DEFAULT ''"),  # the fingerprint of a photo ('' = not computed yet)
 ]
 
 # Data fixes for rows written by an older version. Each must be idempotent (safe to run at every start, by several instances):
