@@ -52,8 +52,8 @@ async def capture_save(request: Request, p: Project = Depends(get_project), db: 
     item = Item(project_id=p.id, name="", code="", draft=True, room_id=room.id if room else None, category=_category(category))
     db.add(item)
     db.flush()
-    key, tkey = storage.save_photo(data, f"p{p.id}")
-    db.add(ItemPhoto(item_id=item.id, file_key=key, thumb_key=tkey))
+    key, tkey, dg = storage.save_photo(data, f"p{p.id}")
+    db.add(ItemPhoto(item_id=item.id, file_key=key, thumb_key=tkey, digest=dg))
     db.commit()
     drafts = len(_drafts(db, p))
     if _wants_json(request):

@@ -70,7 +70,7 @@
     <div><label>Options</label><label class="check"><input type="checkbox" name="optional" {{ 'checked' if it and it.optional }}> Optional item <span class="muted small">(shown separately in totals)</span></label></div>
     <div class="span2"><label>Notes</label><textarea class="in" name="notes">{{ it.notes if it else '' }}</textarea></div>
     <div class="span2"><label>{{ 'Add photos' if it else 'Photos of sample' }}</label>
-      <input type="file" name="photos" accept="image/*" multiple><div class="filehint help">Take a photo, or choose several from the gallery at once. The first one becomes the cover; more can be added any time.</div></div>
+      <input type="file" name="photos" accept="image/*" multiple><div class="filehint help">Take a photo, or choose several from the gallery at once. The first one becomes the cover; the same item in its other rooms shows the same photos, wherever they were added.</div></div>
     <div class="span2"><label>Or paste a web link (picture or product page: supplier site, Pinterest pin, Taobao…)</label>
       <input class="in" type="url" name="photo_url" inputmode="url" placeholder="https://…" autocomplete="off">
       <div class="help">The picture is downloaded and stored with the item when you save. <a href="/clip">Set up the one-click “Save from web” button</a>.</div></div>
@@ -83,9 +83,9 @@
   <label class="check"><input type="checkbox" name="apply_all" value="1"{{ ' checked' if not differs }}> Apply name, category, spec, size, finish, brand, price, unit, lead time and supplier changes to the {{ others|length }} other room{{ 's' if others|length > 1 }} with this exact item</label>
   <div class="help">{% if differs %}The other rooms differ in {% if differs|length > 1 %}{{ differs[:-1]|join(', ') }} and {% endif %}{{ differs[-1] }}: they were set up their own way, so this is not ticked. Tick it to make them all like this line. {% endif %}Quantity, status, notes and photos always stay per room.</div>
   {% else %}<p class="muted small">This item is only in this room so far.</p>{% endif %}
-  <div class="help mt">A room counts as having this item when its line has the same name, size, colour/finish and brand. Tick a room to put this item there too: a copy with the same spec, quantity and photos, status “To buy” and its own code. Untick a room to take the item out of it: that room's line is deleted when you save, with its photos and plan dots. The chips tick a whole group at once. This line's own room is locked here: change it with the Room field above, or remove this line with Delete.</div>
+  <div class="help mt">A room counts as having this item when its line has the same name, size, colour/finish and brand. Tick a room to put this item there too: a copy with the same spec and quantity, status “To buy” and its own code, showing the same photos. Untick a room to take the item out of it: that room's line is deleted when you save, with its plan dots; the photos stay with the item. The chips tick a whole group at once. This line's own room is locked here: change it with the Room field above, or remove this line with Delete.</div>
   <input type="hidden" name="rooms_form" value="1">
-  {{ room_picks(p.rooms, 'room_ids', checked=with_rooms, locked=[it.room_id] if it.room_id else [], links=room_links, removal='Remove this item from %n room(s)? The item\'s line there is deleted, with its photos and plan dots.') }}
+  {{ room_picks(p.rooms, 'room_ids', checked=with_rooms, locked=[it.room_id] if it.room_id else [], links=room_links, removal='Remove this item from %n room(s)? The item\'s line there is deleted, with its plan dots; the photos stay with the item.') }}
   {% endif %}
 
   <div class="form-actions">
@@ -98,12 +98,13 @@
 
 {% if it %}
 <div class="card">
-  <h2>Photos <span class="h-note">{{ it.photos|length }}</span></h2>
+  <h2>Photos <span class="h-note">{{ it.all_photos|length }}</span></h2>
+  {% if others %}<p class="small muted">Shared with this item's {{ others|length }} other room line{{ 's' if others|length != 1 }}: a photo added here, or there, shows on all of them.</p>{% endif %}
   <div class="gallery">
-  {% for ph in it.photos %}
+  {% for ph in it.all_photos %}
     <div class="g">
       <a href="/media/{{ ph.file_key }}" target="_blank" data-caption="{{ it.name }}{% if ph.caption %} · {{ ph.caption }}{% endif %}"><img src="/media/{{ ph.thumb }}" alt="{{ it.name }}"></a>
-      <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/photo/{{ ph.id }}/delete" data-confirm="Delete this photo? It disappears from the item, its plan dot and the PDFs."><button class="btn sm icon danger" title="Delete photo" aria-label="Delete photo"><svg class="ic"><use href="#i-x"/></svg></button></form>
+      <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/photo/{{ ph.id }}/delete" data-confirm="Delete this photo? It disappears from this item in every room, from the plan dots and the PDFs."><button class="btn sm icon danger" title="Delete photo" aria-label="Delete photo"><svg class="ic"><use href="#i-x"/></svg></button></form>
       {% if loop.index0 > 0 %}<form class="cover" method="post" action="/p/{{ p.id }}/items/{{ it.id }}/photo/{{ ph.id }}/cover"><button class="btn sm sec">Make cover</button></form>{% else %}<div class="cap"><svg class="ic sm"><use href="#i-check"/></svg> cover</div>{% endif %}
     </div>
   {% else %}
@@ -122,7 +123,7 @@
   <span class="muted small">Need a similar item? Duplicate this one and tweak the copy.</span>
   <div class="row">
     <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/duplicate"><button class="btn sm sec"><svg class="ic"><use href="#i-copy"/></svg>Duplicate</button></form>
-    <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/delete" data-confirm="Delete this item? Its photos and its dot on the plan go with it. The same item in other rooms stays."><button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete item</button></form>
+    <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/delete" data-confirm="Delete this item? Its dot on the plan goes with it. The same item in other rooms stays, with the photos; they go only when no room is left."><button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete item</button></form>
   </div>
 </div>
 {% endif %}

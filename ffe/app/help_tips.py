@@ -103,7 +103,7 @@ TIPS = {
         what="The schedule itself: one line per product per room, with spec, photo, quantity, price, supplier and status.",
         steps=["Press <b>Add item</b> to type one in, or <b>Quick capture</b> to shoot samples first and name them later.",
                "Change a <b>status</b> straight from the dropdown on a card or a table row.",
-               "Filter by room, category, status or supplier: the list updates as soon as you pick. For a search word, type it and press <b>Filter</b> or Enter. The page opens on the <b>Item list</b> (one line per item across its rooms, with its rooms and the total quantity); switch to the <b>Table</b> (one line per room) or <b>Cards</b> (by category, with photos) at the right of the filters.",
+               "Filter by room, category, status or supplier: the list updates as soon as you pick. The <b>search box</b> under the filters searches as you type, in every field (name, code, spec, brand, size, finish, room, supplier, status, notes): each word must appear somewhere, in any order, and * stands for anything (\"tile*600\"). Press Enter to make the words part of the filter, so Export and the address bar follow. The page opens on the <b>Item list</b> (one line per item across its rooms, with its rooms and the total quantity); switch to the <b>Table</b> (one line per room) or <b>Cards</b> (by category, with photos) at the right of the filters.",
                "In the Table and the Item list, press a <b>column heading</b> to sort: A to Z or smallest first, press again for the other way.",
                "<b>Export</b> at the top gives the Excel of what the filter shows (all items without a filter), ready to edit and import back.",
                "Filtered by one room, the top shows that room zoomed in on the plan; tap a dot to jump to its item.",
@@ -127,7 +127,7 @@ TIPS = {
                "Add photos: take one, or choose several from the gallery at once; paste a web link instead if you like. The first photo is the cover, <b>Make cover</b> changes it.",
                "<b>Rooms with this item</b> is a checklist of every room: tick one to copy the item there with its own code, untick one to take the item out of that room (its line is deleted, with its photos). The chips tick a whole group at once; this line's own room is locked.",
                "<b>Plan</b> / <b>On the plan</b> opens the room on the drawing."],
-        tips=["Quantity, status, notes and photos always stay per room.",
+        tips=["Quantity, status and notes stay per room. Photos are shared: added from any room's line or from the item list, a photo shows on the same item in every room, and a photo deleted anywhere goes everywhere.",
               "Tap a photo to see it full size on top of the page: zoom with the buttons, the wheel or a pinch, drag to move, ‹ › for the next one, and × (or Back on the phone) brings you back here.",
               "Deleting removes the item and its photos. Codes are never reused or renumbered."]),
     "capture": dict(

@@ -416,8 +416,16 @@ class Item(Base):
         return round((self.qty or 0) * (self.unit_price or 0), 2)
 
     @property
+    def all_photos(self) -> list:
+        """The photos this line shows: its own and those of the same product's lines in other rooms (a photo belongs to
+        the product, whichever room it was added from), in upload order, one per picture. services.photos_of."""
+        from . import services
+        return services.photos_of(self)
+
+    @property
     def cover(self):
-        return self.photos[0] if self.photos else None
+        ps = self.all_photos
+        return ps[0] if ps else None
 
     @property
     def price_currency(self) -> str:
@@ -451,6 +459,10 @@ class ItemPhoto(Base):
     # "" = a photo the designer added; "sheet:<image id>" = the item's drawing cut out of that reference sheet around its
     # dot (refs.attach_drawing); replaced when the dot moves, removed with the dot. Added by db.COLUMN_MIGRATIONS.
     source: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    # The fingerprint (sha1) of the stored full copy, written with the photo; '' = a photo from before fingerprints
+    # (Settings → Speed fills it in). The same picture stored for two rooms before photos were shared counts once by it.
+    # Added by db.COLUMN_MIGRATIONS.
+    digest: Mapped[str] = mapped_column(String(40), default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     item: Mapped["Item"] = relationship(back_populates="photos")
 

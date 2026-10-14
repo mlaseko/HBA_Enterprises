@@ -168,6 +168,14 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
   the page). `data-caption` names it, `data-thumb` is the copy shown while the full file loads (an inner `<img>` otherwise),
   `data-nolb` keeps a link out. Keep `target="_blank"` on the link as the no-JavaScript fallback. A thumbnail that leads
   to a page (an item in a list) is navigation, not a picture: leave it alone.
+- **Photos belong to the product, not the room line.** `Item.all_photos` / `Item.cover` come from `services.photos_of`
+  (the union of the photos of every live line with the same `product_key`, in upload order, one per picture by
+  `ItemPhoto.digest`; computed once per project per request, `forget_pools(p)` after a change in the same request).
+  Store a photo once (on the line it was added from); never copy files to a product's other lines. Before a line is
+  deleted call `services.release_photos(db, p, item, survivors)`: its photos move to a surviving twin, files are deleted
+  only when none is left. `delete_photo` / `make_cover` act on the pool (a photo of a twin counts) and `delete_photo`
+  also removes the same picture stored for other rooms (`same_picture`). `storage.save_photo` returns
+  `(file_key, thumb_key, digest)`; Settings → Speed backfills thumbs and digests of older photos.
 - Photos: compressed in the browser (`app.js`) and again server-side (`storage.process_image`, max 1600 px JPEG).
   Always go through `storage.py`; never write files directly. An item photo is made with `storage.save_photo()` (full copy +
   small copy, `ItemPhoto.thumb_key`) and removed with `storage.delete_photo(ph)`; anywhere a photo is a thumbnail (lists,
@@ -247,6 +255,7 @@ ALTER TABLE item_photos ADD COLUMN thumb_key VARCHAR(255) NOT NULL DEFAULT '';  
 ALTER TABLE plan_layers ADD COLUMN kind VARCHAR(10) NOT NULL DEFAULT 'plan';              -- plan of the floor | reference sheet
 ALTER TABLE item_photos ADD COLUMN source VARCHAR(40) NOT NULL DEFAULT '';               -- 'sheet:<image id>' for a cut-out drawing
 ALTER TABLE mood_tags ADD COLUMN is_cover BOOLEAN NOT NULL DEFAULT FALSE;                 -- the picture starred as its room's cover
+ALTER TABLE item_photos ADD COLUMN digest VARCHAR(40) NOT NULL DEFAULT '';               -- the fingerprint of a photo
 ```
 
 ## Done
@@ -268,9 +277,9 @@ ALTER TABLE mood_tags ADD COLUMN is_cover BOOLEAN NOT NULL DEFAULT FALSE;       
 
 - **Items in several rooms.** No schema change: the same product in several rooms stays one `Item` row per room (own
   code, qty, status, cartons) and rows are grouped by name (`items.same_item_elsewhere`, case/space-insensitive).
-  New item form posts `room_ids` (checklist, one row per room, photos copied per row); the edit form has
+  New item form posts `room_ids` (checklist, one row per room; photos stored once, shared through the pool); the edit form has
   `apply_all` (copies `SHARED_FIELDS` to the other rooms' rows) and a `room_ids` checklist of every room (`rooms_form=1`; ticked
-  rooms without a copy get one via `_copy_to_room`, unticked rooms that had one lose that line, photos deleted through storage;
+  rooms without a copy get one via `_copy_to_room`, unticked rooms that had one lose that line, its photos moving to the item (`release_photos`);
   the item's own room is locked in the `room_picks` macro: checked + disabled + a hidden input). `add_room_ids` still works.
 
 - **Architectural drawings.** Floor plans tagged with floor + sheet (`PlanTag`, own table), PDF drawing sets with a
@@ -399,7 +408,7 @@ ALTER TABLE mood_tags ADD COLUMN is_cover BOOLEAN NOT NULL DEFAULT FALSE;       
 
 - **Delete by selection.** `POST /p/<id>/items/delete-selected` (routers/items.py) deletes the ticked lines and nothing
   else: `ids` form values (an Item list box carries every room line of its product, "12 13 14"), restricted to this
-  project's live items, photos through `storage.delete_photo`, pins by cascade; nothing ticked = straight back. The
+  project's live items, photos released to the product's surviving lines (`services.release_photos`, files deleted only with the last line), pins by cascade; nothing ticked = straight back. The
   Items page carries the boxes (`input.sel-box` in `td.sel` of the Table and Item list, the Select label in a card foot,
   `form="bulk"` so they belong to the bar's form outside the table; `input.sel-all` in the table header or, for cards,
   in the bar ticks all shown) and the bar `form.select-bar#bulk` above the list, whose Delete button app.js keeps
@@ -485,6 +494,15 @@ ALTER TABLE mood_tags ADD COLUMN is_cover BOOLEAN NOT NULL DEFAULT FALSE;       
   room directory (`_intro.html`, `covers` from `stage_ctx`), `.rcover` in the open card, `.ph-cover` at the top of the room
   panel (`room_ctx` passes `cover`; the client sees it too, never the star). The star (`form.star`, `#i-star`) sits top-left
   on the pictures of the inspiration strip and the mood board; `.g.cover` rings the chosen one gold.
+- **Shared photos and the live search.** See the Conventions bullet "Photos belong to the product": `services.product_key`
+  (moved from routers/items.py, which re-exports it), `twins`, `photo_pools` / `photos_of` / `forget_pools`,
+  `same_picture`, `release_photos`; `ItemPhoto.digest` (column via `db.COLUMN_MIGRATIONS`, written by `storage.save_photo`,
+  backfilled by `POST /settings/thumbs` together with the small copies); the importer attaches a picture once per product
+  and counts a line that shows a pool photo as having one. The Items page's search left the filter form (`#live-q`, a
+  `.livesearch` card; the form keeps a hidden `q` the box fills on Enter): every row of the three views carries
+  `data-search` (code, name, spec, brand, size, finish, category, room label and floor, supplier, status, unit, notes; `item_query` searches the same joined text on the server, so Enter gives the same lines) and `app.js` hides
+  the rows that do not match every word (`*` any, `?` one char), unticks hidden rows, hides empty card groups and sends a
+  `livesearch` event the selection bar listens to; the header box ticks visible rows only.
 
 ## Backlog (in priority order)
 

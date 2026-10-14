@@ -189,6 +189,11 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--accent)}
 .filters select{padding-right:30px}
 .filters input[type=text],.filters input[type=search]{min-width:160px}
 .search{position:relative}.search .ic{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted);width:16px;height:16px}
+/* the Items page live search (app.js): its own card under the filters; rows hidden as you type */
+.livesearch{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 12px;margin-bottom:12px}
+.livesearch .search{flex:1 1 320px}.livesearch input{width:100%;border-radius:999px;padding:10px 14px 10px 36px;font-size:.95rem}
+.livesearch.active{border-color:var(--accent)}.livesearch .ls-count{white-space:nowrap}
+.tbl tr[hidden],.item-card[hidden],.group-title[hidden],.cards[hidden]{display:none}
 .search input{padding-left:32px!important}
 .copy{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.8rem;background:var(--surface-3);padding:9px 12px;border-radius:var(--r-sm);word-break:break-all;border:1px solid var(--line)}
 

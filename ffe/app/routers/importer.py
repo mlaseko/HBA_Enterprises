@@ -18,6 +18,7 @@ from ..common import render, redirect, require_login, get_project, ffloat, conte
 from ..services import next_code, guess_kind, set_price
 from .. import config, drawings, storage
 from .items import new_photo
+from ..services import photos_of, product_key
 from PIL import Image as PILImage
 import json
 
@@ -549,7 +550,7 @@ def run_import(p: Project, db: Session, wb, replace: bool, dry: bool, photos: li
         sup_names = {s.id: s.name for s in sups.values()}
         room_labels = {r.id: r.label for r in idx.rooms}
         live_by_code = {i.code.lower(): i for i in p.live_items if i.code}
-        had_photos = {i.id for i in p.live_items if i.photos}  # pictures only go to items that have none yet: never a duplicate
+        had_photos = {i.id for i in p.live_items if photos_of(i)}  # pictures only go to items that show none yet: never a duplicate
         row_items: dict[int, list] = {}  # sheet row -> the items it added or updated (for a picture placed over that row)
         all_items = list(p.live_items)
         for rno, row in enumerate(ws.iter_rows(min_row=hdr_row + 1, values_only=True), start=hdr_row + 1):
@@ -615,12 +616,17 @@ def run_import(p: Project, db: Session, wb, replace: bool, dry: bool, photos: li
         by_name = {}
         for i in all_items:
             by_name.setdefault(" ".join(i.name.lower().split()), []).append(i)
+        given = set()  # (product, picture): the same product's lines in several rooms share one copy
         def give(targets, data):
             for it in targets:
                 if it.id in had_photos:
                     result["photos_kept"] += 1
-                else:
-                    pending.append((it, data))
+                    continue
+                mark = (product_key(it) or f"#{it.id}", id(data))
+                if mark in given:
+                    continue
+                given.add(mark)
+                pending.append((it, data))
         for rno, datas in _embedded_pictures(ws).items():
             for data in datas:
                 give(row_items.get(rno, []), data)

@@ -285,6 +285,7 @@
   var count = bar.querySelector('.count'), hint = count.textContent, lbl = bar.querySelector('.lbl'), go = bar.querySelector('button.danger');
   var unphoto = bar.querySelector('.unphoto'), clear = bar.querySelector('.clear'), last = null;
   function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
+  function visible(b) { var row = b.closest('tr, .item-card'); return !row || !row.hidden; }  // the live search hides rows
   function refresh() {
     var n = 0, lines = 0, photos = 0;
     boxes.forEach(function (b) {
@@ -297,11 +298,13 @@
     lbl.textContent = n ? 'Delete ' + plural(n, 'item') : 'Delete selected';
     count.textContent = n ? plural(n, 'item') + ' selected' + (lines !== n ? ' · ' + plural(lines, 'room line') : '') + (photos ? ' · ' + photos + ' with photos' : '') : hint;
     unphoto.hidden = !photos; clear.hidden = !n;
-    masters.forEach(function (m) { m.checked = n > 0 && n === boxes.length; m.indeterminate = n > 0 && n < boxes.length; });
-    var ph = !photos ? '' : lines === 1 ? 'It has photos. ' : photos === lines ? 'All of them have photos. ' : photos === 1 ? 'One of them has photos. ' : photos + ' of them have photos. ';
-    bar.dataset.confirm = 'Delete ' + plural(n, 'item') + (lines !== n ? ' (' + plural(lines, 'room line') + ')' : '') + '? ' + ph + 'Their photos and plan dots go with them; everything not ticked stays.';
+    var shown = boxes.filter(visible).length;
+    masters.forEach(function (m) { m.checked = n > 0 && n === shown; m.indeterminate = n > 0 && n < shown; });
+    var ph = !photos ? '' : lines === 1 ? 'It holds photos. ' : photos === lines ? 'All of them hold photos. ' : photos === 1 ? 'One of them holds photos. ' : photos + ' of them hold photos. ';
+    bar.dataset.confirm = 'Delete ' + plural(n, 'item') + (lines !== n ? ' (' + plural(lines, 'room line') + ')' : '') + '? ' + ph + 'Their plan dots go with them. A photo stays with the same item in its other rooms and goes only when no room is left; everything not ticked stays.';
   }
-  masters.forEach(function (m) { m.addEventListener('change', function () { boxes.forEach(function (b) { b.checked = m.checked; }); refresh(); }); });
+  masters.forEach(function (m) { m.addEventListener('change', function () { boxes.forEach(function (b) { b.checked = m.checked && visible(b); }); refresh(); }); });
+  document.addEventListener('livesearch', refresh);  // rows hidden by the search are unticked by it
   boxes.forEach(function (b) {
     b.addEventListener('click', function (e) {
       if (e.shiftKey && last && last !== b) {  // shift-click: the whole range since the last box clicked follows this one
@@ -338,6 +341,44 @@
   }
   window.addEventListener('pageshow', refresh);  // the browser may bring ticks back on Back
   refresh();
+})();
+
+// Live search on the Items page (#live-q): the rows of the view carry data-search (code, name, spec, brand, size,
+// finish, category, room, supplier, status, notes); as you type, every word must appear somewhere, in any order,
+// * stands for anything and ? for one character. Rows that do not match are hidden (and unticked), a category group
+// with nothing left is hidden, and the count says how many are shown. Enter hands the words to the filter form's q so
+// the address bar and Export follow; Esc or Clear empties it.
+(function () {
+  var box = document.getElementById('live-q'); if (!box) return;
+  var rows = [].slice.call(document.querySelectorAll('[data-search]')), card = box.closest('.livesearch');
+  var count = card.querySelector('.ls-count'), clear = card.querySelector('.ls-clear'), hidden = document.getElementById('live-q-hidden'), timer = null;
+  rows.forEach(function (r) { r._ls = ' ' + (r.dataset.search || '').toLowerCase().replace(/\s+/g, ' ') + ' '; });
+  function pattern(term) { return new RegExp(term.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.')); }
+  function run() {
+    var q = box.value.trim().toLowerCase(), terms = q ? q.split(/\s+/).map(pattern) : [], n = 0, changed = false;
+    rows.forEach(function (r) {
+      var show = terms.every(function (re) { return re.test(r._ls); });
+      if (show) n++;
+      if (r.hidden === show) {
+        r.hidden = !show; changed = true;
+        if (!show) r.querySelectorAll('input.sel-box:checked').forEach(function (b) { b.checked = false; });
+      }
+    });
+    document.querySelectorAll('.group-title').forEach(function (h) {
+      var grid = h.nextElementSibling; if (!grid || !grid.classList.contains('cards')) return;
+      var any = !!grid.querySelector('[data-search]:not([hidden])'); h.hidden = !any; grid.hidden = !any;
+    });
+    count.textContent = q ? (n === rows.length ? 'all ' + n + ' shown' : n + ' of ' + rows.length + ' shown') + (n ? ' · Enter applies it to Export' : ' · nothing matches') : '';
+    clear.hidden = !q; card.classList.toggle('active', !!q);
+    if (changed) document.dispatchEvent(new CustomEvent('livesearch'));
+  }
+  box.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(run, 60); });
+  box.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && hidden && hidden.form) { e.preventDefault(); hidden.value = box.value.trim(); if (hidden.form.requestSubmit) hidden.form.requestSubmit(); else hidden.form.submit(); }
+    else if (e.key === 'Escape') { box.value = ''; run(); }
+  });
+  clear.addEventListener('click', function () { box.value = ''; run(); box.focus(); });
+  if (box.value) run();
 })();
 
 // "Help for this page": the ? button in the top bar opens a drawer with the steps for this page (base.html, help_tips.py).

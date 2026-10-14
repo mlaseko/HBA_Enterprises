@@ -298,8 +298,8 @@ def attach_drawing(db, p, im, item, x: float, y: float, img=None, caption: str =
     jpeg = crop_bytes(img, rect)
     src = source_of(im)
     old = [ph for ph in item.photos if ph.source == src]
-    fk, tk = storage.save_photo(jpeg, f"p{p.id}")
-    ph = ItemPhoto(item_id=item.id, file_key=fk, thumb_key=tk, caption=(caption or "Drawing")[:200], source=src)
+    fk, tk, dg = storage.save_photo(jpeg, f"p{p.id}")
+    ph = ItemPhoto(item_id=item.id, file_key=fk, thumb_key=tk, caption=(caption or "Drawing")[:200], source=src, digest=dg)
     for o in old:
         storage.delete_photo(o)
         db.delete(o)
