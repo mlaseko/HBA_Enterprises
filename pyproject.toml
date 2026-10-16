@@ -12,6 +12,7 @@ dependencies = [
     "openpyxl>=3.1",
     "pillow>=10",
     "psycopg[binary]>=3.1",
+    "pypdfium2>=4.30",
     "python-multipart>=0.0.9",
     "replit-object-storage>=1.0",
     "reportlab>=4.0",

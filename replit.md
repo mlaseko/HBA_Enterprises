@@ -12,9 +12,9 @@ The app must run from `ffe/` because its templates, static assets, and local
 data paths are relative to that directory. Keep the existing FastAPI/Jinja2
 structure; no framework migration is needed.
 
-Python dependencies are in `ffe/requirements.txt`. Replit's package manager
-also records the installed dependencies in the root `pyproject.toml` and
-`uv.lock`.
+Python dependencies for standalone installs are in `ffe/requirements.txt`.
+Replit publishing installs from the root `pyproject.toml` and `uv.lock`.
+Keep both dependency lists aligned, including `pypdfium2` for PDF drawing sets.
 
 ## Required configuration
 
@@ -40,8 +40,14 @@ For publishing, use the existing `replit` or `s3` backend with durable storage a
 ensure the published app has its database connection and required secrets.
 Do not rely on a published server's local disk for photos or SQLite.
 
-Publishing uses the root `.replit`, not `ffe/.replit`. Its build command installs
-`ffe/requirements.txt`, and its run command starts Uvicorn from `ffe/` on port
+Publishing uses the root `.replit`, not `ffe/.replit`. Use its automatic
+dependency installation, without a separate `pip install` build command.
+Mixing automatic uv installation with pip against a different manifest removes
+and reinstalls packages during publishing; the failed package archive referenced
+the PDF renderer's executable. Preserve these settings when syncing branches:
+`pypdfium2` must remain in the root manifest and the redundant pip step must stay
+removed.
+The run command starts Uvicorn from `ffe/` on port
 5000, exactly as the workspace workflow does. Do not use the root `main.py` as
 the publishing entrypoint: it is a generated scaffold that prints a message and
 exits, not the app server.
