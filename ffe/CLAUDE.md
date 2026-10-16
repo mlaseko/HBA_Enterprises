@@ -32,7 +32,15 @@ app/layers.py          plan sheet types: what a plan can show (plan_layers rows,
                        for_category(), caption_re(), plan_re(), kind()/is_reference(); add/rename/move/remove/set_categories for the settings page)
 app/refs.py            reference sheets: page_refs() (reference codes on a PDF page with positions), item_refs(), match(), ink_block()
                        (cut a drawing out of the rendered sheet around a point), attach_drawing()/drop_drawing() (ItemPhoto.source)
-app/config.py          env vars + constant lists (CATEGORIES, STATUSES, UNITS …)
+app/config.py          env vars + constant lists (STATUSES, ROOM_KINDS …; CATEGORIES / UNITS / PAYMENT_KINDS / CONTAINERS are only the
+                       standard lists a new project starts from: read the project's through lists.py)
+app/lists.py           the project's own lists (ListEntry rows, Project.list_rows: kind category | unit | payment | container) and
+                       defaults (Project.deposit_pct / soon_days / balance_days / lcl_up_to): categories(), category_order(),
+                       sort_categories(), allowance(), fallback_category(), units(), whole_units(), payment_kinds(), containers(),
+                       ship_modes(), capacity(), lcl_up_to(), deposit_pct(), soon_days(), balance_days(), template_values() (lazy);
+                       seed() (standard or another project's), copy_missing(), upgrade() (SchemaMark "lists.v1"), add() / update()
+                       (rename follows on items, payments, shipments) / move() / delete(into=) / ensure() (the import) / match()
+app/routers/lists.py   /p/<id>/lists (page), /lists/defaults, /lists/copy, /lists/<kind>/add, /lists/<kind>/<entry>[/move|/delete]
 app/db.py              engine/session; create_all on startup + migrate(): COLUMN_MIGRATIONS adds columns to existing tables
 app/models.py          Settings, SchemaMark (one-time data upgrades that ran), Project, ProjectImage, PlanTag, RoomPin, ItemPin, DrawingSet, DrawingPage (title block per page),
                        Floor (the project's floor list: name, kind floor | area, sort), MoodTag (a mood-board picture's room and whether the client added it),
@@ -219,6 +227,14 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
   shipment deleted): those lines step back to what their order gives them (`_base`). A line no box names keeps whatever
   status it has. Shipment numbers are never reused (`Project.shipments_made`). The bulk bar offers only Planning /
   Loaded shipments; boxes go on or come off a shipment only before it sails.
+- **Lists are the project's.** Categories, units, payment types, containers and the buying / shipping defaults are per
+  project (`lists.py`, Lists page). Never read `config.CATEGORIES`, `UNITS`, `PAYMENT_KINDS`, `CONTAINERS`, `CONTAINER_KG`,
+  `SHIP_MODES` or `LCL_UP_TO` in a feature: they are only what `lists.seed` starts a project from. Templates get
+  `CATEGORIES` / `UNITS` / `PAYMENT_KINDS` from `render()` whenever the context has `p` (lazy, so a page that does not use
+  them runs no query); a select of them must keep an item's current value even when it left the list. Python code asks
+  `lists.*(p)`. The names are stored as text on items, payments and shipments: a rename goes through `lists.update` (it
+  rewrites them), a delete of a used entry through `lists.delete(into=…)`. The studio's category → plan sheet table stays
+  studio-wide, by category name (`layers.category_names` = the standard categories + every project's).
 - The user guide (`templates/help.html`, `/help`) describes every feature in plain words, with screenshots from
   `app/static/help/` (WebP, sizes in `shots.json`, rendered through the `shot()` macro). When you change or add a feature,
   update its section and its "Help for this page" entry in `app/help_tips.py` in the same change (a new page needs a tip
@@ -333,7 +349,8 @@ ALTER TABLE settings ADD COLUMN warehouse_name / warehouse_address / warehouse_c
 ALTER TABLE projects ADD COLUMN shipments_made INTEGER NOT NULL DEFAULT 0;                -- the last shipment number given (never reused)
 ALTER TABLE cartons ADD COLUMN warehouse_on DATE;                                         -- the day a box reached the warehouse
 ALTER TABLE cartons ADD COLUMN shipment_id INTEGER;                                       -- the shipment a box is on
--- new tables (create_all): products, quotes, purchases, orders, shipments
+ALTER TABLE projects ADD COLUMN deposit_pct / soon_days / balance_days / lcl_up_to;       -- the project's defaults (lists.py)
+-- new tables (create_all): products, quotes, purchases, orders, shipments, project_lists
 ```
 
 ## Done
@@ -620,11 +637,21 @@ ALTER TABLE cartons ADD COLUMN shipment_id INTEGER;                             
   each box is (tiles + column), filters, the bulk bar (`form.box-bar#boxbulk`, buttons enabled once a box is ticked).
   Shipments (`shipping/list.html`): waiting at the warehouse with what it fits, still at the shops, shipments by stage
   with fill bars. A shipment (`shipping/shipment.html`): the steps with one-press next step and undo, on board vs the
-  container (`config.CONTAINERS`, `CONTAINER_KG`, `LCL_UP_TO`), dates & papers, boxes by room with receive squares, add
+  container (the project's containers, lists.py), dates & papers, boxes by room with receive squares, add
   boxes, details, delete; the loading list PDF. The supplier link shows where to deliver (`shipping.deliver_to`), offers
   the shop's lines to tick, and refuses to delete a delivered box. Tracker: shipping lines in needs attention and a
   Shipping section; Overview: boxes by place and the next arrival. The internal Purchase schedule PDF
   (`pdf/purchase.py`) with a market filter on the page.
+
+- **The project's lists.** Item categories, units, payment types and containers became per-project lists (`ListEntry`,
+  table `project_lists`) with the defaults on `Project` (deposit %, warning days, balance days, LCL point), edited on the
+  Lists page (`lists.html`, nav **Lists**, button on Project settings); new projects start from the standard lists or a copy
+  of another project's (`lists_from` on the new project form); a one-time upgrade wrote every existing project's lists
+  (plus any category or unit its items already used). Rewired: item form / Drafts / Quick capture / filters (render
+  injects the lists), sorting (`services.sort_items`, the PDFs, Buying, Tracker), the import (unknown category or unit
+  joins the list, `new_categories` / `new_units` in the preview) and its template's Lists sheet, Claude auto-fill
+  (`ai._schema` enums), buying allowances and whole units, order deposit and Tracker timings, shipping capacity / fits /
+  modes and `services.container_for`.
 
 ## Backlog (in priority order)
 

@@ -66,6 +66,7 @@
   <a href="/p/{{ p.id }}#documents">{{ ic('file') }}Documents</a>
   <a href="/p/{{ p.id }}/import" class="{{ 'on' if '/import' in path }}">{{ ic('upload') }}Import</a>
   <a href="/p/{{ p.id }}/edit" class="{{ 'on' if path == '/p/' ~ p.id ~ '/edit' }}">{{ ic('edit') }}Project settings</a>
+  <a href="/p/{{ p.id }}/lists" class="{{ 'on' if path.startswith('/p/' ~ p.id ~ '/lists') }}">{{ ic('tag') }}Lists</a>
 {% endmacro %}
 {% macro studio_links(path, p) %}
   <a href="/" class="{{ 'on' if path == '/' }}">{{ ic('folder') }}All projects</a>

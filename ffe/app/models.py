@@ -45,6 +45,11 @@ class Project(Base):
     budget_usd: Mapped[float] = mapped_column(Float, default=0.0)
     orders_made: Mapped[int] = mapped_column(Integer, default=0)  # the last order number given: numbers are never reused (ordering.py)
     shipments_made: Mapped[int] = mapped_column(Integer, default=0)  # the same for shipments (shipping.py)
+    # Buying and shipping defaults of this project (lists.py, edited on the Lists page)
+    deposit_pct: Mapped[float] = mapped_column(Float, default=30.0)  # % deposit when a shop's payment terms do not say
+    soon_days: Mapped[int] = mapped_column(Integer, default=7)  # an order ready or a shipment arriving this close needs attention
+    balance_days: Mapped[int] = mapped_column(Integer, default=14)  # flag the balance this long before an order's ready date
+    lcl_up_to: Mapped[float] = mapped_column(Float, default=12.0)  # CBM: below this the boxes would go LCL, sharing a container
     status: Mapped[str] = mapped_column(String(30), default="Active")
     description: Mapped[str] = mapped_column(Text, default="")
     client_token: Mapped[str] = mapped_column(String(60), default=token)
@@ -64,6 +69,9 @@ class Project(Base):
     products: Mapped[list["Product"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="Product.id")
     orders: Mapped[list["Order"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="Order.number")
     shipments: Mapped[list["Shipment"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="Shipment.number")
+    # The project's own lists (lists.py): what the item form, the filters, the import and the PDFs offer.
+    # One table for all four, so a page reads them in one query.
+    list_rows: Mapped[list["ListEntry"]] = relationship(cascade="all, delete-orphan", order_by="ListEntry.sort")
 
     @property
     def live_items(self) -> list["Item"]:
@@ -682,3 +690,19 @@ class Shipment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     project: Mapped["Project"] = relationship(back_populates="shipments")
     cartons: Mapped[list["Carton"]] = relationship(back_populates="shipment", order_by="Carton.id")
+
+
+# ---- the project's own lists (lists.py) --------------------------------------------------------------------------------
+class ListEntry(Base):
+    """One entry of one of the project's lists. kind = category (num = the extra ordered on top of the rooms' quantities,
+    0.10 = 10 %), unit (flag = bought in whole units), payment (a payment type) or container (num = CBM it takes in
+    practice, num2 = payload kg). Ordered by sort within its kind."""
+    __tablename__ = "project_lists"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(12))
+    name: Mapped[str] = mapped_column(String(60))
+    sort: Mapped[int] = mapped_column(Integer, default=0)
+    num: Mapped[float] = mapped_column(Float, default=0.0)
+    num2: Mapped[float] = mapped_column(Float, default=0.0)
+    flag: Mapped[bool] = mapped_column(Boolean, default=False)

@@ -29,7 +29,7 @@ from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, object_session
 
-from . import config, drawings, storage
+from . import config, drawings, lists, storage
 from .models import Item, ItemPrice, Payment, Carton, Order, Product, Project, Purchase, Quote, SchemaMark, Supplier, SupplierLink
 from .services import product_key, sort_items
 
@@ -40,17 +40,16 @@ STAGE_HELP = {"To source": "no quote yet", "Quoting": "quotes in, no shop chosen
 STAGE_COLORS = {"To source": "#9CA3AF", "Quoting": "#F59E0B", "Part sourced": "#14B8A6", "Sourced": "#16A34A", "Ordered": "#3B82F6",
                 "Paid": "#8B5CF6"}
 AUTO_STATUSES = ("To buy", "Quoted", "Ordered", "Paid")  # the statuses buying and the orders set; Shipped and Received stay the designer's
-DEFAULT_ALLOWANCE = {"Tiles": 0.10}  # extra on top of the rooms' quantities, by category; everything else 0
 PACK_NAMES = {"m²": "box", "m": "box", "lm": "box"}  # what a pack is called by default; other units are bought one by one
-WHOLE_UNITS = {"pcs", "set", "box", "roll"}  # bought in whole units: an allowance on 7 pcs rounds up, not to 7.7
 UPGRADE_MARK = "buying.v1"
 
 
 # ---- quantities -----------------------------------------------------------------------------------------------------------
-def allowance_of(product: Product | None, category: str) -> float:
+def allowance_of(product: Product | None, category: str, p: Project | None = None) -> float:
+    """The product's own allowance, else its category's in the project's list (lists.py)."""
     if product is not None and product.allowance is not None:
         return max(0.0, product.allowance)
-    return DEFAULT_ALLOWANCE.get(category, 0.0)
+    return lists.allowance(p, category)
 
 
 def pack_name_of(product: Product | None, unit: str) -> str:
@@ -59,14 +58,15 @@ def pack_name_of(product: Product | None, unit: str) -> str:
     return PACK_NAMES.get(unit, "")
 
 
-def order_qty(needed: float, allowance: float, pack: float, unit: str, override: float | None = None) -> dict:
+def order_qty(needed: float, allowance: float, pack: float, unit: str, override: float | None = None, whole: set | None = None) -> dict:
     """How much to order: the rooms' quantity plus the allowance (or a quantity set by hand), rounded up to whole packs when
-    the pack size is known, else to whole units for things bought by the piece. {base, qty, packs}."""
+    the pack size is known, else to whole units for things bought by the piece (`whole`: the project's units bought whole,
+    lists.whole_units). {base, qty, packs}."""
     base = override if override is not None else (needed or 0) * (1 + (allowance or 0))
     if pack and pack > 0:
         packs = math.ceil(round(base / pack, 6))
         return dict(base=round(base, 3), qty=round(packs * pack, 3), packs=packs)
-    if unit in WHOLE_UNITS:
+    if unit in (whole if whole is not None else lists.WHOLE_UNITS):
         return dict(base=round(base, 3), qty=float(math.ceil(round(base, 6))), packs=None)
     return dict(base=round(base, 3), qty=round(base, 2), packs=None)
 
@@ -116,7 +116,15 @@ class Group:
     # buying
     @property
     def allowance(self) -> float:
-        return allowance_of(self.product, self.category)
+        return allowance_of(self.product, self.category, self.project)
+
+    @property
+    def project(self) -> Project | None:
+        return self.lines[0].project if self.lines else None
+
+    @property
+    def whole(self) -> set:
+        return lists.whole_units(self.project)
 
     @property
     def pack_size(self) -> float:
@@ -134,7 +142,7 @@ class Group:
         parts = [self.purchase_view(pu) for pu in self.purchases]
         open_ = [i for i in self.lines if not i.purchase_id]
         if open_ or not parts:
-            parts.append(dict(order_qty(round(sum(i.qty or 0 for i in open_), 3), self.allowance, self.pack_size, self.unit), pack=self.pack_size))
+            parts.append(dict(order_qty(round(sum(i.qty or 0 for i in open_), 3), self.allowance, self.pack_size, self.unit, whole=self.whole), pack=self.pack_size))
         sizes = {x["pack"] or 0 for x in parts}
         same = len(sizes) == 1
         packs = sum(x["packs"] for x in parts) if same and all(x["packs"] for x in parts) else None
@@ -178,7 +186,7 @@ class Group:
 
     def quote_total(self, q: Quote) -> dict:
         """What the whole product would cost at this quote: its pack, its price."""
-        o = order_qty(self.needed, self.allowance, q.pack_size or self.pack_size, self.unit)
+        o = order_qty(self.needed, self.allowance, q.pack_size or self.pack_size, self.unit, whole=self.whole)
         return dict(o, total=round(o["qty"] * (q.unit_price or 0), 2))
 
     @property
@@ -206,7 +214,7 @@ class Group:
 def purchase_view(pu: Purchase, lines: list[Item], allowance: float, product_pack: float, unit: str) -> dict:
     """A purchase as the pages show it: the lines it covers, their quantity, what to order and what it costs."""
     needed = round(sum(i.qty or 0 for i in lines), 3)
-    o = order_qty(needed, allowance, pu.pack_size or product_pack, unit, pu.qty)
+    o = order_qty(needed, allowance, pu.pack_size or product_pack, unit, pu.qty, whole=lists.whole_units(lines[0].project if lines else None))
     return dict(o, purchase=pu, lines=lines, needed=needed, pack=pu.pack_size or product_pack, unit=unit,
                 total=round(o["qty"] * (pu.unit_price or 0), 2))
 
@@ -216,7 +224,7 @@ def view_of(pu: Purchase, lines: list[Item], product: Product | None) -> dict:
     units = sorted({(i.unit or "").strip() for i in lines})
     unit = units[0] if len(units) == 1 else ("mixed" if units else "")
     category = lines[0].category if lines else ""
-    v = purchase_view(pu, lines, allowance_of(product, category), product.pack_size if product is not None else 0.0, unit)
+    v = purchase_view(pu, lines, allowance_of(product, category, lines[0].project if lines else None), product.pack_size if product is not None else 0.0, unit)
     v["pack_name"] = pack_name_of(product, unit)
     return v
 

@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Lists · {{ p.name }} · {{ APP_NAME }}{% endblock %}
+{% block content %}
+{% macro order(kind, e, first, last) %}<form method="post" action="/p/{{ p.id }}/lists/{{ kind }}/{{ e.id }}/move" class="inl"><button class="btn sm icon ghost" name="dir" value="up" title="Move up" aria-label="Move {{ e.name }} up"{% if first %} disabled{% endif %}>↑</button><button class="btn sm icon ghost" name="dir" value="down" title="Move down" aria-label="Move {{ e.name }} down"{% if last %} disabled{% endif %}>↓</button></form>{% endmacro %}
+{% macro del(kind, e, n, word, others) %}
+{% if not n %}<form method="post" action="/p/{{ p.id }}/lists/{{ kind }}/{{ e.id }}/delete" class="inl" data-confirm="Remove {{ e.name }} from the list? Nothing uses it, so nothing else changes."><button class="btn sm icon ghost danger" title="Delete" aria-label="Delete {{ e.name }}"><svg class="ic"><use href="#i-trash"/></svg></button></form>
+{% else %}<details class="ls-del"><summary class="btn sm icon ghost danger" title="Delete: move its {{ word }} first" aria-label="Delete {{ e.name }}"><svg class="ic"><use href="#i-trash"/></svg></summary>
+  <form method="post" action="/p/{{ p.id }}/lists/{{ kind }}/{{ e.id }}/delete" class="ls-del-box" data-confirm="Delete {{ e.name }}? Its {{ n }} {{ word }} move to the one you chose.">
+    <label class="small">Move its {{ n }} {{ word }} to</label>
+    <select class="in" name="into" required>{% for o in others if o != e.name %}<option>{{ o }}</option>{% endfor %}</select>
+    <button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Move and delete</button>
+  </form></details>{% endif %}
+{% endmacro %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/edit">Project settings</a></div>
+    <h1>Lists</h1>
+    <p class="sub">This project's own choices: the categories and units of its items, its payment types, the containers it ships in, and its buying defaults. Rename an entry and every item that uses it follows; an entry still in use moves its items to another before it goes.</p>
+  </div>
+  {% if others %}
+  <div class="actions">
+    <form method="post" action="/p/{{ p.id }}/lists/copy" class="row ls-copy" data-confirm="Copy what the other project's lists have and these lack? Nothing here is removed or renamed.">
+      <select class="in" name="source" aria-label="Project to copy from" required><option value="">Copy from a project…</option>{% for o in others %}<option value="{{ o.id }}">{{ o.name }}</option>{% endfor %}</select>
+      <button class="btn sec sm"><svg class="ic"><use href="#i-plus"/></svg>Add what is missing</button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+
+{% if ok %}<div class="alert">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert err">{{ err }}</div>{% endif %}
+
+<nav class="ls-jump small"><a href="#categories">Categories</a><a href="#units">Units</a><a href="#payments">Payment types</a><a href="#containers">Containers</a><a href="#defaults">Defaults</a></nav>
+
+{% set cats = entries['category'] %}{% set cat_names = cats|map(attribute='name')|list %}
+<section class="card" id="categories">
+  <div class="row between"><h2 class="mb-0">Categories <span class="h-note">{{ cats|length }}</span></h2><span class="small muted">The schedule PDFs, the Items and Buying pages list categories in this order.</span></div>
+  <div class="tbl mt"><table class="floors ls">
+    <thead><tr><th>Order</th><th>Name</th><th class="num">Extra to order</th><th>Plans before it in the PDF</th><th class="num">Lines</th><th></th></tr></thead>
+    <tbody>
+    {% for e in cats %}{% set n = used['category'].get(e.name, 0) %}
+    <tr>
+      <td class="nowrap">{{ order('category', e, loop.first, loop.last) }}</td>
+      <td><form method="post" action="/p/{{ p.id }}/lists/category/{{ e.id }}" class="inl" id="ls-c{{ e.id }}"><input class="in nm" type="text" name="name" value="{{ e.name }}" maxlength="60" aria-label="Name of the category" required></form></td>
+      <td class="num nowrap"><span class="ls-pct"><input class="in" type="number" name="allowance" form="ls-c{{ e.id }}" value="{{ '%g'|format(((e.num or 0) * 100)|round(1)) }}" min="0" max="500" step="0.5" inputmode="decimal" aria-label="Extra to order for {{ e.name }}, %"><span class="small muted">%</span></span></td>
+      <td class="small muted">{{ sheet_of.get(e.name) or 'Main plan' }}</td>
+      <td class="num">{{ n }}</td>
+      <td class="nowrap right"><button class="btn sm sec" form="ls-c{{ e.id }}"><svg class="ic"><use href="#i-check"/></svg>Save</button> {{ del('category', e, n, 'line' if n == 1 else 'lines', cat_names) }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <form method="post" action="/p/{{ p.id }}/lists/category/add" class="row mt floors-add">
+    <input class="in" type="text" name="name" placeholder="New category, e.g. Wallpaper" maxlength="60" aria-label="Name of the new category" required>
+    <span class="ls-pct"><input class="in" type="number" name="allowance" value="0" min="0" max="500" step="0.5" inputmode="decimal" aria-label="Extra to order, %"><span class="small muted">% extra</span></span>
+    <button class="btn sm"><svg class="ic"><use href="#i-plus"/></svg>Add category</button>
+  </form>
+  <p class="small muted mt mb-0"><b>Extra to order</b> is added on top of the rooms' quantities on Buying (10 % for tiles, for cuts and breakage); a product can still set its own. Which plan sheet prints before a category is set for the whole studio, by category name, under <a href="/settings#sheets">Studio settings → Plan sheet types</a>.</p>
+</section>
+
+{% set units_ = entries['unit'] %}{% set unit_names = units_|map(attribute='name')|list %}
+<section class="card" id="units">
+  <div class="row between"><h2 class="mb-0">Units <span class="h-note">{{ units_|length }}</span></h2><span class="small muted">The Unit dropdown of the item form, in this order (the first is the default).</span></div>
+  <div class="tbl mt"><table class="floors ls">
+    <thead><tr><th>Order</th><th>Name</th><th>Whole units</th><th class="num">Lines</th><th></th></tr></thead>
+    <tbody>
+    {% for e in units_ %}{% set n = used['unit'].get(e.name, 0) %}
+    <tr>
+      <td class="nowrap">{{ order('unit', e, loop.first, loop.last) }}</td>
+      <td><form method="post" action="/p/{{ p.id }}/lists/unit/{{ e.id }}" class="inl" id="ls-u{{ e.id }}"><input class="in nm sm-w" type="text" name="name" value="{{ e.name }}" maxlength="10" aria-label="Name of the unit" required></form></td>
+      <td><label class="check"><input type="checkbox" name="whole" value="1" form="ls-u{{ e.id }}" {{ 'checked' if e.flag }} aria-label="{{ e.name }} bought in whole units"> <span class="small hide-m">rounds up to whole {{ e.name }}</span></label></td>
+      <td class="num">{{ n }}</td>
+      <td class="nowrap right"><button class="btn sm sec" form="ls-u{{ e.id }}"><svg class="ic"><use href="#i-check"/></svg>Save</button> {{ del('unit', e, n, 'line' if n == 1 else 'lines', unit_names) }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <form method="post" action="/p/{{ p.id }}/lists/unit/add" class="row mt floors-add">
+    <input class="in" type="text" name="name" placeholder="New unit, e.g. pair" maxlength="10" aria-label="Name of the new unit" required>
+    <label class="check"><input type="checkbox" name="whole" value="1"> <span class="small">bought in whole units</span></label>
+    <button class="btn sm"><svg class="ic"><use href="#i-plus"/></svg>Add unit</button>
+  </form>
+  <p class="small muted mt mb-0">A unit bought in <b>whole units</b> rounds the quantity to order up (7 pcs + 10 % = 8 pcs, not 7.7). Units of area and length (m², m) keep the decimals, unless the product is sold in boxes of a set size.</p>
+</section>
+
+{% set pays = entries['payment'] %}{% set pay_names = pays|map(attribute='name')|list %}
+<section class="card" id="payments">
+  <div class="row between"><h2 class="mb-0">Payment types <span class="h-note">{{ pays|length }}</span></h2><span class="small muted">The Type of a payment on an order and on Payments.</span></div>
+  <div class="tbl mt"><table class="floors ls">
+    <thead><tr><th>Order</th><th>Name</th><th class="num">Payments</th><th></th></tr></thead>
+    <tbody>
+    {% for e in pays %}{% set n = used['payment'].get(e.name, 0) %}
+    <tr>
+      <td class="nowrap">{{ order('payment', e, loop.first, loop.last) }}</td>
+      <td><form method="post" action="/p/{{ p.id }}/lists/payment/{{ e.id }}" class="inl" id="ls-p{{ e.id }}"><input class="in nm" type="text" name="name" value="{{ e.name }}" maxlength="30" aria-label="Name of the payment type" required></form></td>
+      <td class="num">{{ n }}</td>
+      <td class="nowrap right"><button class="btn sm sec" form="ls-p{{ e.id }}"><svg class="ic"><use href="#i-check"/></svg>Save</button> {{ del('payment', e, n, 'payment' if n == 1 else 'payments', pay_names) }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <form method="post" action="/p/{{ p.id }}/lists/payment/add" class="row mt floors-add">
+    <input class="in" type="text" name="name" placeholder="New payment type, e.g. Freight" maxlength="30" aria-label="Name of the new payment type" required>
+    <button class="btn sm"><svg class="ic"><use href="#i-plus"/></svg>Add payment type</button>
+  </form>
+  <p class="small muted mt mb-0">On an order, <b>Record a payment</b> suggests Deposit, then Balance, while those two are in the list.</p>
+</section>
+
+{% set boxes = entries['container']|sort(attribute='num') %}{% set box_names = boxes|map(attribute='name')|list + open_modes %}
+<section class="card" id="containers">
+  <div class="row between"><h2 class="mb-0">Containers <span class="h-note">{{ boxes|length }}</span></h2><span class="small muted">What a shipment can travel in, with what it takes. Smallest first.</span></div>
+  <div class="tbl mt"><table class="floors ls">
+    <thead><tr><th>Name</th><th class="num">Takes (CBM)</th><th class="num">Payload (kg)</th><th class="num">Shipments</th><th></th></tr></thead>
+    <tbody>
+    {% for e in boxes %}{% set n = used['container'].get(e.name, 0) %}
+    <tr>
+      <td><form method="post" action="/p/{{ p.id }}/lists/container/{{ e.id }}" class="inl" id="ls-k{{ e.id }}"><input class="in nm" type="text" name="name" value="{{ e.name }}" maxlength="20" aria-label="Name of the container" required></form></td>
+      <td class="num"><input class="in ls-num" type="number" name="cbm" form="ls-k{{ e.id }}" value="{{ '%g'|format(e.num or 0) }}" min="0" step="0.5" inputmode="decimal" aria-label="CBM {{ e.name }} takes"></td>
+      <td class="num"><input class="in ls-num" type="number" name="kg" form="ls-k{{ e.id }}" value="{{ '%g'|format(e.num2 or 0) }}" min="0" step="100" inputmode="decimal" aria-label="Payload of {{ e.name }}, kg"></td>
+      <td class="num">{{ n }}</td>
+      <td class="nowrap right"><button class="btn sm sec" form="ls-k{{ e.id }}"><svg class="ic"><use href="#i-check"/></svg>Save</button> {{ del('container', e, n, 'shipment' if n == 1 else 'shipments', box_names) }}</td>
+    </tr>
+    {% endfor %}
+    <tr class="muted"><td>{{ open_modes|join(' · ') }}</td><td class="num small" colspan="2">no fixed space</td><td class="num">{{ used['container'].get('LCL', 0) + used['container'].get('Air', 0) }}</td><td class="small right">always offered</td></tr>
+    </tbody>
+  </table></div>
+  <form method="post" action="/p/{{ p.id }}/lists/container/add" class="row mt floors-add">
+    <input class="in" type="text" name="name" placeholder="New container, e.g. 45ft HC" maxlength="20" aria-label="Name of the new container" required>
+    <input class="in ls-num" type="number" name="cbm" placeholder="CBM" min="0" step="0.5" inputmode="decimal" aria-label="CBM it takes" required>
+    <input class="in ls-num" type="number" name="kg" placeholder="Payload kg" min="0" step="100" inputmode="decimal" aria-label="Payload, kg">
+    <button class="btn sm"><svg class="ic"><use href="#i-plus"/></svg>Add container</button>
+  </form>
+  <p class="small muted mt mb-0"><b>Takes</b> is what fits in practice, not the inside volume (a 20ft holds about 33 CBM, takes about 28 with cartons). The Shipments page suggests the smallest container the waiting boxes fit, and each shipment's fill bars read these numbers.</p>
+</section>
+
+<form method="post" action="/p/{{ p.id }}/lists/defaults" class="card" id="defaults">
+  <h2>Defaults</h2>
+  <div class="grid g4 stack">
+    <div><label for="d-dep">Deposit when the terms don't say</label><div class="ls-pct"><input id="d-dep" class="in" type="number" name="deposit_pct" value="{{ '%g'|format(p.deposit_pct or 0) }}" min="0" max="100" step="1" inputmode="decimal"><span class="small muted">%</span></div><div class="help">A new order reads the deposit from the shop's payment terms; this when they say nothing.</div></div>
+    <div><label for="d-soon">Warn this many days ahead</label><div class="ls-pct"><input id="d-soon" class="in" type="number" name="soon_days" value="{{ p.soon_days }}" min="0" max="90" step="1" inputmode="numeric"><span class="small muted">days</span></div><div class="help">The Tracker lists an order ready, or a shipment arriving or due to sail, within this many days.</div></div>
+    <div><label for="d-bal">Ask for the balance</label><div class="ls-pct"><input id="d-bal" class="in" type="number" name="balance_days" value="{{ p.balance_days }}" min="0" max="120" step="1" inputmode="numeric"><span class="small muted">days before ready</span></div><div class="help">Shops want the balance before loading: the Tracker flags it this long before the ready date.</div></div>
+    <div><label for="d-lcl">Share a container (LCL) below</label><div class="ls-pct"><input id="d-lcl" class="in" type="number" name="lcl_up_to" value="{{ '%g'|format(p.lcl_up_to or 0) }}" min="0" max="100" step="0.5" inputmode="decimal"><span class="small muted">CBM</span></div><div class="help">Below this volume the Shipments page suggests LCL rather than a container of your own.</div></div>
+  </div>
+  <div class="form-actions"><button class="btn"><svg class="ic"><use href="#i-check"/></svg>Save defaults</button></div>
+</form>
+{% endblock %}

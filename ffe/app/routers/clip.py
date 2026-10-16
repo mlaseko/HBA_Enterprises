@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Project, ProjectImage, Item, ItemPhoto
 from ..common import render, redirect, require_login, fint
-from .. import storage, webimage, ai
+from .. import storage, webimage, ai, lists
 
 router = APIRouter(dependencies=[Depends(require_login)])
 
@@ -67,7 +67,7 @@ def clip_save(request: Request, db: Session = Depends(get_db), project_id: str =
         db.flush()
         db.add(ItemPhoto(item_id=item.id, file_key=key, thumb_key=tkey, caption=caption, digest=dg))
         filled = []
-        suggestion = ai.suggest_item(storage.read_image(key), text, page or link, [r.label for r in p.rooms])
+        suggestion = ai.suggest_item(storage.read_image(key), text, page or link, [r.label for r in p.rooms], lists.categories(p), lists.units(p))
         if suggestion:
             filled = ai.apply_suggestion(item, suggestion, p.rooms)
             if filled:

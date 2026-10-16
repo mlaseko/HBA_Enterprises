@@ -17,6 +17,7 @@ from ..models import Project, Room, Item, Supplier
 from ..common import render, redirect, require_login, get_project, ffloat, content_disposition
 from ..services import next_code, guess_kind
 from .. import config, drawings, storage, buying
+from .. import lists as plists  # the project's lists (a local `lists` is the workbook's Lists sheet)
 from .items import new_photo
 from ..services import photos_of, product_key
 from PIL import Image as PILImage
@@ -199,7 +200,7 @@ def build_workbook(p: Project, db: Session, items: list | None = None) -> bytes:
             buffers.append(b)
     lists = wb.create_sheet("Lists")
     floors = list(dict.fromkeys([f for f in drawings.floor_order(p) if f] + ["Ground", "First", "Second", "Roof", "Site", "All"]))
-    columns = [("Categories", config.CATEGORIES), ("Units", config.UNITS), ("Statuses", config.STATUSES), ("Kind", config.ROOM_KINDS),
+    columns = [("Categories", plists.categories(p)), ("Units", plists.units(p)), ("Statuses", config.STATUSES), ("Kind", config.ROOM_KINDS),
                ("Floors", floors), ("Optional", ["yes", "no"])]
     refs = {}
     for j, (title, values) in enumerate(columns, start=1):
@@ -338,9 +339,7 @@ def read_row(h, row) -> dict:
         optional = False
     cat_raw, cat = norm(col(h, row, "category")), ""
     if cat_raw:
-        cat = CAT_MAP.get(cat_raw, cat_raw.title())
-        if cat not in config.CATEGORIES:
-            cat = "Other"
+        cat = CAT_MAP.get(cat_raw, " ".join(text(col(h, row, "category")).split()))  # one the project lacks joins its list (run_import)
         if cat == "Cabinets" and any(w in name.lower() for w in APPLIANCE_WORDS):
             cat = "Appliances"
     status = text(col(h, row, "status"))
@@ -459,7 +458,7 @@ def run_import(p: Project, db: Session, wb, replace: bool, dry: bool, photos: li
     `photos` = [(file name, bytes)] uploaded with the sheet; with the pictures placed over the sheet's Photo cells they go
     to the items they name (code or item name) when those have no photo yet, after the commit."""
     result = {"rooms": 0, "items": 0, "updated": 0, "unchanged": 0, "suppliers": 0, "skipped": 0, "deleted": 0, "warnings": [],
-              "new": [], "changes": [], "new_rooms": [], "new_floors": [], "floors": 0, "room_changes": [], "new_suppliers": [], "photos": 0, "photos_kept": 0, "error": None, "dry": dry}
+              "new": [], "changes": [], "new_rooms": [], "new_floors": [], "new_categories": [], "new_units": [], "floors": 0, "room_changes": [], "new_suppliers": [], "photos": 0, "photos_kept": 0, "error": None, "dry": dry}
     photos = photos or []
     warnings: list[str] = []
 
@@ -566,6 +565,13 @@ def run_import(p: Project, db: Session, wb, replace: bool, dry: bool, photos: li
             if existing is None and not f["name"]:
                 result["skipped"] += 1
                 continue
+            for kind, key, new in (("category", "category", "new_categories"), ("unit", "unit", "new_units")):
+                if f[key] and f[key] != "-":  # the project's spelling; a value it lacks joins its list (lists.py)
+                    known = plists.match(p, kind, f[key])
+                    if not known:
+                        known = plists.ensure(db, p, kind, f[key])
+                        result[new].append(known)
+                    f[key] = known
             raw_status = text(col(h, row, "status"))
             if raw_status and not f["status"]:
                 warn(f'Status "{raw_status}" is not one of {", ".join(config.STATUSES)}: ' + ("left as it is." if existing else '"To buy" is used.'))
@@ -595,9 +601,9 @@ def run_import(p: Project, db: Session, wb, replace: bool, dry: bool, photos: li
                     result["unchanged"] += 1
                 continue
             for room in rooms:  # one new item per room, like the room checklist of the item form
-                item = Item(project_id=p.id, room_id=room.id if room else None, category=f["category"] or "Other", name=f["name"],
+                item = Item(project_id=p.id, room_id=room.id if room else None, category=f["category"] or plists.fallback_category(p), name=f["name"],
                             brand=_clean(f["brand"]), spec=_clean(f["spec"]), size=_clean(f["size"]), finish=_clean(f["finish"]),
-                            qty=ffloat(f["qty"], 1), unit=_clean(f["unit"]) or "pcs", status=f["status"] or "To buy",
+                            qty=ffloat(f["qty"], 1), unit=_clean(f["unit"]) or plists.units(p)[0], status=f["status"] or "To buy",
                             optional=bool(f["optional"]), notes=_clean(f["notes"]))
                 code = f["code"]
                 item.code = code if code and len(rooms) == 1 and not any(i.code == code for i in p.items) else next_code(db, p, room)

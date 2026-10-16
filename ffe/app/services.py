@@ -2,7 +2,7 @@ import re
 from collections import defaultdict
 from sqlalchemy.orm import Session
 from .models import Project, Item, Room, Carton, Payment, Supplier
-from .config import CONTAINERS, STATUSES, AREA_WORDS, CATEGORIES
+from .config import STATUSES, AREA_WORDS
 from . import drawings, storage
 
 # ---- product identity: what makes two room lines the same product (routers/items.py re-exports these) ----------------
@@ -103,9 +103,11 @@ def next_code(db: Session, project: Project, room: Room | None) -> str:
 
 
 def sort_items(items: list[Item], p: Project) -> list[Item]:
-    """Schedule order: category (config order), then room order, then code. Used by lists, panels, PDFs and share pages."""
+    """Schedule order: category (the project's list order, lists.py), then room order, then code. Used by lists, panels,
+    PDFs and share pages."""
+    from . import lists
     room_order = {r.id: r.sort for r in p.rooms}
-    cat_order = {c: i for i, c in enumerate(CATEGORIES)}
+    cat_order = lists.category_order(p)
     return sorted(items, key=lambda i: (cat_order.get(i.category, 99), room_order.get(i.room_id, 9999), i.code))
 
 
@@ -129,13 +131,18 @@ def guess_kind(name: str, floor: str = "") -> str:
     return "area" if _AREA_RE.search(n) else "room"
 
 
-def container_for(cbm: float) -> str:
+def container_for(cbm: float, p: Project | None = None) -> str:
+    """The smallest of the project's containers this volume fits, or how many of the largest."""
+    from . import lists
     if cbm <= 0:
         return "-"
-    for name, cap in CONTAINERS:
+    boxes = [(n, cap) for n, cap, _ in lists.containers(p) if cap > 0]
+    if not boxes:
+        return "-"
+    for name, cap in boxes:
         if cbm <= cap:
             return f"1 x {name}"
-    name, cap = CONTAINERS[-1]
+    name, cap = boxes[-1]
     import math
     return f"{math.ceil(cbm / cap)} x {name}"
 
@@ -210,7 +217,7 @@ def summary(db: Session, p: Project) -> dict:
         "orders": len(led.orders), "by_status": by_status, "by_room": by_room, "by_cat": by_cat,
         "by_sup": by_sup, "cartons": len(cartons), "cartons_received": sum(1 for c in cartons if c.received),
         "boxes_where": boxes_where, "next_arrival": on_way[0] if on_way else None,
-        "cbm": cbm, "kg": kg, "container": container_for(cbm),
+        "cbm": cbm, "kg": kg, "container": container_for(cbm, p),
         "budget_used": (total / rate / p.budget_usd) if p.budget_usd else None,
     }
 

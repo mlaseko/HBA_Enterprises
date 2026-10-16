@@ -17,16 +17,15 @@ from datetime import date
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from . import buying, config
+from . import buying, lists
 from .models import Order, Payment, Project, Purchase, Supplier
 
 STAGES = ["Draft", "Deposit due", "Balance due", "Paid"]
 STAGE_HELP = {"Draft": "not confirmed with the shop yet", "Deposit due": "confirmed, the deposit still to pay",
               "Balance due": "deposit paid, the balance still to pay", "Paid": "paid in full"}
 STAGE_COLORS = {"Draft": "#9CA3AF", "Deposit due": "#F59E0B", "Balance due": "#3B82F6", "Paid": "#8B5CF6"}
-DEFAULT_DEPOSIT = 30.0  # % when the supplier's payment terms do not say
-SOON_DAYS = 7  # a ready date this close (or past) needs attention
-BALANCE_DAYS = 14  # shops want the balance before loading: flag it this long before the ready date
+# The deposit % when a shop's terms do not say, how close a ready date needs attention and how long before it the balance
+# is flagged are the project's (lists.deposit_pct / soon_days / balance_days, edited on the Lists page).
 DONE_STATUSES = ("Shipped", "Received")
 
 
@@ -68,7 +67,7 @@ def new_order(db: Session, p: Project, supplier: Supplier | None, purchases: lis
     the supplier's payment terms, delivery to the studio's consolidation warehouse."""
     pct = deposit_from_terms(supplier.payment_terms if supplier is not None else "")
     o = Order(project_id=p.id, supplier_id=supplier.id if supplier is not None else None, number=next_number(db, p),
-              deposit_pct=DEFAULT_DEPOSIT if pct is None else pct, terms=((supplier.payment_terms if supplier is not None else "") or "")[:200],
+              deposit_pct=lists.deposit_pct(p) if pct is None else pct, terms=((supplier.payment_terms if supplier is not None else "") or "")[:200],
               deliver_to=warehouse or "")
     db.add(o)
     p.orders_made = o.number
@@ -176,7 +175,7 @@ class OrderView:
         self.days = (o.ready_date - today).days if o.ready_date else None
         due = o.confirmed and not self.done and self.days is not None
         self.late = bool(due and self.days < 0 and self.stage != "Paid")  # past the ready date with money still to pay
-        self.soon = bool(due and 0 <= self.days <= SOON_DAYS)
+        self.soon = bool(due and 0 <= self.days <= lists.soon_days(o.project))
         self.collect = bool(due and self.days <= 0 and self.stage == "Paid")  # paid and ready: to collect
 
     @property
@@ -300,7 +299,7 @@ def tracker(p: Project, led: buying.Ledger, gs: list, ovs: list[OrderView], toda
             c["open"] += 1
             best = g.best_quote
             if best is not None:
-                o_ = buying.order_qty(sum(i.qty or 0 for i in open_lines), g.allowance, best.pack_size or g.pack_size, g.unit)
+                o_ = buying.order_qty(sum(i.qty or 0 for i in open_lines), g.allowance, best.pack_size or g.pack_size, g.unit, whole=g.whole)
                 est += o_["qty"] * (best.unit_price or 0)
             else:
                 unpriced += 1
@@ -355,7 +354,7 @@ def tracker(p: Project, led: buying.Ledger, gs: list, ovs: list[OrderView], toda
         when = f" · ready {ov.ready_text}" if ov.ready_text else ""
         att.append(dict(tone="gold", icon="card", title=f"Deposit to pay on {ov.ref}: ¥{ov.deposit_left:,.0f}",
                         detail=f"{shop(ov)} · {ov.o.deposit_pct:g}% of ¥{ov.total:,.0f}{when}", href=on(ov)))
-    for ov in sorted((x for x in ovs if x.stage == "Balance due" and x.o.id not in listed and not x.done and x.days is not None and x.days <= BALANCE_DAYS),
+    for ov in sorted((x for x in ovs if x.stage == "Balance due" and x.o.id not in listed and not x.done and x.days is not None and x.days <= lists.balance_days(p)),
                      key=lambda x: x.days):
         listed.add(ov.o.id)
         att.append(dict(tone="gold", icon="card", title=f"Balance before collection on {ov.ref}: ¥{ov.balance:,.0f}",
@@ -393,7 +392,7 @@ def tracker(p: Project, led: buying.Ledger, gs: list, ovs: list[OrderView], toda
         att.append(dict(tone="muted", icon="search", title=f"{n_src} product{'s' if n_src != 1 else ''} with no quote yet", detail="Record what the shops offer",
                         href=f"{href}/buying?stage=To%20source"))
     budget = round((p.budget_usd or 0) * rate, 2)
-    order = {c: n for n, c in enumerate(config.CATEGORIES)}
+    order = lists.category_order(p)
     return dict(budget=budget, estimated=round(estimated, 2), committed=round(committed, 2), ordered=ordered, paid=paid_all, to_pay=to_pay,
                 unpriced=unpriced, attention=att, stages=stages, boxes=bx.counts(), shipments=svs,
                 cats=sorted(cats.values(), key=lambda c: order.get(c["category"], len(order))),

@@ -307,12 +307,34 @@ def remove(db, key: str) -> tuple[str, str]:
     return f'"{row.title}" removed from the list.', ""
 
 
-def set_categories(db, mapping: dict[str, str]) -> int:
-    """Category -> sheet key for every category in config.CATEGORIES (missing or unknown = the main plan). Returns how many
-    categories are read from a sheet other than the main plan."""
+def carry_category(db, old: str, new: str) -> None:
+    """A project renamed a category: the new name is read from the old one's sheet unless it has one of its own."""
+    cmap = category_map()
+    if old not in cmap or new in cmap:
+        return
+    row = db.query(PlanLayer).filter(PlanLayer.key == cmap[old]).first()
+    if row is not None:
+        row.categories = "|".join([c for c in (row.categories or "").split("|") if c] + [new])
+        db.flush()
+        invalidate()
+
+
+def category_names(db) -> list[str]:
+    """Every category name a project can use, for the studio's category -> sheet table: the standard categories first, then
+    the ones projects added to their lists (the sheet types are the studio's, so the mapping goes by name)."""
+    from .models import ListEntry
+    extra = sorted({r.name for r in db.query(ListEntry).filter(ListEntry.kind == "category").all()} - set(config.CATEGORIES), key=str.lower)
+    return list(config.CATEGORIES) + extra
+
+
+def set_categories(db, mapping: dict[str, str], names: list[str] | None = None) -> int:
+    """Category -> sheet key for every category in `names` (missing or unknown = the main plan); a name not offered keeps
+    its sheet. Returns how many categories are read from a sheet other than the main plan."""
+    names = names if names is not None else list(config.CATEGORIES)
     rows_ = {r.key: r for r in db.query(PlanLayer).all()}
     for r in rows_.values():
-        r.categories = "|".join(c for c in config.CATEGORIES if mapping.get(c) == r.key and r.key != MAIN)
+        kept = [c for c in (r.categories or "").split("|") if c and c not in names]
+        r.categories = "|".join(kept + [c for c in names if mapping.get(c) == r.key and r.key != MAIN])
     db.commit()
     invalidate()
-    return sum(1 for c in config.CATEGORIES if mapping.get(c) in rows_ and mapping.get(c) != MAIN)
+    return sum(1 for c in names if mapping.get(c) in rows_ and mapping.get(c) != MAIN)

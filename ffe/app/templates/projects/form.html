@@ -9,6 +9,7 @@
   </div>
   {% if p %}
   <div class="actions">
+    <a class="btn sec sm" href="/p/{{ p.id }}/lists"><svg class="ic"><use href="#i-tag"/></svg>Lists</a>
     <a class="btn sec sm" href="/p/{{ p.id }}/images"><svg class="ic"><use href="#i-image"/></svg>Mood board</a>
     <a class="btn ghost sm" href="/p/{{ p.id }}"><svg class="ic"><use href="#i-arrow-left"/></svg>Back to overview</a>
   </div>
@@ -23,6 +24,7 @@
     <div><label for="f-rate">Exchange rate</label><input id="f-rate" class="in" type="number" step="0.0001" name="rate" value="{{ p.rate if p else s.default_rate }}"><div class="help">CNY per 1 USD. Every USD total uses this rate.</div></div>
     <div><label for="f-budget">Budget (USD)</label><input id="f-budget" class="in" type="number" step="1" name="budget_usd" value="{{ p.budget_usd if p else 0 }}"><div class="help">Optional. Leave 0 to hide the budget bar.</div></div>
     {% if p %}<div><label for="f-status">Status</label><select id="f-status" name="status" class="in">{% for st in ['Active','On hold','Completed'] %}<option {{ 'selected' if p.status==st }}>{{ st }}</option>{% endfor %}</select></div>{% endif %}
+    {% if not p %}<div class="span2"><label for="f-lists">Start the lists from</label><select id="f-lists" class="in" name="lists_from"><option value="">The standard lists</option>{% for o in others %}<option value="{{ o.id }}">A copy of {{ o.name }}'s</option>{% endfor %}</select><div class="help">Categories, units, payment types, containers and defaults. Each project keeps its own: change them later under Lists.</div></div>{% endif %}
     <div class="span2"><label for="f-desc">Description</label><textarea id="f-desc" class="in" name="description" placeholder="A few lines about the home and the brief">{{ p.description if p else '' }}</textarea><div class="help">Shown on the contents page of the client schedule.</div></div>
   </div>
   <div class="form-actions">

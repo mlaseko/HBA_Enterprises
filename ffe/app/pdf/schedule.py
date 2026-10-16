@@ -8,7 +8,8 @@ from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, Spacer, Table, TableStyle, PageBreak, NextPageTemplate, KeepTogether
 from .theme import (Doc, Section, PlanFigure, Bar, T, P, para, esc, head, money, num, picture, kpi_row, clean_table_style, toc_flowable,
                     today_text, PAGE_W, PAGE_H, MARGIN, TOP, BOTTOM, MUTED_HEX, SURFACE2, ACCENT, INK, WHITE, LINE)
-from ..config import CATEGORIES, MAIN_LAYER
+from ..config import MAIN_LAYER
+from .. import lists
 from .. import drawings, storage
 
 W = PAGE_W - 2 * MARGIN
@@ -289,7 +290,7 @@ def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=T
         story += [Paragraph(esc(p.description), T["lead"]), Spacer(1, 14)]
     story += [Paragraph("Contents", T["h2"]), Spacer(1, 4), toc_flowable(W), PageBreak()]
 
-    cat_idx = {c: n for n, c in enumerate(CATEGORIES)}
+    cat_idx = lists.category_order(p)
     room_order = {r.id: r.sort for r in p.rooms}
 
     if layout == "floor":
@@ -344,8 +345,7 @@ def build_schedule(p, studio, currency="USD", show_prices=True, include_photos=T
                 story += [_table(whole_items, mny, show_prices, include_photos, where="category", groups=whole_groups, total_label="Total for the whole house"), PageBreak()]
         story += _summary(p, all_items, mny, show_prices, studio, by_floor=True)
     else:
-        cats = [c for c in CATEGORIES if any(i.category == c for i in all_items)]
-        cats += sorted({i.category for i in all_items} - set(CATEGORIES))
+        cats = lists.sort_categories(p, {i.category for i in all_items})
         mains = set()
         if plans:
             tagged = [im for im in drawings.client_plans(p) if im.floor and not drawings.is_pseudo(im.floor)]
