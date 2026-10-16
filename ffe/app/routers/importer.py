@@ -15,8 +15,8 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from ..db import get_db
 from ..models import Project, Room, Item, Supplier
 from ..common import render, redirect, require_login, get_project, ffloat, content_disposition
-from ..services import next_code, guess_kind, set_price
-from .. import config, drawings, storage
+from ..services import next_code, guess_kind
+from .. import config, drawings, storage, buying
 from .items import new_photo
 from ..services import photos_of, product_key
 from PIL import Image as PILImage
@@ -66,7 +66,7 @@ def import_page(request: Request, p: Project = Depends(get_project)):
 
 # ---- the workbook: what the import reads, prefilled with this project's rooms (and, for the export, its items) ----------------
 ROOM_COLS = [("Room", 30), ("Floor", 14), ("Kind", 10), ("Floor area m²", 14), ("Wall tile m²", 14), ("Notes", 42)]
-ITEM_COLS = [("Code", 12), ("Room", 32), ("Category", 20), ("Item", 36), ("Photo", 17), ("Must-have spec", 46), ("Brand", 16), ("Size", 18),
+ITEM_COLS = [("Code", 12), ("Room", 32), ("Category", 20), ("Item", 36), ("Photo", 17), ("Must-have spec", 46), ("Preferred brand", 16), ("Size", 18),
              ("Finish", 18), ("Qty", 8), ("Unit", 8), ("Price (CNY)", 12), ("Supplier", 24), ("Lead time", 12), ("Status", 12), ("Optional", 10), ("Notes", 30)]
 TOTAL_COLS = [("Total CNY", 12), ("Total USD", 12)]  # the filled export only: calculated, grey, ignored by the import
 PHOTO_PX = (112, 84)  # the cover picture in the export's Photo column
@@ -92,7 +92,8 @@ HOW_TO = [
     ("Room: pick one from the dropdown, pick All bedrooms / All bathrooms / All rooms / All areas / All on a floor, or type several rooms with ; between them (GF-LIV - Living room; FF-BR1 - Bedroom 1). A new item is created once per room, each with its own code. Leave it empty, or pick ALL - Whole house, for an item that belongs to no room.", False),
     ("Category decides which page of the client schedule the item prints on: one per item. Item is the name the client reads; Must-have spec is what the supplier must deliver.", False),
     ("Photo: the export shows each item's picture here. For a new item, place a picture over its Photo cell (Insert > Pictures > Place over Cells) and it is added with the item. Or upload picture files with the sheet, named after the item code (FF-MBR-04.jpg) or the item name (Bedside wall light.jpg, Bedside wall light-2.jpg). Pictures only go to items that have no photo yet.", False),
-    ("Qty and Unit are per room. Price (CNY) is the unit price. Supplier: a new name is created in your supplier book. Status: To buy, Quoted, Ordered, Paid, Shipped, Received. Optional: yes for an alternative the client may skip.", False),
+    ("Qty and Unit are per room. Preferred brand only when the design asks for one; the brand bought is the shop's, chosen on the Buying page. Status: To buy, Quoted, Ordered, Paid, Shipped, Received. Optional: yes for an alternative the client may skip.", False),
+    ("Price (CNY), Supplier and Lead time (grey) come from the Buying page: the quote of the shop chosen for each room. The export shows them for reference; the import never changes them.", False),
     ("", False),
     ("Importing", True),
     ("Import page → choose this file → Import. Rooms are matched by code and created when new. Item rows with a known code update that item; the others are added as new items.", False),
@@ -165,10 +166,11 @@ def build_workbook(p: Project, db: Session, items: list | None = None) -> bytes:
     n_items = max(400, len(items or []) + 200)
     cols = ITEM_COLS + (TOTAL_COLS if items is not None else [])
     sheet = _sheet(wb, "Shopping List", cols, n_rows=n_items)
+    buying_cols = [_index(ITEM_COLS, c) for c in BUYING_COLS]  # from the Buying page, not typed: grey, like the totals
+    for j in buying_cols + (list(range(len(ITEM_COLS) + 1, len(cols) + 1)) if items is not None else []):
+        for r_ in range(2, n_items + 2):
+            sheet.cell(row=r_, column=j).fill = GREY
     if items is not None:
-        for j in range(len(ITEM_COLS) + 1, len(cols) + 1):  # the totals are calculated, not typed: grey
-            for r_ in range(2, n_items + 2):
-                sheet.cell(row=r_, column=j).fill = GREY
         for i, it in enumerate(items, start=2):
             vals = [it.code, it.room.label if it.room else None, it.category, it.name, None, it.spec, it.brand, it.size, it.finish, it.qty, it.unit,
                     it.unit_price or None, it.supplier.name if it.supplier else None, it.lead_time, it.status, "yes" if it.optional else "no",
@@ -197,9 +199,8 @@ def build_workbook(p: Project, db: Session, items: list | None = None) -> bytes:
             buffers.append(b)
     lists = wb.create_sheet("Lists")
     floors = list(dict.fromkeys([f for f in drawings.floor_order(p) if f] + ["Ground", "First", "Second", "Roof", "Site", "All"]))
-    sups = [s.name for s in db.query(Supplier).order_by(Supplier.name)]
     columns = [("Categories", config.CATEGORIES), ("Units", config.UNITS), ("Statuses", config.STATUSES), ("Kind", config.ROOM_KINDS),
-               ("Floors", floors), ("Suppliers", sups), ("Optional", ["yes", "no"])]
+               ("Floors", floors), ("Optional", ["yes", "no"])]
     refs = {}
     for j, (title, values) in enumerate(columns, start=1):
         lists.cell(row=1, column=j, value=title).font = Font(bold=True)
@@ -215,8 +216,6 @@ def build_workbook(p: Project, db: Session, items: list | None = None) -> bytes:
     _list_validation(sheet, _letter(ITEM_COLS, "Unit"), refs["Units"], rows=n_items)
     _list_validation(sheet, _letter(ITEM_COLS, "Status"), refs["Statuses"], rows=n_items)
     _list_validation(sheet, _letter(ITEM_COLS, "Optional"), refs["Optional"], rows=n_items)
-    if "Suppliers" in refs:
-        _list_validation(sheet, _letter(ITEM_COLS, "Supplier"), refs["Suppliers"], rows=n_items)
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
@@ -318,8 +317,8 @@ class RoomIndex:
 
 
 # ---- reading a Shopping List row, adding or updating ---------------------------------------------------------------------------
-FIELDS = ("name", "category", "spec", "brand", "size", "finish", "qty", "unit", "unit_price", "supplier_id", "lead_time", "status",
-          "optional", "notes", "room_id")
+FIELDS = ("name", "category", "spec", "brand", "size", "finish", "qty", "unit", "status", "optional", "notes", "room_id")
+BUYING_COLS = ("Price (CNY)", "Supplier", "Lead time")  # shown in the export, never imported: they come from the Buying page
 
 
 def _snapshot(item: Item) -> tuple:
@@ -346,7 +345,7 @@ def read_row(h, row) -> dict:
             cat = "Appliances"
     status = text(col(h, row, "status"))
     return dict(code=text(col(h, row, "code", "id")), room=text(col(h, row, "room", "location")), name=name, category=cat,
-                spec=text(col(h, row, "must-have spec", "spec", "specification")), brand=text(col(h, row, "brand")),
+                spec=text(col(h, row, "must-have spec", "spec", "specification")), brand=text(col(h, row, "preferred brand", "brand")),
                 size=text(col(h, row, "size")) or text(col(h, row, "size / finish")),
                 finish=text(col(h, row, "finish", "colour / finish", "color / finish")), qty=col(h, row, "qty"), unit=text(col(h, row, "unit")),
                 price=col(h, row, "price (cny)", "unit price cny", "unit price", "price"), supplier=text(col(h, row, "supplier")),
@@ -366,18 +365,13 @@ def apply_update(item: Item, f: dict, rooms, sup, p: Project, result: dict) -> N
         item.name = f["name"]
     if f["category"]:
         item.category = f["category"]
-    for attr in ("spec", "brand", "size", "finish", "lead_time", "notes"):
+    for attr in ("spec", "brand", "size", "finish", "notes"):
         put(attr, f[attr])
     if f["qty"] not in (None, ""):
         item.qty = ffloat(f["qty"], item.qty)
     if f["unit"] and f["unit"] != "-":
         item.unit = f["unit"]
-    if f["price"] not in (None, ""):
-        set_price(item, ffloat(f["price"], item.unit_price), "CNY", p.rate)
-    if f["supplier"] == "-":
-        item.supplier_id = None
-    elif sup is not None:
-        item.supplier_id = sup.id
+    # Price, supplier and lead time are not imported: they come from the purchase chosen on the Buying page (buying.py).
     if f["status"]:
         item.status = f["status"]
     if f["optional"] is not None:
@@ -392,22 +386,28 @@ def apply_update(item: Item, f: dict, rooms, sup, p: Project, result: dict) -> N
             result["warnings"].append(f"{item.code}: several rooms listed, but an existing item stays in its room. Add it to more rooms from its page.")
 
 
-def _supplier(db: Session, sups: dict, name: str, result: dict):
-    if not name or name == "-" or name.lower().startswith("(example)"):
-        return None
-    s = sups.get(name.lower())
-    if s is None:
-        s = Supplier(name=name)
-        db.add(s)
-        db.flush()
-        sups[name.lower()] = s
-        result["suppliers"] += 1
-    return s
-
-
-FIELD_LABELS = {"name": "Item", "category": "Category", "spec": "Spec", "brand": "Brand", "size": "Size", "finish": "Finish", "qty": "Qty",
+FIELD_LABELS = {"name": "Item", "category": "Category", "spec": "Spec", "brand": "Preferred brand", "size": "Size", "finish": "Finish", "qty": "Qty",
                 "unit": "Unit", "unit_price": "Price (CNY)", "supplier_id": "Supplier", "lead_time": "Lead time", "status": "Status",
                 "optional": "Optional", "notes": "Notes", "room_id": "Room"}
+
+
+def _index(cols, title: str) -> int:
+    return [c[0] for c in cols].index(title) + 1
+
+
+def _buying_typed(existing: Item | None, f: dict) -> bool:
+    """Whether a row carries a price, supplier or lead time that the app does not already show (an export imported back
+    carries the app's own values: no warning for those)."""
+    price, sup, lead = f["price"], (f["supplier"] or "").strip(), (f["lead_time"] or "").strip()
+    if price in (None, "") and not sup and not lead:
+        return False
+    if existing is None:
+        return True
+    if price not in (None, "") and round(ffloat(price, 0), 2) != round(existing.unit_price or 0, 2):
+        return True
+    if sup and sup != "-" and sup.lower() != (existing.supplier.name.lower() if existing.supplier else ""):
+        return True
+    return bool(lead and lead != "-" and lead != (existing.lead_time or ""))
 
 
 def _fmt(field: str, v, rooms: dict, sups: dict) -> str:
@@ -553,6 +553,8 @@ def run_import(p: Project, db: Session, wb, replace: bool, dry: bool, photos: li
         had_photos = {i.id for i in p.live_items if photos_of(i)}  # pictures only go to items that show none yet: never a duplicate
         row_items: dict[int, list] = {}  # sheet row -> the items it added or updated (for a picture placed over that row)
         all_items = list(p.live_items)
+        before_keys = buying.keys(p)  # the products' keys, so their quotes and purchases follow a rename in the sheet
+        ignored_buying = 0
         for rno, row in enumerate(ws.iter_rows(min_row=hdr_row + 1, values_only=True), start=hdr_row + 1):
             if not any(v not in (None, "") for v in row):
                 continue  # a blank row (the template carries hundreds of styled empty ones): not worth counting
@@ -576,10 +578,9 @@ def run_import(p: Project, db: Session, wb, replace: bool, dry: bool, photos: li
                 if existing is None:
                     result["skipped"] += 1
                     continue
-            sup = _supplier(db, sups, f["supplier"], result)
-            if sup is not None and sup.id not in sup_names:
-                sup_names[sup.id] = sup.name
-                result["new_suppliers"].append(sup.name)
+            sup = None  # a Supplier cell creates nothing: shops and prices come from the Buying page
+            if _buying_typed(existing, f):
+                ignored_buying += 1
             if existing is not None:
                 row_items[rno] = [existing]
                 before = _snapshot(existing)
@@ -596,9 +597,8 @@ def run_import(p: Project, db: Session, wb, replace: bool, dry: bool, photos: li
             for room in rooms:  # one new item per room, like the room checklist of the item form
                 item = Item(project_id=p.id, room_id=room.id if room else None, category=f["category"] or "Other", name=f["name"],
                             brand=_clean(f["brand"]), spec=_clean(f["spec"]), size=_clean(f["size"]), finish=_clean(f["finish"]),
-                            qty=ffloat(f["qty"], 1), unit=_clean(f["unit"]) or "pcs", supplier_id=sup.id if sup else None,
-                            lead_time=_clean(f["lead_time"]), status=f["status"] or "To buy", optional=bool(f["optional"]), notes=_clean(f["notes"]))
-                set_price(item, ffloat(f["price"]), "CNY", p.rate)
+                            qty=ffloat(f["qty"], 1), unit=_clean(f["unit"]) or "pcs", status=f["status"] or "To buy",
+                            optional=bool(f["optional"]), notes=_clean(f["notes"]))
                 code = f["code"]
                 item.code = code if code and len(rooms) == 1 and not any(i.code == code for i in p.items) else next_code(db, p, room)
                 db.add(item)
@@ -608,8 +608,11 @@ def run_import(p: Project, db: Session, wb, replace: bool, dry: bool, photos: li
                 row_items.setdefault(rno, []).append(item)
                 result["items"] += 1
                 result["new"].append({"code": item.code, "name": item.name, "room": room.label if room else "Whole house", "category": item.category,
-                                      "qty": _fmt("qty", item.qty, {}, {}) + " " + item.unit, "price": _fmt("unit_price", item.unit_price, {}, {}),
-                                      "status": item.status, "supplier": sup.name if sup else ""})
+                                      "qty": _fmt("qty", item.qty, {}, {}) + " " + item.unit, "status": item.status})
+        if ignored_buying:
+            warn(f"{ignored_buying} row{'s' if ignored_buying != 1 else ''} carr{'y' if ignored_buying != 1 else 'ies'} a price, supplier or lead time that differs from the app: "
+                 "those come from the Buying page now (the quote of the shop chosen for each room), so these cells were not imported.")
+        buying.follow_renames(db, p, before_keys)
         # ---- pictures: over the sheet's rows, or files named after a code or an item name ----
         pending: list[tuple] = []  # (item, bytes)
         by_code = {i.code.lower(): [i] for i in all_items if i.code}

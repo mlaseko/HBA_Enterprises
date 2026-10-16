@@ -41,6 +41,7 @@ COLUMN_MIGRATIONS = [
     ("item_photos", "source", "VARCHAR(40) NOT NULL DEFAULT ''"),  # 'sheet:<image id>' for a drawing cut out of a reference sheet
     ("mood_tags", "is_cover", "BOOLEAN NOT NULL DEFAULT FALSE"),  # the inspiration picture starred as its room's cover
     ("item_photos", "digest", "VARCHAR(40) NOT NULL DEFAULT ''"),  # the fingerprint of a photo ('' = not computed yet)
+    ("items", "purchase_id", "INTEGER"),  # the purchase that supplies the room line (buying.py); NULL = no supplier chosen yet
 ]
 
 # Data fixes for rows written by an older version. Each must be idempotent (safe to run at every start, by several instances):

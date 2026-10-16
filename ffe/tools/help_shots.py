@@ -368,6 +368,42 @@ CARTONS = [  # supplier, room, contents, codes, qty, L, W, H, kg, received, by_s
 ]
 
 
+# what the shops offer beyond the price, for the quotes bought in the demo (pack sizes make the order whole boxes)
+BUYING_EXTRA = {
+    "Floor tile, large-format porcelain": dict(brand="Monalisa", model="MLS-6120 Warm Grey", pack_size=1.44, moq="50 m²"),
+    "Corridor floor tile": dict(brand="Monalisa", model="MLS-6120 Warm Grey", pack_size=1.44),
+    "Floor tile, slip-resistant": dict(brand="Dongpeng", pack_size=1.44),
+    "Wall tile, zellige look": dict(brand="Foshan Artisan", pack_size=0.5),
+    "Engineered oak floor, 190 mm plank": dict(brand="Nature", pack_size=2.166),
+    "3-seat sofa, linen": dict(model="Lecong L-240"),
+    "Kitchen mixer, pull-out": dict(brand="Kaiping", model="KP-8821"),
+}
+
+
+def quote(c, pid: int, item_id: int, supplier, amount, currency="CNY", lead="", *, brand="", model="", pack_size=0, moq="", city="", notes="",
+          photo=None, buy="", lines=None) -> int:
+    """A shop's quote on the item's product (the Buying page), as the designer records it: supplier is an id from the list
+    or the name of a new shop. buy="open" buys it for the rooms without a shop; lines=[item ids] buys it for those rooms."""
+    from app.db import SessionLocal
+    from app.models import Quote
+    r = c.get(f"/p/{pid}/buying/item/{item_id}", follow_redirects=False)
+    prod = int(r.headers["location"].split("?")[0].rstrip("/").split("/")[-1])
+    data = {"brand": brand, "model": model, "amount": str(amount), "currency": currency, "pack_size": str(pack_size or ""), "moq": moq, "lead_time": lead,
+            "notes": notes, "buy": buy}
+    if isinstance(supplier, int):
+        data["supplier_id"] = str(supplier)
+    else:
+        data.update(supplier_id="__new__", supplier_name=supplier, supplier_city=city)
+    files = [("photo", ("quote.jpg", photo, "image/jpeg"))] if photo else []
+    c.post(f"/p/{pid}/buying/{prod}/quotes", data=data, files=files, follow_redirects=False)
+    db = SessionLocal()
+    qid = db.query(Quote).filter(Quote.product_id == prod).order_by(Quote.id.desc()).first().id
+    db.close()
+    if lines:
+        c.post(f"/p/{pid}/buying/{prod}/quotes/{qid}/buy", data={"rooms": "1", "line": [str(x) for x in lines]}, follow_redirects=False)
+    return qid
+
+
 def seed() -> dict:
     ids = {}
     with TestClient(app) as c:
@@ -419,46 +455,72 @@ def seed() -> dict:
         db = SessionLocal(); pr = db.get(Project, pid); kit_id = next(r_.id for r_ in pr.rooms if r_.code == "GF-KIT"); ctok = pr.client_token; db.close()
         c.post(f"/p/{pid}/images", data={"kind": "mood", "caption": "Black taps on warm wood", "room_id": str(kit_id)}, files=[("files", ("insp1.jpg", gradient("#2B211D", "#B9593A"), "image/jpeg"))], follow_redirects=False)
         TestClient(app).post(f"/c/{ctok}/inspiration", data={"room_id": str(kit_id), "caption": "I like this green"}, files=[("files", ("insp2.jpg", gradient("#3E5A44", "#7FA79A"), "image/jpeg"))], follow_redirects=False)
-        # items, with a sample photo each
+        # items, with a sample photo each; the shop, price and lead time are bought on the Buying page further down
         for room, cat, name, spec, brand, size, finish, qty, unit, price, cur, sup, status, lead, (kind, colour) in ITEMS:
-            data = {"category": cat, "name": name, "spec": spec, "brand": brand, "size": size, "finish": finish, "lead_time": lead, "qty": str(qty), "unit": unit,
-                    "unit_price": str(price), "price_currency": cur, "supplier_id": str(sups.get(sup, "")), "status": status, "notes": ""}
+            data = {"category": cat, "name": name, "spec": spec, "brand": brand, "size": size, "finish": finish, "qty": str(qty), "unit": unit,
+                    "status": status, "notes": ""}
             if room:
                 data["room_ids"] = [str(rooms[room])]
             c.post(f"/p/{pid}/items/new", data=data, files=[("photos", ("sample.jpg", swatch(kind, colour), "image/jpeg"))], follow_redirects=False)
         # the windows, carrying the designer's references: the elevation sheet's drawings match them (Match drawings to items)
         for room, ref, size in (("GF-LIV", "GF-W01", "2140 x 2810 mm"), ("GF-KIT", "GF-W02", "1425 x 1040 mm"), ("GF-GST", "GF-W03", "1915 x 1980 mm")):
             c.post(f"/p/{pid}/items/new", data={"room_ids": [str(rooms[room])], "category": "Windows & Doors", "name": "Sliding window", "spec": "2-panel sliding, fixed fanlight over, double glazed, tinted",
-                                               "size": size, "qty": "1", "unit": "pcs", "unit_price": "2800", "price_currency": "CNY", "supplier_id": "", "status": "Quoted", "lead_time": "6 weeks",
-                                               "notes": f"Designer ref {ref}"}, follow_redirects=False)
+                                               "size": size, "qty": "1", "unit": "pcs", "status": "To buy", "notes": f"Designer ref {ref}"}, follow_redirects=False)
         # the same product in several rooms: one line per room in the schedule, one line on the Item list view
         db = SessionLocal()
         beds = [x.id for x in db.query(Room).filter(Room.project_id == pid) if x.group == "bedroom"]
         baths = [x.id for x in db.query(Room).filter(Room.project_id == pid) if x.group == "bathroom"]
         db.close()
-        for room_ids, cat, name, spec, size, finish, qty, price, sup, (kind, colour) in (
-                (beds, "Lighting", "Bedside wall light", "7 W LED 2700 K, swing arm, switch on the base", "350 mm", "Brushed brass", 2, 420, "Guangzhou Lighting Market", ("lamp", "#B08D57")),
-                (baths, "Plumbing & Sanitary", "Heated towel rail", "Electric, 60 W, with timer", "1200 x 500 mm", "Brushed brass", 1, 980, "Kaiping Sanitary Ware", ("metal", "#C8B98F"))):
+        for room_ids, cat, name, spec, size, finish, qty, (kind, colour) in (
+                (beds, "Lighting", "Bedside wall light", "7 W LED 2700 K, swing arm, switch on the base", "350 mm", "Brushed brass", 2, ("lamp", "#B08D57")),
+                (baths, "Plumbing & Sanitary", "Heated towel rail", "Electric, 60 W, with timer", "1200 x 500 mm", "Brushed brass", 1, ("metal", "#C8B98F"))):
             c.post(f"/p/{pid}/items/new", data={"room_ids": [str(x) for x in room_ids], "category": cat, "name": name, "spec": spec, "size": size, "finish": finish, "qty": str(qty),
-                                               "unit": "pcs", "unit_price": str(price), "price_currency": "CNY", "supplier_id": str(sups.get(sup, "")), "status": "Quoted", "lead_time": "3 weeks", "notes": ""},
+                                               "unit": "pcs", "status": "To buy", "notes": ""},
                    files=[("photos", ("sample.jpg", swatch(kind, colour), "image/jpeg"))], follow_redirects=False)
-        # an edited export for the import preview picture: two prices, a status and one new row
-        xl = openpyxl.load_workbook(io.BytesIO(c.get(f"/p/{pid}/export/items.xlsx").content))
-        sl = xl["Shopping List"]
-        at = {sl.cell(row=i, column=4).value: i for i in range(2, 120) if sl.cell(row=i, column=1).value}
-        sl.cell(row=at["3-seat sofa, linen"], column=12, value=6400)
-        sl.cell(row=at["Arc floor lamp"], column=15, value="Ordered")
-        sl.cell(row=at["King bed, upholstered headboard"], column=12, value=5900)
-        sl.append(["", "All bedrooms", "Lighting", "Reading light", None, "7 W LED, swing arm, switch on the base", "", "350 mm", "Brushed brass", 1, "pcs", 390,
-                   "Guangzhou Lighting Market", "3 weeks", "To buy", "no", ""])
-        ids["edited_xlsx"] = os.path.join(TMP, "edited-items.xlsx")
-        xl.save(ids["edited_xlsx"])
         db = SessionLocal()
         items = db.query(Item).filter(Item.project_id == pid, Item.draft == False).order_by(Item.id).all()  # noqa: E712
         by_code = {i.code: i.id for i in items}
+        by_name = {}
+        for i in items:
+            by_name.setdefault(i.name, []).append(i.id)
         db.close()
         ids["items"] = by_code
         ids["sofa"] = by_code["GF-LIV-01"]
+        # the Buying page: the shops' quotes, and what is bought from whom (for whole rooms)
+        for room, cat, name, spec, brand, size, finish, qty, unit, price, cur, sup, status, lead, look in ITEMS:
+            if sup and price:
+                extra = BUYING_EXTRA.get(name, {})
+                quote(c, pid, by_name[name][0], sups[sup], price, cur, lead, buy="open", **extra)
+        tile = by_name["Floor tile, large-format porcelain"][0]
+        quote(c, pid, tile, "Foshan Ceramics City", 158, "CNY", "10 days", brand="Golden Glory", pack_size=1.44, moq="100 m²", city="Foshan - Nanzhuang",
+              notes="Sample tile promised for Friday; colour batch to be confirmed")
+        oven = by_name["Built-in oven, 60 cm"][0]
+        quote(c, pid, oven, "Shunde Appliance City", 3600, "CNY", "In stock", brand="Midea", model="BO-72P", city="Foshan - Shunde", photo=swatch("metal", "#3B3B3F"))
+        quote(c, pid, oven, "Guangzhou Appliance Mall", 3850, "CNY", "1 week", brand="Fotile", model="KQD72", city="Guangzhou - Tianhe", moq="1 pc")
+        light = by_name["Bedside wall light"]
+        db = SessionLocal()
+        gst = next(i.id for i in db.query(Item).filter(Item.id.in_(light)) if i.room is not None and i.room.code == "GF-GST")
+        db.close()
+        quote(c, pid, light[0], sups["Guangzhou Lighting Market"], 420, "CNY", "3 weeks", brand="Lumi", lines=[gst])
+        quote(c, pid, light[0], "Zhongshan Lamp Town", 395, "CNY", "2 weeks", brand="Guzhen Light", model="WL-350B", moq="10 pcs", city="Zhongshan - Guzhen",
+              lines=[x for x in light if x != gst], photo=swatch("lamp", "#B08D57"))
+        rail = by_name["Heated towel rail"]
+        quote(c, pid, rail[0], sups["Kaiping Sanitary Ware"], 980, "CNY", "3 weeks", brand="Kaiping", lines=rail[:2])
+        # an edited export for the import preview picture: a quantity, a status, a finish and one new row
+        xl = openpyxl.load_workbook(io.BytesIO(c.get(f"/p/{pid}/export/items.xlsx").content))
+        sl = xl["Shopping List"]
+        at = {sl.cell(row=i, column=4).value: i for i in range(2, 120) if sl.cell(row=i, column=1).value}
+        sl.cell(row=at["Dining chair, upholstered"], column=10, value=10)
+        sl.cell(row=at["Arc floor lamp"], column=15, value="Ordered")
+        sl.cell(row=at["King bed, upholstered headboard"], column=9, value="Linen sand")
+        sl.append(["", "All bedrooms", "Lighting", "Reading light", None, "7 W LED, swing arm, switch on the base", "", "350 mm", "Brushed brass", 1, "pcs", None,
+                   None, None, "To buy", "no", ""])
+        ids["edited_xlsx"] = os.path.join(TMP, "edited-items.xlsx")
+        xl.save(ids["edited_xlsx"])
+        db = SessionLocal()
+        from app.models import Product
+        ids["products"] = {pr.title.split(" · ")[0]: pr.id for pr in db.query(Product).filter(Product.project_id == pid)}
+        db.close()
         for sup, date, amount, kind, ref, note, rec in PAYMENTS:
             files = [("receipt", ("receipt.jpg", receipt(), "image/jpeg"))] if rec else []
             c.post(f"/p/{pid}/payments", data={"supplier_id": str(sups[sup]), "paid_on": date, "amount": str(amount), "kind": kind, "reference": ref, "note": note},
@@ -509,11 +571,18 @@ def seed() -> dict:
         db = SessionLocal()
         r2 = {x.code: x.id for x in db.query(Room).filter(Room.project_id == pid2)}
         db.close()
-        for room, cat, name, qty, price, status, kind, colour in (("LIV", "Furniture", "2-seat sofa", 1, 4200, "Received", "fabric", "#A8B5A0"), ("LIV", "Lighting", "Floor lamp", 1, 980, "Received", "lamp", "#D8B36A"),
-                                                                   ("BED", "Furniture", "Queen bed", 1, 3900, "Shipped", "wood", "#B48B5C"), ("KIT", "Tiles", "Splashback tile", 4, 240, "Received", "tile", "#7FA79A"),
-                                                                   ("BAL", "Furniture", "Bistro set", 1, 1400, "To buy", "metal", "#6B6E73")):
-            c.post(f"/p/{pid2}/items/new", data={"room_ids": [str(r2[room])], "category": cat, "name": name, "qty": str(qty), "unit": "pcs", "unit_price": str(price), "price_currency": "CNY", "status": status},
-                   files=[("photos", ("sample.jpg", swatch(kind, colour), "image/jpeg"))], follow_redirects=False)
+        bought2 = []
+        for room, cat, name, qty, price, sup, status, kind, colour in (("LIV", "Furniture", "2-seat sofa", 1, 4200, "Shunde Furniture Hub", "Received", "fabric", "#A8B5A0"),
+                                                                       ("LIV", "Lighting", "Floor lamp", 1, 980, "Guangzhou Lighting Market", "Received", "lamp", "#D8B36A"),
+                                                                       ("BED", "Furniture", "Queen bed", 1, 3900, "Shunde Furniture Hub", "Shipped", "wood", "#B48B5C"),
+                                                                       ("KIT", "Tiles", "Splashback tile", 4, 240, "Foshan Tile Co.", "Received", "tile", "#7FA79A"),
+                                                                       ("BAL", "Furniture", "Bistro set", 1, 1400, "", "To buy", "metal", "#6B6E73")):
+            r = c.post(f"/p/{pid2}/items/new", data={"room_ids": [str(r2[room])], "category": cat, "name": name, "qty": str(qty), "unit": "pcs", "status": status},
+                       files=[("photos", ("sample.jpg", swatch(kind, colour), "image/jpeg"))], follow_redirects=False)
+            if sup:
+                bought2.append((int(r.headers["location"].split("/")[-1]), sups[sup], price))
+        for item_id, sup_id, price in bought2:
+            quote(c, pid2, item_id, sup_id, price, "CNY", "", buy="open")
         c.post(f"/p/{pid2}/images", data={"kind": "cover", "caption": ""}, files=[("files", ("cover.jpg", gradient("#1F3A5F", "#6F8B74"), "image/jpeg"))], follow_redirects=False)
         db = SessionLocal()
         ids["token"] = db.get(Project, pid).client_token

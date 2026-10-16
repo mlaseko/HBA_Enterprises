@@ -49,6 +49,8 @@ class Project(Base):
     cartons: Mapped[list["Carton"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     links: Mapped[list["SupplierLink"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     floors: Mapped[list["Floor"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="Floor.sort")
+    # Buying (buying.py): one row per product bought for this house, with its quotes and purchases.
+    products: Mapped[list["Product"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="Product.id")
 
     @property
     def live_items(self) -> list["Item"]:
@@ -410,10 +412,21 @@ class Item(Base):
     # Unit prices are stored in CNY (unit_price). When the designer typed the price in USD this row keeps what was typed,
     # so the form shows "$120" again instead of "¥852". No row = entered in CNY.
     price_entry: Mapped["ItemPrice | None"] = relationship(back_populates="item", cascade="all, delete-orphan", uselist=False)
+    # The purchase that supplies this room line (buying.py). The line's supplier, unit price and lead time are written from
+    # it and are never typed on the item; None = no supplier chosen yet. Added by db.COLUMN_MIGRATIONS.
+    purchase_id: Mapped[int | None] = mapped_column(ForeignKey("purchases.id"), nullable=True)
+    purchase: Mapped["Purchase | None"] = relationship(back_populates="lines", lazy="joined")
 
     @property
     def total(self):
         return round((self.qty or 0) * (self.unit_price or 0), 2)
+
+    @property
+    def brand_shown(self) -> str:
+        """The brand to print: the one bought when a purchase covers the line, else the brand the design prefers."""
+        if self.purchase is not None and self.purchase.brand:
+            return self.purchase.brand
+        return self.brand or ""
 
     @property
     def all_photos(self) -> list:
@@ -470,6 +483,80 @@ class ItemPhoto(Base):
     def thumb(self) -> str:
         """The key to show where a small picture will do; the full photo while the small copy does not exist."""
         return self.thumb_key if self.thumb_key and self.thumb_key != "-" else self.file_key
+
+
+class Product(Base):
+    """A product being bought for a house: the room lines with the same product key (services.product_key: name, size and
+    finish) are its rooms. What belongs to the buying and not to a room lives here: the allowance on top of the rooms'
+    quantities and the pack it is sold in. Created on the Buying page; its key follows renames (buying.follow_renames)."""
+    __tablename__ = "products"
+    __table_args__ = (UniqueConstraint("project_id", "key", name="uq_products_project_key"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
+    key: Mapped[str] = mapped_column(String(600))
+    title: Mapped[str] = mapped_column(String(400), default="")  # name · size · finish when last seen, for a product left without rooms
+    allowance: Mapped[float | None] = mapped_column(Float, nullable=True)  # 0.10 = 10 % extra; None = the category's default
+    pack_size: Mapped[float] = mapped_column(Float, default=0.0)  # units per pack (m² per box, m per box); 0 = sold by the unit
+    pack_name: Mapped[str] = mapped_column(String(20), default="")  # "box", "roll"…; '' = the default for the unit
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    project: Mapped["Project"] = relationship(back_populates="products")
+    quotes: Mapped[list["Quote"]] = relationship(back_populates="product", cascade="all, delete-orphan", order_by="Quote.id", lazy="selectin")
+    purchases: Mapped[list["Purchase"]] = relationship(back_populates="product", cascade="all, delete-orphan", order_by="Purchase.id", lazy="selectin")
+
+
+class Quote(Base):
+    """One shop's offer for a product, recorded on the spot: the brand and model they offer, the price per unit of the
+    product (typed in CNY or USD, stored in CNY), their pack, minimum order, lead time and a photo of the sample or tag."""
+    __tablename__ = "quotes"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id"), nullable=True)
+    brand: Mapped[str] = mapped_column(String(120), default="")
+    model: Mapped[str] = mapped_column(String(160), default="")
+    unit_price: Mapped[float] = mapped_column(Float, default=0.0)  # CNY per unit of the product
+    currency: Mapped[str] = mapped_column(String(3), default="CNY")  # as typed
+    amount: Mapped[float] = mapped_column(Float, default=0.0)  # as typed, in `currency`
+    pack_size: Mapped[float] = mapped_column(Float, default=0.0)  # this shop's pack; 0 = the product's
+    moq: Mapped[str] = mapped_column(String(60), default="")
+    lead_time: Mapped[str] = mapped_column(String(60), default="")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    photo_key: Mapped[str] = mapped_column(String(255), default="")
+    thumb_key: Mapped[str] = mapped_column(String(255), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    product: Mapped["Product"] = relationship(back_populates="quotes")
+    supplier: Mapped["Supplier | None"] = relationship(lazy="joined")
+
+    @property
+    def thumb(self) -> str:
+        return self.thumb_key or self.photo_key
+
+
+class Purchase(Base):
+    """What is bought for a product from one shop, for whole rooms: the room lines it covers point here (Item.purchase_id)
+    and carry its supplier, price and lead time. A product bought from two shops has two purchases. Taken from a quote
+    (quote_id), whose later corrections it follows; the brand and price are copied so a deleted quote leaves it whole."""
+    __tablename__ = "purchases"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    quote_id: Mapped[int | None] = mapped_column(ForeignKey("quotes.id"), nullable=True)
+    supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id"), nullable=True)
+    brand: Mapped[str] = mapped_column(String(120), default="")
+    model: Mapped[str] = mapped_column(String(160), default="")
+    unit_price: Mapped[float] = mapped_column(Float, default=0.0)  # CNY
+    currency: Mapped[str] = mapped_column(String(3), default="CNY")
+    amount: Mapped[float] = mapped_column(Float, default=0.0)
+    pack_size: Mapped[float] = mapped_column(Float, default=0.0)  # 0 = the product's
+    qty: Mapped[float | None] = mapped_column(Float, nullable=True)  # the quantity to order when set by hand; None = from the rooms
+    lead_time: Mapped[str] = mapped_column(String(60), default="")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    product: Mapped["Product"] = relationship(back_populates="purchases")
+    supplier: Mapped["Supplier | None"] = relationship(lazy="joined")
+    quote: Mapped["Quote | None"] = relationship()
+    lines: Mapped[list["Item"]] = relationship(back_populates="purchase")
 
 
 class Payment(Base):

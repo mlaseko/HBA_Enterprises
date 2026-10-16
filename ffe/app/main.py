@@ -7,13 +7,13 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from sqlalchemy import text, inspect
 
-from . import config, storage, layers
+from . import config, storage, layers, buying
 from .db import engine, Base, get_db, migrate, SessionLocal
 from .models import Project, Settings, ItemPhoto
 from urllib.parse import quote
 from .common import (render, redirect, require_login, LoginRequired, make_session_cookie, check_password, COOKIE,
                      get_settings, is_logged_in, ffloat)
-from .routers import projects, rooms, items, suppliers, payments, cartons, share, exports, importer, capture, clip, plan
+from .routers import projects, rooms, items, suppliers, payments, cartons, share, exports, importer, capture, clip, plan, buy
 
 app = FastAPI(title=config.APP_NAME)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -47,6 +47,8 @@ def startup():
                               "VALUES (1, 'My Design Studio', '', '', '', 7.10, '')"))
     with SessionLocal() as db:
         layers.seed(db, kind_added="plan_layers.kind" in added)  # the built-in plan sheet types on an empty list (Studio settings → Plan sheet types edits it)
+    with SessionLocal() as db:
+        buying.upgrade(db)  # once: prices and suppliers typed on items become quotes and purchases (buying.py)
     if config.PHOTO_PREPARE_AT_START:
         prepare_photos_in_background()
 
@@ -211,6 +213,7 @@ async def settings_save(request: Request, db: Session = Depends(get_db), studio_
 app.include_router(projects.router)
 app.include_router(rooms.router)
 app.include_router(items.router)
+app.include_router(buy.router)
 app.include_router(suppliers.router)
 app.include_router(payments.router)
 app.include_router(cartons.router)

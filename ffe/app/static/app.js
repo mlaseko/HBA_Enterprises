@@ -144,6 +144,25 @@
     if (on) inp.focus();
   });
 
+  // a select with data-reveal="id" (Buying: the quote's shop): its "+ New shop…" option (__new__) shows the fields of that
+  // id and makes the ones marked data-req required; any other choice hides them again
+  document.addEventListener('change', function (e) {
+    var sel = e.target; if (!(sel instanceof HTMLSelectElement) || !sel.dataset.reveal) return;
+    var box = document.getElementById(sel.dataset.reveal); if (!box) return;
+    var on = sel.value === '__new__'; box.hidden = !on;
+    box.querySelectorAll('[data-req]').forEach(function (i) { i.required = on; });
+    if (on) { var first = box.querySelector('input'); if (first) first.focus(); }
+  });
+  // a link with data-open="id" opens that <details> and brings it into view (Buying: "Add a quote"); so does an address
+  // ending in #id of a <details> (the page comes back there after a save with an error)
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('[data-open]'); if (!a) return;
+    var d = document.getElementById(a.dataset.open); if (!d || d.tagName !== 'DETAILS') return;
+    e.preventDefault(); d.open = true; d.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    var first = d.querySelector('select, input:not([type=hidden])'); if (first) setTimeout(function () { first.focus({ preventScroll: true }); }, 350);
+  });
+  (function () { var d = null; try { d = location.hash && document.getElementById(decodeURIComponent(location.hash.slice(1))); } catch (e) { /* a malformed address */ } if (d && d.tagName === 'DETAILS') d.open = true; })();
+
   // filter bars (form.filters, GET): a dropdown applies as soon as you pick. The Filter button stays for the search box
   // (Enter works too) and for browsers without JavaScript. The status dropdowns in the rows are not inside the form.
   document.addEventListener('change', function (e) {
@@ -368,7 +387,7 @@
       var grid = h.nextElementSibling; if (!grid || !grid.classList.contains('cards')) return;
       var any = !!grid.querySelector('[data-search]:not([hidden])'); h.hidden = !any; grid.hidden = !any;
     });
-    count.textContent = q ? (n === rows.length ? 'all ' + n + ' shown' : n + ' of ' + rows.length + ' shown') + (n ? ' · Enter applies it to Export' : ' · nothing matches') : '';
+    count.textContent = q ? (n === rows.length ? 'all ' + n + ' shown' : n + ' of ' + rows.length + ' shown') + (n ? (hidden ? ' · Enter applies it to Export' : '') : ' · nothing matches') : '';
     clear.hidden = !q; card.classList.toggle('active', !!q);
     if (changed) document.dispatchEvent(new CustomEvent('livesearch'));
   }

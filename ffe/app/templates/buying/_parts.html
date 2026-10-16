@@ -1,0 +1,67 @@
+{# Pieces of the Buying product page (buying/product.html).
+
+   line_picks: the product's room lines as a checklist, by floor, with quick picks (all, the rooms without a shop, a floor;
+   app.js room-picks chips). pu_id: the purchase being edited (its lines start ticked); none = buying anew (the lines without
+   a shop start ticked). A line another shop supplies says so: ticking it moves it here. #}
+{% macro line_picks(by_floor, pu_id=none, open_count=0) %}
+<div class="room-picks-wrap bu-picks-wrap">
+  <div class="pick-chips" role="group" aria-label="Quick picks">
+    <span class="small muted">Tick:</span>
+    <button type="button" class="pick-chip" data-pick="all" aria-pressed="false">All rooms</button>
+    {% if open_count %}<button type="button" class="pick-chip" data-pick="group:open" aria-pressed="false">No shop yet <b>{{ open_count }}</b></button>{% endif %}
+    {% if by_floor|length > 1 %}{% for fl, ls in by_floor.items() %}<button type="button" class="pick-chip" data-pick="floor:{{ fl }}" aria-pressed="false">{{ fl }} <b>{{ ls|length }}</b></button>{% endfor %}{% endif %}
+    <button type="button" class="pick-chip ghost" data-pick="none">Clear</button>
+  </div>
+  <div class="bu-picks">
+    {% for fl, ls in by_floor.items() %}
+    {% if by_floor|length > 1 %}<div class="sub">{{ fl }}</div>{% endif %}
+    {% for i in ls %}
+    {% set mine = (pu_id and i.purchase_id == pu_id) or (not pu_id and not i.purchase_id) %}
+    <label class="pk"><input type="checkbox" name="line" value="{{ i.id }}" data-floor="{{ fl }}" data-group="{{ 'open' if not i.purchase_id else 'taken' }}"{{ ' checked' if mine }}>
+      <span class="code">{{ i.code }}</span><span class="nm">{{ i.room.name if i.room else 'Whole house' }}</span>
+      {% if i.purchase_id and i.purchase_id != pu_id %}<span class="from" title="Ticking it moves this room to this shop">now {{ i.purchase.supplier.name if i.purchase and i.purchase.supplier else 'another shop' }}</span>{% endif %}
+      <span class="q">{{ i.qty|num(2) }} {{ i.unit }}</span></label>
+    {% endfor %}
+    {% endfor %}
+  </div>
+</div>
+{% endmacro %}
+
+{# quote_fields: the fields of a quote (adding one, or editing it): the shop (from the list, or a new one by name), what it
+   offers, the price as typed in CNY or USD, the pack, the minimum order, the lead time, a photo and notes. #}
+{% macro quote_fields(q, suppliers, unit, pack_word, rate, key) %}
+{% set new_shop = not suppliers %}
+{% set per = 'each' if unit == 'pcs' else 'per ' ~ (unit if unit != 'mixed' else 'unit') %}
+<div class="grid g2 stack">
+  <div class="span2"><label for="sup-{{ key }}">Shop</label>
+    <select class="in" name="supplier_id" id="sup-{{ key }}" data-reveal="newshop-{{ key }}">
+      {% if not q %}<option value="">Choose the shop…</option>{% endif %}
+      {% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if q and q.supplier_id == s.id }}>{{ s.name }}{% if s.city %} · {{ s.city }}{% endif %}</option>{% endfor %}
+      <option value="__new__" {{ 'selected' if new_shop }}>+ New shop…</option>
+    </select>
+    <div class="bu-newshop" id="newshop-{{ key }}"{{ ' hidden' if not new_shop }}>
+      <div class="grid g2 stack">
+        <div class="span2"><label>Shop name</label><input class="in" type="text" name="supplier_name" placeholder="Name on the card or the shop sign" autocomplete="off" data-req{{ ' required' if new_shop }}></div>
+        <div><label>Market / city</label><input class="in" type="text" name="supplier_city" placeholder="Foshan Lecong · Guangzhou…" autocomplete="off"></div>
+        <div><label>WeChat</label><input class="in" type="text" name="supplier_wechat" autocomplete="off"></div>
+        <div><label>Phone</label><input class="in" type="text" name="supplier_phone" inputmode="tel" autocomplete="off"></div>
+      </div>
+      <div class="help">The shop joins the studio's supplier list; the same name again is the same shop.</div>
+    </div>
+  </div>
+  <div><label>Brand</label><input class="in" type="text" name="brand" value="{{ q.brand if q else '' }}" autocomplete="off"></div>
+  <div><label>Model / article no.</label><input class="in" type="text" name="model" value="{{ q.model if q else '' }}" autocomplete="off"></div>
+  <div class="span2"><label>Price {{ per }}</label>
+    <div class="field-row price-row" data-rate="{{ rate }}">
+      <input class="in" type="number" step="0.01" min="0" name="amount" value="{{ q.amount|plain if q else '' }}" placeholder="0.00" data-price inputmode="decimal">
+      <select class="in cur" name="currency" aria-label="Currency of the price" data-price-cur{% if not q %} data-remember="1"{% endif %}>{% for cur in PRICE_CURRENCIES %}<option {{ 'selected' if (q and q.currency == cur) or (not q and cur == 'CNY') }}>{{ cur }}</option>{% endfor %}</select>
+    </div>
+    <div class="help" data-price-help>Type it in CNY or USD; kept in CNY at {{ rate }} per USD.</div>
+  </div>
+  <div><label>Pack size <span class="muted small">({{ unit if unit not in ('pcs', 'mixed') else 'pieces' }} per {{ pack_word }})</span></label><input class="in" type="number" step="0.001" min="0" name="pack_size" value="{{ q.pack_size|plain if q else '' }}" placeholder="{{ '1.44' if unit == 'm²' else ('2.4' if unit == 'm' else '') }}" inputmode="decimal"></div>
+  <div><label>Minimum order</label><input class="in" type="text" name="moq" value="{{ q.moq if q else '' }}" placeholder="e.g. 50 m², 2 boxes" autocomplete="off"></div>
+  <div><label>Lead time</label><input class="in" type="text" name="lead_time" value="{{ q.lead_time if q else '' }}" placeholder="In stock / 3 weeks" autocomplete="off"></div>
+  <div><label>{{ 'Replace the photo' if q and q.thumb else 'Photo' }} <span class="muted small">(sample, price tag, card)</span></label><input type="file" name="photo" accept="image/*"></div>
+  <div class="span2"><label>Notes</label><textarea class="in" name="notes" rows="2" placeholder="Samples promised, colour batch, delivery to the warehouse…">{{ q.notes if q else '' }}</textarea></div>
+</div>
+{% endmacro %}
