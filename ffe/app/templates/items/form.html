@@ -31,7 +31,7 @@
       {{ room_picks(p.rooms, 'room_ids', [pre_room] if pre_room else []) }}
       <div class="help">Each ticked room gets its own line with its own code, status and quantity. Qty below is per room; adjust any room afterwards. The chips tick a whole group at once (all bedrooms, all bathrooms, a floor); press one again to untick.</div></div>
     {% endif %}
-    <div><label>Category (schedule)</label><select name="category" class="in">{% for c in CATEGORIES %}<option {{ 'selected' if (it and it.category == c) or (not it and pre_cat == c) }}>{{ c }}</option>{% endfor %}</select></div>
+    {% set cats = CATEGORIES + ([it.category] if it and it.category and it.category not in CATEGORIES else []) %}<div><label>Category (schedule) <a class="small" href="/p/{{ p.id }}/lists#categories">edit list</a></label><select name="category" class="in">{% for c in cats %}<option {{ 'selected' if (it and it.category == c) or (not it and pre_cat == c) }}>{{ c }}</option>{% endfor %}</select></div>
     <div class="span2"><label>Item / product name</label><input class="in" type="text" name="name" value="{{ it.name if it else '' }}" required list="dl-name" autocomplete="off" placeholder="e.g. Floor tiles · Wall-hung WC · Pendant light"{% if it and it.draft %} autofocus{% endif %}>
       <div class="help">Short and generic: what it is. Size and colour/finish go in their own fields below; with the name they tell one product from another, so the same product in several rooms stays one line. The shop, the brand bought and the price come later, on the Buying page.</div></div>
     <div class="span2"><label>Must-have spec (what the supplier must deliver)</label><textarea class="in" name="spec">{{ it.spec if it else '' }}</textarea></div>
@@ -50,7 +50,7 @@
   <div class="eyebrow">Quantity</div>
   <div class="grid stack g2">
     <div><label>Qty{{ ' for this room' if it and it.room else '' }}</label><input class="in" type="number" step="0.01" name="qty" value="{{ it.qty|num(2) if it else 1 }}"></div>
-    <div><label>Unit</label><select name="unit" class="in">{% for u in UNITS %}<option {{ 'selected' if it and it.unit == u }}>{{ u }}</option>{% endfor %}</select></div>
+    {% set units_ = UNITS + ([it.unit] if it and it.unit and it.unit not in UNITS else []) %}<div><label>Unit <a class="small" href="/p/{{ p.id }}/lists#units">edit list</a></label><select name="unit" class="in">{% for u in units_ %}<option {{ 'selected' if it and it.unit == u }}>{{ u }}</option>{% endfor %}</select></div>
   </div>
   {% if it and not it.draft %}
   <div class="bu-itemcard{{ ' on' if it.purchase }}">

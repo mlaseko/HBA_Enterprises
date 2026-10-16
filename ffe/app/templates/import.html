@@ -45,6 +45,7 @@
   </div>
   {% if preview.warnings %}<div class="alert info mt"><b>Check these:</b><ul class="mt mb-0">{% for w in preview.warnings %}<li>{{ w }}</li>{% endfor %}</ul></div>{% endif %}
   {% if preview.new_rooms %}<div class="mt"><span class="eyebrow">New rooms</span><div class="small">{{ preview.new_rooms|join(' · ') }}</div></div>{% endif %}
+  {% if preview.new_categories or preview.new_units %}<div class="mt"><span class="eyebrow">New in this project's lists</span><div class="small">{% if preview.new_categories %}Categories: {{ preview.new_categories|join(' · ') }}{% endif %}{% if preview.new_categories and preview.new_units %} · {% endif %}{% if preview.new_units %}Units: {{ preview.new_units|join(' · ') }}{% endif %} <span class="muted">(added to the <a href="/p/{{ p.id }}/lists">Lists</a> when you apply; rename or merge them there)</span></div></div>{% endif %}
   {% if preview.new_floors %}<div class="mt"><span class="eyebrow">New floors</span><div class="small">{{ preview.new_floors|join(' · ') }} <span class="muted">(added to the floor list on the Rooms page; set the kind there)</span></div></div>{% endif %}
   {% if preview.room_changes %}<div class="mt"><span class="eyebrow">Rooms that change</span><div class="small">{{ preview.room_changes|join(' · ') }}</div></div>{% endif %}
   {% if preview.changes %}

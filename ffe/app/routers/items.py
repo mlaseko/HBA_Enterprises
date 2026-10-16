@@ -8,7 +8,7 @@ from ..db import get_db
 from ..models import Project, Item, ItemPhoto, Supplier, Room, Product
 from ..common import render, redirect, require_login, get_project, ffloat, fint, safe_next
 from ..services import next_code, sort_items, moods_for, product_key, _key, _SIZE_SEP_RE, photos_of, forget_pools, release_photos, same_picture  # noqa: F401  (sort_items, product_key are imported from here by share.py, plan.py, importer.py)
-from .. import storage, config, webimage, ai, drawings, buying
+from .. import storage, config, webimage, ai, drawings, buying, lists
 
 router = APIRouter(dependencies=[Depends(require_login)])
 
@@ -169,14 +169,14 @@ def apply_form(item: Item, db: Session, p: Project, form: dict):
     if room and room.project_id != p.id:
         room = None
     item.room_id = room.id if room else None
-    item.category = form.get("category") or "Other"
+    item.category = form.get("category") or lists.fallback_category(p)
     item.name = (form.get("name") or "").strip()
     item.brand = (form.get("brand") or "").strip()  # the preferred brand, when the design asks for one
     item.spec = (form.get("spec") or "").strip()
     item.size = (form.get("size") or "").strip()
     item.finish = (form.get("finish") or "").strip()
     item.qty = ffloat(form.get("qty"), 1)
-    item.unit = form.get("unit") or "pcs"
+    item.unit = form.get("unit") or lists.units(p)[0]
     # Supplier, price and lead time are not typed here: they come from the purchase that covers the line (buying.py).
     item.status = form.get("status") if form.get("status") in config.STATUSES else "To buy"
     item.optional = form.get("optional") in ("on", "1", "true")
@@ -404,7 +404,7 @@ def suggest_fields(item_id: int, p: Project = Depends(get_project), db: Session 
             text = webimage.fetch_image_and_text(url)[1]
         except webimage.WebImageError:
             text = ""
-    s = ai.suggest_item(photo, text, url, [r.label for r in p.rooms])
+    s = ai.suggest_item(photo, text, url, [r.label for r in p.rooms], lists.categories(p), lists.units(p))
     if not s:
         return redirect(f"/p/{p.id}/items/{item_id}?err=" + quote("Claude could not fill this in. Add a photo or a source link in the notes and try again."))
     before = buying.keys(p)

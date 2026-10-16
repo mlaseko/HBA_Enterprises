@@ -22,6 +22,7 @@
   <div class="eyebrow sub">Feature by feature</div>
   <a href="#start">Studio settings</a>
   <a href="#project">Projects, Overview &amp; import</a>
+  <a href="#lists">Lists: categories, units &amp; defaults</a>
   <a href="#rooms">Rooms &amp; areas</a>
   <a href="#plans">Floor plans &amp; PDF pages</a>
   <a href="#plan">The interactive plan</a>
@@ -256,7 +257,7 @@
     <li>The <b>logo</b> replaces the house glyph in the app. A square PNG or JPG looks best. The PDFs keep their own layout.</li>
     <li><b>Warehouse.</b> The consolidation warehouse the shops deliver to: name, address and contact. Every new order's <b>Deliver to</b> starts from it, and it prints on the purchase order and in the WeChat message; an order can still say something else. A shop's packing link and packing list show where to deliver: its latest order's Deliver to, else this warehouse.</li>
     <li>The app password, the database and the photo storage are set up on the server, not here.</li>
-    <li><b>Plan sheet types.</b> What a floor plan can <b>show</b> is a list you keep here: Main plan, Furniture layout, Electrical &amp; lighting, Plumbing &amp; sanitary, Ceiling, Flooring &amp; tiles and Windows &amp; doors to begin with. Each type has a <b>kind</b>: a <i>plan of the floor</i> borrows the main plan's room boxes; a <i>reference sheet</i> (Windows &amp; doors, or a door schedule you add) shows drawings of the items instead, with dots and no boxes, and its drawings can be matched to the items by reference (see The plan). Type a title, pick the kind (and the words the page picker should look for in a drawing title, such as "landscape, garden") and press <b>Add sheet type</b>: it is a choice under <b>Shows</b> on Images &amp; plans and in the page picker at once, and a plan of that type sits under its floor's Sheet switch on the Plan page. Rename a type and every plan that shows it follows; reorder with the arrows; delete one once no plan shows it (the main plan always stays). The table <b>Which sheet a category's items are read from</b> decides which sheets the schedule PDF prints before a category's table: the electrical sheets before Lighting, the windows sheet before Windows &amp; Doors.</li>
+    <li><b>Plan sheet types.</b> What a floor plan can <b>show</b> is a list you keep here: Main plan, Furniture layout, Electrical &amp; lighting, Plumbing &amp; sanitary, Ceiling, Flooring &amp; tiles and Windows &amp; doors to begin with. Each type has a <b>kind</b>: a <i>plan of the floor</i> borrows the main plan's room boxes; a <i>reference sheet</i> (Windows &amp; doors, or a door schedule you add) shows drawings of the items instead, with dots and no boxes, and its drawings can be matched to the items by reference (see The plan). Type a title, pick the kind (and the words the page picker should look for in a drawing title, such as "landscape, garden") and press <b>Add sheet type</b>: it is a choice under <b>Shows</b> on Images &amp; plans and in the page picker at once, and a plan of that type sits under its floor's Sheet switch on the Plan page. Rename a type and every plan that shows it follows; reorder with the arrows; delete one once no plan shows it (the main plan always stays). The table <b>Which sheet a category's items are read from</b> (every category name your projects use) decides which sheets the schedule PDF prints before a category's table: the electrical sheets before Lighting, the windows sheet before Windows &amp; Doors.</li>
     <li><b>Speed.</b> Lists, the plan dots and the PDF tables show a <b>small copy</b> of each photo instead of the full picture, so the Items page and the plan load several times faster. Photos taken from now on get their small copy at once; for photos from before, press <b>Make small versions</b> under Speed until none are left. The card also shows how many pictures the server keeps in memory for the next visitor.</li>
   </ul>
 </section>
@@ -295,6 +296,28 @@
     {{ shot('import', 'Import from Excel: download the template or export the items, fill in or change the file, upload it here.') }}
     {{ shot('import-preview', 'The preview: what the file would update and add, with the codes the new items would get. Nothing is saved until Apply.') }}
   </div>
+</section>
+
+<section class="card" id="lists">
+  <h2>Lists: categories, units and defaults</h2>
+  <p><b>What it is for:</b> the choices each project offers, set for that project alone. Open <b>Lists</b> in the project's menu (or the button on Project settings).</p>
+  <ul>
+    <li><b>Categories</b>: what the item form, Quick capture, the filters, the Excel template and Claude auto-fill offer, in the order the schedule PDFs and the lists print them. Each has an <b>Extra to order</b> %: the allowance Buying adds on top of the rooms' quantities (10 % for tiles to start with); a product can still set its own.</li>
+    <li><b>Units</b> (pcs, set, m², roll…), each marked whether it is <b>bought in whole units</b>, so 7 pcs plus 10 % orders 8, not 7.7. The first unit is the default of a new item.</li>
+    <li><b>Payment types</b> (Deposit, Balance…) for payments on orders and on Payments.</li>
+    <li><b>Containers</b>, with what each takes in practice (CBM) and its payload (kg): the Shipments page suggests the smallest one the boxes fit, and each shipment's fill bars use them. LCL and Air are always offered.</li>
+    <li><b>Defaults</b>: the deposit % when a shop's payment terms do not say, how many days ahead the Tracker warns of a ready order or an arriving shipment, how long before the ready date it asks for the balance, and the volume below which a shipment goes LCL.</li>
+  </ul>
+  {{ shot('lists', 'Lists: the categories in their order with the extra to order and how many lines use each, then the units, payment types, containers and defaults.') }}
+  <h3>Changing them</h3>
+  <ul>
+    <li>Type a new entry at the foot of a card and press <b>Add</b>. Change a name or a number and press <b>Save</b>: <b>renaming</b> a category, unit or payment type renames it on every item (or payment) of the project.</li>
+    <li>The arrows set the order. Containers sort themselves by size.</li>
+    <li>The bin deletes an entry nothing uses. One still in use asks where its items go: choose another entry and press <b>Move and delete</b>. That is also how to merge two categories.</li>
+    <li>A <b>new project</b> starts from the standard lists, or from a copy of another project's (the choice is on the new project form). <b>Add what is missing</b> at the top of Lists copies the entries another project has and this one lacks, without touching yours.</li>
+    <li>An Excel import that brings a category or unit the project lacks adds it to the list; the preview names it first.</li>
+    <li>Which plan sheets print before a category in the schedule is set for the whole studio, by category name, under Studio settings › Plan sheet types.</li>
+  </ul>
 </section>
 
 <section class="card" id="rooms">
@@ -445,7 +468,7 @@
   <h3>A product</h3>
   <ul>
     <li><b>The design asks for</b>: the photo, size, finish, the preferred brand and the must-haves, as the item says. <b>Open the item</b> to change them.</li>
-    <li><b>What to order</b>: what the rooms need, plus the allowance (10 % for tiles by default, nothing for the rest), rounded up to whole boxes once the box size is known. <b>Allowance, pack and buying notes</b> changes them for this product; an empty allowance goes back to the default.</li>
+    <li><b>What to order</b>: what the rooms need, plus the allowance (each category's <b>Extra to order</b> under <a href="#lists">Lists</a>: 10 % for tiles to start with, nothing for the rest), rounded up to whole boxes once the box size is known. <b>Allowance, pack and buying notes</b> changes them for this product; an empty allowance goes back to the default.</li>
     <li><b>Quotes</b>: one card per shop with its price per unit (and in USD), brand and model, box size, minimum order, lead time, photo and notes, and what all the rooms would cost at that quote with its own box size. The cheapest says <b>Lowest price</b>; the ones you buy from say <b>Buying for n rooms</b>. <b>Edit the quote</b> corrects it (the rooms bought from it follow) or deletes it (what was bought from it stays bought).</li>
     <li><b>Buy</b>: <b>Buy for the rooms without a shop</b>, or <b>Choose the rooms to buy here</b> to tick them; ticking a room another shop supplies moves it. A room is bought whole from one shop, never half.</li>
     <li><b>Buying from</b>: each chosen shop with its rooms, what to order for them and the total, and the order it is on (or <b>Start an order</b> / <b>Add to draft</b>). <b>Rooms</b> changes its rooms, <b>Quantity &amp; notes</b> sets the order quantity by hand, <b>Stop buying here</b> leaves its rooms without a shop again (the quote stays, and the product leaves its order).</li>
@@ -563,7 +586,7 @@
   <p><b>What it is for:</b> getting the boxes from the consolidation warehouse to site, container by container, and knowing at any moment what is where and when it arrives.</p>
   <h3>The Shipments page</h3>
   <ul>
-    <li><b>Waiting at the warehouse</b>: the boxes the shops delivered that are on no shipment yet, by shop, with their volume and weight and what they fit together (LCL below about 12 CBM, sharing a container; else a 20ft, a 40ft or a 40ft high cube). <b>Ship them: new shipment</b> puts them all on a new shipment in the container chosen beside it; <b>Add all to Shipment n</b> adds them to one being planned.</li>
+    <li><b>Waiting at the warehouse</b>: the boxes the shops delivered that are on no shipment yet, by shop, with their volume and weight and what they fit together (LCL below about 12 CBM, sharing a container, a point you can change under <a href="#lists">Lists</a>; else a 20ft, a 40ft or a 40ft high cube). <b>Ship them: new shipment</b> puts them all on a new shipment in the container chosen beside it; <b>Add all to Shipment n</b> adds them to one being planned.</li>
     <li><b>Still at the shops</b>: boxes listed but not delivered yet. <b>Delivered to the warehouse</b> marks one shop's boxes at once.</li>
     <li>Then the shipments by stage: <b>Planning</b> (gathering boxes), <b>Loaded</b> (left the warehouse), <b>At sea</b>, <b>Arrived</b> (at the port) and <b>Delivered</b> (on site), each with its container, its boxes, how full it is and when it arrives.</li>
     <li>Shipments are numbered per project (Shipment 1, Shipment 2…), and a number is never given twice.</li>
@@ -675,6 +698,7 @@
   <details><summary>The app feels slow.</summary><p>Three different things look the same. The <b>first page after a quiet spell</b> takes a few seconds and the next ones are quick: Replit starts the app and the database wakes up, which is normal; an always-on deployment removes it. <b>Pages with many photos</b> slow on a device that has not seen them yet: open Studio settings and press <b>Make small versions</b> until no older photo is left, so lists load small copies. <b>Every page slow, even without photos:</b> the database is far from the app or asleep; tell your developer.</p></details>
   <details><summary>The electrical plan shows no room boxes.</summary><p>Boxes are drawn on the floor's main plan and borrowed by the other sheets of that floor. Check that both sheets carry the same floor name, and that the general floor plan is set to show "Main plan (general floor plan)" under Images &amp; plans. An electrical sheet uploaded before layers existed usually sits under its own floor name ("Ground Electrical"): the Images &amp; plans page shows a yellow note on it with a one-press fix. If the electrical sheet is framed differently and the borrowed boxes sit off, press Mark rooms on it and copy the boxes to adjust them there.</p></details>
   <details><summary>Can I change many statuses or quantities at once?</summary><p>Yes, in Excel. Import → <b>Export all items</b> (or <b>Export a part</b>: a category, floor, room or status; or the Items page's <b>Export</b> of what its filter shows), change the cells, import the file back. Rows are matched by their <b>Code</b>, so the items are updated rather than added again; blank cells leave a value alone and <b>-</b> clears one. Photos and plan dots stay. Price, Supplier and Lead time are grey: they come from Buying, and the import leaves them alone.</p></details>
+  <details><summary>Can I add my own categories or units?</summary><p>Yes, per project: open <b>Lists</b> in the project's menu. Add, rename, reorder or delete categories, units, payment types and containers there. Renaming one renames it on every item of the project; deleting one still in use asks where its items go. A new project can start from a copy of another project's lists.</p></details>
   <details><summary>Where did the supplier and price fields of the item go?</summary><p>To <a href="#buying">Buying</a>. The item now says only what is needed and where; the shop, its price, the brand bought and the lead time are chosen per product from the quotes, for whole rooms, and then show on the item, the lists, the documents and the client link as before.</p></details>
   <details><summary>I set a room to Paid and it went back to Ordered.</summary><p>A room line on an order takes its status from the order: Ordered once the order is confirmed, Paid once it is paid in full. Record the payment against the order (on the order, or on Payments with the order chosen) and its rooms become Paid. Shipped and Received follow the boxes holding the item.</p></details>
   <details><summary>An item stays Ordered although its box was loaded.</summary><p>The app knows what is in a box from the items ticked on it, or their codes typed in it. Open the box (Shipping › Boxes, the pencil) and tick the item: it becomes Shipped once every box holding it is loaded. An item spread over several boxes waits for the last one.</p></details>

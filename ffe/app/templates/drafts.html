@@ -28,7 +28,7 @@
       <label>Item / product name</label><input class="in" type="text" name="name" value="{{ d.name }}" required list="dl-name" autocomplete="off" placeholder="e.g. Brass basin mixer, matt black"{% if err == d.id %} autofocus{% endif %}>
       <div class="grid stack g2">
         <div><label>Room or area</label><select name="room_id" class="in"><option value="">Whole house / not room-specific</option>{{ room_options(p.rooms, d.room_id) }}</select></div>
-        <div><label>Category</label><select name="category" class="in">{% for c in CATEGORIES %}<option {{ 'selected' if d.category == c }}>{{ c }}</option>{% endfor %}</select></div>
+        <div><label>Category</label><select name="category" class="in">{% for c in CATEGORIES + ([d.category] if d.category and d.category not in CATEGORIES else []) %}<option {{ 'selected' if d.category == c }}>{{ c }}</option>{% endfor %}</select></div>
         <div><label>Qty</label><input class="in" type="number" step="0.01" name="qty" value="{{ d.qty|num }}"></div>
       </div>
       <div class="help">A price you saw goes on the item's Buying page as a quote from that shop, once the item is saved.</div>

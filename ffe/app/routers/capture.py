@@ -11,7 +11,7 @@ from ..models import Project, Item, ItemPhoto, Room
 from ..common import render, redirect, require_login, get_project, ffloat, fint
 from ..services import next_code
 from .items import suggestions
-from .. import storage, config
+from .. import storage, lists
 
 router = APIRouter(dependencies=[Depends(require_login)])
 
@@ -26,8 +26,8 @@ def _room(db: Session, p: Project, raw) -> Room | None:
     return room if room and room.project_id == p.id else None
 
 
-def _category(raw) -> str:
-    return raw if raw in config.CATEGORIES else "Other"
+def _category(p: Project, raw) -> str:
+    return raw if raw in lists.categories(p) else lists.fallback_category(p)
 
 
 def _wants_json(request: Request) -> bool:
@@ -49,7 +49,7 @@ async def capture_save(request: Request, p: Project = Depends(get_project), db: 
             return JSONResponse({"ok": False, "error": "No photo received"}, status_code=400)
         return redirect(f"/p/{p.id}/capture?n={fint(n, 0)}&room={room_id}&category={category}")
     room = _room(db, p, room_id)
-    item = Item(project_id=p.id, name="", code="", draft=True, room_id=room.id if room else None, category=_category(category))
+    item = Item(project_id=p.id, name="", code="", draft=True, room_id=room.id if room else None, category=_category(p, category))
     db.add(item)
     db.flush()
     key, tkey, dg = storage.save_photo(data, f"p{p.id}")
@@ -74,7 +74,7 @@ async def complete_draft(request: Request, item_id: int, p: Project = Depends(ge
     form = await request.form()
     room = _room(db, p, form.get("room_id"))
     item.room_id = room.id if room else None
-    item.category = _category(form.get("category"))
+    item.category = _category(p, form.get("category"))
     item.qty = ffloat(form.get("qty"), 1)
     item.name = (form.get("name") or "").strip()
     if not item.name:

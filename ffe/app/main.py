@@ -7,13 +7,13 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from sqlalchemy import text, inspect
 
-from . import config, storage, layers, buying
+from . import config, storage, layers, buying, lists
 from .db import engine, Base, get_db, migrate, SessionLocal
 from .models import Project, Settings, ItemPhoto
 from urllib.parse import quote
 from .common import (render, redirect, require_login, LoginRequired, make_session_cookie, check_password, COOKIE,
                      get_settings, is_logged_in, ffloat)
-from .routers import projects, rooms, items, suppliers, payments, cartons, share, exports, importer, capture, clip, plan, buy, orders, shipping
+from .routers import projects, rooms, items, suppliers, payments, cartons, share, exports, importer, capture, clip, plan, buy, orders, shipping, lists as lists_page
 
 app = FastAPI(title=config.APP_NAME)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -49,6 +49,8 @@ def startup():
         layers.seed(db, kind_added="plan_layers.kind" in added)  # the built-in plan sheet types on an empty list (Studio settings → Plan sheet types edits it)
     with SessionLocal() as db:
         buying.upgrade(db)  # once: prices and suppliers typed on items become quotes and purchases (buying.py)
+    with SessionLocal() as db:
+        lists.upgrade(db)  # once: every project gets its own lists (categories, units, payment types, containers)
     if config.PHOTO_PREPARE_AT_START:
         prepare_photos_in_background()
 
@@ -140,7 +142,8 @@ def settings_page(request: Request, db: Session = Depends(get_db), thumbs: str =
     used = layers.usage(db)
     layer_rows = [dict(r, plans=used.get(r["key"], 0)) for r in layers.rows()]
     return render(request, "settings.html", s=get_settings(db), thumbs_missing=missing, thumbs_done=ffloat(thumbs, 0), thumbs_left=left,
-                  cache=storage.cache_info(), layer_rows=layer_rows, category_map=layers.category_map(), err=err[:300], ok=ok[:300])
+                  cache=storage.cache_info(), layer_rows=layer_rows, category_map=layers.category_map(), sheet_categories=layers.category_names(db),
+                  err=err[:300], ok=ok[:300])
 
 
 # ---- plan sheet types: what a floor plan can show (layers.py; the Shows dropdowns follow at once) ----
@@ -157,10 +160,12 @@ def settings_layer_add(db: Session = Depends(get_db), title: str = Form(""), wor
 
 @app.post("/settings/layers/categories", dependencies=[Depends(require_login)])
 async def settings_layer_categories(request: Request, db: Session = Depends(get_db)):
-    """One dropdown per category: the sheet its items are read from in the PDFs (fields c0, c1… in config.CATEGORIES order)."""
+    """One dropdown per category name: the sheet its items are read from in the PDFs (fields c0, c1… in the order of
+    layers.category_names: the standard categories, then the ones the projects added)."""
     form = await request.form()
-    mapping = {c: str(form.get(f"c{i}", config.MAIN_LAYER)) for i, c in enumerate(config.CATEGORIES)}
-    n = layers.set_categories(db, mapping)
+    names = layers.category_names(db)
+    mapping = {c: str(form.get(f"c{i}", config.MAIN_LAYER)) for i, c in enumerate(names)}
+    n = layers.set_categories(db, mapping, names)
     return _sheets_back(ok=f"Saved: {n} categor{'y is' if n == 1 else 'ies are'} read from a sheet other than the main plan.")
 
 
@@ -229,6 +234,7 @@ app.include_router(suppliers.router)
 app.include_router(payments.router)
 app.include_router(cartons.router)
 app.include_router(shipping.router)
+app.include_router(lists_page.router)
 app.include_router(share.router)
 app.include_router(exports.router)
 app.include_router(importer.router)

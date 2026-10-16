@@ -8,7 +8,7 @@ from fastapi.templating import Jinja2Templates
 import jinja2
 from itsdangerous import URLSafeSerializer, BadSignature
 from sqlalchemy.orm import Session
-from . import config, drawings, help_tips, layers
+from . import config, drawings, help_tips, layers, lists
 from .db import get_db, SessionLocal
 from .models import Project, Settings, Item
 
@@ -157,6 +157,9 @@ def render(request: Request, name: str, **ctx):
     ctx.setdefault("public", public)
     if not ctx["public"] and "nav" not in ctx:
         ctx["nav"] = nav_context(ctx.get("p"))
+    if isinstance(ctx.get("p"), Project):  # the project's own lists (lists.py) for its forms and filters
+        for k, v in lists.template_values(ctx["p"]).items():
+            ctx.setdefault(k, v)
     if "help_tip" not in ctx:
         ctx["help_tip"] = help_tips.tip_for(name, ctx)  # the "?" drawer of base.html (None = no drawer on this page)
     return templates.TemplateResponse(request, name, ctx)

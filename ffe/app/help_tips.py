@@ -258,6 +258,16 @@ TIPS = {
                "On site, tap the square of each box as it is checked, or <b>Room received</b> for a whole room: its items become Received."],
         tips=["<b>Loading list</b> is the PDF for the warehouse and the forwarder: every box by room, with a tick for loading and for receiving.",
               "<b>Undo the last step</b> takes a date back; undoing the loading sends its rooms back to the status their orders give them."]),
+    "lists": dict(
+        title="Lists", anchor="lists",
+        what="This project's own choices: item categories, units, payment types, containers and the buying defaults.",
+        steps=["Type a new entry at the foot of a card and press <b>Add</b>; change a name or a number and press <b>Save</b>.",
+               "The arrows set the order: categories print in this order in the PDFs and the lists.",
+               "The bin deletes an entry. One still in use asks where its items (payments, shipments) go first, then moves them.",
+               "<b>Add what is missing</b> copies the entries another project has and this one lacks."],
+        tips=["Renaming a category or unit renames it on every item of the project.",
+              "<b>Extra to order</b> on a category is the allowance Buying adds on top of the rooms' quantities (10 % for tiles).",
+              "A new project can start from the standard lists or from a copy of another project's."]),
     "import": dict(
         title="Import from Excel", anchor="project",
         what="Load a whole procurement list at once, or export the items, change them in Excel and import them back.",
@@ -314,7 +324,7 @@ TEMPLATE_KEYS = {
     "import.html": "import", "settings.html": "settings", "clip.html": "clip", "share/supplier.html": "share_supplier", "plan/match.html": "plan_match",
     "share/client.html": "share_client", "buying/list.html": "buying", "buying/product.html": "buying_product", "buying/schedule.html": "buying_schedule",
     "buying/orders.html": "orders", "buying/order.html": "order", "buying/tracker.html": "tracker",
-    "carton.html": "carton", "shipping/list.html": "shipments", "shipping/shipment.html": "shipment",
+    "carton.html": "carton", "shipping/list.html": "shipments", "shipping/shipment.html": "shipment", "lists.html": "lists",
 }
 
 

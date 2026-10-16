@@ -41,7 +41,7 @@ def packing_list(p, studio, cartons, title="Packing List", deliver_to="") -> byt
     t.setStyle(base_table_style())
     story.append(t)
     story.append(Spacer(1, 4 * mm))
-    story.append(Paragraph(f"Total volume {cbm:.2f} CBM &rarr; container: <b>{container_for(cbm)}</b>", S["body"]))
+    story.append(Paragraph(f"Total volume {cbm:.2f} CBM &rarr; container: <b>{container_for(cbm, p)}</b>", S["body"]))
     doc.build(story, onFirstPage=footer_factory(studio.studio_name, p.name), onLaterPages=footer_factory(studio.studio_name, p.name))
     return buf.getvalue()
 

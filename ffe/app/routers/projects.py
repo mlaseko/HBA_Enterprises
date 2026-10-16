@@ -1,12 +1,13 @@
 import uuid
+from datetime import datetime
 from fastapi import APIRouter, Request, Depends, Form, UploadFile, File, HTTPException
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from ..db import get_db
-from ..models import Project, ProjectImage, Room, Item, DrawingSet, PlanTag, DrawingPage
+from ..models import Project, ProjectImage, Room, DrawingSet, PlanTag, DrawingPage
 from ..common import render, redirect, require_login, get_project, get_settings, ffloat, fint, content_disposition, safe_next
 from ..services import summary, mood_groups, client_moods, moods_for
-from .. import storage, webimage, drawings, config, layers
+from .. import storage, webimage, drawings, config, layers, lists
 from urllib.parse import quote
 from ..models import token as new_token
 
@@ -25,15 +26,19 @@ def home(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/projects/new")
 def new_project(request: Request, db: Session = Depends(get_db)):
-    return render(request, "projects/form.html", p=None, s=get_settings(db))
+    return render(request, "projects/form.html", p=None, s=get_settings(db), others=db.query(Project).order_by(Project.name).all())
 
 
 @router.post("/projects/new")
 def create_project(request: Request, db: Session = Depends(get_db), client_name: str = Form(...), name: str = Form(...),
-                   address: str = Form(""), rate: str = Form("7.1"), budget_usd: str = Form("0"), description: str = Form("")):
+                   address: str = Form(""), rate: str = Form("7.1"), budget_usd: str = Form("0"), description: str = Form(""),
+                   lists_from: str = Form("")):
     p = Project(client_name=client_name.strip(), name=name.strip(), address=address.strip(), rate=ffloat(rate, 7.1),
                 budget_usd=ffloat(budget_usd), description=description.strip())
     db.add(p)
+    db.flush()
+    src = db.get(Project, fint(lists_from)) if fint(lists_from) else None
+    lists.seed(db, p, src)  # its own lists: the standard ones, or a copy of another project's
     db.commit()
     # a default "whole house" room so items can be unassigned without confusion
     db.add(Room(project_id=p.id, code="ALL", name="Whole house", floor="All", sort=999, kind="area"))
@@ -44,7 +49,8 @@ def create_project(request: Request, db: Session = Depends(get_db), client_name:
 @router.get("/p/{project_id}")
 def dashboard(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db)):
     s = summary(db, p)
-    recent = db.query(Item).filter(Item.project_id == p.id, Item.draft == False).order_by(Item.updated_at.desc()).limit(6).all()  # noqa: E712
+    # the six items changed last, from the lines summary() already loaded (a query here re-loaded their photos and pins)
+    recent = sorted(p.live_items, key=lambda i: (i.updated_at or datetime.min, i.id), reverse=True)[:6]
     return render(request, "projects/dashboard.html", p=p, s=s, recent=recent, client_moods=client_moods(p))
 
 

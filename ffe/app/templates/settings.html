@@ -130,7 +130,7 @@
   <h3 class="mt">Which sheet a category's items are read from</h3>
   <form method="post" action="/settings/layers/categories" id="sheet-cats">
     <div class="grid g3 stack mt">
-      {% for cat in CATEGORIES %}<div><label for="cat-{{ loop.index0 }}">{{ cat }}</label><select class="in" id="cat-{{ loop.index0 }}" name="c{{ loop.index0 }}">{% for l in layer_rows %}<option value="{{ l.key }}" {{ 'selected' if category_map.get(cat, MAIN_LAYER) == l.key }}>{{ l.title }}</option>{% endfor %}</select></div>{% endfor %}
+      {% for cat in sheet_categories %}<div><label for="cat-{{ loop.index0 }}">{{ cat }}</label><select class="in" id="cat-{{ loop.index0 }}" name="c{{ loop.index0 }}">{% for l in layer_rows %}<option value="{{ l.key }}" {{ 'selected' if category_map.get(cat, MAIN_LAYER) == l.key }}>{{ l.title }}</option>{% endfor %}</select></div>{% endfor %}
     </div>
     <div class="form-actions">
       <button class="btn"><svg class="ic"><use href="#i-check"/></svg>Save</button>

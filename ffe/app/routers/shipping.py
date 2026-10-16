@@ -8,7 +8,7 @@ from urllib.parse import quote as urlquote
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
-from .. import config
+from .. import lists
 from .. import shipping as sh
 from ..common import content_disposition, ffloat, fint, get_project, get_settings, redirect, render, require_login
 from ..db import get_db
@@ -53,7 +53,7 @@ def shipments_page(request: Request, p: Project = Depends(get_project), db: Sess
     planning = [sv for sv in svs if sv.stage == "Planning"]
     return render(request, "shipping/list.html", p=p, svs=svs, by_stage=[(st, [sv for sv in svs if sv.stage == st]) for st in sh.STAGES],
                   wait=wait, wait_groups=sh.by_supplier(wait), wait_tot=sh.totals(wait), shop_groups=sh.by_supplier(shop),
-                  shop_tot=sh.totals(shop), counts=bx.counts(), planning=planning, MODES=config.SHIP_MODES, STAGE_COLORS=sh.STAGE_COLORS,
+                  shop_tot=sh.totals(shop), counts=bx.counts(), planning=planning, MODES=lists.ship_modes(p), STAGE_COLORS=sh.STAGE_COLORS,
                   STAGE_HELP=sh.STAGE_HELP, studio=get_settings(db), ok=ok[:200], err=err[:200])
 
 
@@ -85,7 +85,7 @@ def shipment_page(request: Request, shipment_id: int, p: Project = Depends(get_p
     shop = [c for c in bx.cartons if sh.where(c) == "shop"] if more else []
     others = [x for x in sh.views(p, bx) if x.s.id != s.id and x.stage == "Planning"]
     return render(request, "shipping/shipment.html", p=p, s=s, sv=sv, bx=bx, wait_groups=sh.by_supplier(wait), wait_tot=sh.totals(wait),
-                  shop_groups=sh.by_supplier(shop), more=bool(more), others=others, today=date.today().isoformat(), MODES=config.SHIP_MODES,
+                  shop_groups=sh.by_supplier(shop), more=bool(more), others=others, today=date.today().isoformat(), MODES=lists.ship_modes(p),
                   STAGES=sh.STAGES, STAGE_COLORS=sh.STAGE_COLORS, STAGE_HELP=sh.STAGE_HELP, studio=get_settings(db), ok=ok[:200], err=err[:200])
 
 
@@ -102,7 +102,7 @@ async def save_shipment(request: Request, shipment_id: int, p: Project = Depends
         setattr(s, f, (form.get(f) or "").strip()[:n])
     s.notes = (form.get("notes") or "").strip()
     s.cost = max(0.0, ffloat(form.get("cost"), 0))
-    if form.get("mode") in config.SHIP_MODES:
+    if form.get("mode") in lists.ship_modes(p):
         s.mode = form.get("mode")
     was_loaded = s.loaded_on is not None
     for f in ("loaded_on", "etd", "eta", "arrived_on", "delivered_on"):

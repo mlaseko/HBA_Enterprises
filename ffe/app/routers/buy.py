@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from .. import buying as bz
 from .. import ordering as od
 from .. import shipping as sh
-from .. import config, drawings
+from .. import drawings, lists
 from ..common import content_disposition, ffloat, fint, get_project, get_settings, redirect, render, require_login
 from ..db import get_db
 from ..models import Item, Product, Project, Purchase, Quote, Supplier
@@ -77,7 +77,7 @@ def _sections(gs: list) -> list[tuple[str, list]]:
     by_cat: dict[str, list] = {}
     for g in gs:
         by_cat.setdefault(g.category, []).append(g)
-    order = {c: n for n, c in enumerate(config.CATEGORIES)}
+    order = lists.category_order(gs[0].project if gs else None)
     return sorted(by_cat.items(), key=lambda kv: order.get(kv[0], len(order)))
 
 

@@ -129,8 +129,9 @@ with TestClient(app) as c:
     assert ai.suggest_item(img("red"), "text", "u", []) is None  # no key: feature off
     os.environ["ANTHROPIC_API_KEY"]="test-key"
     calls=[]
-    def fake_call(content):
+    def fake_call(content, schema=None):
         calls.append(content)
+        assert schema is None or "Furniture" in schema["properties"]["category"]["enum"]  # the project's own categories
         return {"name":"Kivik 3-seat sofa","brand":"IKEA Kivik","category":"Furniture","spec":"Linen cover, removable","size":"2280 x 950 mm","finish":"Beige","unit":"pcs","unit_price_cny":3999,"room":room.label,"confidence":"high"}
     ai._call=fake_call
     r=c.post("/clip", data={"project_id":pid,"dest":"item","link":"https://shop.example/pics/sofa.jpg","page":"https://shop.example/product/sofa"}, follow_redirects=False)
@@ -144,7 +145,7 @@ with TestClient(app) as c:
     r=c.get(f"/p/{pid}/items/{iid}"); assert "Fill in with Claude" in r.text
     calls.clear(); r=c.post(f"/p/{pid}/items/{iid}/suggest", follow_redirects=False); assert "filled=" in r.headers["location"], r.headers
     db=SessionLocal(); it=db.get(Item, int(iid)); assert it.name=="Island pendant" and it.category=="Lighting" and it.brand=="IKEA Kivik" and it.spec=="Linen cover, removable", (it.name, it.category, it.brand, it.spec); db.close()  # existing name/category kept, empty brand/spec filled
-    ai._call=lambda content: (_ for _ in ()).throw(RuntimeError("down"))
+    ai._call=lambda content, schema=None: (_ for _ in ()).throw(RuntimeError("down"))
     r=c.post(f"/p/{pid}/items/{iid}/suggest", follow_redirects=False); assert "err=" in r.headers["location"]
     del os.environ["ANTHROPIC_API_KEY"]
     r=c.get(f"/p/{pid}/items/{iid}"); assert "Fill in with Claude" not in r.text
@@ -1642,7 +1643,7 @@ with TestClient(app) as c:
     r=c.post(f"/p/{pid_s}/orders/new", data={"supplier_id":str(sts)}, follow_redirects=False); soid=int(r.headers["location"].split("/orders/")[1].split("?")[0])
     c.post(f"/p/{pid_s}/orders/{soid}/confirm", data={"confirmed_on":"2026-09-01","ready_date":"2026-09-20"}, follow_redirects=False)
     assert _sts([t_liv, t_kit, sofa])==["Ordered"]*3
-    assert _sh.fits(0.65, 300)=="LCL" and _sh.fits(20, 3000)=="1 x 20ft" and _sh.fits(60, 9000)=="1 x 40ft HC" and _sh.fits(150, 1000)=="3 x 40ft HC" and _sh.capacity("LCL")==(None, None)
+    assert _sh.fits(None, 0.65, 300)=="LCL" and _sh.fits(None, 20, 3000)=="1 x 20ft" and _sh.fits(None, 60, 9000)=="1 x 40ft HC" and _sh.fits(None, 150, 1000)=="3 x 40ft HC" and _sh.capacity(None, "LCL")==(None, None)
     # the shop lists its boxes on its link: delivered to the warehouse of its order, the items ticked from its own lines
     c.post(f"/p/{pid_s}/suppliers/{sts}/link", data={"action":"create"}, follow_redirects=False)
     db=SessionLocal(); stok=db.query(_SL).filter(_SL.project_id==pid_s, _SL.supplier_id==sts).one().token; db.close()
@@ -1724,4 +1725,52 @@ with TestClient(app) as c:
     c.post(f"/p/{pid_s}/cartons/{b1}/delete", follow_redirects=False); assert _sts([t_liv])==["Ordered"]  # its received box gone, only one at the warehouse left
     assert c.get(f"/p/{pid_b}/shipments/{ssid3}", follow_redirects=False).headers["location"]==f"/p/{pid_b}/shipments"
     print("shipping ok")
+    # ---- the project's own lists: categories, units, payment types, containers, defaults ----
+    from app import lists as _ls
+    r=c.post("/projects/new", data={"client_name":"L","name":"Lists House","rate":"7"}, follow_redirects=False); pid_l=int(r.headers["location"].split("/")[-1])
+    db=P_(); pl=db.get(_P,pid_l); assert _ls.categories(pl)==_ls.CATEGORIES and _ls.whole_units(pl)==_ls.WHOLE_UNITS and _ls.ship_modes(pl)==["40ft HC","40ft","20ft","LCL","Air"] and len(pl.list_rows)>=30; db.close()
+    h=c.get(f"/p/{pid_l}/lists").text; assert 'data-key="lists"' in h and "Extra to order" in h and 'id="containers"' in h and f'href="/p/{pid_l}/lists" class="on"' in h
+    r=c.post(f"/p/{pid_l}/lists/category/add", data={"name":"Wallpaper","allowance":"15"}, follow_redirects=False); assert "added" in r.headers["location"]
+    r=c.post(f"/p/{pid_l}/lists/category/add", data={"name":"wallpaper"}, follow_redirects=False); assert "err=" in r.headers["location"]  # no twin, case ignored
+    r=c.post(f"/p/{pid_l}/lists/unit/add", data={"name":"pair","whole":"1"}, follow_redirects=False); assert "added" in r.headers["location"]
+    r=c.post(f"/p/{pid_l}/lists/container/add", data={"name":"LCL","cbm":"5"}, follow_redirects=False); assert "err=" in r.headers["location"]
+    h=c.get(f"/p/{pid_l}/items/new").text; assert ">Wallpaper</option>" in h and ">pair</option>" in h and f'href="/p/{pid_l}/lists#categories"' in h
+    assert ">Wallpaper</option>" not in c.get(f"/p/{pid_s}/items/new").text  # another project's list is its own
+    r=c.post(f"/p/{pid_l}/rooms", data={"code":"BED","name":"Bedroom","floor":"First"}, follow_redirects=False)
+    db=P_(); lr=[x.id for x in db.get(_P,pid_l).rooms if x.code=="BED"][0]; db.close()
+    c.post(f"/p/{pid_l}/items/new", data={"room_ids":[str(lr)],"category":"Wallpaper","name":"Grasscloth","qty":"10","unit":"pair"}, follow_redirects=False)
+    db=P_(); pl=db.get(_P,pid_l); assert _ls.allowance(pl,"Wallpaper")==0.15 and "pair" in _ls.whole_units(pl)
+    g=[x for x in _bz.groups(pl) if x.name=="Grasscloth"][0]; assert g.allowance==0.15 and g.order["qty"]==12  # 10 pair + 15 % = 11.5 -> 12 whole pairs
+    wid=[e.id for e in _ls.entries(pl,"category") if e.name=="Wallpaper"][0]; tid=[e.id for e in _ls.entries(pl,"category") if e.name=="Tiles"][0]; db.close()
+    # rename: the items follow; the order follows the arrows; a category in use moves its items before it goes
+    r=c.post(f"/p/{pid_l}/lists/category/{wid}", data={"name":"Wall coverings","allowance":"15"}, follow_redirects=False); assert "1%20line%20renamed" in r.headers["location"]
+    db=P_(); assert [i.category for i in db.get(_P,pid_l).items]==["Wall coverings"]; db.close()
+    c.post(f"/p/{pid_l}/lists/category/{wid}/move", data={"dir":"up"}, follow_redirects=False)
+    db=P_(); cl=_ls.categories(db.get(_P,pid_l)); assert cl.index("Wall coverings")==len(cl)-2; db.close()
+    r=c.post(f"/p/{pid_l}/lists/category/{wid}/delete", follow_redirects=False); assert "still%20used" in r.headers["location"]
+    r=c.post(f"/p/{pid_l}/lists/category/{wid}/delete", data={"into":"Tiles"}, follow_redirects=False); assert "moved%20to" in r.headers["location"]
+    db=P_(); pl=db.get(_P,pid_l); assert [i.category for i in pl.items]==["Tiles"] and "Wall coverings" not in _ls.categories(pl); db.close()
+    r=c.post(f"/p/{pid_l}/lists/category/{tid}/delete", data={}, follow_redirects=False); assert "still%20used" in r.headers["location"]
+    # containers and defaults drive the shipping suggestion and the orders
+    r=c.post(f"/p/{pid_l}/lists/defaults", data={"deposit_pct":"40","soon_days":"5","balance_days":"10","lcl_up_to":"20"}, follow_redirects=False); assert "Defaults%20saved" in r.headers["location"]
+    db=P_(); pl=db.get(_P,pid_l); assert (pl.deposit_pct, pl.soon_days, pl.balance_days, pl.lcl_up_to)==(40.0,5,10,20.0) and _sh.fits(pl, 15, 1000)=="LCL"
+    kid=[e.id for e in _ls.entries(pl,"container") if e.name=="20ft"][0]; db.close()
+    c.post(f"/p/{pid_l}/lists/container/{kid}", data={"name":"20GP","cbm":"25","kg":"25000"}, follow_redirects=False)
+    db=P_(); pl=db.get(_P,pid_l); assert _sh.fits(pl, 22, 1000)=="1 x 20GP" and _sh.capacity(pl,"20GP")==(25.0,25000.0) and "20GP" in _ls.ship_modes(pl); db.close()
+    # payment types; the import adds a category it brings; a new project copies another's lists
+    db=P_(); pk=[e.id for e in _ls.entries(db.get(_P,pid_l),"payment") if e.name=="Other"][0]; db.close()
+    c.post(f"/p/{pid_l}/lists/payment/{pk}", data={"name":"Freight"}, follow_redirects=False)
+    assert ">Freight</option>" in c.get(f"/p/{pid_l}/payments").text
+    r=c.post("/projects/new", data={"client_name":"M","name":"Copy House","rate":"7","lists_from":str(pid_l)}, follow_redirects=False); pid_m=int(r.headers["location"].split("/")[-1])
+    db=P_(); pm=db.get(_P,pid_m); assert "20GP" in _ls.ship_modes(pm) and "Freight" in _ls.payment_kinds(pm) and pm.deposit_pct==40.0 and "pair" in _ls.units(pm); db.close()
+    r=c.post(f"/p/{pid_m}/lists/copy", data={"source":str(pid_s)}, follow_redirects=False); assert "added%20from" in r.headers["location"] or "already%20have" in r.headers["location"]
+    db=P_(); assert "Other" in _ls.payment_kinds(db.get(_P,pid_m)); db.close()  # what the other project has and this one lacked
+    wb=openpyxl.Workbook(); ws=wb.active; ws.title="Shopping List"; ws.append(["Room","Category","Item","Qty","Unit"]); ws.append(["BED","Murals","Hand-painted mural","1","panel"])
+    rs=wb.create_sheet("Rooms"); rs.append(["Code","Name","Floor"]); rs.append(["BED","Bedroom","First"])
+    buf=io.BytesIO(); wb.save(buf)
+    r=c.post(f"/p/{pid_l}/import", files={"file":("l.xlsx",buf.getvalue(),"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}, data={"apply":"1"}, follow_redirects=False)
+    db=P_(); pl=db.get(_P,pid_l); assert "Murals" in _ls.categories(pl) and "panel" in _ls.units(pl), (r.status_code, _ls.categories(pl)[-3:]); db.close()
+    # the studio's category -> plan sheet table offers every project's categories
+    assert "Murals" in c.get("/settings").text
+    print("lists ok")
     print("ALL OK")

@@ -65,6 +65,7 @@ const TALL = [
   ['tracker', `/p/${pid}/buying/tracker`, 1640],
   ['shipments', `/p/${pid}/shipments`, 1380],
   ['shipment', `/p/${pid}/shipments/${ids.shipments[1]}`, 1290],
+  ['lists', `/p/${pid}/lists`, 1180],
 ];
 
 (async () => {

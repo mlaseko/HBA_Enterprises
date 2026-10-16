@@ -39,12 +39,20 @@ def enabled() -> bool:
     return bool(os.getenv("ANTHROPIC_API_KEY"))
 
 
-def _call(content: list) -> dict:
+def _schema(categories: list[str] | None, units: list[str] | None) -> dict:
+    """SCHEMA with the project's own categories and units as the choices (lists.py)."""
+    s = json.loads(json.dumps(SCHEMA))
+    s["properties"]["category"]["enum"] = list(categories or config.CATEGORIES)
+    s["properties"]["unit"]["enum"] = list(units or config.UNITS)
+    return s
+
+
+def _call(content: list, schema: dict | None = None) -> dict:
     """One Claude request, JSON back. Separate so tests can replace it."""
     import anthropic
     client = anthropic.Anthropic()
     kwargs = dict(model=MODEL, max_tokens=2048, system=SYSTEM,
-                  output_config={"effort": "low", "format": {"type": "json_schema", "schema": SCHEMA}},
+                  output_config={"effort": "low", "format": {"type": "json_schema", "schema": schema or SCHEMA}},
                   messages=[{"role": "user", "content": content}])
     try:
         resp = client.beta.messages.create(betas=["server-side-fallback-2026-07-01"], fallbacks="default", **kwargs)
@@ -56,8 +64,11 @@ def _call(content: list) -> dict:
     return json.loads(text) if text else {}
 
 
-def suggest_item(image_jpeg: bytes | None, page_text: str, page_url: str, rooms: list[str]) -> dict | None:
-    """Return the suggested fields (see SCHEMA) or None when the feature is off or anything fails."""
+def suggest_item(image_jpeg: bytes | None, page_text: str, page_url: str, rooms: list[str], categories: list[str] | None = None,
+                 units: list[str] | None = None) -> dict | None:
+    """Return the suggested fields (see SCHEMA; category and unit chosen from the project's lists) or None when the feature
+    is off or anything fails."""
+    categories, units = list(categories or config.CATEGORIES), list(units or config.UNITS)
     if not enabled() or not (image_jpeg or page_text.strip()):
         return None
     content: list = []
@@ -73,14 +84,14 @@ def suggest_item(image_jpeg: bytes | None, page_text: str, page_url: str, rooms:
         prompt += "\n\nPage text:\n" + page_text.strip()[:MAX_TEXT]
     content.append({"type": "text", "text": prompt})
     try:
-        data = _call(content)
+        data = _call(content, _schema(categories, units))
     except Exception:
         return None
     if not isinstance(data, dict) or not data:
         return None
-    if data.get("category") not in config.CATEGORIES:
+    if data.get("category") not in categories:
         data["category"] = ""
-    if data.get("unit") not in config.UNITS:
+    if data.get("unit") not in units:
         data["unit"] = ""
     return data
 

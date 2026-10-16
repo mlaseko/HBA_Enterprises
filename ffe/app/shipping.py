@@ -21,7 +21,7 @@ from datetime import date, datetime
 
 from sqlalchemy.orm import Session
 
-from . import buying, config
+from . import buying, lists
 from .models import Carton, Item, Project, Shipment
 from .services import sort_items
 
@@ -33,7 +33,6 @@ STAGE_COLORS = {"Planning": "#9CA3AF", "Loaded": "#F59E0B", "At sea": "#06B6D4",
 WHERE = ["shop", "warehouse", "shipment", "site"]
 WHERE_TITLES = {"shop": "At the shop", "warehouse": "At the warehouse", "shipment": "On a shipment", "site": "Received on site"}
 WHERE_COLORS = {"shop": "#9CA3AF", "warehouse": "#F59E0B", "shipment": "#06B6D4", "site": "#16A34A"}
-SOON_DAYS = 7  # an arrival this close needs attention
 _CODE_RE = re.compile(r"[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)+")
 
 
@@ -209,23 +208,26 @@ def stage(s: Shipment, today: date | None = None) -> str:
     return "Planning"
 
 
-def capacity(mode: str) -> tuple[float | None, float | None]:
-    """What a container of this mode takes: CBM and kg (None for LCL and air, which have no fixed space)."""
-    return dict(config.CONTAINERS).get(mode), config.CONTAINER_KG.get(mode)
+def capacity(p: Project | None, mode: str) -> tuple[float | None, float | None]:
+    """What a container of this mode takes in the project's list: CBM and kg (None for LCL and air: no fixed space)."""
+    return lists.capacity(p, mode)
 
 
-def fits(cbm: float, kg: float) -> str:
-    """How this volume and weight would travel: LCL (a share of a container) below config.LCL_UP_TO CBM, else the smallest
-    container that takes it ("1 x 20ft"), or how many of the largest."""
+def fits(p: Project | None, cbm: float, kg: float) -> str:
+    """How this volume and weight would travel: LCL (a share of a container) below the project's LCL point, else the
+    smallest of its containers that takes it ("1 x 20ft"), or how many of the largest."""
     if cbm <= 0 and kg <= 0:
         return ""
-    if cbm < config.LCL_UP_TO and kg <= config.CONTAINER_KG["20ft"]:
+    boxes = [c for c in lists.containers(p) if c[1] > 0]
+    if not boxes:
         return "LCL"
-    for mode, cap in config.CONTAINERS:
-        if cbm <= cap and kg <= config.CONTAINER_KG.get(mode, kg):
+    if cbm < lists.lcl_up_to(p) and (not boxes[0][2] or kg <= boxes[0][2]):
+        return "LCL"
+    for mode, cap, cap_kg in boxes:
+        if cbm <= cap and (not cap_kg or kg <= cap_kg):
             return f"1 x {mode}"
-    mode, cap = config.CONTAINERS[-1]
-    n = max(-(-cbm // cap), -(-kg // config.CONTAINER_KG[mode]))
+    mode, cap, cap_kg = boxes[-1]
+    n = max(-(-cbm // cap), -(-kg // cap_kg) if cap_kg else 1)
     return f"{int(n)} x {mode}"
 
 
@@ -237,7 +239,8 @@ def next_number(db: Session, p: Project) -> int:
 
 def new_shipment(db: Session, p: Project, mode: str = "", cartons=()) -> Shipment:
     """A shipment in planning, with these boxes on it (the project's, not received yet)."""
-    s = Shipment(project_id=p.id, number=next_number(db, p), mode=mode if mode in config.SHIP_MODES else config.SHIP_MODES[0])
+    modes = lists.ship_modes(p)
+    s = Shipment(project_id=p.id, number=next_number(db, p), mode=mode if mode in modes else modes[0])
     db.add(s)
     p.shipments_made = s.number
     db.flush()
@@ -314,7 +317,7 @@ class ShipmentView:
         self.count = len(boxes)
         self.cbm = round(sum(c.cbm for c in boxes), 2)
         self.kg = round(sum(c.weight_kg or 0 for c in boxes), 1)
-        self.cap, self.cap_kg = capacity(s.mode)
+        self.cap, self.cap_kg = capacity(s.project, s.mode)
         self.fill = round(100 * self.cbm / self.cap) if self.cap else None
         self.fill_kg = round(100 * self.kg / self.cap_kg) if self.cap_kg else None
         self.over = bool((self.cap and self.cbm > self.cap) or (self.cap_kg and self.kg > self.cap_kg))
@@ -325,7 +328,7 @@ class ShipmentView:
         self.etd_days = (s.etd - today).days if s.etd else None
         moving = self.stage in ("Loaded", "At sea")
         self.late = bool(moving and self.eta_days is not None and self.eta_days < 0)
-        self.soon = bool(moving and self.eta_days is not None and 0 <= self.eta_days <= SOON_DAYS)
+        self.soon = bool(moving and self.eta_days is not None and 0 <= self.eta_days <= lists.soon_days(s.project))
         sups: dict[str, int] = defaultdict(int)
         for c in boxes:
             sups[c.supplier.name if c.supplier else "No shop"] += 1
@@ -375,7 +378,7 @@ def attention(p: Project, bx: Boxes, svs: list[ShipmentView], today: date | None
             n = sv.count - sv.received
             out["gold"].append(dict(tone="gold", icon="home", title=f"{sv.name}: {n} box{'es' if n != 1 else ''} still to receive on site",
                                     detail=f"{sv.eta_text or 'arrived'} · receive them room by room", href=f"{link}#boxes"))
-        if sv.stage == "Planning" and sv.etd_days is not None and sv.etd_days <= SOON_DAYS:
+        if sv.stage == "Planning" and sv.etd_days is not None and sv.etd_days <= lists.soon_days(p):
             late = sv.etd_days < 0
             out["red" if late else "gold"].append(dict(tone="red" if late else "gold", icon="clock",
                                                        title=f"{sv.name} {'was to sail' if late else 'sails'} {s.etd.strftime('%d %b')}, not loaded yet",
@@ -411,7 +414,9 @@ def by_supplier(cartons) -> list[dict]:
     return sorted(groups.values(), key=lambda g: (-len(g["boxes"]), g["supplier"].name.lower() if g["supplier"] else "~"))
 
 
-def totals(cartons) -> dict:
+def totals(cartons, p: Project | None = None) -> dict:
     cbm = round(sum(c.cbm for c in cartons), 2)
     kg = round(sum(c.weight_kg or 0 for c in cartons), 1)
-    return dict(count=len(cartons), cbm=cbm, kg=kg, fits=fits(cbm, kg))
+    if p is None and cartons:
+        p = cartons[0].project
+    return dict(count=len(cartons), cbm=cbm, kg=kg, fits=fits(p, cbm, kg))
