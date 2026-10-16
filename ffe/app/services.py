@@ -1,8 +1,8 @@
 import re
 from collections import defaultdict
 from sqlalchemy.orm import Session
-from .models import Project, Item, Room, Carton, Payment, Supplier, ItemPrice
-from .config import CONTAINERS, STATUSES, PRICE_CURRENCIES, AREA_WORDS, CATEGORIES
+from .models import Project, Item, Room, Carton, Payment, Supplier
+from .config import CONTAINERS, STATUSES, AREA_WORDS, CATEGORIES
 from . import drawings, storage
 
 # ---- product identity: what makes two room lines the same product (routers/items.py re-exports these) ----------------
@@ -14,9 +14,10 @@ def _key(s: str) -> str:
 
 
 def product_key(item: Item) -> str:
-    """The identity of a product: name + size + finish + brand, ignoring case, spacing and how the x of a size is written."""
+    """The identity of a product: name + size + finish, ignoring case, spacing and how the x of a size is written. The brand
+    is not part of it: the item is the generic requirement, the brand bought is decided on the Buying page (buying.py)."""
     k = _key(item.name)
-    return f"{k}|{_SIZE_SEP_RE.sub('x', _key(item.size)).replace(' ', '')}|{_key(item.finish)}|{_key(item.brand)}" if k else ""
+    return f"{k}|{_SIZE_SEP_RE.sub('x', _key(item.size)).replace(' ', '')}|{_key(item.finish)}" if k else ""
 
 
 def twins(p: Project, item: Item) -> list[Item]:
@@ -126,35 +127,6 @@ def guess_kind(name: str, floor: str = "") -> str:
     if words and words[-1] in ROOM_NOUNS:
         return "room"
     return "area" if _AREA_RE.search(n) else "room"
-
-
-def set_price(item: Item, amount, currency, rate) -> None:
-    """Store a typed unit price. Prices live in CNY (every total, PDF and export reads item.unit_price); a price typed in
-    USD is converted at the project's rate and the typed USD amount is remembered so the form can show it again."""
-    currency = currency if currency in PRICE_CURRENCIES else "CNY"
-    try:
-        amount = float(amount or 0)
-    except (TypeError, ValueError):
-        amount = 0.0
-    if currency == "USD" and amount:
-        item.unit_price = round(amount * (rate or 1), 2)
-        if item.price_entry is None:
-            item.price_entry = ItemPrice()
-        item.price_entry.currency, item.price_entry.amount = "USD", amount
-    else:
-        item.unit_price = amount
-        item.price_entry = None  # delete-orphan removes the row
-
-
-def copy_price(src: Item, dst: Item) -> None:
-    """Same unit price (and the same typed currency) on another row of the same product."""
-    dst.unit_price = src.unit_price
-    if src.price_entry is not None:
-        if dst.price_entry is None:
-            dst.price_entry = ItemPrice()
-        dst.price_entry.currency, dst.price_entry.amount = src.price_entry.currency, src.price_entry.amount
-    else:
-        dst.price_entry = None
 
 
 def container_for(cbm: float) -> str:

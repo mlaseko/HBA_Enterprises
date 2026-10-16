@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Project, Item, ItemPhoto, Room
 from ..common import render, redirect, require_login, get_project, ffloat, fint
-from ..services import next_code, set_price
+from ..services import next_code
 from .items import suggestions
 from .. import storage, config
 
@@ -76,10 +76,9 @@ async def complete_draft(request: Request, item_id: int, p: Project = Depends(ge
     item.room_id = room.id if room else None
     item.category = _category(form.get("category"))
     item.qty = ffloat(form.get("qty"), 1)
-    set_price(item, ffloat(form.get("unit_price")), form.get("price_currency"), p.rate)
     item.name = (form.get("name") or "").strip()
     if not item.name:
-        db.commit()  # keep room/category/qty/price, stay a draft
+        db.commit()  # keep room/category/qty, stay a draft
         return redirect(f"/p/{p.id}/drafts?err={item.id}")
     item.draft = False
     item.code = next_code(db, p, room)

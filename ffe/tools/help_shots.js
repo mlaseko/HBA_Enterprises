@@ -30,6 +30,8 @@ const DESKTOP = [
   ['viewer', `/p/${pid}/plan?plan=${ground}`, async p => { await p.click('.page-head .actions a[href^="/media/"]'); await p.waitForTimeout(1500); }],
   ['item-new', `/p/${pid}/items/new?room=${liv}`],
   ['item-edit', `/p/${pid}/items/${ids.sofa}`],
+  ['buying', `/p/${pid}/buying`],
+  ['buying-schedule', `/p/${pid}/buying/schedule`],
   ['suppliers', `/p/${pid}/suppliers`],
   ['supplier', `/suppliers/${ids.sups['Foshan Tile Co.']}?project=${pid}`, async p => { await p.evaluate(() => { const c = document.getElementById('slink'); if (c) c.textContent = c.textContent.replace(/^https?:\/\/[^/]+/, 'https://hba-interiors.example'); }); }],
   ['payments', `/p/${pid}/payments`],
@@ -51,6 +53,7 @@ const PHONE = [
   ['phone-drafts', `/p/${pid}/drafts`],
   ['phone-plan', `/p/${pid}/plan?plan=${ground}&room=${kit}`],
   ['phone-items', `/p/${pid}/items?room=${kit}`],
+  ['phone-buying', `/p/${pid}/buying/${ids.products['Bedside wall light']}`, async p => { await p.evaluate(() => { document.documentElement.style.scrollBehavior = 'auto'; const q = document.getElementById('quotes'); window.scrollTo(0, q.getBoundingClientRect().top + window.scrollY - 72); }); await p.waitForTimeout(400); }],
   ['phone-help', `/p/${pid}/items`, async p => { await p.click('#help-btn'); await p.waitForTimeout(450); }],
 ];
 
@@ -78,10 +81,30 @@ const PHONE = [
   }
   let s = await session(1366, 850, false);
   await shoot(s.page, DESKTOP);
-  // the price row of the item form, cropped
-  await s.page.goto(`${base}/p/${pid}/items/${ids.sofa}`); await s.page.waitForLoadState('networkidle');
-  const grid = s.page.locator('.eyebrow:has-text("Quantity & price") + .grid');
-  await grid.screenshot({ path: `${out}/item-price.png` }); console.log('shot item-price');
+  // a product bought from two shops, on a taller window: what it asks for, what to order, the quotes and the shops
+  if (!only.length || only.includes('buying-product')) {
+    await s.page.setViewportSize({ width: 1366, height: 1720 });
+    await s.page.goto(`${base}/p/${pid}/buying/${ids.products['Bedside wall light']}`); await s.page.waitForLoadState('networkidle'); await s.page.waitForTimeout(350);
+    await s.page.evaluate(() => { const n = document.getElementById('help-nudge'); if (n) n.hidden = true; });
+    await s.page.screenshot({ path: `${out}/buying-product.png` }); console.log('shot buying-product');
+    await s.page.setViewportSize({ width: 1366, height: 850 });
+  }
+  // the quote form, filled in as in the shop, cropped
+  if (!only.length || only.includes('buying-quote')) {
+    await s.page.setViewportSize({ width: 820, height: 1400 });
+    await s.page.goto(`${base}/p/${pid}/buying/${ids.products['Floor tile, large-format porcelain']}#add-quote`); await s.page.waitForLoadState('networkidle');
+    await s.page.selectOption('#sup-new', '__new__');
+    await s.page.fill('#newshop-new input[name=supplier_name]', 'Nanzhuang Tile Mall'); await s.page.fill('#newshop-new input[name=supplier_city]', 'Foshan - Nanzhuang');
+    await s.page.fill('#newshop-new input[name=supplier_wechat]', 'nz_tiles');
+    const form = s.page.locator('#add-quote');
+    await form.locator('input[name=brand]').fill('Dongpeng'); await form.locator('input[name=model]').fill('DP-6120 Grey');
+    await form.locator('input[name=amount]').fill('22.5'); await form.locator('select[name=currency]').selectOption('USD');
+    await form.locator('input[name=pack_size]').fill('1.44'); await form.locator('input[name=moq]').fill('30 m²'); await form.locator('input[name=lead_time]').fill('10 days');
+    await s.page.evaluate(() => { const n = document.getElementById('help-nudge'); if (n) n.hidden = true; if (document.activeElement) document.activeElement.blur(); });
+    await s.page.waitForTimeout(250);
+    await form.screenshot({ path: `${out}/buying-quote.png` }); console.log('shot buying-quote');
+    await s.page.setViewportSize({ width: 1366, height: 850 });
+  }
   await s.ctx.close();
   s = await session(390, 844, true);
   await shoot(s.page, PHONE);

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Purchase schedule · {{ p.name }}{% endblock %}
+{% block content %}
+{% set filtering = f.category or f.floor or f.stage %}
+{% set q_ = qs ~ '&' if qs else '' %}
+{% macro amount(cny, dec=0) %}{{ sym }}{{ (cny / rate)|money(dec if not usd else 2) }}{% endmacro %}
+{% macro packs(n, word) %}{{ n }} {{ word }}{{ ('es' if word[-1:] in 'xs' else 's') if n != 1 }}{% endmacro %}
+<style media="print">@page{size:A4 landscape;margin:11mm 10mm}</style>
+<div class="page-head noprint">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/buying">Buying</a></div>
+    <h1>Purchase schedule</h1>
+    <p class="sub">Every product once: what the rooms need, what to order, the shop and its price. To review before paying, or to print (the browser's print saves a PDF).</p>
+  </div>
+  <div class="actions">
+    <nav class="seg" aria-label="Currency">
+      <a href="/p/{{ p.id }}/buying/schedule?{{ q_ }}cur=CNY" class="{{ 'on' if not usd }}">CNY</a>
+      <a href="/p/{{ p.id }}/buying/schedule?{{ q_ }}cur=USD" class="{{ 'on' if usd }}">USD</a>
+    </nav>
+    <button type="button" class="btn sec" onclick="window.print()"><svg class="ic"><use href="#i-download"/></svg>Print / PDF</button>
+    <a class="btn ghost" href="/p/{{ p.id }}/buying{% if qs %}?{{ qs }}{% endif %}"><svg class="ic"><use href="#i-arrow-left"/></svg>Buying</a>
+  </div>
+</div>
+
+<form method="get" class="card filters noprint">
+  <select name="category" class="in" aria-label="Category"><option value="">All categories</option>{% for c in CATEGORIES %}<option {{ 'selected' if f.category == c }}>{{ c }}</option>{% endfor %}</select>
+  {% if floors %}<select name="floor" class="in" aria-label="Floor"><option value="">All floors</option>{% for grp in ['Floors', 'Separate areas', 'Other'] %}{% set opts = floors|selectattr('group', 'equalto', grp)|list %}{% if opts %}<optgroup label="{{ grp }}">{% for o in opts %}<option value="{{ o.value }}" {{ 'selected' if f.floor and o.value|lower == f.floor|lower }}>{{ o.title }}</option>{% endfor %}</optgroup>{% endif %}{% endfor %}</select>{% endif %}
+  <select name="stage" class="in" aria-label="Stage"><option value="">Every stage</option>{% for st in STAGES %}<option {{ 'selected' if f.stage == st }}>{{ st }}</option>{% endfor %}</select>
+  {% if usd %}<input type="hidden" name="cur" value="USD">{% endif %}
+  <noscript><button class="btn sm">Filter</button></noscript>
+  {% if filtering %}<a class="btn ghost sm" href="/p/{{ p.id }}/buying/schedule{% if usd %}?cur=USD{% endif %}">Clear</a>{% endif %}
+</form>
+
+<article class="sched">
+  <header class="sched-head">
+    <div>
+      <div class="eyebrow">Purchase schedule{% if filtering %} · {{ [f.category, f.floor and (f.floor|floor_title if f.floor != NO_FLOOR else 'No floor'), f.stage]|select|join(' · ') }}{% endif %}</div>
+      <h2 class="sched-title">{{ p.name }}</h2>
+      <div class="small muted">{{ p.client_name }}{% if p.address %} · {{ p.address }}{% endif %} · prices in {{ 'USD' if usd else 'CNY' }}{% if usd %} at {{ p.rate }} CNY per USD{% endif %}</div>
+    </div>
+    <dl class="sched-sum">
+      <div><dt>Products</dt><dd>{{ summary.products }}</dd></div>
+      <div><dt>Rooms with a shop</dt><dd>{{ summary.covered }}<span class="of">/{{ summary.lines }}</span></dd></div>
+      <div><dt>Still to source</dt><dd>{{ (summary.stages['To source'] or 0) + (summary.stages['Quoting'] or 0) }}</dd></div>
+      <div class="tot"><dt>Committed</dt><dd>{{ amount(summary.committed) }}</dd></div>
+    </dl>
+  </header>
+
+  {% if not sections %}
+  <div class="card empty"><div class="ring"><svg class="ic"><use href="#i-file"/></svg></div><h3>Nothing to show</h3><p>{{ 'No product matches these filters.' if filtering else 'The design has no items yet.' }}</p></div>
+  {% endif %}
+
+  {% for cat, gs in sections %}
+  {% set cat_total = gs|sum(attribute='committed') %}
+  <section class="sched-sec">
+    <div class="sched-cat"><h3>{{ cat }}</h3><span>{{ gs|length }} product{{ 's' if gs|length != 1 }}{% if cat_total %} · {{ amount(cat_total) }}{% endif %}</span></div>
+    <div class="tbl sched-tbl"><table>
+      <thead><tr><th class="sc-ph"></th><th>Product</th><th>Rooms</th><th class="num">To order</th><th>Shop</th><th class="num">Unit price</th><th class="num">Total</th><th>Stage</th></tr></thead>
+      <tbody>
+      {% for g in gs %}{% set o = g.order %}{% set pus = g.purchases %}{% set best = g.best_quote %}{% set pv = [] %}{% for pu in pus %}{% set _ = pv.append(g.purchase_view(pu)) %}{% endfor %}
+      <tr>
+        <td class="sc-ph">{% if g.cover %}<img src="/media/{{ g.cover.thumb }}" alt="" loading="lazy">{% else %}<span class="none"></span>{% endif %}</td>
+        <td class="prod">
+          <a class="nm" href="/p/{{ p.id }}/buying/{{ g.product.id }}">{{ g.name }}</a>
+          <div class="codes">{{ g.codes[:6]|join(' · ') }}{% if g.codes|length > 6 %} · +{{ g.codes|length - 6 }}{% endif %}</div>
+          {% if g.item.spec %}<div class="spec">{{ g.item.spec|truncate(160) }}</div>{% endif %}
+          {% set facts = [g.item.size, g.item.finish]|select|list %}{% if g.item.brand %}{% set _ = facts.append('preferred ' ~ g.item.brand) %}{% endif %}
+          {% if facts %}<div class="facts">{{ facts|join(' · ') }}</div>{% endif %}
+        </td>
+        <td class="rooms">{% set names = [] %}{% for i in g.lines %}{% set _ = names.append(i.room.name if i.room else 'Whole house') %}{% endfor %}
+          <b>{{ g.lines|length }}</b> {{ 'room' if g.lines|length == 1 else 'rooms' }}{% if g.floors %} · {{ g.floors|join(', ') }}{% endif %}
+          <div class="small muted">{{ names[:4]|join(', ') }}{% if names|length > 4 %} +{{ names|length - 4 }}{% endif %}</div></td>
+        <td class="num qty"><b>{{ o.qty|num(2) }}</b> {{ g.unit }}{% if o.packs %}<div class="small muted">{{ packs(o.packs, g.pack_name or 'pack') }} of {{ o.pack|num(3) }}</div>{% endif %}
+          <div class="small muted">needs {{ g.needed|num(2) }}{% if g.allowance %} + {{ (g.allowance * 100)|num(1) }}%{% endif %}</div></td>
+        <td class="shop">
+          {% for v in pv %}<div class="sh"><b>{{ v.purchase.supplier.name if v.purchase.supplier else 'Shop' }}</b>{% if pus|length > 1 %} <span class="muted">· {{ v.lines|length }} room{{ 's' if v.lines|length != 1 }}</span>{% endif %}
+            {% if v.purchase.brand or v.purchase.model %}<div class="small muted">{{ [v.purchase.brand, v.purchase.model]|select|join(' · ') }}</div>{% endif %}
+            {% if v.purchase.lead_time %}<div class="small muted">Lead time: {{ v.purchase.lead_time }}</div>{% endif %}</div>
+          {% else %}{% if g.quotes %}<span class="muted">{{ g.quotes|length }} quote{{ 's' if g.quotes|length != 1 }}{% if best %}, best {{ amount(best.unit_price, 2) }}{% if best.supplier %} at {{ best.supplier.name }}{% endif %}{% endif %}</span>{% else %}<span class="muted">—</span>{% endif %}{% endfor %}
+        </td>
+        <td class="num prices">{% for v in pv %}<div>{{ amount(v.purchase.unit_price, 2) }}</div>{% endfor %}</td>
+        <td class="num total">{{ amount(g.committed) if g.committed else '' }}</td>
+        <td><span class="badge" style="--c:{{ STAGE_COLORS[g.stage] }}">{{ g.stage }}</span>{% if g.lines|length > 1 and g.stage == 'Part sourced' %}<div class="small muted">{{ g.covered }}/{{ g.lines|length }} rooms</div>{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+      {% if cat_total %}<tfoot><tr><td colspan="6" class="right">{{ cat }}</td><td class="num total">{{ amount(cat_total) }}</td><td></td></tr></tfoot>{% endif %}
+    </table></div>
+  </section>
+  {% endfor %}
+
+  {% if sections %}
+  <footer class="sched-foot">
+    <div><span class="eyebrow">Committed</span><span class="v">{{ amount(summary.committed) }}</span></div>
+    <p class="small muted">The rooms' quantities with each product's allowance, rounded up to whole packs, at the price of the shop chosen for them. Products without a shop count nothing yet.</p>
+  </footer>
+  {% endif %}
+</article>
+{% endblock %}

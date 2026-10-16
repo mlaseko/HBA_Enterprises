@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Project, Supplier, SupplierLink, Item, Payment
 from ..common import render, redirect, require_login, get_project
+from .. import buying
 
 router = APIRouter(dependencies=[Depends(require_login)])
 
@@ -80,6 +81,7 @@ async def update_supplier(request: Request, supplier_id: int, db: Session = Depe
 def delete_supplier(supplier_id: int, db: Session = Depends(get_db)):
     s = db.get(Supplier, supplier_id)
     if s:
+        buying.drop_supplier(db, s)  # its purchases and quotes go; the rooms they supplied have no shop again
         for i in s.items:
             i.supplier_id = None
         for l in db.query(SupplierLink).filter(SupplierLink.supplier_id == s.id).all():

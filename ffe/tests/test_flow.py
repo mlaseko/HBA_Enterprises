@@ -13,6 +13,23 @@ import openpyxl
 def img(color):
     b=io.BytesIO(); Image.new("RGB",(900,700),color).save(b,"JPEG"); return b.getvalue()
 
+def buy(c, pid, item_id, supplier, amount, currency="CNY", lead="", lines=None, **extra):
+    """A shop's quote on the item's product (Buying page), bought for the rooms without a shop, or for lines=[item ids].
+    supplier: an id from the list or the name of a new shop. Returns (product id, quote id)."""
+    from app.db import SessionLocal
+    from app.models import Quote
+    r=c.get(f"/p/{pid}/buying/item/{item_id}", follow_redirects=False); assert r.status_code==303, r.status_code
+    prod=int(r.headers["location"].split("?")[0].split("/")[-1])
+    data=dict(extra, amount=str(amount), currency=currency, lead_time=lead)
+    if isinstance(supplier, int): data["supplier_id"]=str(supplier)
+    else: data.update(supplier_id="__new__", supplier_name=supplier)
+    if not lines: data["buy"]="open"
+    r=c.post(f"/p/{pid}/buying/{prod}/quotes", data=data, follow_redirects=False); assert r.status_code==303 and "err=" not in r.headers["location"], r.headers
+    db=SessionLocal(); qid=db.query(Quote).filter(Quote.product_id==prod).order_by(Quote.id.desc()).first().id; db.close()
+    if lines:
+        r=c.post(f"/p/{pid}/buying/{prod}/quotes/{qid}/buy", data={"rooms":"1","line":[str(x) for x in lines]}, follow_redirects=False); assert r.status_code==303 and "err=" not in r.headers["location"], r.headers
+    return prod, qid
+
 with TestClient(app) as c:
     r=c.get("/", follow_redirects=False); assert r.status_code==200 and "Enter the app password" in r.text
     r=c.post("/login", data={"password":"wrong","next":"/"}); assert "Wrong password" in r.text
@@ -37,6 +54,9 @@ with TestClient(app) as c:
     r=c.post(f"/p/{pid}/items/new", data={"room_id":room.id,"category":"Lighting","name":"Island pendant","spec":"LED 24V","size":"300 mm","finish":"black","qty":"3","unit":"pcs","unit_price":"450","supplier_id":sup.id,"status":"Quoted","lead_time":"2 weeks"},
              files=[("photos",("a.jpg",img("red"),"image/jpeg")),("photos",("b.jpg",img("blue"),"image/jpeg"))], follow_redirects=False)
     iid=r.headers["location"].split("/")[-1]; print("item", iid)
+    db=SessionLocal(); _it=db.get(Item, int(iid)); assert _it.unit_price==0 and _it.supplier_id is None and _it.lead_time==""; db.close()  # the item form takes no shop or price
+    buy(c, pid, int(iid), sup.id, 450, lead="2 weeks")
+    db=SessionLocal(); _it=db.get(Item, int(iid)); assert _it.unit_price==450 and _it.supplier_id==sup.id and _it.lead_time=="2 weeks" and _it.status=="Quoted" and _it.purchase_id; db.close()
     r=c.get(f"/p/{pid}/items/{iid}"); assert "Island pendant" in r.text and "/media/" in r.text
     r=c.post(f"/p/{pid}/items/{iid}/status", data={"status":"Ordered"}, headers={"Accept":"application/json"}); assert r.json()["status"]=="Ordered"
     # assign supplier to some tile items quickly via db
@@ -117,7 +137,7 @@ with TestClient(app) as c:
     assert r.headers["location"].startswith(f"/p/{pid}/drafts?filled="), r.headers
     assert calls and any(b.get("type")=="image" for b in calls[-1]) and "Kivik" in [b for b in calls[-1] if b.get("type")=="text"][0]["text"]
     db=SessionLocal(); d=db.query(Item).filter(Item.project_id==int(pid), Item.draft==True).order_by(Item.id.desc()).first()
-    assert d.name=="Kivik 3-seat sofa" and d.unit_price==3999 and d.room_id==room.id and d.category=="Furniture" and "Filled in by Claude" in d.notes, (d.name, d.notes)
+    assert d.name=="Kivik 3-seat sofa" and d.unit_price==0 and "Price seen on the page: ¥3,999.00" in d.notes and d.room_id==room.id and d.category=="Furniture" and "Filled in by Claude" in d.notes, (d.name, d.notes)
     r=c.get(f"/p/{pid}/drafts?filled={d.id}"); assert "Claude filled this in" in r.text
     for ph in d.photos: db.delete(ph)
     db.delete(d); db.commit(); db.close()
@@ -165,12 +185,14 @@ with TestClient(app) as c:
     # complete: no name keeps it a draft (but remembers the rest)
     r=c.post(f"/p/{pid}/drafts/{d1}", data={"name":"  ","room_id":room.id,"category":"Lighting","qty":"2","unit_price":"120"}, follow_redirects=False)
     assert r.status_code==303 and f"err={d1}" in r.headers["location"]
-    db=SessionLocal(); it=db.get(Item,d1); assert it.draft and it.code=="" and it.qty==2 and it.unit_price==120; db.close()
+    db=SessionLocal(); it=db.get(Item,d1); assert it.draft and it.code=="" and it.qty==2 and it.unit_price==0; db.close()  # the price comes from a quote now
     r=c.get(f"/p/{pid}/drafts?err={d1}"); assert "Give it a name" in r.text
     r=c.post(f"/p/{pid}/drafts/{d1}", data={"name":"Wall sconce","room_id":room.id,"category":"Lighting","qty":"2","unit_price":"120"}, follow_redirects=False)
     assert r.status_code==303 and "saved=GF-KIT-" in r.headers["location"]
-    db=SessionLocal(); it=db.get(Item,d1); assert not it.draft and it.code.startswith("GF-KIT-") and it.total==240 and it.status=="To buy"; code=it.code
+    db=SessionLocal(); it=db.get(Item,d1); assert not it.draft and it.code.startswith("GF-KIT-") and it.total==0 and it.status=="To buy"; code=it.code
     assert sum(1 for i in db.get(_P,int(pid)).items if i.code==code)==1; db.close()  # code is unique
+    buy(c, pid, d1, sup.id, 120)
+    db=SessionLocal(); it=db.get(Item,d1); assert it.total==240 and it.status=="Quoted"; db.close()
     r=c.post(f"/p/{pid}/drafts/{d1}", data={"name":"again"}, follow_redirects=False); assert r.status_code==303  # not a draft any more: ignored
     db=SessionLocal(); assert db.get(Item,d1).name=="Wall sconce"; db.close()
     r=c.get(f"/p/{pid}/items?q=sconce"); assert "Wall sconce" in r.text and code in r.text and f'/items/{d1}"' in r.text
@@ -203,7 +225,7 @@ with TestClient(app) as c:
     r=c.get(f"/p/{pid}/items/{s0id}"); assert 'name="apply_all"' in r.text and f"{len(slabs)-1} other rooms" in r.text
     r=c.post(f"/p/{pid}/items/{s0id}", data={"room_id":room0,"category":"Tiles","name":"Floor - big porcelain slab (+ extra % for cuts)","spec":"Calacatta look, 9 mm","size":"1600 x 3200 mm","qty":"5","unit":"sqm","unit_price":"88","status":"Quoted","apply_all":"1"}, follow_redirects=False)
     db=SessionLocal(); slabs=db.query(Item).filter(Item.project_id==int(pid), Item.name=="Floor - big porcelain slab (+ extra % for cuts)").all()
-    assert all(x.spec=="Calacatta look, 9 mm" and x.size=="1600 x 3200 mm" and x.unit_price==88 for x in slabs)
+    assert all(x.spec=="Calacatta look, 9 mm" and x.size=="1600 x 3200 mm" for x in slabs)
     assert all(x.qty==qtys[x.id] for x in slabs if x.id!=s0id) and db.get(Item,s1id).status=="Ordered"; db.close()
     # without the tick only this room changes
     r=c.post(f"/p/{pid}/items/{s0id}", data={"room_id":room0,"category":"Tiles","name":"Floor - big porcelain slab (+ extra % for cuts)","spec":"Only here","qty":"5","unit":"sqm","status":"Quoted"}, follow_redirects=False)
@@ -456,40 +478,44 @@ with TestClient(app) as c:
     c.post(f"/p/{pid}/items/{dup.id}/delete", follow_redirects=False)
     db=SessionLocal(); assert db.query(ItemPin).filter(ItemPin.item_id==dup.id).count()==0 and db.query(ItemPin).filter(ItemPin.image_id==roof_id).count()==1; db.close()
     print("item dots + client plan ok")
-    # ---- prices typed in USD or CNY (stored in CNY at the project rate), the help page ----
-    from app.models import ItemPrice
-    r=c.get(f"/p/{pid}/items/new"); assert 'name="price_currency"' in r.text and 'data-remember="1"' in r.text and "<option selected>CNY</option>" in r.text
-    r=c.post(f"/p/{pid}/items/new", data={"room_ids":[str(room.id)],"category":"Lighting","name":"Brass reading light","qty":"2","unit":"pcs","unit_price":"120","price_currency":"USD","status":"Quoted"}, follow_redirects=False)
+    # ---- prices: typed on a quote in USD or CNY (kept in CNY at the project rate), never on the item form; the help page ----
+    from app.models import ItemPrice, Quote, Purchase, Product
+    r=c.get(f"/p/{pid}/items/new"); assert 'name="unit_price"' not in r.text and 'name="price_currency"' not in r.text and 'name="supplier_id"' not in r.text and 'name="lead_time"' not in r.text and "Preferred brand" in r.text
+    r=c.post(f"/p/{pid}/items/new", data={"room_ids":[str(room.id)],"category":"Lighting","name":"Brass reading light","qty":"2","unit":"pcs","unit_price":"120","price_currency":"USD","supplier_id":str(sup.id),"lead_time":"1 week","status":"To buy"}, follow_redirects=False)
     usd_id=int(r.headers["location"].split("/")[-1])
-    db=SessionLocal(); u=db.get(Item, usd_id); assert u.unit_price==852.0 and u.price_currency=="USD" and u.price_amount==120 and u.total==1704.0; db.close()
-    r=c.get(f"/p/{pid}/items/{usd_id}"); assert 'value="120"' in r.text and "<option selected>USD</option>" in r.text and "= ¥852.00" in r.text and 'data-remember' not in r.text
+    db=SessionLocal(); u=db.get(Item, usd_id); assert u.unit_price==0 and u.supplier_id is None and u.price_entry is None and u.lead_time=="" and u.total==0; db.close()
+    r=c.get(f"/p/{pid}/items/{usd_id}"); assert "No shop chosen yet" in r.text and f"/p/{pid}/buying/item/{usd_id}" in r.text and 'name="unit_price"' not in r.text
+    prod_id, q1 = buy(c, pid, usd_id, sup.id, 120, "USD", "2 weeks")
+    db=SessionLocal(); u=db.get(Item, usd_id); assert u.unit_price==852.0 and u.price_currency=="USD" and u.price_amount==120 and u.total==1704.0 and u.supplier_id==sup.id and u.lead_time=="2 weeks" and u.status=="Quoted"; db.close()
+    r=c.get(f"/p/{pid}/items/{usd_id}"); assert "Buying from" in r.text and "Foshan Tile Co." in r.text and "¥852.00 each" in r.text
     r=c.get(f"/p/{pid}/items"); assert "1,704" in r.text  # lists, totals and PDFs keep using the CNY value
-    # same product into a second room: the copy keeps the USD entry
-    r=c.post(f"/p/{pid}/items/{usd_id}", data={"room_id":room.id,"category":"Lighting","name":"Brass reading light","qty":"2","unit":"pcs","unit_price":"120","price_currency":"USD","status":"Quoted","add_room_ids":[str(r2.id)]}, follow_redirects=False)
-    db=SessionLocal(); copies=[i for i in db.query(Item).filter(Item.project_id==int(pid), Item.name=="Brass reading light").all() if i.id!=usd_id]; assert len(copies)==1 and copies[0].unit_price==852.0 and copies[0].price_currency=="USD"; cid=copies[0].id; db.close()
-    # apply to all rooms: a new USD price reaches the other room's row; switching back to CNY drops the USD memory everywhere
-    r=c.post(f"/p/{pid}/items/{usd_id}", data={"room_id":room.id,"category":"Lighting","name":"Brass reading light","qty":"2","unit":"pcs","unit_price":"130","price_currency":"USD","status":"Quoted","apply_all":"1"}, follow_redirects=False)
-    db=SessionLocal(); assert db.get(Item, cid).unit_price==923.0 and db.get(Item, cid).price_amount==130; db.close()
-    r=c.post(f"/p/{pid}/items/{usd_id}", data={"room_id":room.id,"category":"Lighting","name":"Brass reading light","qty":"2","unit":"pcs","unit_price":"900","price_currency":"CNY","status":"Quoted","apply_all":"1"}, follow_redirects=False)
+    r=c.get(f"/p/{pid}/buying/{prod_id}"); assert "typed as $120.00" in r.text and "Buying for 1 room" in r.text
+    # the same product into a second room: no shop there until it is bought for it; buying from the same quote widens its purchase
+    r=c.post(f"/p/{pid}/items/{usd_id}", data={"room_id":room.id,"category":"Lighting","name":"Brass reading light","qty":"2","unit":"pcs","status":"Quoted","add_room_ids":[str(r2.id)]}, follow_redirects=False)
+    db=SessionLocal(); copies=[i for i in db.query(Item).filter(Item.project_id==int(pid), Item.name=="Brass reading light").all() if i.id!=usd_id]; assert len(copies)==1 and copies[0].unit_price==0 and copies[0].purchase_id is None; cid=copies[0].id; db.close()
+    r=c.get(f"/p/{pid}/buying/{prod_id}"); assert "Part sourced" in r.text and "Buy for the room without a shop" in r.text
+    r=c.post(f"/p/{pid}/buying/{prod_id}/quotes/{q1}/buy", follow_redirects=False); assert r.status_code==303 and "#buying-from" in r.headers["location"]
+    db=SessionLocal(); assert db.get(Item, cid).unit_price==852.0 and db.get(Item, cid).purchase_id==db.get(Item, usd_id).purchase_id and db.query(Purchase).filter(Purchase.product_id==prod_id).count()==1; db.close()
+    # a corrected quote reaches every room bought from it; back to CNY drops the USD memory everywhere
+    r=c.post(f"/p/{pid}/buying/{prod_id}/quotes/{q1}", data={"supplier_id":str(sup.id),"amount":"130","currency":"USD","lead_time":"3 weeks"}, follow_redirects=False); assert "The rooms bought from it follow" in c.get(r.headers["location"]).text
+    db=SessionLocal(); assert db.get(Item, cid).unit_price==923.0 and db.get(Item, cid).price_amount==130 and db.get(Item, usd_id).lead_time=="3 weeks"; db.close()
+    c.post(f"/p/{pid}/buying/{prod_id}/quotes/{q1}", data={"supplier_id":str(sup.id),"amount":"900","currency":"CNY"}, follow_redirects=False)
     db=SessionLocal(); assert db.get(Item, usd_id).unit_price==900.0 and db.get(Item, usd_id).price_entry is None and db.get(Item, cid).price_entry is None and db.query(ItemPrice).filter(ItemPrice.item_id.in_([usd_id, cid])).count()==0; db.close()
-    r=c.get(f"/p/{pid}/items/{usd_id}"); assert 'value="900"' in r.text and "<option selected>CNY</option>" in r.text and "= $126.76" in r.text
-    # junk currency = CNY; a USD price of 0 stores 0 and no memory; duplicate copies the entry; deleting the item removes it
-    r=c.post(f"/p/{pid}/items/{usd_id}", data={"room_id":room.id,"category":"Lighting","name":"Brass reading light","qty":"2","unit":"pcs","unit_price":"55.5","price_currency":"EUR","status":"Quoted"}, follow_redirects=False)
-    db=SessionLocal(); assert db.get(Item, usd_id).unit_price==55.5 and db.get(Item, usd_id).price_currency=="CNY"; db.close()
-    r=c.post(f"/p/{pid}/items/{usd_id}", data={"room_id":room.id,"category":"Lighting","name":"Brass reading light","qty":"2","unit":"pcs","unit_price":"","price_currency":"USD","status":"Quoted"}, follow_redirects=False)
-    db=SessionLocal(); assert db.get(Item, usd_id).unit_price==0 and db.get(Item, usd_id).price_entry is None; db.close()
-    c.post(f"/p/{pid}/items/{usd_id}", data={"room_id":room.id,"category":"Lighting","name":"Brass reading light","qty":"2","unit":"pcs","unit_price":"99.99","price_currency":"USD","status":"Quoted"}, follow_redirects=False)
+    # junk currency = CNY; a copy starts without a shop; the item form ignores a typed price for good
+    c.post(f"/p/{pid}/buying/{prod_id}/quotes/{q1}", data={"supplier_id":str(sup.id),"amount":"55.5","currency":"EUR"}, follow_redirects=False)
+    db=SessionLocal(); assert db.get(Item, usd_id).unit_price==55.5 and db.get(Item, usd_id).price_currency=="CNY" and db.get(Quote, q1).currency=="CNY"; db.close()
+    c.post(f"/p/{pid}/items/{usd_id}", data={"room_id":room.id,"category":"Lighting","name":"Brass reading light","qty":"2","unit":"pcs","unit_price":"1","price_currency":"USD","supplier_id":"","status":"Quoted"}, follow_redirects=False)
+    db=SessionLocal(); assert db.get(Item, usd_id).unit_price==55.5 and db.get(Item, usd_id).supplier_id==sup.id; db.close()
     r=c.post(f"/p/{pid}/items/{usd_id}/duplicate", follow_redirects=False); dup_id=int(r.headers["location"].split("/")[-1])
-    db=SessionLocal(); d_=db.get(Item, dup_id); assert d_.unit_price==round(99.99*7.1,2) and d_.price_currency=="USD" and d_.price_amount==99.99; db.close()
-    r=c.get(f"/p/{pid}/items/{dup_id}"); assert 'value="99.99"' in r.text
+    db=SessionLocal(); d_=db.get(Item, dup_id); assert d_.unit_price==0 and d_.supplier_id is None and d_.purchase_id is None and d_.status=="To buy"; db.close()
     c.post(f"/p/{pid}/items/{dup_id}/delete", follow_redirects=False)
-    db=SessionLocal(); assert db.get(ItemPrice, dup_id) is None; db.close()
-    # drafts: the quick form takes the currency too
+    db=SessionLocal(); assert db.get(Item, dup_id) is None and db.query(Purchase).filter(Purchase.product_id==prod_id).count()==1; db.close()
+    # drafts: the quick form takes no price
     r=c.post(f"/p/{pid}/capture", data={"room_id":room.id,"category":"Hardware"}, files=[("photo",("d.jpg",img("gray"),"image/jpeg"))], follow_redirects=False)
     db=SessionLocal(); dr=db.query(Item).filter(Item.project_id==int(pid), Item.draft==True).order_by(Item.id.desc()).first(); db.close()  # noqa: E712
-    r=c.get(f"/p/{pid}/drafts"); assert 'name="price_currency"' in r.text
+    r=c.get(f"/p/{pid}/drafts"); assert 'name="price_currency"' not in r.text and 'name="unit_price"' not in r.text
     r=c.post(f"/p/{pid}/drafts/{dr.id}", data={"name":"Door stop","room_id":room.id,"category":"Hardware","qty":"4","unit_price":"3","price_currency":"USD"}, follow_redirects=False)
-    db=SessionLocal(); x=db.get(Item, dr.id); assert not x.draft and x.unit_price==21.3 and x.price_currency=="USD"; db.close()
+    db=SessionLocal(); x=db.get(Item, dr.id); assert not x.draft and x.unit_price==0 and x.qty==4; db.close()
     # the help page: every feature has a section; login required
     r=c.get("/help"); assert r.status_code==200 and "How to use" in r.text and 'id="prices"' in r.text and 'id="plan"' in r.text and 'id="client"' in r.text and "Quick capture" in r.text and 'href="/help"' in r.text
     assert c2.get("/help", follow_redirects=False).status_code==303
@@ -564,14 +590,15 @@ with TestClient(app) as c:
     sl.append(["","Kitchn","Other","Typo room item","","","","","",1,"pcs",10,"","","To buy","",""])  # an unknown room: whole house, with a warning
     sl.append(["(example) X","FF-BA1 - Bathroom 1","Tiles","Should be skipped","","","","","",1,"pcs",1,"","","","",""]); sl.append(["","","Paint","(example) skipped too","","","","","",1,"pcs",1,"","","","",""])
     b=io.BytesIO(); wb.save(b); r=c.post(f"/p/{pid_p}/import", files={"file":("filled.xlsx", b.getvalue())}, data={"apply":"1"}); msg=re.search(r"Imported[^<]*", r.text).group(0)
-    assert msg.startswith("Imported 12 new items, 2 new rooms, 1 new supplier.") and "Skipped 2 rows" in msg and 'Room &#34;Kitchn&#34; not found' in r.text, msg
+    assert msg.startswith("Imported 12 new items, 2 new rooms.") and "Skipped 2 rows" in msg and 'Room &#34;Kitchn&#34; not found' in r.text and "come from the Buying page now" in r.text, msg
     db=SessionLocal(); rs={x.code:x for x in db.query(Room).filter(Room.project_id==int(pid_p))}; its={i.name:i for i in db.query(Item).filter(Item.project_id==int(pid_p))}
     assert len(rs)==12 and rs["SF-STU"].floor=="Second" and rs["SF-STU"].kind=="room" and rs["SF-TER"].kind=="area" and "ZZ" not in rs and rs["FF-MBR"].floor=="First" and not any(x.name.startswith("All ") for x in rs.values())
-    assert its["Day bed"].room.code=="SF-STU" and its["Day bed"].status=="Quoted" and its["Day bed"].supplier.name=="New Supplier Co" and its["Terrace wall light"].optional and its["Floor tile"].room.code=="FF-BA1" and its["Floor tile"].code=="FF-BA1-01" and "Should be skipped" not in its
+    assert its["Day bed"].room.code=="SF-STU" and its["Day bed"].status=="Quoted" and its["Day bed"].supplier is None and its["Day bed"].unit_price==0 and db.query(Supplier).filter(Supplier.name=="New Supplier Co").count()==0 and its["Terrace wall light"].optional and its["Floor tile"].room.code=="FF-BA1" and its["Floor tile"].code=="FF-BA1-01" and "Should be skipped" not in its
     by_name=lambda n: sorted(i.room.code for i in db.query(Item).filter(Item.project_id==int(pid_p), Item.name==n))
     assert by_name("Bedside sconce")==["FF-BR1","FF-MBR","GF-GST"] and by_name("Side table")==["FF-BR1","GF-LIV"] and by_name("Ceiling paint")==["SF-STU","SF-TER"]
     assert its["Mystery lamp"].code=="ZZ-99" and its["Typo room item"].room_id is None and db.query(Item).filter(Item.project_id==int(pid_p)).count()==13  # 12 new + the bedside lamp
-    db.close()
+    day_id=its["Day bed"].id; db.close()
+    buy(c, pid_p, day_id, "New Supplier Co", 3200, lead="4 weeks")  # the shop is chosen on the Buying page, not in the sheet
     # export → edit → import: rows are matched by their code and updated in place; nothing is added twice
     r=c.get(f"/p/{pid_p}/export/items.xlsx"); assert r.status_code==200 and "items.xlsx" in r.headers["content-disposition"]
     wb2=openpyxl.load_workbook(io.BytesIO(r.content)); sl2=wb2["Shopping List"]; hdr2=[c_.value for c_ in sl2[1]]
@@ -580,20 +607,20 @@ with TestClient(app) as c:
     i_=rows["Day bed"]; sl2.cell(row=i_, column=12, value=3500); sl2.cell(row=i_, column=15, value="Ordered"); sl2.cell(row=i_, column=6, value="-"); sl2.cell(row=i_, column=10, value=2); sl2.cell(row=i_, column=2, value="SF-TER - Terrace")
     sl2.cell(row=rows["Floor tile"], column=7, value="Marazzi")
     b=io.BytesIO(); wb2.save(b); r=c.post(f"/p/{pid_p}/import", files={"file":("edited.xlsx", b.getvalue())}, data={"apply":"1"}); msg=re.search(r"Imported[^<]*", r.text).group(0)
-    assert msg.startswith("Imported 0 new items and updated 2, 0 new rooms, 0 new suppliers."), msg
+    assert msg.startswith("Imported 0 new items and updated 2, 0 new rooms.") and "1 row carries a price, supplier or lead time that differs from the app" in r.text, msg
     db=SessionLocal(); its={i.name:i for i in db.query(Item).filter(Item.project_id==int(pid_p))}; d=its["Day bed"]
-    assert d.code=="SF-STU-01" and d.room.code=="SF-TER" and d.unit_price==3500 and d.status=="Ordered" and d.spec=="" and d.qty==2 and d.supplier.name=="New Supplier Co" and d.size=="2000 mm" and d.finish=="Oak"  # blanks kept, "-" cleared, code kept
+    assert d.code=="SF-STU-01" and d.room.code=="SF-TER" and d.unit_price==3200 and d.status=="Ordered" and d.spec=="" and d.qty==2 and d.supplier.name=="New Supplier Co" and d.lead_time=="4 weeks" and d.size=="2000 mm" and d.finish=="Oak"  # blanks kept, "-" cleared, code kept; the price stays the shop's
     assert its["Floor tile"].brand=="Marazzi" and its["Floor tile"].qty==8 and db.query(Item).filter(Item.project_id==int(pid_p)).count()==13; db.close()
     # preview: the plan is shown and nothing is saved until "Apply"; the kept file is removed afterwards
     from app import storage as _stx
-    i_=rows["Day bed"]; sl2.cell(row=i_, column=12, value=3600); sl2.cell(row=i_, column=15, value="Bought")  # an unknown status: a warning, the status stays
+    i_=rows["Day bed"]; sl2.cell(row=i_, column=12, value=3600); sl2.cell(row=i_, column=15, value="Bought"); sl2.cell(row=i_, column=17, value="Deliver to the warehouse")  # an unknown status: a warning, the status stays
     sl2.append(["", "GF-LIV - Living room", "Furniture", "Preview stool","", "", "", "", "", 1, "pcs", 120, "", "", "To buy", "", ""])
     b=io.BytesIO(); wb2.save(b); r=c.post(f"/p/{pid_p}/import", files={"file":("edited2.xlsx", b.getvalue())}, data={}); h=r.text
-    assert "Check before applying" in h and "1 new item</span>" in h and "1 updated</span>" in h and "Preview stool" in h and "GF-LIV-" in h and "Price (CNY)</b>: 3,500 → 3,600" in h and 'Status &#34;Bought&#34; is not one of' in h and "Apply the import" in h, h[h.find("Check before"):h.find("Check before")+3000]
+    assert "Check before applying" in h and "1 new item</span>" in h and "1 updated</span>" in h and "Preview stool" in h and "GF-LIV-" in h and "come from the Buying page now" in h and "Price (CNY)</b>" not in h and 'Status &#34;Bought&#34; is not one of' in h and "Apply the import" in h, h[h.find("Check before"):h.find("Check before")+3000]
     key=re.search(r'name="key" value="(imports/p\d+/[a-f0-9]+\.xlsx)"', h).group(1); assert _stx.read_image(key) is not None
-    db=SessionLocal(); assert db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Day bed").one().unit_price==3500 and db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Preview stool").count()==0; db.close()  # nothing saved yet
+    db=SessionLocal(); assert db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Day bed").one().notes=="" and db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Preview stool").count()==0; db.close()  # nothing saved yet
     r=c.post(f"/p/{pid_p}/import", data={"key":key,"apply":"1"}); msg=re.search(r"Imported[^<]*", r.text).group(0); assert msg.startswith("Imported 1 new item and updated 1,"), msg
-    db=SessionLocal(); d=db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Day bed").one(); assert d.unit_price==3600 and d.status=="Ordered" and db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Preview stool").one().room.code=="GF-LIV"; db.close()
+    db=SessionLocal(); d=db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Day bed").one(); assert d.unit_price==3200 and d.notes=="Deliver to the warehouse" and d.status=="Ordered" and db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Preview stool").one().room.code=="GF-LIV"; db.close()
     assert _stx.read_image(key) is None and "no longer here" in c.post(f"/p/{pid_p}/import", data={"key":key,"apply":"1"}).text
     r=c.post(f"/p/{pid_p}/import", files={"file":("again.xlsx", b.getvalue())}, data={}); key2=re.search(r'name="key" value="([^"]+)"', r.text).group(1); assert "1 new item</span>" in r.text and "0 updated</span>" in r.text
     r=c.post(f"/p/{pid_p}/import/cancel", data={"key":key2}, follow_redirects=False); assert r.status_code==303 and _stx.read_image(key2) is None
@@ -798,22 +825,24 @@ with TestClient(app) as c:
     db=SessionLocal(); beds=[x.id for x in db.query(Room).filter(Room.project_id==int(pid_p)) if x.group=="bedroom"]; db.close(); assert len(beds)==3
     r=c.post(f"/p/{pid_p}/items/new", data={"room_ids":[str(x) for x in beds],"category":"Lighting","name":"Reading light","qty":"2","unit":"pcs","unit_price":"150","status":"To buy"}, follow_redirects=False)
     assert r.headers["location"]==f"/p/{pid_p}/items?q=Reading%20light"
+    db=SessionLocal(); _rl=db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Reading light").first().id; db.close()
+    buy(c, pid_p, _rl, "Lamp Street Co", 150)  # one quote, bought for the three bedrooms: To buy → Quoted
     r=c.get(f"/p/{pid_p}/items?view=table&category=Lighting"); h=r.text
     assert '<table class="sortable">' in h and '<th data-sort="text">Code</th>' in h and '<th class="num" data-sort="num">Total CNY</th>' in h and '<th data-sort="num">Status</th>' in h
     assert h.count('data-v="Reading light"')==3 and 'data-v="150.0"' in h and f'href="/p/{pid_p}/items?category=Lighting&amp;view=list"' in h and 'aria-current="page" title="One line per room' in h and f'href="/p/{pid_p}/items?view=table">Clear</a>' in h
     r=c.get(f"/p/{pid_p}/items?view=list&q=Reading"); h=r.text
-    assert h.count('<tr id="item-')==1 and re.search(r'data-items="\d+ \d+ \d+"', h) and '>3 rooms</a>' in h and '6 pcs</td>' in h and 'data-v="900.0">900</td>' in h and "1 item · 3 room lines" in h and 'To buy · 3</span>' in h and '<th data-sort="num">Rooms</th>' in h
+    assert h.count('<tr id="item-')==1 and re.search(r'data-items="\d+ \d+ \d+"', h) and '>3 rooms</a>' in h and '6 pcs</td>' in h and 'data-v="900.0">900</td>' in h and "1 item · 3 room lines" in h and 'Quoted · 3</span>' in h and '<th data-sort="num">Rooms</th>' in h
     assert "status-sel" not in h and "Press a column heading to sort" in h and c.get(f"/p/{pid_p}/items?view=list").text.count('<tr id="item-')>=5
     h=c.get(f"/p/{pid_p}/items").text; assert 'aria-current="page" title="One line per item' in h and h.count('<tr id="item-')>=5 and 'name="view"' not in h  # the Item list is the default view
     h=c.get(f"/p/{pid_p}/items?q=Bedside lamp").text; assert h.count('<tr id="item-')==1 and 'class="status-sel"' in h  # one room: the status dropdown right there
     db=SessionLocal(); prp=db.get(_P,int(pid_p)); gs={g["item"].name:g for g in _gi(_si(list(prp.live_items), prp))}; db.close()
-    assert len(gs["Reading light"]["rows"])==3 and gs["Reading light"]["qty"]==6 and gs["Reading light"]["total"]==900 and gs["Reading light"]["status_text"]=="To buy" and gs["Reading light"]["unit"]=="pcs" and len(gs["Reading light"]["rooms"])==3
+    assert len(gs["Reading light"]["rows"])==3 and gs["Reading light"]["qty"]==6 and gs["Reading light"]["total"]==900 and gs["Reading light"]["status_text"]=="Quoted" and gs["Reading light"]["unit"]=="pcs" and len(gs["Reading light"]["rooms"])==3
     assert len(gs["Bedside lamp"]["rows"])==1 and gs["Bedside lamp"]["rooms"][0].code=="FF-MBR" and gs["Bedside lamp"]["codes"]=="FF-MBR-01"
     db=SessionLocal(); rl_id=db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Reading light").first().id; db.close()
     c.post(f"/p/{pid_p}/items/{rl_id}/status", data={"status":"Ordered"}, headers={"Accept":"application/json"})
     db=SessionLocal(); prp=db.get(_P,int(pid_p)); g=[g for g in _gi(_si(list(prp.live_items), prp)) if g["item"].name=="Reading light"][0]; db.close()
-    assert g["status_text"]=="2 To buy, 1 Ordered" and g["status_rank"]==0 and g["price_min"]==g["price_max"]==150
-    h=c.get(f"/p/{pid_p}/items?view=list&q=Reading").text; assert 'To buy · 2</span>' in h and 'Ordered · 1</span>' in h and '<td data-v="0" class="small nowrap">' in h  and "status-sel" not in h  # sorts by the least advanced status
+    assert g["status_text"]=="2 Quoted, 1 Ordered" and g["status_rank"]==1 and g["price_min"]==g["price_max"]==150
+    h=c.get(f"/p/{pid_p}/items?view=list&q=Reading").text; assert 'Quoted · 2</span>' in h and 'Ordered · 1</span>' in h and '<td data-v="1" class="small nowrap">' in h  and "status-sel" not in h  # sorts by the least advanced status
     print("item list + sorting ok")
     # the item page: a checklist of the rooms that have this item; untick = that room's line goes, tick = a copy there
     db=SessionLocal(); rls=sorted(db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Reading light"), key=lambda i: i.id); rl=rls[0]; own=rl.room_id; others_=[i.room_id for i in rls[1:]]
@@ -931,7 +960,7 @@ with TestClient(app) as c:
         cn.execute(_text("INSERT INTO rooms (code, name) VALUES ('X', 'Old room')"))
         cn.execute(_text("INSERT INTO project_images (kind) VALUES ('floorplan')"))
         cn.execute(_text("INSERT INTO item_photos (file_key) VALUES ('p1/old.jpg')"))
-    assert _migrate(_eng)==["items.draft", "rooms.kind", "project_images.layer", "item_photos.thumb_key", "item_photos.source", "item_photos.digest"] and _migrate(_eng)==[]
+    assert _migrate(_eng)==["items.draft", "rooms.kind", "project_images.layer", "item_photos.thumb_key", "item_photos.source", "item_photos.digest", "items.purchase_id"] and _migrate(_eng)==[]
     with _eng.begin() as cn: cn.execute(_text("INSERT INTO project_images (kind, layer) VALUES ('floorplan', 'furniture')")); cn.execute(_text("INSERT INTO project_images (kind, layer) VALUES ('floorplan', 'furnishing')"))
     assert _migrate(_eng)==["project_images.layer: 1 rows relabelled"] and _migrate(_eng)==[]  # the old name of the main plan; a furniture layout stays
     with _eng.connect() as cn: assert sorted(r[0] for r in cn.execute(_text("SELECT layer FROM project_images")))==["furnishing", "main", "main"]
@@ -1101,11 +1130,11 @@ with TestClient(app) as c:
     finally:
         _st.config.STORAGE_BACKEND="local"; _st._replit_client=None
     print("shared storage ok")
-    # one product, many rooms: identity = name + size + finish + brand; another size is another product; Apply is pre-ticked only while the twins match
+    # one product, many rooms: identity = name + size + finish (the preferred brand is shared, not identity); another size is another product; Apply is pre-ticked only while the twins match
     from app.routers.items import same_item_elsewhere as _sie, product_key as _pk
     db=SessionLocal(); rids=[r.id for r in db.get(_P,int(pid)).rooms if r.kind=="room"][:3]; db.close(); assert len(rids)==3
-    def mk(room_id, size, finish="Ceramic, matt, cream", price="80"):
-        r=c.post(f"/p/{pid}/items/new", data={"room_ids":[str(room_id)],"category":"Tiles","name":"Floor tiles","size":size,"finish":finish,"qty":"20","unit":"m²","unit_price":price,"status":"To buy"}, follow_redirects=False)
+    def mk(room_id, size, finish="Ceramic, matt, cream"):
+        r=c.post(f"/p/{pid}/items/new", data={"room_ids":[str(room_id)],"category":"Tiles","name":"Floor tiles","size":size,"finish":finish,"qty":"20","unit":"m²","status":"To buy"}, follow_redirects=False)
         return int(r.headers["location"].rstrip("/").split("/")[-1])
     t1=mk(rids[0], "1200 x 600 mm"); t2=mk(rids[1], "1200×600mm"); t3=mk(rids[2], "800 * 400 mm")
     db=SessionLocal(); P=db.get(_P,int(pid)); i1,i2,i3=db.get(Item,t1),db.get(Item,t2),db.get(Item,t3)
@@ -1116,11 +1145,11 @@ with TestClient(app) as c:
     assert "only in this room so far" in c.get(f"/p/{pid}/items/{t3}").text and '<datalist id="dl-name">' in c.get(f"/p/{pid}/items/new").text
     h=c.get(f"/p/{pid}/items?view=list&q=Floor%20tiles").text; assert f'<tr id="item-{t1}"' in h and f'<tr id="item-{t3}"' in h and "2 rooms</a>" in h and "· 800 * 400 mm · Ceramic, matt, cream" in h
     c.post(f"/p/{pid}/items/{t2}/status", data={"status":"Quoted"}); assert 'name="apply_all" value="1" checked>' in c.get(f"/p/{pid}/items/{t1}").text  # status is per room: no difference that matters
-    r=c.post(f"/p/{pid}/items/{t2}", data={"room_id":rids[1],"category":"Tiles","name":"Floor tiles","size":"1200*600 mm","finish":"Ceramic, matt, cream","qty":"20","unit":"m²","unit_price":"95","status":"Quoted","lead_time":"3 weeks"}, follow_redirects=False); assert r.status_code==303
-    h=c.get(f"/p/{pid}/items/{t1}").text; assert 'name="apply_all" value="1">' in h and "The other rooms differ in price and lead time:" in h  # set up its own way: not overwritten by default
-    db=SessionLocal(); assert db.get(Item,t1).unit_price==80 and db.get(Item,t2).unit_price==95; db.close()
-    r=c.post(f"/p/{pid}/items/{t1}", data={"room_id":rids[0],"category":"Tiles","name":"Floor tiles","size":"1200 x 600 mm","finish":"Ceramic, matt, cream","qty":"20","unit":"m²","unit_price":"80","status":"To buy","apply_all":"1"}, follow_redirects=False)
-    db=SessionLocal(); assert db.get(Item,t2).unit_price==80 and db.get(Item,t2).lead_time=="" and db.get(Item,t2).status=="Quoted" and db.get(Item,t3).unit_price==80; db.close()  # ticked: twins follow, the other size untouched
+    r=c.post(f"/p/{pid}/items/{t2}", data={"room_id":rids[1],"category":"Tiles","name":"Floor tiles","size":"1200*600 mm","finish":"Ceramic, matt, cream","spec":"Rectified edge","brand":"Marazzi","qty":"20","unit":"m²","status":"Quoted"}, follow_redirects=False); assert r.status_code==303
+    h=c.get(f"/p/{pid}/items/{t1}").text; assert 'name="apply_all" value="1">' in h and "The other rooms differ in spec and preferred brand:" in h  # set up its own way: not overwritten by default
+    db=SessionLocal(); assert db.get(Item,t1).spec=="" and db.get(Item,t2).spec=="Rectified edge" and _pk(db.get(Item,t1))==_pk(db.get(Item,t2)); db.close()  # still one product: the brand is a preference
+    r=c.post(f"/p/{pid}/items/{t1}", data={"room_id":rids[0],"category":"Tiles","name":"Floor tiles","size":"1200 x 600 mm","finish":"Ceramic, matt, cream","spec":"Rectified, 9 mm","qty":"20","unit":"m²","status":"To buy","apply_all":"1"}, follow_redirects=False)
+    db=SessionLocal(); assert db.get(Item,t2).spec=="Rectified, 9 mm" and db.get(Item,t2).brand=="" and db.get(Item,t2).status=="Quoted" and db.get(Item,t3).spec=="" and db.get(Item,t3).size=="800 * 400 mm"; db.close()  # ticked: twins follow, the other size untouched
     assert 'name="apply_all" value="1" checked>' in c.get(f"/p/{pid}/items/{t1}").text and '<datalist id="dl-name">' in c.get(f"/p/{pid}/drafts").text
     print("product identity ok")
     # a document that cannot be built explains itself (the designer's route) instead of a bare 500; the client gets a plain message
@@ -1372,4 +1401,113 @@ with TestClient(app) as c:
     assert 'data-lb-group' in c2.get(f"/c/{itok}").text and 'data-full="/media/' in c.get(f"/p/{pi}/images").text
     assert 'data-full="/static/help/' in c.get("/help").text
     print("picture viewer + tick by codes ok")
+    # ---- Buying: one product across its rooms, the shops' quotes, purchases for whole rooms, the Purchase schedule ----
+    from app import buying as _bz
+    from app.models import Quote as _Q, Purchase as _Pu, Product as _Pr, SchemaMark as _SM, Supplier as _S
+    r=c.post("/projects/new", data={"client_name":"Buyers","name":"Buying house","rate":"7"}, follow_redirects=False); pid_b=int(r.headers["location"].split("/")[-1])
+    for code,name,floor in (("GF-LIV","Living room","Ground"),("GF-KIT","Kitchen","Ground"),("FF-BED","Bedroom","First")):
+        c.post(f"/p/{pid_b}/rooms", data={"code":code,"name":name,"floor":floor,"kind":"room"}, follow_redirects=False)
+    db=SessionLocal(); br={x.code:x.id for x in db.query(Room).filter(Room.project_id==pid_b)}; db.close()
+    c.post(f"/p/{pid_b}/items/new", data={"room_ids":[str(br["GF-LIV"]),str(br["GF-KIT"]),str(br["FF-BED"])],"category":"Tiles","name":"Floor tile","size":"600 x 600 mm","finish":"Grey","brand":"Marazzi","qty":"20","unit":"m²","status":"To buy"}, follow_redirects=False)
+    c.post(f"/p/{pid_b}/items/new", data={"room_ids":[str(br["GF-KIT"])],"category":"Lighting","name":"Pendant","qty":"3","unit":"pcs","status":"To buy"}, follow_redirects=False)
+    db=SessionLocal(); tl={i.room.code:i.id for i in db.query(Item).filter(Item.project_id==pid_b, Item.name=="Floor tile")}; pend=db.query(Item).filter(Item.project_id==pid_b, Item.name=="Pendant").one().id
+    db.get(Item, tl["FF-BED"]).qty=10; db.commit(); db.close()
+    r=c.get(f"/p/{pid_b}/buying"); h=r.text
+    assert r.status_code==200 and h.count('class="bu-card"')==2 and "pref. Marazzi" in h and f'href="/p/{pid_b}/buying" class="on"' in h and 'data-key="buying"' in h and "To source" in h
+    db=SessionLocal(); P=db.get(_P,pid_b); gs={g.name:g for g in _bz.groups(P)}; tile=gs["Floor tile"]
+    assert tile.needed==50 and tile.allowance==0.10 and tile.order["qty"]==55 and tile.order["packs"] is None and tile.stage=="To source" and gs["Pendant"].allowance==0 and gs["Pendant"].order["qty"]==3
+    tp=tile.product.id; pp=gs["Pendant"].product.id; db.close()
+    assert c.get(f"/p/{pid_b}/buying?stage=To%20source").text.count('class="bu-card"')==2 and c.get(f"/p/{pid_b}/buying?category=Lighting").text.count('class="bu-card"')==1 and c.get(f"/p/{pid_b}/buying?floor=First").text.count('class="bu-card"')==1
+    assert _bz.order_qty(7, 0.1, 0, "pcs")["qty"]==8 and _bz.order_qty(10, 0, 1.44, "m²")["packs"]==7 and _bz.order_qty(10, 0, 0, "m²", override=12)["qty"]==12  # whole pieces, whole boxes, by hand
+    # a quote: the shop by name (the same name is the same shop), the price in CNY or USD, a photo; nothing bought yet
+    r=c.post(f"/p/{pid_b}/buying/{tp}/quotes", data={"supplier_id":"","amount":"80"}, follow_redirects=False); assert "err=" in r.headers["location"] and r.headers["location"].endswith("#add-quote")
+    assert "Pick the shop from the list" in c.get(r.headers["location"]).text
+    r=c.post(f"/p/{pid_b}/buying/{tp}/quotes", data={"supplier_id":"__new__","supplier_name":"Shop A","supplier_city":"Foshan","brand":"Monalisa","model":"M-60","amount":"80","currency":"CNY","pack_size":"1.44","moq":"50 m²","lead_time":"2 weeks"}, files={"photo":("q.jpg",img("olive"),"image/jpeg")}, follow_redirects=False)
+    assert r.status_code==303 and "ok=" in r.headers["location"]
+    db=SessionLocal(); qa=db.query(_Q).filter(_Q.product_id==tp).one(); assert qa.supplier.name=="Shop A" and qa.supplier.city=="Foshan" and qa.unit_price==80 and qa.pack_size==1.44 and qa.thumb_key; qa_id, sa=qa.id, qa.supplier_id
+    assert all(i.purchase_id is None and i.unit_price==0 for i in db.query(Item).filter(Item.project_id==pid_b)); db.close()  # a quote alone buys nothing
+    h=c.get(f"/p/{pid_b}/buying/{tp}").text
+    assert "Shop A" in h and "¥80.00" in h and "1.44 m² per box" in h and "All rooms: 56.16 m² · 39 boxes" in h and "¥4,493" in h and "No shop chosen yet" in h and "Quoting" in h and 'data-key="buying_product"' in h
+    r=c.post(f"/p/{pid_b}/buying/{pp}/quotes", data={"supplier_id":"__new__","supplier_name":"shop a","supplier_wechat":"shopa_wx","amount":"20","currency":"USD"}, follow_redirects=False)
+    db=SessionLocal(); qp=db.query(_Q).filter(_Q.product_id==pp).one(); assert qp.supplier_id==sa and qp.unit_price==140 and qp.currency=="USD" and qp.amount==20 and db.get(_S, sa).wechat=="shopa_wx"; qp_id=qp.id; db.close()
+    r=c.post(f"/p/{pid_b}/buying/{pp}/quotes", data={"supplier_id":str(sa),"amount":""}, follow_redirects=False); db=SessionLocal(); q0=db.query(_Q).filter(_Q.product_id==pp).order_by(_Q.id.desc()).first().id; db.close()
+    r=c.post(f"/p/{pid_b}/buying/{pp}/quotes/{q0}/buy", follow_redirects=False); assert "err=" in r.headers["location"]  # no price, no buying
+    c.post(f"/p/{pid_b}/buying/{pp}/quotes/{q0}/delete", follow_redirects=False)
+    # buy for whole rooms: the ticked rooms get the shop, its price, brand and lead time; the others stay open
+    r=c.post(f"/p/{pid_b}/buying/{tp}/quotes/{qa_id}/buy", data={"rooms":"1","line":[str(tl["GF-LIV"]),str(tl["GF-KIT"])]}, follow_redirects=False); assert r.headers["location"].endswith("#buying-from")
+    db=SessionLocal(); a1,a2,a3=(db.get(Item,tl[k]) for k in ("GF-LIV","GF-KIT","FF-BED"))
+    assert a1.purchase_id==a2.purchase_id and a1.purchase_id and a3.purchase_id is None and a1.supplier_id==sa and a1.unit_price==80 and a1.lead_time=="2 weeks" and a1.status=="Quoted" and a3.status=="To buy" and a1.brand_shown=="Monalisa" and a1.brand=="Marazzi"
+    pua=a1.purchase_id; P=db.get(_P,pid_b); g=_bz.group_of(P, db.get(_Pr,tp)); assert g.stage=="Part sourced" and g.covered==2; v=g.purchase_view(db.get(_Pu,pua))
+    assert v["needed"]==40 and v["packs"]==31 and v["qty"]==44.64 and v["total"]==3571.2, v; db.close()
+    # a second shop for the room left: added and bought in one go; two shops, two pack sizes
+    c.post(f"/p/{pid_b}/buying/{tp}/quotes", data={"supplier_id":"__new__","supplier_name":"Shop B","amount":"75","currency":"CNY","pack_size":"1.2","buy":"open"}, follow_redirects=False)
+    db=SessionLocal(); qb=db.query(_Q).filter(_Q.product_id==tp, _Q.id!=qa_id).one(); qb_id, sb=qb.id, qb.supplier_id; a3=db.get(Item,tl["FF-BED"]); assert a3.supplier_id==sb and a3.unit_price==75 and a3.purchase_id!=pua; pub=a3.purchase_id
+    P=db.get(_P,pid_b); g=_bz.group_of(P, db.get(_Pr,tp)); assert g.stage=="Sourced" and len(g.purchases)==2 and g.best_quote.id==qb_id and g.order["packs"] is None and g.order["qty"]==56.64 and g.committed==4471.2, (g.order, g.committed); db.close()
+    h=c.get(f"/p/{pid_b}/buying/{tp}").text; assert "Lowest price" in h and "Buying for 2 rooms" in h and "Buying for 1 room" in h and "¥4,471" in h and "Stop buying here" in h
+    # a room moves to the other shop; a quantity set by hand; the product's allowance and pack
+    r=c.post(f"/p/{pid_b}/buying/{tp}/purchases/{pub}", data={"rooms":"1","line":[str(tl["FF-BED"]),str(tl["GF-KIT"])]}, follow_redirects=False); assert r.headers["location"].endswith(f"#purchase-{pub}")
+    db=SessionLocal(); assert db.get(Item,tl["GF-KIT"]).purchase_id==pub and db.get(Item,tl["GF-KIT"]).unit_price==75 and db.get(Item,tl["GF-LIV"]).purchase_id==pua; db.close()
+    c.post(f"/p/{pid_b}/buying/{tp}/purchases/{pua}", data={"qty":"30","notes":"Deposit paid"}, follow_redirects=False)
+    db=SessionLocal(); P=db.get(_P,pid_b); v=_bz.group_of(P, db.get(_Pr,tp)).purchase_view(db.get(_Pu,pua)); assert v["qty"]==30.24 and v["packs"]==21 and db.get(_Pu,pua).notes=="Deposit paid"; db.close()
+    c.post(f"/p/{pid_b}/buying/{tp}", data={"allowance":"5","pack_size":"1.5","pack_name":"carton","notes":"One batch"}, follow_redirects=False)
+    db=SessionLocal(); pr=db.get(_Pr,tp); assert pr.allowance==0.05 and pr.pack_size==1.5 and pr.pack_name=="carton" and pr.notes=="One batch"; db.close()
+    c.post(f"/p/{pid_b}/buying/{tp}", data={"allowance":"","pack_size":"","pack_name":"","notes":""}, follow_redirects=False)
+    db=SessionLocal(); assert db.get(_Pr,tp).allowance is None and _bz.allowance_of(db.get(_Pr,tp), "Tiles")==0.10; db.close()  # empty = the category's default again
+    # a corrected quote reaches its rooms; a deleted quote leaves what was bought from it; stopping a purchase frees its rooms
+    c.post(f"/p/{pid_b}/buying/{tp}/quotes/{qa_id}", data={"supplier_id":str(sa),"brand":"Monalisa","amount":"82","currency":"CNY","pack_size":"1.44","lead_time":"3 weeks"}, follow_redirects=False)
+    db=SessionLocal(); x=db.get(Item,tl["GF-LIV"]); assert x.unit_price==82 and x.lead_time=="3 weeks" and db.get(_Pu,pua).unit_price==82; qkeys=(db.get(_Q,qa_id).photo_key, db.get(_Q,qa_id).thumb_key); db.close()
+    c.post(f"/p/{pid_b}/buying/{tp}/quotes/{qa_id}/delete", follow_redirects=False)
+    db=SessionLocal(); assert db.get(_Q,qa_id) is None and db.get(_Pu,pua).quote_id is None and db.get(Item,tl["GF-LIV"]).unit_price==82; db.close()
+    assert all(_st.read_image(k) is None for k in qkeys if k) and "quote deleted" in c.get(f"/p/{pid_b}/buying/{tp}").text
+    r=c.post(f"/p/{pid_b}/buying/{tp}/purchases/{pua}/delete", follow_redirects=False); assert r.headers["location"].endswith("#buying-from")
+    db=SessionLocal(); x=db.get(Item,tl["GF-LIV"]); assert x.purchase_id is None and x.supplier_id is None and x.unit_price==0 and x.lead_time=="" and x.status=="To buy" and db.get(_Pu,pua) is None; db.close()
+    c.post(f"/p/{pid_b}/buying/{tp}/purchases/{pub}", data={"rooms":"1"}, follow_redirects=False)  # nothing ticked: the purchase goes
+    db=SessionLocal(); assert db.get(_Pu,pub) is None and all(db.get(Item,x).purchase_id is None and db.get(Item,x).unit_price==0 for x in tl.values()); db.close()
+    c.post(f"/p/{pid_b}/buying/{tp}/quotes/{qb_id}/buy", follow_redirects=False)  # every room without a shop
+    db=SessionLocal(); assert len({db.get(Item,x).purchase_id for x in tl.values()})==1 and db.get(Item,tl["GF-LIV"]).unit_price==75; db.close()
+    # the Purchase schedule, the item page, the client link and the purchase order follow
+    h=c.get(f"/p/{pid_b}/buying/schedule").text; assert "Purchase schedule" in h and "Shop B" in h and "Floor tile" in h and "Pendant" in h and "Quoting" in h and "Sourced" in h and "¥4,140" in h and 'data-key="buying_schedule"' in h
+    h=c.get(f"/p/{pid_b}/buying/schedule?cur=USD").text; assert "prices in USD" in h and "$591.43" in h
+    h=c.get(f"/p/{pid_b}/buying/schedule?stage=Quoting").text; assert "Pendant" in h and "Floor tile" not in h
+    h=c.get(f"/p/{pid_b}/items/{tl['GF-LIV']}").text; assert "Buying from" in h and "Shop B" in h and f"/p/{pid_b}/buying/item/{tl['GF-LIV']}" in h
+    assert c.get(f"/p/{pid_b}/buying/item/{tl['GF-LIV']}", follow_redirects=False).headers["location"]==f"/p/{pid_b}/buying/{tp}"
+    assert c.get(f"/p/{pid_b}/buying/item/{iid}", follow_redirects=False).headers["location"]==f"/p/{pid_b}/buying" and c.get(f"/p/{pid}/buying/{tp}", follow_redirects=False).headers["location"]==f"/p/{pid}/buying"  # another project's item, product
+    db=SessionLocal(); btok=db.get(_P,pid_b).client_token; db.close()
+    h=c2.get(f"/c/{btok}").text; assert "Pendant" in h and h.count('<div class="price">')==3  # no price until a shop is chosen
+    assert "Floor tile" in pdf_text(c.get(f"/p/{pid_b}/export/po/{sb}.pdf").content)
+    # renames: the whole product renamed keeps its quotes and purchases; one line renamed alone leaves them; two products merge
+    c.post(f"/p/{pid_b}/items/{tl['GF-LIV']}", data={"room_id":str(br["GF-LIV"]),"category":"Tiles","name":"Porcelain floor tile","size":"600 x 600 mm","finish":"Grey","brand":"Marazzi","qty":"20","unit":"m²","status":"Quoted","apply_all":"1"}, follow_redirects=False)
+    db=SessionLocal(); pr=db.get(_Pr,tp); assert pr is not None and pr.key==_pk(db.get(Item,tl["GF-LIV"])) and all(db.get(Item,x).name=="Porcelain floor tile" and db.get(Item,x).purchase_id for x in tl.values()) and db.query(_Q).filter(_Q.product_id==tp).count()==1; db.close()
+    c.post(f"/p/{pid_b}/items/{tl['FF-BED']}", data={"room_id":str(br["FF-BED"]),"category":"Tiles","name":"Bedroom tile","size":"600 x 600 mm","finish":"Grey","qty":"10","unit":"m²","status":"Quoted"}, follow_redirects=False)
+    db=SessionLocal(); x=db.get(Item,tl["FF-BED"]); assert x.purchase_id is None and x.unit_price==0 and x.status=="To buy" and db.get(Item,tl["GF-KIT"]).purchase_id; db.close()
+    for nm, rm in (("Wall light","GF-LIV"),("Wall lamp","FF-BED")):
+        c.post(f"/p/{pid_b}/items/new", data={"room_ids":[str(br[rm])],"category":"Lighting","name":nm,"qty":"2","unit":"pcs","status":"To buy"}, follow_redirects=False)
+    db=SessionLocal(); wl=db.query(Item).filter(Item.project_id==pid_b, Item.name=="Wall light").one().id; wm=db.query(Item).filter(Item.project_id==pid_b, Item.name=="Wall lamp").one().id; db.close()
+    p_wl,_=buy(c, pid_b, wl, sa, 50); p_wm,q_wm=buy(c, pid_b, wm, sb, 45, lines=[wm])
+    c.post(f"/p/{pid_b}/items/{wm}", data={"room_id":str(br["FF-BED"]),"category":"Lighting","name":"Wall light","qty":"2","unit":"pcs","status":"Quoted"}, follow_redirects=False)
+    db=SessionLocal(); assert db.get(_Pr,p_wm) is None and db.get(_Q,q_wm).product_id==p_wl and db.get(Item,wm).purchase_id and db.get(Item,wm).unit_price==45 and db.query(_Q).filter(_Q.product_id==p_wl).count()==2; db.close()  # one product, both quotes, the purchase kept
+    c.post(f"/p/{pid_b}/items/{wm}/delete", follow_redirects=False)
+    db=SessionLocal(); assert db.query(_Pu).filter(_Pu.product_id==p_wl).count()==1; db.close()  # the purchase left without rooms went
+    # a supplier deleted: its quotes and purchases go, the rooms it supplied have no shop again
+    c.post(f"/suppliers/{sa}/delete", follow_redirects=False)
+    db=SessionLocal(); assert db.get(_S, sa) is None and db.query(_Q).filter(_Q.supplier_id==sa).count()==0 and db.query(_Pu).filter(_Pu.supplier_id==sa).count()==0 and db.get(Item,wl).purchase_id is None and db.get(Item,wl).supplier_id is None; db.close()
+    # the one-time upgrade of prices and suppliers typed on items before quotes: "Test" and a price without a shop are cleared,
+    # a real supplier becomes a quote and a purchase (statuses kept), a draft's price goes into its notes; it runs once
+    db=SessionLocal(); tsup=_S(name="Test"); rsup=_S(name="Real Shop"); db.add_all([tsup, rsup]); db.flush()
+    def _old(name, room, code, **kw):
+        it=Item(project_id=pid_b, room_id=br[room], category="Furniture", name=name, code=code, qty=1, unit="pcs", **kw); db.add(it); db.flush(); return it.id
+    o1=_old("Old chair","GF-KIT","GF-KIT-91",supplier_id=tsup.id,unit_price=100,status="Quoted")
+    o2=_old("Old table","GF-KIT","GF-KIT-92",supplier_id=rsup.id,unit_price=500,lead_time="3 weeks",status="Ordered")
+    o3=_old("Old table","GF-LIV","GF-LIV-92",supplier_id=rsup.id,unit_price=500,lead_time="3 weeks",status="To buy")
+    o4=_old("Old lamp","GF-LIV","GF-LIV-93",unit_price=50,status="Quoted")
+    o5=_old("","GF-LIV","",unit_price=30,draft=True); rsid=rsup.id
+    db.query(_SM).filter(_SM.key==_bz.UPGRADE_MARK).delete(); db.commit()
+    done=_bz.upgrade(db); db.close(); assert done["cleared"]>=2 and done["quotes"]>=1 and done["drafts"]>=1, done
+    db=SessionLocal(); a,b_,c_,d_,e_=(db.get(Item,x) for x in (o1,o2,o3,o4,o5))
+    assert a.supplier_id is None and a.unit_price==0 and a.status=="To buy" and db.query(_S).filter(_S.name=="Test").count()==0
+    assert b_.purchase_id and b_.purchase_id==c_.purchase_id and b_.supplier_id==rsid and b_.unit_price==500 and b_.lead_time=="3 weeks" and b_.status=="Ordered" and c_.status=="Quoted"
+    q_=db.get(_Pu,b_.purchase_id).quote; assert q_.supplier_id==rsid and "before quotes existed" in q_.notes
+    assert d_.unit_price==0 and d_.status=="To buy" and e_.unit_price==0 and "Price noted at capture: ¥30.00" in e_.notes; db.close()
+    db=SessionLocal(); assert _bz.upgrade(db)=={}; db.close()  # once only
+    print("buying ok")
     print("ALL OK")

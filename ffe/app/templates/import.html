@@ -40,7 +40,6 @@
     <span class="pill {{ 'accent' if preview.rooms }}">{{ preview.rooms }} new room{{ 's' if preview.rooms != 1 }}</span>
     {% if preview.room_changes %}<span class="pill accent">{{ preview.room_changes|length }} room{{ 's' if preview.room_changes|length != 1 }} changed</span>{% endif %}
     {% if preview.floors %}<span class="pill accent">{{ preview.floors }} new floor{{ 's' if preview.floors != 1 }}</span>{% endif %}
-    <span class="pill {{ 'accent' if preview.suppliers }}">{{ preview.suppliers }} new supplier{{ 's' if preview.suppliers != 1 }}</span>
     <span class="pill">{{ preview.skipped }} skipped</span>
     <span class="pill {{ 'accent' if preview.photos }}">{{ preview.photos }} picture{{ 's' if preview.photos != 1 }}</span>
   </div>
@@ -48,7 +47,6 @@
   {% if preview.new_rooms %}<div class="mt"><span class="eyebrow">New rooms</span><div class="small">{{ preview.new_rooms|join(' · ') }}</div></div>{% endif %}
   {% if preview.new_floors %}<div class="mt"><span class="eyebrow">New floors</span><div class="small">{{ preview.new_floors|join(' · ') }} <span class="muted">(added to the floor list on the Rooms page; set the kind there)</span></div></div>{% endif %}
   {% if preview.room_changes %}<div class="mt"><span class="eyebrow">Rooms that change</span><div class="small">{{ preview.room_changes|join(' · ') }}</div></div>{% endif %}
-  {% if preview.new_suppliers %}<div class="mt"><span class="eyebrow">New suppliers</span><div class="small">{{ preview.new_suppliers|join(' · ') }}</div></div>{% endif %}
   {% if preview.changes %}
   <div class="eyebrow mt">Updated items</div>
   <div class="tbl"><table>
@@ -59,15 +57,15 @@
   {% if preview.new %}
   <div class="eyebrow mt">New items</div>
   <div class="tbl"><table>
-    <thead><tr><th>Code</th><th>Item</th><th>Room</th><th>Category</th><th class="num">Qty</th><th class="num">Price CNY</th><th>Supplier</th><th>Status</th><th>Photo</th></tr></thead>
-    <tbody>{% for n in preview.new[:300] %}<tr><td class="small muted nowrap">{{ n.code }}</td><td>{{ n.name }}</td><td class="small">{{ n.room }}</td><td class="small">{{ n.category }}</td><td class="num">{{ n.qty }}</td><td class="num">{{ n.price }}</td><td class="small">{{ n.supplier }}</td><td class="small">{{ n.status }}</td><td class="small">{% if n.photos %}<svg class="ic sm"><use href="#i-camera"/></svg> {{ n.photos }}{% endif %}</td></tr>{% endfor %}</tbody>
+    <thead><tr><th>Code</th><th>Item</th><th>Room</th><th>Category</th><th class="num">Qty</th><th>Status</th><th>Photo</th></tr></thead>
+    <tbody>{% for n in preview.new[:300] %}<tr><td class="small muted nowrap">{{ n.code }}</td><td>{{ n.name }}</td><td class="small">{{ n.room }}</td><td class="small">{{ n.category }}</td><td class="num">{{ n.qty }}</td><td class="small">{{ n.status }}</td><td class="small">{% if n.photos %}<svg class="ic sm"><use href="#i-camera"/></svg> {{ n.photos }}{% endif %}</td></tr>{% endfor %}</tbody>
   </table></div>
   {% if preview.new|length > 300 %}<div class="small muted mt">… and {{ preview.new|length - 300 }} more.</div>{% endif %}
   {% endif %}
-  {% if not (preview['items'] or preview.updated or preview.rooms or preview.suppliers or preview.deleted or preview.photos) %}<div class="alert mt">Nothing would change: every row matches what the project already has.</div>{% endif %}
+  {% if not (preview['items'] or preview.updated or preview.rooms or preview.deleted or preview.photos) %}<div class="alert mt">Nothing would change: every row matches what the project already has.</div>{% endif %}
   <form method="post" class="form-actions">
     <input type="hidden" name="key" value="{{ key }}"><input type="hidden" name="apply" value="1">{% if replace %}<input type="hidden" name="replace" value="1">{% endif %}
-    <button class="btn lg"{% if not (preview['items'] or preview.updated or preview.rooms or preview.suppliers or preview.deleted or preview.photos) %} disabled{% endif %}><svg class="ic"><use href="#i-check"/></svg>Apply the import</button>
+    <button class="btn lg"{% if not (preview['items'] or preview.updated or preview.rooms or preview.deleted or preview.photos) %} disabled{% endif %}><svg class="ic"><use href="#i-check"/></svg>Apply the import</button>
     <button class="btn ghost" formaction="/p/{{ p.id }}/import/cancel" formnovalidate><svg class="ic"><use href="#i-x"/></svg>Cancel</button>
   </form>
 </div>
@@ -75,7 +73,7 @@
 
 {% if result %}
   {% if result.error %}<div class="alert err">{{ result.error }}</div>{% else %}
-  <div class="alert">Imported {{ result['items'] }} new item{{ 's' if result['items'] != 1 }}{% if result.updated %} and updated {{ result.updated }}{% endif %}, {{ result.rooms }} new room{{ 's' if result.rooms != 1 }}, {{ result.suppliers }} new supplier{{ 's' if result.suppliers != 1 }}{% if result.photos %}, {{ result.photos }} picture{{ 's' if result.photos != 1 }} added{% endif %}. Skipped {{ result.skipped }} row{{ 's' if result.skipped != 1 }}. <a href="/p/{{ p.id }}/items">Open items →</a>
+  <div class="alert">Imported {{ result['items'] }} new item{{ 's' if result['items'] != 1 }}{% if result.updated %} and updated {{ result.updated }}{% endif %}, {{ result.rooms }} new room{{ 's' if result.rooms != 1 }}{% if result.photos %}, {{ result.photos }} picture{{ 's' if result.photos != 1 }} added{% endif %}. Skipped {{ result.skipped }} row{{ 's' if result.skipped != 1 }}. <a href="/p/{{ p.id }}/items">Open items →</a>
     {% if result.warnings %}<ul class="mt mb-0">{% for w in result.warnings %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}</div>{% endif %}
 {% endif %}
 
