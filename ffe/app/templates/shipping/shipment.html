@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% from "shipping/_tabs.html" import tabs %}
+{% block title %}{{ sv.name }} · {{ p.name }} · {{ APP_NAME }}{% endblock %}
+{% block content %}
+{% set rate = p.rate or 1 %}
+{% set idx = STAGES.index(sv.stage) %}
+{% set facts = [s.forwarder, (s.port_from ~ ' → ' ~ s.port_to) if (s.port_from or s.port_to) else '', ('B/L ' ~ s.bl_no) if s.bl_no else '', s.vessel]|select|list %}
+{% set moving = idx < 2 %}{# boxes go on or come off only before it sails #}
+{% set landed = idx >= 3 %}{# boxes are received on site once it has arrived #}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/cartons">Shipping</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/shipments">Shipments</a></div>
+    <h1>{{ sv.name }} <span class="h-note">{{ s.mode }}{% if s.container_no %} · {{ s.container_no }}{% endif %}</span></h1>
+    <p class="sub">{% if facts %}{% for f_ in facts %}<span class="nowrap">{{ f_ }}</span>{{ ' · ' if not loop.last }}{% endfor %}{% else %}Add the container number, the forwarder and the dates under Details as you get them.{% endif %}</p>
+  </div>
+  <div class="actions">
+    <span class="badge" style="--c:{{ STAGE_COLORS[sv.stage] }}" title="{{ STAGE_HELP[sv.stage] }}">{{ sv.stage }}</span>
+    <a class="btn sec" href="/p/{{ p.id }}/shipments/{{ s.id }}/loading.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Loading list</a>
+  </div>
+</div>
+{{ tabs(p, 'shipments') }}
+
+{% if ok %}<div class="alert">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert err">{{ err }}</div>{% endif %}
+{% if sv.over %}<div class="alert err"><b>More than a {{ s.mode }} takes.</b> {{ '%.2f'|format(sv.cbm) }} CBM and {{ sv.kg|num }} kg on board, for about {{ sv.cap|num }} CBM and {{ sv.cap_kg|num }} kg: take boxes off, or choose a bigger container under Details.</div>{% endif %}
+
+{# ---- the milestones ---- #}
+{% set steps = [('Gathered', 'boxes on board', none), ('Loaded', 'at the warehouse', s.loaded_on), ('Sailed', 'ETD', s.etd), ('Arrived', 'at the port' if s.arrived_on else 'ETA', s.arrived_on or s.eta), ('Delivered', 'to site', s.delivered_on)] %}
+<div class="card sp-track">
+  <ol class="sp-steps">
+    {% for title, sub, d in steps %}
+    {% set done = loop.index0 <= idx and (loop.index0 > 0 or sv.count) %}
+    <li class="{{ 'done' if done }}{{ ' now' if loop.index0 == idx + 1 }}"><span class="dot">{% if done %}<svg class="ic"><use href="#i-check"/></svg>{% else %}{{ loop.index }}{% endif %}</span>
+      <span class="t">{{ title }}</span><span class="d">{% if loop.index0 == 0 %}{{ sv.count }} box{{ 'es' if sv.count != 1 }}{% elif d %}{{ d.strftime('%d %b %Y') }}{% else %}—{% endif %}</span><span class="s">{{ sub }}</span></li>
+    {% endfor %}
+  </ol>
+  <div class="sp-next">
+    {% set nxt = {'Planning': ('loaded', 'Loaded today', 'Its rooms become Shipped.'), 'Loaded': ('sailed', 'Sailed today', 'The vessel left the port.'), 'At sea': ('arrived', 'Arrived today', 'It is at the port of arrival.'), 'Arrived': ('delivered', 'Delivered today', 'On site: receive the boxes room by room below.')}.get(sv.stage) %}
+    {% if nxt %}
+    <form method="post" action="/p/{{ p.id }}/shipments/{{ s.id }}/step" class="row">
+      <input type="hidden" name="step" value="{{ nxt[0] }}">
+      <button class="btn accent"{% if nxt[0] == 'loaded' and not sv.count %} disabled{% endif %}><svg class="ic"><use href="#i-check"/></svg>{{ nxt[1] }}</button>
+      <label class="small muted sp-on">or on <input class="in sm" type="date" name="on" max="{{ today }}" aria-label="On another day"></label>
+      <span class="small muted">{{ nxt[2] }}{% if nxt[0] == 'loaded' and not sv.count %} Add boxes first.{% endif %}</span>
+    </form>
+    {% else %}<p class="small muted mb-0"><svg class="ic sm"><use href="#i-check"/></svg> Delivered{% if sv.received < sv.count %}: {{ sv.count - sv.received }} box{{ 'es' if sv.count - sv.received != 1 }} still to receive below{% else %}, every box received{% endif %}.</p>{% endif %}
+    {% set last = {'Loaded': 'loaded', 'At sea': 'sailed', 'Arrived': 'arrived', 'Delivered': 'delivered'}.get(sv.stage) %}
+    {% if last %}<form method="post" action="/p/{{ p.id }}/shipments/{{ s.id }}/step" class="inline" data-confirm="Undo the last step? {{ 'Its rooms go back to the status their orders give them.' if last == 'loaded' else 'Only the date is cleared.' }}"><input type="hidden" name="step" value="{{ last }}"><input type="hidden" name="undo" value="1"><button class="btn sm ghost">Undo the last step</button></form>{% endif %}
+  </div>
+</div>
+
+<div class="od-head">
+  <div class="card sp-load">
+    <div class="eyebrow">On board</div>
+    <div class="sp-figs">
+      <div><span class="v">{{ sv.count }}</span><span class="l">boxes</span><span class="s">{% if sv.received %}{{ sv.received }} received on site{% else %}from {{ sv.suppliers|length }} shop{{ 's' if sv.suppliers|length != 1 }}{% endif %}</span></div>
+      <div><span class="v">{{ '%.2f'|format(sv.cbm) }}</span><span class="l">CBM</span><span class="s">{% if sv.cap %}of about {{ sv.cap|num }} in a {{ s.mode }}{% else %}{{ s.mode }}{% endif %}</span></div>
+      <div><span class="v">{{ sv.kg|num }}</span><span class="l">kg</span><span class="s">{% if sv.cap_kg %}payload up to {{ sv.cap_kg|num }}{% else %}gross weight{% endif %}</span></div>
+    </div>
+    {% if sv.cap %}
+    <div class="sp-fill{{ ' over' if sv.over }}"><span class="bar"><i style="width:{{ [sv.fill, 100]|min }}%"></i></span><span class="l">{{ sv.fill }}% of the space</span></div>
+    <div class="sp-fill kg{{ ' over' if sv.fill_kg and sv.fill_kg > 100 }}"><span class="bar"><i style="width:{{ [sv.fill_kg or 0, 100]|min }}%"></i></span><span class="l">{{ sv.fill_kg }}% of the weight</span></div>
+    {% endif %}
+    {% if sv.unmeasured %}<p class="small muted mb-0">{{ sv.unmeasured }} box{{ 'es' if sv.unmeasured != 1 }} without a size: the volume counts them as nothing.</p>{% endif %}
+    {% if sv.suppliers %}<ul class="sp-shops mini">{% for nm, n in sv.suppliers %}<li><span class="nm">{{ nm }}</span><span class="m">{{ n }} box{{ 'es' if n != 1 }}</span></li>{% endfor %}</ul>{% endif %}
+  </div>
+  <div class="card sp-dates">
+    <div class="eyebrow">Dates &amp; papers</div>
+    <dl class="kv">
+      <dt>Loaded</dt><dd>{{ s.loaded_on.strftime('%d %b %Y') if s.loaded_on else '—' }}</dd>
+      <dt>Sails (ETD)</dt><dd>{{ s.etd.strftime('%d %b %Y') if s.etd else '—' }}</dd>
+      <dt>Arrives (ETA)</dt><dd class="{{ 'bu-late' if sv.late }}">{{ s.eta.strftime('%d %b %Y') if s.eta else '—' }}{% if sv.eta_text and not s.arrived_on %} <span class="muted">· {{ sv.eta_text }}</span>{% endif %}</dd>
+      {% if s.arrived_on %}<dt>Arrived</dt><dd>{{ s.arrived_on.strftime('%d %b %Y') }}</dd>{% endif %}
+      {% if s.delivered_on %}<dt>Delivered</dt><dd>{{ s.delivered_on.strftime('%d %b %Y') }}</dd>{% endif %}
+      <dt>Container</dt><dd>{{ s.container_no or '—' }}{% if s.seal_no %} <span class="muted">· seal {{ s.seal_no }}</span>{% endif %}</dd>
+      {% if s.cost %}<dt>Freight</dt><dd>¥{{ s.cost|money }} <span class="muted">· ${{ (s.cost / rate)|money }}</span></dd>{% endif %}
+    </dl>
+    <a class="btn sm ghost" href="#details"><svg class="ic"><use href="#i-edit"/></svg>Change the details</a>
+  </div>
+</div>
+
+{# ---- the boxes, by room ---- #}
+<section class="bu-sec" id="boxes">
+  <div class="bu-sec-head"><div><h2>Boxes on board <span class="n">{{ sv.count }}</span></h2><p class="small muted">By the room they go to. {% if landed %}On site, tap the square of each box as it is checked, or receive a whole room at once.{% else %}Once it has arrived, receive them here box by box or room by room.{% endif %}</p></div>
+    {% if sv.count and sv.received < sv.count and landed %}<form method="post" action="/p/{{ p.id }}/shipments/{{ s.id }}/receive"><input type="hidden" name="all" value="1"><button class="btn sm sec"><svg class="ic"><use href="#i-check"/></svg>{{ ('All ' ~ sv.count) if not sv.received else ('The other ' ~ (sv.count - sv.received)) }} received</button></form>{% endif %}</div>
+  {% if sv.rooms %}
+  <div class="sp-rooms">
+    {% for g in sv.rooms %}{% set r = g.room %}{% set n = g.boxes|length %}{% set got = g.boxes|selectattr('received')|list|length %}
+    <div class="card sp-room{{ ' done' if got == n }}" id="room-{{ r.id if r else 0 }}">
+      <div class="sp-room-head">
+        <span class="pill accent">{{ r.code if r else 'ALL' }}</span><b>{{ r.name if r else 'Whole house' }}</b>
+        <span class="small muted">{{ n }} box{{ 'es' if n != 1 }}{% if got %} · {{ got }} received{% endif %}</span><span class="sp"></span>
+        {% if got == n %}<span class="pill green"><svg class="ic sm"><use href="#i-check"/></svg>All received</span>
+        {% elif landed %}<form method="post" action="/p/{{ p.id }}/shipments/{{ s.id }}/receive" class="inline"><input type="hidden" name="room" value="{{ r.id if r else 0 }}"><button class="btn sm ghost"><svg class="ic sm"><use href="#i-check"/></svg>Room received</button></form>{% endif %}
+      </div>
+      <ul class="sp-boxes">
+        {% for c in g.boxes %}{% set lines = bx.lines_of[c.id] %}
+        <li class="{{ 'got' if c.received }}">
+          {% if landed or c.received %}<form method="post" action="/p/{{ p.id }}/shipments/{{ s.id }}/receive" class="inline t">
+            <input type="hidden" name="c" value="{{ c.id }}">{% if c.received %}<input type="hidden" name="on" value="0">{% endif %}
+            <button class="sp-tick" title="{{ 'Not received after all' if c.received else 'Received on site' }}" aria-label="{{ 'Not received after all' if c.received else 'Received on site' }}: box {{ c.id }}"><svg class="ic"><use href="#i-check"/></svg></button></form>
+          {% else %}<span class="t sp-tick off" title="Received on site once the shipment has arrived"><svg class="ic"><use href="#i-box"/></svg></span>{% endif %}
+          <div class="who"><span class="lbl">Box #{{ c.id }}</span><span class="small muted">{{ c.supplier.name if c.supplier else '' }}</span></div>
+          <div class="what">{{ c.contents }}{% if lines %}<div class="box-lines">{% for i in lines %}<span class="pill" title="{{ i.name }}"><b>{{ i.code }}</b></span>{% endfor %}</div>{% endif %}</div>
+          <div class="size small muted">{% if c.cbm %}{{ '%.3f'|format(c.cbm) }} CBM{% endif %}{% if c.weight_kg %}<br>{{ c.weight_kg|num }} kg{% endif %}</div>
+          {% if moving %}<form method="post" action="/p/{{ p.id }}/shipments/{{ s.id }}/boxes/{{ c.id }}/remove" class="inline x" data-confirm="Take this box off {{ sv.name }}? It waits at the warehouse again{% if s.loaded_on %}, and the rooms it carries are no longer Shipped{% endif %}."><button class="btn icon sm ghost danger" title="Take off the shipment" aria-label="Take box {{ c.id }} off the shipment"><svg class="ic"><use href="#i-x"/></svg></button></form>{% else %}<span class="x"></span>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card bu-none"><svg class="ic"><use href="#i-info"/></svg><div><b>No boxes on board yet.</b> <span class="muted">Add them from the warehouse below.</span></div></div>
+  {% endif %}
+</section>
+
+{# ---- add boxes from the warehouse ---- #}
+{% if moving %}
+<section class="bu-sec" id="add">
+  <div class="bu-sec-head"><div><h2>Add boxes</h2><p class="small muted">{% if wait_groups %}At the warehouse, on no shipment: {{ wait_tot.count }} box{{ 'es' if wait_tot.count != 1 }} · {{ '%.2f'|format(wait_tot.cbm) }} CBM · {{ wait_tot.kg|num }} kg.{% else %}Nothing is waiting at the warehouse.{% endif %}</p></div>
+    {% if not more %}<a class="btn sm ghost" href="/p/{{ p.id }}/shipments/{{ s.id }}?more=1#add">Also plan with boxes still at the shops</a>{% endif %}</div>
+  {% if wait_groups or shop_groups %}
+  <form method="post" action="/p/{{ p.id }}/shipments/{{ s.id }}/boxes" class="card sp-add">
+    {% for title, groups in [('At the warehouse', wait_groups), ('Still at the shops', shop_groups)] %}{% if groups %}
+    <div class="eyebrow">{{ title }}</div>
+    {% for g in groups %}
+    <fieldset class="sp-group"><legend><b>{{ g.supplier.name if g.supplier else 'No shop' }}</b> <span class="small muted">{{ g.boxes|length }} box{{ 'es' if g.boxes|length != 1 }} · {{ '%.2f'|format(g.cbm) }} CBM · {{ g.kg|num }} kg</span></legend>
+      <div class="od-picks">{% for c in g.boxes %}<label class="check"><input type="checkbox" name="c" value="{{ c.id }}" {{ 'checked' if title == 'At the warehouse' }}><span><b>{{ c.room.code if c.room else 'ALL' }}</b> #{{ c.id }} · {{ c.contents|truncate(40, true, '…') }} <span class="muted small">{{ '%.2f'|format(c.cbm) }} CBM</span></span></label>{% endfor %}</div>
+    </fieldset>
+    {% endfor %}{% endif %}{% endfor %}
+    <div class="form-actions"><button class="btn"><svg class="ic"><use href="#i-plus"/></svg>Add the ticked boxes</button>{% if s.loaded_on %}<span class="small muted">This shipment is loaded: boxes added now count as loaded too.</span>{% endif %}</div>
+  </form>
+  {% endif %}
+</section>
+{% endif %}
+
+{# ---- details ---- #}
+<section class="bu-sec" id="details">
+  <form method="post" action="/p/{{ p.id }}/shipments/{{ s.id }}" class="card">
+    <h2>Details</h2>
+    <div class="grid g4 stack">
+      <div><label>Container or mode</label><select name="mode" class="in">{% for m in MODES %}<option {{ 'selected' if s.mode == m }}>{{ m }}</option>{% endfor %}</select></div>
+      <div><label>Container no.</label><input class="in" type="text" name="container_no" value="{{ s.container_no }}" placeholder="MSKU1234567"></div>
+      <div><label>Seal no.</label><input class="in" type="text" name="seal_no" value="{{ s.seal_no }}"></div>
+      <div><label>Bill of lading / AWB</label><input class="in" type="text" name="bl_no" value="{{ s.bl_no }}"></div>
+      <div class="span2"><label>Forwarder or shipping line</label><input class="in" type="text" name="forwarder" value="{{ s.forwarder }}" placeholder="The agent who books the container"></div>
+      <div class="span2"><label>Vessel and voyage</label><input class="in" type="text" name="vessel" value="{{ s.vessel }}"></div>
+      <div class="span2"><label>From port</label><input class="in" type="text" name="port_from" value="{{ s.port_from }}" placeholder="Nansha, Guangzhou"></div>
+      <div class="span2"><label>To port</label><input class="in" type="text" name="port_to" value="{{ s.port_to }}" placeholder="Dar es Salaam"></div>
+      <div><label>Loaded</label><input class="in" type="date" name="loaded_on" value="{{ s.loaded_on.isoformat() if s.loaded_on else '' }}"></div>
+      <div><label>Sails (ETD)</label><input class="in" type="date" name="etd" value="{{ s.etd.isoformat() if s.etd else '' }}"></div>
+      <div><label>Arrives (ETA)</label><input class="in" type="date" name="eta" value="{{ s.eta.isoformat() if s.eta else '' }}"></div>
+      <div><label>Freight &amp; charges (CNY)</label><input class="in" type="number" step="0.01" min="0" name="cost" value="{{ s.cost|plain if s.cost else '' }}" placeholder="0" inputmode="decimal"></div>
+      <div><label>Arrived</label><input class="in" type="date" name="arrived_on" value="{{ s.arrived_on.isoformat() if s.arrived_on else '' }}"></div>
+      <div><label>Delivered</label><input class="in" type="date" name="delivered_on" value="{{ s.delivered_on.isoformat() if s.delivered_on else '' }}"></div>
+      <div class="span2"><label>Notes</label><input class="in" type="text" name="notes" value="{{ s.notes }}" placeholder="Booking no., clearing agent, anything to remember"></div>
+    </div>
+    <div class="form-actions"><button class="btn"><svg class="ic"><use href="#i-check"/></svg>Save</button><span class="small muted">The loaded date makes its rooms Shipped; clearing it sends them back.</span></div>
+  </form>
+</section>
+
+<form method="post" action="/p/{{ p.id }}/shipments/{{ s.id }}/delete" class="card tight row between od-delete" data-confirm="Delete {{ sv.name }}? Its {{ sv.count }} box{{ 'es' if sv.count != 1 }} wait at the warehouse again{% if s.loaded_on %} and its rooms are no longer Shipped{% endif %}. The boxes themselves stay.">
+  <span class="small muted">Delete the shipment. Its boxes stay, back at the warehouse.</span>
+  <button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete shipment</button>
+</form>
+{% endblock %}

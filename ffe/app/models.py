@@ -44,6 +44,7 @@ class Project(Base):
     tile_extra: Mapped[float] = mapped_column(Float, default=0.12)
     budget_usd: Mapped[float] = mapped_column(Float, default=0.0)
     orders_made: Mapped[int] = mapped_column(Integer, default=0)  # the last order number given: numbers are never reused (ordering.py)
+    shipments_made: Mapped[int] = mapped_column(Integer, default=0)  # the same for shipments (shipping.py)
     status: Mapped[str] = mapped_column(String(30), default="Active")
     description: Mapped[str] = mapped_column(Text, default="")
     client_token: Mapped[str] = mapped_column(String(60), default=token)
@@ -62,6 +63,7 @@ class Project(Base):
     # Buying (buying.py): one row per product bought for this house, with its quotes and purchases.
     products: Mapped[list["Product"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="Product.id")
     orders: Mapped[list["Order"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="Order.number")
+    shipments: Mapped[list["Shipment"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="Shipment.number")
 
     @property
     def live_items(self) -> list["Item"]:
@@ -639,13 +641,44 @@ class Carton(Base):
     condition: Mapped[str] = mapped_column(String(120), default="")
     entered_by: Mapped[str] = mapped_column(String(20), default="designer")
     notes: Mapped[str] = mapped_column(String(255), default="")
+    warehouse_on: Mapped[date | None] = mapped_column(Date, nullable=True)  # arrived at the consolidation warehouse
+    shipment_id: Mapped[int | None] = mapped_column(ForeignKey("shipments.id"), nullable=True)  # the container it travels in
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     project: Mapped["Project"] = relationship(back_populates="cartons")
     supplier: Mapped["Supplier | None"] = relationship(lazy="joined")
     room: Mapped["Room | None"] = relationship(lazy="joined")
+    shipment: Mapped["Shipment | None"] = relationship(back_populates="cartons")
 
     @property
     def cbm(self):
         if self.length_cm and self.width_cm and self.height_cm:
             return round(self.length_cm * self.width_cm * self.height_cm / 1_000_000, 3)
         return 0.0
+
+
+class Shipment(Base):
+    """One consignment from the consolidation warehouse to site: a container (or LCL / air), numbered per project (never
+    reused: Project.shipments_made). Its boxes are Carton.shipment_id; the dates are its milestones (shipping.py)."""
+    __tablename__ = "shipments"
+    __table_args__ = (UniqueConstraint("project_id", "number", name="uq_shipments_project_number"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
+    number: Mapped[int] = mapped_column(Integer, default=1)
+    mode: Mapped[str] = mapped_column(String(20), default="40ft HC")  # config.SHIP_MODES: a container size, LCL or air
+    container_no: Mapped[str] = mapped_column(String(40), default="")
+    seal_no: Mapped[str] = mapped_column(String(40), default="")
+    forwarder: Mapped[str] = mapped_column(String(160), default="")  # the agent or shipping line
+    bl_no: Mapped[str] = mapped_column(String(60), default="")  # bill of lading / airway bill
+    vessel: Mapped[str] = mapped_column(String(120), default="")
+    port_from: Mapped[str] = mapped_column(String(120), default="")
+    port_to: Mapped[str] = mapped_column(String(120), default="")
+    loaded_on: Mapped[date | None] = mapped_column(Date, nullable=True)  # loaded at the warehouse: its rooms are Shipped
+    etd: Mapped[date | None] = mapped_column(Date, nullable=True)  # sails
+    eta: Mapped[date | None] = mapped_column(Date, nullable=True)  # arrives at the port (expected)
+    arrived_on: Mapped[date | None] = mapped_column(Date, nullable=True)  # arrived at the port
+    delivered_on: Mapped[date | None] = mapped_column(Date, nullable=True)  # delivered to site
+    cost: Mapped[float] = mapped_column(Float, default=0.0)  # freight and charges, CNY
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    project: Mapped["Project"] = relationship(back_populates="shipments")
+    cartons: Mapped[list["Carton"]] = relationship(back_populates="shipment", order_by="Carton.id")

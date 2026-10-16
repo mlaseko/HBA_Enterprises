@@ -56,12 +56,15 @@ const PHONE = [
   ['phone-buying', `/p/${pid}/buying/${ids.products['Bedside wall light']}`, async p => { await p.evaluate(() => { document.documentElement.style.scrollBehavior = 'auto'; const q = document.getElementById('quotes'); window.scrollTo(0, q.getBoundingClientRect().top + window.scrollY - 72); }); await p.waitForTimeout(400); }],
   ['phone-help', `/p/${pid}/items`, async p => { await p.click('#help-btn'); await p.waitForTimeout(450); }],
   ['phone-order', `/p/${pid}/orders/${ids.orders['Kaiping Sanitary Ware']}`, async p => { await p.evaluate(() => { document.documentElement.style.scrollBehavior = 'auto'; document.getElementById('wechat-box').open = true; const w = document.getElementById('wechat'); window.scrollTo(0, w.getBoundingClientRect().top + window.scrollY - 72); }); await p.waitForTimeout(400); }],
+  ['phone-receive', `/p/${pid}/shipments/${ids.shipments[0]}`, async p => { await p.evaluate(() => { document.documentElement.style.scrollBehavior = 'auto'; const b = document.getElementById('boxes'); window.scrollTo(0, b.getBoundingClientRect().top + window.scrollY - 72); }); await p.waitForTimeout(400); }],
 ];
 // pages shown whole: a taller window (name, path, height)
 const TALL = [
   ['orders', `/p/${pid}/orders`, 1500],
   ['order', `/p/${pid}/orders/${ids.orders['Kaiping Sanitary Ware']}`, 1240],
   ['tracker', `/p/${pid}/buying/tracker`, 1640],
+  ['shipments', `/p/${pid}/shipments`, 1380],
+  ['shipment', `/p/${pid}/shipments/${ids.shipments[1]}`, 1290],
 ];
 
 (async () => {

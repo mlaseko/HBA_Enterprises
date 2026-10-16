@@ -271,10 +271,15 @@ def wechat_text(ov: OrderView, p: Project, studio) -> str:
 
 
 # ---- the tracker -------------------------------------------------------------------------------------------------------------
-def tracker(p: Project, led: buying.Ledger, gs: list, ovs: list[OrderView], today: date | None = None) -> dict:
+def tracker(p: Project, led: buying.Ledger, gs: list, ovs: list[OrderView], today: date | None = None, bx=None) -> dict:
     """The figures of the Buying tracker: the money from budget to paid, what needs attention, and the breakdown by stage,
-    category and supplier. Estimated = committed + the lowest quote for the rooms still without a shop."""
+    category and supplier. Estimated = committed + the lowest quote for the rooms still without a shop. With the
+    project's boxes (shipping.Boxes) the shipping side joins: where the boxes are, the shipments and what they need."""
+    from . import shipping  # here: shipping reads the orders' Ledger through buying
     today = today or date.today()
+    bx = bx if bx is not None else shipping.Boxes(p)
+    svs = shipping.views(p, bx, today)
+    ship_att = shipping.attention(p, bx, svs, today)
     rate = p.rate or 1
     paid_share = {ov.o.id: (min(ov.paid / ov.total, 1.0) if ov.total else 0.0) for ov in ovs if ov.o.confirmed}
     on_order = {v["purchase"].id: ov.o for ov in ovs for v in ov.lines}
@@ -341,6 +346,7 @@ def tracker(p: Project, led: buying.Ledger, gs: list, ovs: list[OrderView], toda
         listed.add(ov.o.id)
         att.append(dict(tone="red", icon="clock", title=f"{ov.ref} was due {ov.ready_text}",
                         detail=f"{shop(ov)} · ready by {ov.o.ready_date.strftime('%d %b')} · ¥{ov.balance:,.0f} still to pay", href=on(ov)))
+    att += ship_att["red"]
     for ov in (x for x in ovs if x.changed):
         att.append(dict(tone="red", icon="info", title=f"{ov.ref} changed after it was confirmed",
                         detail=f"Confirmed at ¥{ov.o.confirmed_total:,.0f}, now ¥{ov.total:,.0f}: send the shop the new purchase order", href=on(ov)))
@@ -354,15 +360,24 @@ def tracker(p: Project, led: buying.Ledger, gs: list, ovs: list[OrderView], toda
         listed.add(ov.o.id)
         att.append(dict(tone="gold", icon="card", title=f"Balance before collection on {ov.ref}: ¥{ov.balance:,.0f}",
                         detail=f"{shop(ov)} · ready {ov.ready_text}, {ov.o.ready_date.strftime('%d %b')}", href=on(ov)))
+    att += ship_att["gold"]
     for ov in sorted((x for x in ovs if x.soon and x.o.id not in listed), key=lambda x: x.days):
         listed.add(ov.o.id)
         att.append(dict(tone="blue", icon="clock", title=f"{ov.ref} ready {ov.ready_text}",
                         detail=f"{shop(ov)} · {ov.o.ready_date.strftime('%d %b')} · paid in full: plan the collection", href=on(ov)))
     for ov in sorted((x for x in ovs if x.collect and x.o.id not in listed), key=lambda x: x.days):
+        left, listed_boxes = shipping.collected(bx, ov.rooms)
+        if listed_boxes and left == listed_boxes:
+            continue  # every box of it is at the warehouse or further on: the shipping lines take it from here
+        boxes_at = f"{href}/cartons?supplier={ov.o.supplier_id}" if ov.o.supplier_id else f"{href}/cartons"
         att.append(dict(tone="blue", icon="truck", title=f"{ov.ref} ready since {ov.o.ready_date.strftime('%d %b')}, paid in full",
-                        detail=f"{shop(ov)} · set its rooms to Shipped once it is collected", href=on(ov)))
+                        detail=f"{shop(ov)} · " + (f"{left} of {listed_boxes} box{'es' if listed_boxes != 1 else ''} at the warehouse: mark the others as they arrive"
+                                                   if listed_boxes else "no boxes listed yet: send the shop its packing link"),
+                        href=boxes_at if listed_boxes else on(ov)))
+    att += ship_att["blue"]
     for ov in (x for x in ovs if not x.o.confirmed):
         att.append(dict(tone="muted", icon="file", title=f"Draft {ov.ref} to confirm with the shop", detail=f"{shop(ov)} · ¥{ov.total:,.0f}", href=on(ov)))
+    att += ship_att["accent"]
     for e in unordered(p, led, ovs):
         name = e["supplier"].name if e["supplier"] is not None else "A shop"
         att.append(dict(tone="accent", icon="bag", title=f"Bought from {name}, not on an order yet",
@@ -380,6 +395,6 @@ def tracker(p: Project, led: buying.Ledger, gs: list, ovs: list[OrderView], toda
     budget = round((p.budget_usd or 0) * rate, 2)
     order = {c: n for n, c in enumerate(config.CATEGORIES)}
     return dict(budget=budget, estimated=round(estimated, 2), committed=round(committed, 2), ordered=ordered, paid=paid_all, to_pay=to_pay,
-                unpriced=unpriced, attention=att, stages=stages,
+                unpriced=unpriced, attention=att, stages=stages, boxes=bx.counts(), shipments=svs,
                 cats=sorted(cats.values(), key=lambda c: order.get(c["category"], len(order))),
                 sups=sorted(sups.values(), key=lambda r: -r["committed"]), rate=rate)

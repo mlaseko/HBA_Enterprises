@@ -54,4 +54,7 @@ MAIN_LAYER = "main"
 AREA_WORDS = ["entrance", "entry", "foyer", "lobby", "hall", "corridor", "passage", "landing", "stair", "balcon", "verandah",
               "veranda", "terrace", "patio", "porch", "deck", "carport", "driveway", "parking", "garden", "yard", "outside",
               "exterior", "external", "site", "whole house", "doors", "plant", "pool", "compound", "fence", "gate"]
-CONTAINERS = [("20ft", 28.0), ("40ft", 58.0), ("40ft HC", 68.0)]
+CONTAINERS = [("20ft", 28.0), ("40ft", 58.0), ("40ft HC", 68.0)]  # what a container takes in practice, CBM
+CONTAINER_KG = {"20ft": 28000, "40ft": 26700, "40ft HC": 26500}  # maximum payload, kg (road limits may allow less)
+SHIP_MODES = ["40ft HC", "40ft", "20ft", "LCL", "Air"]  # a shipment: a whole container, a share of one (LCL), or air freight
+LCL_UP_TO = 12.0  # CBM: below this a shipment usually goes LCL, sharing a container, rather than in a container of its own

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% from "shipping/_tabs.html" import tabs %}
+{% block title %}Shipments · {{ p.name }} · {{ APP_NAME }}{% endblock %}
+{% block content %}
+{% macro vol(t) %}{{ t.count }} box{{ 'es' if t.count != 1 }} · {{ '%.2f'|format(t.cbm) }} CBM{% if t.kg %} · {{ t.kg|num }} kg{% endif %}{% endmacro %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/cartons">Shipping</a></div>
+    <h1>Shipments <span class="h-note">{{ svs|length }} shipment{{ 's' if svs|length != 1 }}</span></h1>
+    <p class="sub">From the consolidation warehouse to site. A shipment is a container (or a share of one, or air freight): its boxes, how full it is, its dates and the loading list. Its rooms become Shipped once it is loaded and Received as its boxes reach site.</p>
+  </div>
+  <div class="actions">
+    <form method="post" action="/p/{{ p.id }}/shipments/new"><button class="btn sec"><svg class="ic"><use href="#i-plus"/></svg>New shipment</button></form>
+  </div>
+</div>
+{{ tabs(p, 'shipments') }}
+
+{% if ok %}<div class="alert">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert err">{{ err }}</div>{% endif %}
+{% if not studio.warehouse %}<div class="alert info">No consolidation warehouse in <a href="/settings#warehouse">Studio settings</a> yet: add it once and the shops' packing links and new orders show where to deliver.</div>{% endif %}
+
+<div class="sp-where">
+  {% for w, t, d in [('shop', 'At the shops', 'listed, not delivered yet'), ('warehouse', 'At the warehouse', 'waiting for a shipment'), ('shipment', 'On shipments', 'loaded or about to be'), ('site', 'Received on site', 'of ' ~ (counts.values()|sum) ~ ' boxes')] %}
+  <a class="sp-w" href="/p/{{ p.id }}/cartons?where={{ w }}" style="--c:{{ {'shop': '#9CA3AF', 'warehouse': '#F59E0B', 'shipment': '#06B6D4', 'site': '#16A34A'}[w] }}"><span class="k"><i></i>{{ t }}</span><span class="v">{{ counts[w] }}</span><span class="s">{{ d }}</span></a>
+  {% endfor %}
+</div>
+
+<section class="bu-sec" id="waiting">
+  <div class="bu-sec-head"><div><h2>Waiting at the warehouse <span class="n">{{ wait|length }}</span></h2><p class="small muted">Delivered by the shops, on no shipment yet.{% if wait_tot.fits == 'LCL' %} Together they would go <b>LCL</b>, sharing a container.{% elif wait_tot.fits %} Together they fit <b>{{ wait_tot.fits }}</b>.{% endif %}</p></div></div>
+  {% if wait %}
+  <div class="card sp-wait">
+    <div class="sp-wait-head"><div><div class="v">{{ vol(wait_tot) }}</div><div class="small muted">{{ wait_groups|length }} shop{{ 's' if wait_groups|length != 1 }}</div></div>
+      <div class="row">
+        {% for sv in planning %}<form method="post" action="/p/{{ p.id }}/shipments/{{ sv.s.id }}/boxes">{% for c in wait %}<input type="hidden" name="c" value="{{ c.id }}">{% endfor %}<button class="btn sm sec"><svg class="ic"><use href="#i-plus"/></svg>Add all to {{ sv.name }}</button></form>{% endfor %}
+        <form method="post" action="/p/{{ p.id }}/shipments/new" class="row"><input type="hidden" name="all" value="1">
+          <select name="mode" class="in sm" aria-label="Container">{% for m in MODES %}<option {{ 'selected' if wait_tot.fits == m or wait_tot.fits == '1 x ' ~ m }}>{{ m }}</option>{% endfor %}</select>
+          <button class="btn sm accent"><svg class="ic"><use href="#i-truck"/></svg>Ship them: new shipment</button></form>
+      </div>
+    </div>
+    <ul class="sp-shops">
+      {% for g in wait_groups %}<li><span class="nm">{{ g.supplier.name if g.supplier else 'No shop' }}</span><span class="m">{{ g.boxes|length }} box{{ 'es' if g.boxes|length != 1 }}</span><span class="m">{{ '%.2f'|format(g.cbm) }} CBM</span><span class="m">{{ g.kg|num }} kg</span>
+        <a class="btn sm ghost" href="/p/{{ p.id }}/cartons?where=warehouse{% if g.supplier %}&amp;supplier={{ g.supplier.id }}{% endif %}">Boxes</a></li>{% endfor %}
+    </ul>
+  </div>
+  {% else %}
+  <div class="card bu-none"><svg class="ic"><use href="#i-check"/></svg><div><b>Nothing waiting.</b> <span class="muted">{% if counts.shop %}When a shop delivers, tick its boxes below as at the warehouse.{% else %}Boxes the shops list on their packing links show up here once they reach the warehouse.{% endif %}</span></div></div>
+  {% endif %}
+</section>
+
+{% if shop_groups %}
+<section class="bu-sec" id="at-shops">
+  <div class="bu-sec-head"><div><h2>Still at the shops <span class="n">{{ shop_tot.count }}</span></h2><p class="small muted">Listed by the shops, not delivered to the warehouse yet: {{ vol(shop_tot) }}. When a shop delivers, mark its boxes in one press.</p></div></div>
+  <div class="card sp-wait">
+    <ul class="sp-shops">
+      {% for g in shop_groups %}<li><span class="nm">{{ g.supplier.name if g.supplier else 'No shop' }}</span><span class="m">{{ g.boxes|length }} box{{ 'es' if g.boxes|length != 1 }}</span><span class="m">{{ '%.2f'|format(g.cbm) }} CBM</span><span class="m">{{ g.kg|num }} kg</span>
+        <form method="post" action="/p/{{ p.id }}/cartons/bulk" class="inline"><input type="hidden" name="action" value="warehouse"><input type="hidden" name="next" value="/p/{{ p.id }}/shipments#waiting">{% for c in g.boxes %}<input type="hidden" name="c" value="{{ c.id }}">{% endfor %}<button class="btn sm sec"><svg class="ic"><use href="#i-check"/></svg>Delivered to the warehouse</button></form></li>{% endfor %}
+    </ul>
+  </div>
+</section>
+{% endif %}
+
+{% for st, group in by_stage %}{% if group %}
+<section class="bu-sec">
+  <div class="group-title"><h2>{{ st }}</h2><span class="n">{{ group|length }} · {{ STAGE_HELP[st] }}</span></div>
+  <div class="od-grid">
+    {% for sv in group %}{% set s = sv.s %}
+    <a class="od-card sp-card" href="/p/{{ p.id }}/shipments/{{ s.id }}" style="--c:{{ STAGE_COLORS[sv.stage] }}">
+      <span class="od-top"><span class="ref">{{ sv.name }}</span><span class="badge" style="--c:{{ STAGE_COLORS[sv.stage] }}">{{ sv.stage }}</span></span>
+      <span class="shop">{{ s.mode }}{% if s.container_no %} · {{ s.container_no }}{% endif %}</span>
+      <span class="m">{{ sv.count }} box{{ 'es' if sv.count != 1 }}{% if sv.count %} · {{ '%.2f'|format(sv.cbm) }} CBM · {{ sv.kg|num }} kg{% endif %}{% if s.forwarder %} · {{ s.forwarder }}{% endif %}</span>
+      {% if s.etd or s.eta %}<span class="m ready{{ ' late' if sv.late }}{{ ' soon' if sv.soon }}"><svg class="ic sm"><use href="#i-clock"/></svg>{% if s.etd %}Sails {{ s.etd.strftime('%d %b') }}{% endif %}{% if s.etd and s.eta %} · {% endif %}{% if s.eta %}arrives {{ s.eta.strftime('%d %b') }}{% endif %}{% if sv.eta_text %} · {{ sv.eta_text }}{% endif %}</span>{% endif %}
+      {% if sv.stage in ('Arrived', 'Delivered') %}<span class="m">{{ sv.received }} of {{ sv.count }} received on site</span>{% endif %}
+      {% if sv.cap %}<span class="sp-fill{{ ' over' if sv.over }}"><span class="bar"><i style="width:{{ [sv.fill, 100]|min }}%"></i></span><span class="l">{{ sv.fill }}% of {{ sv.cap|num }} CBM{% if sv.over %} · too full{% endif %}</span></span>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}{% endfor %}
+
+{% if not svs %}
+<div class="card empty">
+  <div class="ring"><svg class="ic"><use href="#i-truck"/></svg></div>
+  <h3>No shipments yet</h3>
+  <p>When the shops have delivered to the warehouse, put their boxes on a shipment: a container, a share of one or air freight. Record its container number and dates as it goes, and receive its boxes room by room on site. <a href="#help">How shipping works</a></p>
+</div>
+{% endif %}
+{% endblock %}

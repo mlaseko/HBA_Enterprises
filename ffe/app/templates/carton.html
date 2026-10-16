@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "shipping/_tabs.html" import tabs %}
+{% from "shipping/_parts.html" import where_badge, box_fields %}
+{% block title %}Box {{ c.id }} · {{ p.name }} · {{ APP_NAME }}{% endblock %}
+{% block content %}
+{% set bn, bt = pos.get(c.id, (1,1)) %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/cartons">Boxes</a></div>
+    <h1>{{ c.room.label if c.room else 'ALL - Whole house' }} <span class="h-note">Box {{ bn }} of {{ bt }} · #{{ c.id }}</span></h1>
+    <p class="sub">{{ c.supplier.name if c.supplier else 'No shop' }}{% if c.entered_by == 'supplier' %} · listed by the shop on its packing link{% endif %}</p>
+  </div>
+  <div class="actions"><div class="box-where">{{ where_badge(c, ships, p, WHERE_TITLES, WHERE_COLORS, STAGE_COLORS) }}</div></div>
+</div>
+
+<form method="post" action="/p/{{ p.id }}/cartons/{{ c.id }}" class="card">
+  <input type="hidden" name="next" value="/p/{{ p.id }}/cartons#box-{{ c.id }}">
+  <h2>The box</h2>
+  {{ box_fields(p, suppliers, picks, c, ticked, rest) }}
+  {% if not c.shipment_id and not c.received %}
+  <div class="grid g4 stack mt"><div><label>At the warehouse since <span class="muted small">(empty = not there yet)</span></label><input class="in" type="date" name="warehouse_on" value="{{ c.warehouse_on.isoformat() if c.warehouse_on else '' }}"></div></div>
+  {% endif %}
+  <div class="form-actions"><button class="btn"><svg class="ic"><use href="#i-check"/></svg>Save</button><a class="btn ghost" href="/p/{{ p.id }}/cartons#box-{{ c.id }}">Back to the boxes</a></div>
+</form>
+
+{% if lines %}
+<div class="card">
+  <h2>The items it holds</h2>
+  <ul class="box-holds">
+    {% for i in lines %}<li><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.code }}</a> {{ i.name }}{% if i.size %} <span class="muted">· {{ i.size }}</span>{% endif %} <span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status }}</span>
+      <span class="small muted">{% set others = bx.boxes_of[i.id]|length %}{{ 'its only box' if others == 1 else 'one of its ' ~ others ~ ' boxes' }}</span></li>{% endfor %}
+  </ul>
+  <p class="small muted mb-0">An item is Shipped once all its boxes are loaded, and Received once all are received on site.</p>
+</div>
+{% endif %}
+{% endblock %}

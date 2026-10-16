@@ -1,0 +1,37 @@
+{# Pieces of the Shipping pages: where a box is, the tick list of the items inside a box, and the box form's fields. #}
+{% from "_macros.html" import room_options %}
+
+{% macro where_badge(c, ships, p, WHERE_TITLES, WHERE_COLORS, STAGE_COLORS) %}
+{%- set w = 'site' if c.received else ('shipment' if c.shipment_id else ('warehouse' if c.warehouse_on else 'shop')) -%}
+{%- if w == 'shipment' and ships.get(c.shipment_id) %}{% set sv = ships[c.shipment_id] %}
+<a class="badge" style="--c:{{ STAGE_COLORS[sv.stage] }}" href="/p/{{ p.id }}/shipments/{{ c.shipment_id }}">{{ sv.name }}</a>
+<div class="xs muted">{% if sv.stage in ('Arrived', 'Delivered') and sv.eta_text %}{{ sv.eta_text|capitalize }}{% else %}{{ sv.stage }}{% if sv.eta_text %} · {{ sv.eta_text }}{% endif %}{% endif %}</div>
+{%- else %}
+<span class="badge" style="--c:{{ WHERE_COLORS[w] }}">{{ WHERE_TITLES[w] }}</span>
+{%- if w == 'warehouse' %}<div class="xs muted">since {{ c.warehouse_on.strftime('%d %b') }}</div>{% elif w == 'site' and c.received_at %}<div class="xs muted">{{ c.received_at.strftime('%d %b') }}</div>{% endif %}
+{%- endif %}
+{% endmacro %}
+
+{% macro pick_codes(picks, ticked=none, rooms=true) %}
+{% set ticked = ticked or [] %}
+<div class="pick-codes" data-pick-codes>
+  {% for x in picks %}
+  <label class="pick-code" data-room="{{ x.room }}" data-sup="{{ x.sup }}"><input type="checkbox" name="code" value="{{ x.code }}" {{ 'checked' if x.code in ticked }}><span><b>{{ x.code }}</b> {{ x.name }}{% if x.size %} <span class="muted">· {{ x.size }}</span>{% endif %}{% if rooms %} <span class="muted">· {{ x.room_label }}</span>{% endif %}</span></label>
+  {% endfor %}
+  <p class="small muted pick-none"{% if picks %} hidden{% endif %}>No items {{ 'of this shop ' if picks }}for this room yet: type the codes below.</p>
+</div>
+{% endmacro %}
+
+{% macro box_fields(p, suppliers, picks, c=none, ticked=none, rest='', supplier_field=true) %}
+<div class="grid stack g4">
+  {% if supplier_field %}<div><label>Shop</label><select name="supplier_id" class="in"><option value="">—</option>{% for sp in suppliers %}<option value="{{ sp.id }}" {{ 'selected' if c and c.supplier_id == sp.id }}>{{ sp.name }}</option>{% endfor %}</select></div>{% endif %}
+  <div><label>Install in</label><select name="room_id" class="in" required>{{ room_options(p.rooms, c.room_id if c else none) }}</select></div>
+  <div class="{{ 'span2' if supplier_field else 'span3' }}"><label>What is inside</label><input class="in" type="text" name="contents" value="{{ c.contents if c else '' }}" placeholder="Floor slab 1200x2400, 2 pieces" required></div>
+  <div class="span4"><label>The items inside <span class="muted small">(tick them: the room's status follows the box)</span></label>{{ pick_codes(picks, ticked) }}</div>
+  <div class="span2"><label>Other codes or notes</label><input class="in" type="text" name="item_codes" value="{{ rest }}" placeholder="Codes not in the list, or 'x2'"></div>
+  <div><label>Qty inside</label><input class="in" type="number" step="0.01" name="qty" value="{{ c.qty|plain if c else 1 }}" inputmode="decimal"></div>
+  <div><label>Weight kg</label><input class="in" type="number" step="0.1" name="weight_kg" value="{{ c.weight_kg|plain if c and c.weight_kg else '' }}" placeholder="0" inputmode="decimal"></div>
+  <div class="span2"><label>L × W × H (cm)</label><div class="field-row"><input class="in" type="number" step="0.1" name="length_cm" placeholder="L" value="{{ c.length_cm|plain if c and c.length_cm else '' }}" inputmode="decimal"><input class="in" type="number" step="0.1" name="width_cm" placeholder="W" value="{{ c.width_cm|plain if c and c.width_cm else '' }}" inputmode="decimal"><input class="in" type="number" step="0.1" name="height_cm" placeholder="H" value="{{ c.height_cm|plain if c and c.height_cm else '' }}" inputmode="decimal"></div></div>
+  <div class="span2"><label>Notes</label><input class="in" type="text" name="notes" value="{{ c.notes if c else '' }}" placeholder="Fragile, keep upright, pallet no."></div>
+</div>
+{% endmacro %}

@@ -43,6 +43,9 @@ COLUMN_MIGRATIONS = [
     ("item_photos", "digest", "VARCHAR(40) NOT NULL DEFAULT ''"),  # the fingerprint of a photo ('' = not computed yet)
     ("items", "purchase_id", "INTEGER"),  # the purchase that supplies the room line (buying.py); NULL = no supplier chosen yet
     ("projects", "orders_made", "INTEGER NOT NULL DEFAULT 0"),  # the last order number given, so a deleted order's number is not reused
+    ("projects", "shipments_made", "INTEGER NOT NULL DEFAULT 0"),  # the last shipment number given (never reused)
+    ("cartons", "warehouse_on", "DATE"),  # the day a box arrived at the consolidation warehouse
+    ("cartons", "shipment_id", "INTEGER"),  # the shipment (container) a box travels in
     ("purchases", "order_id", "INTEGER"),  # the order a purchase is on (ordering.py); NULL = not ordered yet
     ("payments", "order_id", "INTEGER"),  # the order a payment pays; NULL = paid to the supplier in general
     ("settings", "warehouse_name", "VARCHAR(160) NOT NULL DEFAULT ''"),  # the consolidation warehouse the shops deliver to

@@ -647,3 +647,41 @@
     });
   });
 })();
+
+// Box forms (Boxes page, a box's page, the shop's packing link): the tick list of the items inside shows only the lines of
+// the room chosen (and of the shop chosen, when the form has a shop); a ticked line always stays in view.
+(function () {
+  document.querySelectorAll('[data-pick-codes]').forEach(function (box) {
+    var form = box.closest('form'); if (!form) return;
+    var room = form.querySelector('select[name=room_id]'), sup = form.querySelector('select[name=supplier_id]'), none = box.querySelector('.pick-none');
+    function apply() {
+      var r = room ? room.value : '', s = sup ? sup.value : '', n = 0;
+      box.querySelectorAll('label[data-room]').forEach(function (l) {
+        var show = l.querySelector('input').checked || ((!r || l.dataset.room === r) && (!s || l.dataset.sup === s));
+        l.hidden = !show; if (show) n++;
+      });
+      if (none) none.hidden = n > 0;
+    }
+    if (room) room.addEventListener('change', apply);
+    if (sup) sup.addEventListener('change', apply);
+    apply();
+  });
+})();
+
+// The Boxes page: the bar acts on the ticked boxes (its buttons wait for a tick); the header box ticks all shown.
+(function () {
+  var bar = document.querySelector('form.box-bar'); if (!bar) return;
+  var boxes = [].slice.call(document.querySelectorAll('input.box-sel')), all = document.querySelector('input.box-all');
+  var count = bar.querySelector('.count'), hint = count.textContent, btns = [].slice.call(bar.querySelectorAll('button[name=action]'));
+  function refresh() {
+    var n = 0;
+    boxes.forEach(function (b) { var r = b.closest('tr'); if (r) r.classList.toggle('selected', b.checked); if (b.checked) n++; });
+    bar.classList.toggle('has-sel', n > 0);
+    btns.forEach(function (b) { b.disabled = n === 0; });
+    count.textContent = n ? n + ' box' + (n === 1 ? '' : 'es') + ' ticked' : hint;
+    if (all) { all.checked = n > 0 && n === boxes.length; all.indeterminate = n > 0 && n < boxes.length; }
+  }
+  if (all) all.addEventListener('change', function () { boxes.forEach(function (b) { b.checked = all.checked; }); refresh(); });
+  boxes.forEach(function (b) { b.addEventListener('change', refresh); });
+  refresh();
+})();

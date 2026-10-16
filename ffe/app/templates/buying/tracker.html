@@ -48,6 +48,29 @@
   {% endif %}
 </section>
 
+{% if p.cartons or t.shipments %}
+<section class="bu-sec">
+  <div class="bu-sec-head"><div><h2>Shipping</h2><p class="small muted">Where the boxes are, and the shipments under way.</p></div><a class="btn sm ghost" href="/p/{{ p.id }}/shipments">Shipments</a></div>
+  <div class="sp-where">
+    {% for w, title, color in [('shop', 'At the shops', '#9CA3AF'), ('warehouse', 'At the warehouse', '#F59E0B'), ('shipment', 'On shipments', '#06B6D4'), ('site', 'Received on site', '#16A34A')] %}
+    <a class="sp-w" href="/p/{{ p.id }}/cartons?where={{ w }}" style="--c:{{ color }}"><span class="k"><i></i>{{ title }}</span><span class="v">{{ t.boxes[w] }}</span><span class="s">box{{ 'es' if t.boxes[w] != 1 }}</span></a>
+    {% endfor %}
+  </div>
+  {% set going = t.shipments|rejectattr('stage', 'equalto', 'Delivered')|list %}
+  {% if going %}
+  <div class="tbl"><table>
+    <thead><tr><th>Shipment</th><th>Stage</th><th class="num">Boxes</th><th class="num">CBM</th><th>Sails</th><th>Arrives</th></tr></thead>
+    <tbody>{% for sv in going %}
+      <tr><td><a class="b" href="/p/{{ p.id }}/shipments/{{ sv.s.id }}">{{ sv.name }}</a><div class="small muted">{{ sv.s.mode }}{% if sv.s.container_no %} · {{ sv.s.container_no }}{% endif %}</div></td>
+        <td><span class="badge" style="--c:{{ SHIP_COLORS[sv.stage] }}">{{ sv.stage }}</span></td><td class="num">{{ sv.count }}</td><td class="num">{{ '%.2f'|format(sv.cbm) }}</td>
+        <td class="small nowrap">{{ sv.s.etd.strftime('%d %b') if sv.s.etd else '—' }}</td>
+        <td class="small nowrap{{ ' bu-late' if sv.late }}">{{ sv.s.eta.strftime('%d %b') if sv.s.eta else '—' }}{% if sv.eta_text %}<div class="muted">{{ sv.eta_text }}</div>{% endif %}</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+  {% endif %}
+</section>
+{% endif %}
+
 <section class="bu-sec">
   <div class="bu-sec-head"><div><h2>By stage</h2><p class="small muted">The products, from no quote yet to paid. Tap a stage to list its products.</p></div></div>
   {% set n_all = t.stages.values()|map(attribute='products')|sum %}

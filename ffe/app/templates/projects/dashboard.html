@@ -46,12 +46,12 @@
   </div>
   <div class="kpi">
     <div class="v">{{ s.cartons_received }}<span class="of">/{{ s.cartons }}</span></div><div class="l">Boxes received</div>
-    <div class="d">{{ s.kg|num }} kg packed</div>
+    <div class="d">{% if s.boxes_where.warehouse or s.boxes_where.shipment %}{{ s.boxes_where.warehouse }} at the warehouse · {{ s.boxes_where.shipment }} on shipments{% else %}{{ s.kg|num }} kg packed{% endif %}</div>
     <svg class="ic"><use href="#i-box"/></svg>
   </div>
   <div class="kpi">
     <div class="v">{{ '%.1f'|format(s.cbm) }}</div><div class="l">CBM packed</div>
-    <div class="d">{% if s.container != '-' %}Fits {{ s.container }} container{% else %}No cartons measured yet{% endif %}</div>
+    <div class="d">{% if s.next_arrival %}<a href="/p/{{ p.id }}/shipments/{{ s.next_arrival.id }}">Shipment {{ s.next_arrival.number }}</a> arrives {{ s.next_arrival.eta.strftime('%d %b') }}{% elif s.container != '-' %}Fits {{ s.container }} container{% else %}No cartons measured yet{% endif %}</div>
     <svg class="ic"><use href="#i-truck"/></svg>
   </div>
   <div class="kpi">
@@ -83,6 +83,7 @@
     <a class="doc" href="/p/{{ p.id }}/export/schedule.pdf?layout=floor&amp;prices=0" target="_blank"><svg class="ic"><use href="#i-layout"/></svg><div><div class="t">Site schedule by floor</div><div class="m">PDF · no prices, for the site team</div></div></a>
     <a class="doc" href="/p/{{ p.id }}/export/schedule.pdf?currency=CNY" target="_blank"><svg class="ic"><use href="#i-file"/></svg><div><div class="t">Client schedule</div><div class="m">PDF · CNY prices</div></div></a>
     <a class="doc" href="/p/{{ p.id }}/export/schedule.pdf?prices=0" target="_blank"><svg class="ic"><use href="#i-file"/></svg><div><div class="t">Schedule without prices</div><div class="m">PDF · for site &amp; suppliers</div></div></a>
+    <a class="doc" href="/p/{{ p.id }}/buying/schedule.pdf" target="_blank"><svg class="ic"><use href="#i-bag"/></svg><div><div class="t">Purchase schedule</div><div class="m">PDF · internal: shops and CNY prices</div></div></a>
     <a class="doc" href="/p/{{ p.id }}/export/packing.pdf" target="_blank"><svg class="ic"><use href="#i-box"/></svg><div><div class="t">Packing list</div><div class="m">PDF · {{ s.cartons }} {{ 'box' if s.cartons == 1 else 'boxes' }}</div></div></a>
     <a class="doc" href="/p/{{ p.id }}/export/labels.pdf" target="_blank"><svg class="ic"><use href="#i-tag"/></svg><div><div class="t">Box labels</div><div class="m">PDF · one per carton</div></div></a>
     <a class="doc" href="/p/{{ p.id }}/export/items.xlsx"><svg class="ic"><use href="#i-download"/></svg><div><div class="t">Excel export</div><div class="m">XLSX · all items · edit and import back</div></div></a>

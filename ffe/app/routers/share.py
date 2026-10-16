@@ -7,6 +7,7 @@ from ..models import Project, SupplierLink, Carton, Item, Room, ProjectImage
 from ..common import render, redirect, get_settings, fint
 from ..services import carton_positions, summary, moods_for
 from .. import drawings, webimage, storage, config
+from .. import shipping as sh
 from .cartons import save_carton
 from .items import sort_items
 from . import plan as planmod
@@ -26,12 +27,13 @@ def _link(db: Session, token: str) -> SupplierLink:
 def supplier_page(request: Request, token: str, db: Session = Depends(get_db)):
     l = _link(db, token)
     p = l.project
+    studio = get_settings(db)
     items = sort_items([i for i in p.live_items if i.supplier_id == l.supplier_id], p)
     rows = sorted([c for c in p.cartons if c.supplier_id == l.supplier_id], key=lambda c: c.id)
     pos = carton_positions(p.cartons)
-    rooms = [r for r in p.rooms if r.code != "ALL" or True]
-    return render(request, "share/supplier.html", link=l, p=p, items=items, rows=rows, pos=pos, rooms=rooms,
-                  studio=get_settings(db), total_cbm=sum(c.cbm for c in rows))
+    rooms = list(p.rooms)
+    return render(request, "share/supplier.html", link=l, p=p, items=items, rows=rows, pos=pos, rooms=rooms, picks=sh.item_choices(p, l.supplier_id),
+                  studio=studio, total_cbm=sum(c.cbm for c in rows), deliver=sh.deliver_to(p, l.supplier_id, studio), where=sh.where)
 
 
 @router.post("/s/{token}/cartons")
@@ -42,6 +44,7 @@ async def supplier_add(request: Request, token: str, db: Session = Depends(get_d
     save_carton(c, form, l.project)
     c.supplier_id = l.supplier_id
     db.add(c)
+    sh.settle(db, l.project)
     db.commit()
     return redirect(f"/s/{token}#cartons")
 
@@ -50,8 +53,11 @@ async def supplier_add(request: Request, token: str, db: Session = Depends(get_d
 def supplier_delete(token: str, carton_id: int, db: Session = Depends(get_db)):
     l = _link(db, token)
     c = db.get(Carton, carton_id)
-    if c and c.project_id == l.project_id and c.supplier_id == l.supplier_id and not c.received:
+    if c and c.project_id == l.project_id and c.supplier_id == l.supplier_id and sh.where(c) == "shop":  # not once it left the shop
+        p = l.project
+        undone = sh.lines_named(sh.Boxes(p), [c])
         db.delete(c)
+        sh.settle(db, p, undone)
         db.commit()
     return redirect(f"/s/{token}#cartons")
 

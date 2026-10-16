@@ -2,7 +2,7 @@
 {% from "buying/_tabs.html" import tabs %}
 {% block title %}Purchase schedule · {{ p.name }}{% endblock %}
 {% block content %}
-{% set filtering = f.category or f.floor or f.stage %}
+{% set filtering = f.category or f.floor or f.stage or f.market %}
 {% set q_ = qs ~ '&' if qs else '' %}
 {% macro amount(cny, dec=0) %}{{ sym }}{{ (cny / rate)|money(dec if not usd else 2) }}{% endmacro %}
 {% macro packs(n, word) %}{{ n }} {{ word }}{{ ('es' if word[-1:] in 'xs' else 's') if n != 1 }}{% endmacro %}
@@ -11,14 +11,15 @@
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/buying">Buying</a></div>
     <h1>Purchase schedule</h1>
-    <p class="sub">Every product once: what the rooms need, what to order, the shop and its price. To review before paying, or to print (the browser's print saves a PDF).</p>
+    <p class="sub">Every product once: what the rooms need, what to order, the shop and its price. To review before paying, or as a PDF for the team or for one market (choose it in the filters): the PDF prints the shops and prices, never for the client.</p>
   </div>
   <div class="actions">
     <nav class="seg" aria-label="Currency">
       <a href="/p/{{ p.id }}/buying/schedule?{{ q_ }}cur=CNY" class="{{ 'on' if not usd }}">CNY</a>
       <a href="/p/{{ p.id }}/buying/schedule?{{ q_ }}cur=USD" class="{{ 'on' if usd }}">USD</a>
     </nav>
-    <button type="button" class="btn sec" onclick="window.print()"><svg class="ic"><use href="#i-download"/></svg>Print / PDF</button>
+    <a class="btn" href="/p/{{ p.id }}/buying/schedule.pdf?{{ q_ }}cur={{ 'USD' if usd else 'CNY' }}" target="_blank"><svg class="ic"><use href="#i-download"/></svg>PDF</a>
+    <button type="button" class="btn sec" onclick="window.print()"><svg class="ic"><use href="#i-file"/></svg>Print</button>
   </div>
 </div>
 {{ tabs(p, 'schedule') }}
@@ -27,6 +28,7 @@
   <select name="category" class="in" aria-label="Category"><option value="">All categories</option>{% for c in CATEGORIES %}<option {{ 'selected' if f.category == c }}>{{ c }}</option>{% endfor %}</select>
   {% if floors %}<select name="floor" class="in" aria-label="Floor"><option value="">All floors</option>{% for grp in ['Floors', 'Separate areas', 'Other'] %}{% set opts = floors|selectattr('group', 'equalto', grp)|list %}{% if opts %}<optgroup label="{{ grp }}">{% for o in opts %}<option value="{{ o.value }}" {{ 'selected' if f.floor and o.value|lower == f.floor|lower }}>{{ o.title }}</option>{% endfor %}</optgroup>{% endif %}{% endfor %}</select>{% endif %}
   <select name="stage" class="in" aria-label="Stage"><option value="">Every stage</option>{% for st in STAGES %}<option {{ 'selected' if f.stage == st }}>{{ st }}</option>{% endfor %}</select>
+  {% if markets %}<select name="market" class="in" aria-label="Market"><option value="">Every market</option>{% for m in markets %}<option {{ 'selected' if f.market == m }}>{{ m }}</option>{% endfor %}</select>{% endif %}
   {% if usd %}<input type="hidden" name="cur" value="USD">{% endif %}
   <noscript><button class="btn sm">Filter</button></noscript>
   {% if filtering %}<a class="btn ghost sm" href="/p/{{ p.id }}/buying/schedule{% if usd %}?cur=USD{% endif %}">Clear</a>{% endif %}
@@ -35,7 +37,7 @@
 <article class="sched">
   <header class="sched-head">
     <div>
-      <div class="eyebrow">Purchase schedule{% if filtering %} · {{ [f.category, f.floor and (f.floor|floor_title if f.floor != NO_FLOOR else 'No floor'), f.stage]|select|join(' · ') }}{% endif %}</div>
+      <div class="eyebrow">Purchase schedule{% if filtering %} · {{ [f.category, f.floor and (f.floor|floor_title if f.floor != NO_FLOOR else 'No floor'), f.stage, f.market]|select|join(' · ') }}{% endif %}</div>
       <h2 class="sched-title">{{ p.name }}</h2>
       <div class="small muted">{{ p.client_name }}{% if p.address %} · {{ p.address }}{% endif %} · prices in {{ 'USD' if usd else 'CNY' }}{% if usd %} at {{ p.rate }} CNY per USD{% endif %}</div>
     </div>

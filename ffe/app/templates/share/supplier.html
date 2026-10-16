@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "shipping/_parts.html" import pick_codes %}
 {% block title %}Packing list — {{ link.supplier.name }}{% endblock %}
 {% block pubctx %}Packing list for {{ link.supplier.name }}{% endblock %}
 {% block pubactions %}<span class="row nowrap hide-m"><a class="btn sm" href="/s/{{ link.token }}/labels.pdf" target="_blank"><svg class="ic"><use href="#i-tag"/></svg>Print box labels</a><a class="btn sec sm" href="/s/{{ link.token }}/packing.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Packing list PDF</a></span>{% endblock %}
@@ -7,7 +8,7 @@
   <div>
     <div class="eyebrow">{{ p.client_name }}</div>
     <h1>{{ p.name }}</h1>
-    <p class="sub">Deliver to: {{ p.address or p.client_name }}</p>
+    <p class="sub sp-deliver"><b>Deliver to:</b> {{ deliver|replace('\n', ' · ') }}</p>
   </div>
   <div class="actions"><span class="pill accent"><svg class="ic sm"><use href="#i-truck"/></svg>{{ link.supplier.name }}</span></div>
 </div>
@@ -15,9 +16,9 @@
 <div class="card accent">
   <h2>Before you load</h2>
   <ol class="small mb-0">
-    <li>List <b>every carton</b> below before loading.</li>
+    <li>List <b>every carton</b> below before loading, and tick the items inside it.</li>
     <li>Write the text shown in the "Write on the box" column on each carton with a marker, or print the labels.</li>
-    <li>Each carton must carry the room code.</li>
+    <li>Each carton must carry the room code. Deliver them to the address above.</li>
   </ol>
   <div class="row mt hide-d">
     <a class="btn" href="/s/{{ link.token }}/labels.pdf" target="_blank"><svg class="ic"><use href="#i-tag"/></svg>Print box labels</a>
@@ -54,14 +55,22 @@
   <div class="grid g4 stack">
     <div>
       <label>Room (from the item list)</label>
-      <select name="room_id" class="in" required>{% for r in rooms %}<option value="{{ r.id }}">{{ r.label }}</option>{% endfor %}</select>
+      {% set mine = items|map(attribute='room_id')|select|list %}
+      <select name="room_id" class="in" required>
+        <optgroup label="Rooms with your items">{% for r in rooms if r.id in mine %}<option value="{{ r.id }}">{{ r.label }}</option>{% endfor %}</optgroup>
+        <optgroup label="Other rooms">{% for r in rooms if r.id not in mine %}<option value="{{ r.id }}">{{ r.label }}</option>{% endfor %}</optgroup>
+      </select>
     </div>
     <div class="span2">
       <label>What is inside</label>
       <input class="in" type="text" name="contents" required placeholder="Floor slab 1200x2400, 2 pieces">
     </div>
+    <div class="span4">
+      <label>Items inside <span class="muted small">(tick them)</span></label>
+      {{ pick_codes(picks, none, false) }}
+    </div>
     <div>
-      <label>Item codes</label>
+      <label>Other item codes</label>
       <input class="in" type="text" name="item_codes" placeholder="GF-KIT-01">
     </div>
     <div>
@@ -93,7 +102,9 @@
 <td class="small">{{ c.length_cm|num }}×{{ c.width_cm|num }}×{{ c.height_cm|num }}</td>
 <td class="num">{{ '%.3f'|format(c.cbm) }}</td>
 <td class="num">{{ c.weight_kg|num }}</td>
-<td class="right">{% if not c.received %}<form method="post" action="/s/{{ link.token }}/cartons/{{ c.id }}/delete" data-confirm="Delete this carton? It comes off the packing list."><button class="btn icon danger" aria-label="Delete carton" title="Delete carton"><svg class="ic"><use href="#i-trash"/></svg></button></form>{% else %}<span class="pill green"><svg class="ic sm"><use href="#i-check"/></svg>received</span>{% endif %}</td>
+{% set w = where(c) %}{% if w == 'shipment' and not c.shipment.loaded_on %}{% set w = 'warehouse' %}{% endif %}
+<td class="right">{% if w == 'shop' %}<form method="post" action="/s/{{ link.token }}/cartons/{{ c.id }}/delete" data-confirm="Delete this carton? It comes off the packing list."><button class="btn icon danger" aria-label="Delete carton" title="Delete carton"><svg class="ic"><use href="#i-trash"/></svg></button></form>
+  {% else %}<span class="pill {{ 'green' if w == 'site' else 'gold' }}"><svg class="ic sm"><use href="#i-check"/></svg>{{ {'warehouse': 'at the warehouse', 'shipment': 'shipped', 'site': 'received'}[w] }}</span>{% endif %}</td>
 </tr>
 {% else %}<tr><td colspan="9" class="muted center">No cartons listed yet. Add the first one above.</td></tr>{% endfor %}
 </tbody></table></div>

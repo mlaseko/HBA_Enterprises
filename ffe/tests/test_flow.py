@@ -1627,4 +1627,101 @@ with TestClient(app) as c:
     c.post(f"/suppliers/{ls}/delete", follow_redirects=False)
     db=SessionLocal(); assert db.get(_O,oid3) is None and db.query(_O).filter(_O.project_id==pid_o).count()==0; db.close()
     print("orders ok")
+    # ---- Shipping: boxes to the warehouse, into a shipment, to site; the rooms follow their boxes ----
+    from app import shipping as _sh
+    from app.models import Shipment as _Sh, Carton as _C, SupplierLink as _SL
+    r=c.post("/projects/new", data={"client_name":"Ship","name":"Kibada House","rate":"7"}, follow_redirects=False); pid_s=int(r.headers["location"].split("/")[-1])
+    for code,name in (("LIV","Living room"),("KIT","Kitchen")):
+        c.post(f"/p/{pid_s}/rooms", data={"code":code,"name":name,"floor":"Ground","kind":"room"}, follow_redirects=False)
+    db=SessionLocal(); sr={x.code:x.id for x in db.query(Room).filter(Room.project_id==pid_s)}; db.close()
+    c.post(f"/p/{pid_s}/items/new", data={"room_ids":[str(sr["LIV"]),str(sr["KIT"])],"category":"Tiles","name":"Floor tile","qty":"10","unit":"m²","status":"To buy"}, follow_redirects=False)
+    c.post(f"/p/{pid_s}/items/new", data={"room_ids":[str(sr["LIV"])],"category":"Furniture","name":"Sofa","qty":"1","unit":"pcs","status":"To buy"}, follow_redirects=False)
+    db=SessionLocal(); si={(i.name, i.room.code):i for i in db.query(Item).filter(Item.project_id==pid_s)}; t_liv, t_kit, sofa=(si[k].id for k in (("Floor tile","LIV"),("Floor tile","KIT"),("Sofa","LIV"))); codes={x.id:x.code for x in si.values()}; db.close()
+    buy(c, pid_s, t_liv, "Ship Tiles", 60); buy(c, pid_s, sofa, "Ship Tiles", 4000)
+    db=SessionLocal(); sts=db.query(_S).filter(_S.name=="Ship Tiles").one().id; db.close()
+    r=c.post(f"/p/{pid_s}/orders/new", data={"supplier_id":str(sts)}, follow_redirects=False); soid=int(r.headers["location"].split("/orders/")[1].split("?")[0])
+    c.post(f"/p/{pid_s}/orders/{soid}/confirm", data={"confirmed_on":"2026-09-01","ready_date":"2026-09-20"}, follow_redirects=False)
+    assert _sts([t_liv, t_kit, sofa])==["Ordered"]*3
+    assert _sh.fits(0.65, 300)=="LCL" and _sh.fits(20, 3000)=="1 x 20ft" and _sh.fits(60, 9000)=="1 x 40ft HC" and _sh.fits(150, 1000)=="3 x 40ft HC" and _sh.capacity("LCL")==(None, None)
+    # the shop lists its boxes on its link: delivered to the warehouse of its order, the items ticked from its own lines
+    c.post(f"/p/{pid_s}/suppliers/{sts}/link", data={"action":"create"}, follow_redirects=False)
+    db=SessionLocal(); stok=db.query(_SL).filter(_SL.project_id==pid_s, _SL.supplier_id==sts).one().token; db.close()
+    h=c2.get(f"/s/{stok}").text
+    assert "Deliver to:</b> Baiyun Warehouse" in h and f'name="code" value="{codes[t_liv]}"' in h and f'value="{codes[sofa]}"' in h and "Rooms with your items" in h, h[:400]
+    c2.post(f"/s/{stok}/cartons", data={"room_id":str(sr["LIV"]),"contents":"Tiles, 5 cartons","code":[codes[t_liv]],"qty":"5","length_cm":"60","width_cm":"60","height_cm":"40","weight_kg":"120"}, follow_redirects=False)
+    c2.post(f"/s/{stok}/cartons", data={"room_id":str(sr["KIT"]),"contents":"Tiles, kitchen","item_codes":f"{codes[t_kit]} x2","qty":"2","length_cm":"60","width_cm":"60","height_cm":"20","weight_kg":"50"}, follow_redirects=False)
+    c2.post(f"/s/{stok}/cartons", data={"room_id":str(sr["LIV"]),"contents":"Sofa, crate","code":[codes[sofa]],"qty":"1","length_cm":"240","width_cm":"100","height_cm":"90","weight_kg":"80"}, follow_redirects=False)
+    db=SessionLocal(); bxs=db.query(_C).filter(_C.project_id==pid_s).order_by(_C.id).all(); b1,b2,b3=(x.id for x in bxs)
+    assert [x.item_codes for x in bxs]==[codes[t_liv], f"{codes[t_kit]} x2", codes[sofa]] and all(x.entered_by=="supplier" and _sh.where(x)=="shop" for x in bxs); db.close()
+    P_=lambda: SessionLocal()  # noqa: E731
+    db=P_(); bxo=_sh.Boxes(db.get(_P,pid_s)); assert [i.id for i in bxo.lines_of[b2]]==[t_kit] and [c_.id for c_ in bxo.boxes_of[t_liv]]==[b1]
+    assert _sh.split_codes(f"{codes[t_kit].lower()} x2, Z-99", bxo.by_code)==([codes[t_kit]], "x2, Z-99"); db.close()
+    assert _sh.join_codes(["a-1", "A-1", "b-2"], "x2")=="A-1, B-2, x2"
+    # the Boxes page: where each box is, filters, the shop's boxes delivered to the warehouse in one go
+    h=c.get(f"/p/{pid_s}/cartons").text; assert 'data-key="cartons"' in h and h.count("At the shop")>=3 and f'href="/p/{pid_s}/cartons" class="on"' in h and "Put on" in h
+    r=c.post(f"/p/{pid_s}/cartons/bulk", data={"c":[str(b1),str(b2)],"action":"warehouse","next":f"/p/{pid_s}/shipments"}, follow_redirects=False)
+    assert r.headers["location"].startswith(f"/p/{pid_s}/shipments?ok=")
+    r=c.post(f"/p/{pid_s}/cartons/bulk", data={"action":"warehouse"}, follow_redirects=False); assert "err=" in r.headers["location"]
+    db=P_(); assert db.get(_C,b1).warehouse_on==_dt.date.today() and db.get(_C,b3).warehouse_on is None; db.close()
+    r=c2.post(f"/s/{stok}/cartons/{b1}/delete", follow_redirects=False); db=P_(); assert db.get(_C,b1) is not None; db.close()  # the shop cannot take back a delivered box
+    assert c.get(f"/p/{pid_s}/cartons?where=warehouse").text.count('class="box-sel"')==2
+    h=c.get(f"/p/{pid_s}/shipments").text; assert 'data-key="shipments"' in h and "Waiting at the warehouse" in h and "would go <b>LCL</b>" in h and "Still at the shops" in h
+    # a shipment with what waits at the warehouse; loading it ships the rooms whose boxes are all on board
+    r=c.post(f"/p/{pid_s}/shipments/new", data={"all":"1","mode":"20ft"}, follow_redirects=False); ssid=int(r.headers["location"].split("/shipments/")[1].split("?")[0])
+    db=P_(); s_=db.get(_Sh,ssid); assert s_.number==1 and s_.mode=="20ft" and sorted(x.id for x in s_.cartons)==[b1,b2]; db.close()
+    h=c.get(f"/p/{pid_s}/shipments/{ssid}").text; assert 'data-key="shipment"' in h and "Shipment 1" in h and "Loaded today" in h and "Kitchen" in h
+    c.post(f"/p/{pid_s}/shipments/{ssid}", data={"mode":"20ft","container_no":"tcnu7731042","seal_no":"s1","forwarder":"Fwd","bl_no":"BL1","vessel":"V","port_from":"Nansha","port_to":"Dar es Salaam",
+                                              "cost":"21500","notes":"","loaded_on":"","etd":"","eta":(_dt.date.today()+_dt.timedelta(days=20)).isoformat(),"arrived_on":"","delivered_on":""}, follow_redirects=False)
+    db=P_(); assert db.get(_Sh,ssid).container_no=="TCNU7731042" and db.get(_Sh,ssid).cost==21500; db.close()
+    r=c.post(f"/p/{pid_s}/shipments/{ssid}/step", data={"step":"loaded"}, follow_redirects=False); assert "ok=" in r.headers["location"]
+    assert _sts([t_liv, t_kit, sofa])==["Shipped","Shipped","Ordered"]  # the sofa's box is still at the shop
+    db=P_(); sv=_sh.ShipmentView(db.get(_Sh,ssid), _sh.Boxes(db.get(_P,pid_s)).on[ssid]); assert sv.stage=="Loaded" and sv.cap==28.0 and sv.fill==1 and sv.eta_text=="in 20 days" and sv.count==2; db.close()
+    r=c.post(f"/p/{pid_s}/shipments/{ssid}/boxes/{b2}/remove", follow_redirects=False); assert _sts([t_liv, t_kit])==["Shipped","Ordered"]  # off the shipment: back to the order's status
+    c.post(f"/p/{pid_s}/shipments/{ssid}/boxes", data={"c":[str(b2)]}, follow_redirects=False); assert _sts([t_kit])==["Shipped"]
+    c.post(f"/p/{pid_s}/shipments/{ssid}/step", data={"step":"loaded","undo":"1"}, follow_redirects=False); assert _sts([t_liv, t_kit])==["Ordered","Ordered"]
+    c.post(f"/p/{pid_s}/shipments/{ssid}/step", data={"step":"loaded"}, follow_redirects=False)
+    c.post(f"/p/{pid_s}/shipments/{ssid}/step", data={"step":"sailed"}, follow_redirects=False)
+    db=P_(); assert _sh.stage(db.get(_Sh,ssid))=="At sea"; db.close()
+    h=c.get(f"/p/{pid_s}/cartons").text; assert "Shipment 1" in h and "At sea · in 20 days" in h
+    # arrival and receiving on site, room by room; all received = delivered
+    c.post(f"/p/{pid_s}/shipments/{ssid}/step", data={"step":"arrived"}, follow_redirects=False)
+    r=c.post(f"/p/{pid_s}/shipments/{ssid}/receive", data={"room":str(sr["LIV"])}, follow_redirects=False); assert r.headers["location"].endswith(f"#room-{sr['LIV']}")
+    assert _sts([t_liv, t_kit])==["Received","Shipped"]
+    db=P_(); assert db.get(_Sh,ssid).delivered_on is None; db.close()
+    c.post(f"/p/{pid_s}/shipments/{ssid}/receive", data={"all":"1"}, follow_redirects=False)
+    db=P_(); s_=db.get(_Sh,ssid); assert s_.delivered_on==_dt.date.today() and s_.arrived_on==_dt.date.today() and _sh.stage(s_)=="Delivered"; db.close()
+    assert _sts([t_liv, t_kit])==["Received","Received"]
+    c.post(f"/p/{pid_s}/shipments/{ssid}/receive", data={"c":[str(b2)],"on":"0"}, follow_redirects=False); assert _sts([t_kit])==["Shipped"]  # not received after all
+    c.post(f"/p/{pid_s}/cartons/{b2}/received", data={"received":"1"}, follow_redirects=False); assert _sts([t_kit])==["Received"]
+    # the documents: the loading list, the shop's packing list to the warehouse, the internal Purchase schedule
+    r=c.get(f"/p/{pid_s}/shipments/{ssid}/loading.pdf"); t=pdf_text(r.content)
+    assert r.status_code==200 and r.headers["content-type"]=="application/pdf" and "LOADING LIST" in t and "Shipment 1" in t and "TCNU7731042" in t and "BOX 1 OF 2" in t and "Kitchen" in t, t[:400]
+    assert "Baiyun Warehouse" in pdf_text(c2.get(f"/s/{stok}/packing.pdf").content)
+    r=c.get(f"/p/{pid_s}/buying/schedule.pdf?cur=USD"); t=pdf_text(r.content)
+    assert r.status_code==200 and "PURCHASE SCHEDULE" in t and "Ship Tiles" in t and "Floor tile" in t and "USD" in t and "By shop" in t, t[:400]
+    db=P_(); db.get(_S, sts).city="Foshan - Lecong"; db.commit(); db.close()
+    assert "Floor tile" in c.get(f"/p/{pid_s}/buying/schedule?market=Foshan%20-%20Lecong").text and "Floor tile" not in c.get(f"/p/{pid_s}/buying/schedule?market=Elsewhere").text
+    # the tracker and the Overview see the shipping; a box left at the warehouse needs attention
+    c2.post(f"/s/{stok}/cartons", data={"room_id":str(sr["LIV"]),"contents":"Spare tiles","code":[codes[t_liv]],"qty":"1","length_cm":"60","width_cm":"60","height_cm":"20","weight_kg":"30"}, follow_redirects=False)
+    db=P_(); b4=db.query(_C).filter(_C.project_id==pid_s).order_by(_C.id.desc()).first().id; db.close()
+    assert _sts([t_liv])==["Received"]  # a new box at the shop takes nothing back on its own
+    c.post(f"/p/{pid_s}/cartons/bulk", data={"c":[str(b4)],"action":"warehouse"}, follow_redirects=False)
+    h=c.get(f"/p/{pid_s}/buying/tracker").text; assert "1 box at the warehouse, on no shipment" in h and "Received on site" in h
+    assert f"/p/{pid_s}/shipments/" not in h.split("Where the boxes are")[1].split("By stage")[0]  # a delivered shipment leaves the list under way
+    assert "1 at the warehouse · 0 on shipments" in c.get(f"/p/{pid_s}").text
+    # a box edited: the line it no longer names steps back; a box deleted does the same
+    h=c.get(f"/p/{pid_s}/cartons/{b4}").text; assert "The items it holds" in h and f'value="{codes[t_liv]}" checked' in h
+    c.post(f"/p/{pid_s}/cartons/{b2}", data={"room_id":str(sr["KIT"]),"supplier_id":str(sts),"contents":"Tiles, kitchen","item_codes":"","qty":"2","length_cm":"60","width_cm":"60","height_cm":"20","weight_kg":"50"}, follow_redirects=False)
+    assert _sts([t_kit])==["Ordered"]  # its only box names it no more: back to its order's status
+    # a new shipment gets the next number, deleting one sends its boxes back to the warehouse and its rooms back
+    r=c.post(f"/p/{pid_s}/shipments/new", data={"mode":"LCL","c":[str(b4)]}, follow_redirects=False); ssid2=int(r.headers["location"].split("/shipments/")[1].split("?")[0])
+    c.post(f"/p/{pid_s}/shipments/{ssid2}/step", data={"step":"loaded"}, follow_redirects=False)
+    db=P_(); assert db.get(_Sh,ssid2).number==2; db.close()
+    c.post(f"/p/{pid_s}/shipments/{ssid2}/delete", follow_redirects=False)
+    db=P_(); assert db.get(_Sh,ssid2) is None and db.get(_C,b4).shipment_id is None and db.get(_C,b4).warehouse_on is not None; db.close()
+    r=c.post(f"/p/{pid_s}/shipments/new", data={"mode":"LCL"}, follow_redirects=False); ssid3=int(r.headers["location"].split("/shipments/")[1].split("?")[0])
+    db=P_(); assert db.get(_Sh,ssid3).number==3; db.close()  # never twice
+    c.post(f"/p/{pid_s}/cartons/{b1}/delete", follow_redirects=False); assert _sts([t_liv])==["Ordered"]  # its received box gone, only one at the warehouse left
+    assert c.get(f"/p/{pid_b}/shipments/{ssid3}", follow_redirects=False).headers["location"]==f"/p/{pid_b}/shipments"
+    print("shipping ok")
     print("ALL OK")

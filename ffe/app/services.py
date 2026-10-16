@@ -198,12 +198,18 @@ def summary(db: Session, p: Project) -> dict:
     cartons = p.cartons
     cbm = sum(c.cbm for c in cartons)
     kg = sum(c.weight_kg or 0 for c in cartons)
+    from . import shipping  # here: shipping imports this module
+    boxes_where = {k: 0 for k in shipping.WHERE}
+    for c in cartons:
+        boxes_where[shipping.where(c)] += 1
+    on_way = sorted((sh for sh in p.shipments if sh.loaded_on and not sh.arrived_on and not sh.delivered_on and sh.eta), key=lambda sh: sh.eta)
     return {
         "items": len(items), "drafts": len(p.items) - len(items), "priced": priced, "received": received, "total": total, "must": must,
         "total_usd": total / rate, "must_usd": must / rate, "paid": paid_total, "paid_usd": paid_total / rate,
         "balance": total - paid_total, "ordered": ordered, "to_pay": round(sum(r["balance"] for r in by_sup), 2),
         "orders": len(led.orders), "by_status": by_status, "by_room": by_room, "by_cat": by_cat,
         "by_sup": by_sup, "cartons": len(cartons), "cartons_received": sum(1 for c in cartons if c.received),
+        "boxes_where": boxes_where, "next_arrival": on_way[0] if on_way else None,
         "cbm": cbm, "kg": kg, "container": container_for(cbm),
         "budget_used": (total / rate / p.budget_usd) if p.budget_usd else None,
     }

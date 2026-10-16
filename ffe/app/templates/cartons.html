@@ -1,80 +1,96 @@
 {% extends "base.html" %}
 {% from "_macros.html" import room_options %}
-{% block title %}Packing · {{ p.name }} · {{ APP_NAME }}{% endblock %}
+{% from "shipping/_tabs.html" import tabs %}
+{% from "shipping/_parts.html" import where_badge, box_fields %}
+{% block title %}Boxes · {{ p.name }} · {{ APP_NAME }}{% endblock %}
 {% block content %}
 {% set q = ('?supplier=' ~ f.supplier) if f.supplier else '' %}
+{% set filtering = f.supplier or f.room or f.where or f.shipment %}
+{% set open_ships = svs|selectattr('stage', 'in', ['Planning', 'Loaded'])|list %}
 <div class="page-head">
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
-    <h1>Packing <span class="h-note">{{ s.cartons }} boxes · {{ '%.2f'|format(s.cbm) }} CBM · {{ s.kg|num }} kg → {{ s.container }}</span></h1>
-    <p class="sub">One line per box. Each box gets a room code and "Box n of N" so it lands in the right room. Suppliers can add their own boxes through their packing link, or you enter them here.</p>
+    <h1>Boxes <span class="h-note">{{ s.cartons }} boxes · {{ '%.2f'|format(s.cbm) }} CBM · {{ s.kg|num }} kg{% if s.container != '-' %} → {{ s.container }}{% endif %}</span></h1>
+    <p class="sub">One line per box. Each carries its room code and "Box n of N", so it lands in the right room. The shops list their boxes on their packing link (or you enter them here); then follow each box to the warehouse, into a shipment and to site.</p>
   </div>
   <div class="actions">
     <a class="btn sec" href="/p/{{ p.id }}/export/packing.pdf{{ q }}" target="_blank"><svg class="ic"><use href="#i-download"/></svg>Packing list PDF</a>
-    <a class="btn" href="/p/{{ p.id }}/export/labels.pdf{{ q }}" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Print box labels</a>
+    <a class="btn" href="/p/{{ p.id }}/export/labels.pdf{{ q }}" target="_blank"><svg class="ic"><use href="#i-tag"/></svg>Print box labels</a>
   </div>
 </div>
+{{ tabs(p, 'boxes') }}
 
-<div class="grid g4 mb">
-  <div class="kpi"><div class="v">{{ s.cartons }}</div><div class="l">boxes</div><svg class="ic"><use href="#i-box"/></svg></div>
-  <div class="kpi sage"><div class="v">{{ s.cartons_received }}</div><div class="l">received{% if s.cartons %} of {{ s.cartons }}{% endif %}</div><svg class="ic"><use href="#i-check"/></svg></div>
-  <div class="kpi"><div class="v">{{ '%.2f'|format(s.cbm) }}</div><div class="l">CBM · {{ s.kg|num }} kg</div><svg class="ic"><use href="#i-layout"/></svg></div>
-  <div class="kpi"><div class="v">{{ s.container if s.container != '-' else '—' }}</div><div class="l">container</div><svg class="ic"><use href="#i-truck"/></svg></div>
+{% if ok %}<div class="alert">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert err">{{ err }}</div>{% endif %}
+
+<div class="sp-where">
+  {% for w in WHERE %}
+  <a class="sp-w{{ ' on' if f.where == w }}" href="/p/{{ p.id }}/cartons{{ '' if f.where == w else '?where=' ~ w }}" style="--c:{{ WHERE_COLORS[w] }}">
+    <span class="k"><i></i>{{ WHERE_TITLES[w] }}</span><span class="v">{{ counts[w] }}</span>
+    <span class="s">{% if w == 'shop' %}listed, not delivered yet{% elif w == 'warehouse' %}waiting for a shipment{% elif w == 'shipment' %}loaded or about to be{% else %}of {{ s.cartons }} boxes{% endif %}</span>
+  </a>
+  {% endfor %}
 </div>
 
-<form method="post" class="card">
-  <h2>Add a box</h2>
-  <div class="grid stack g4">
-    <div><label>Supplier</label><select name="supplier_id" class="in"><option value="">—</option>{% for sp in suppliers %}<option value="{{ sp.id }}">{{ sp.name }}</option>{% endfor %}</select></div>
-    <div><label>Install in</label><select name="room_id" class="in" required>{{ room_options(p.rooms, none) }}</select></div>
-    <div class="span2"><label>What is inside</label><input class="in" type="text" name="contents" placeholder="Floor slab 1200x2400, 2 pieces" required></div>
-    <div><label>Item codes</label><input class="in" type="text" name="item_codes" placeholder="GF-KIT-01"></div>
-    <div><label>Qty inside</label><input class="in" type="number" step="0.01" name="qty" value="1"></div>
-    <div class="span2"><label>L × W × H (cm)</label><div class="field-row"><input class="in" type="number" step="0.1" name="length_cm" placeholder="L"><input class="in" type="number" step="0.1" name="width_cm" placeholder="W"><input class="in" type="number" step="0.1" name="height_cm" placeholder="H"></div></div>
-    <div class="span2"><label>Notes</label><input class="in" type="text" name="notes" placeholder="Fragile, keep upright, pallet no."></div>
-    <div><label>Weight kg</label><input class="in" type="number" step="0.1" name="weight_kg" placeholder="0"></div>
-    <div class="btn-cell"><button class="btn"><svg class="ic"><use href="#i-plus"/></svg>Add box</button></div>
-  </div>
-</form>
+<details class="card bu-add" id="add-box"{% if not p.cartons %} open{% endif %}>
+  <summary><svg class="ic"><use href="#i-plus"/></svg>Add a box</summary>
+  <form method="post" action="/p/{{ p.id }}/cartons" class="mt">
+    {{ box_fields(p, suppliers, picks) }}
+    <div class="form-actions"><button class="btn"><svg class="ic"><use href="#i-plus"/></svg>Add box</button><label class="check"><input type="checkbox" name="at_warehouse" value="1"> Already at the warehouse</label></div>
+  </form>
+</details>
 
 <form method="get" class="card filters">
-  <select name="supplier" class="in" aria-label="Supplier"><option value="">All suppliers</option>{% for sp in suppliers %}<option value="{{ sp.id }}" {{ 'selected' if f.supplier == sp.id|string }}>{{ sp.name }}</option>{% endfor %}</select>
+  <select name="supplier" class="in" aria-label="Shop"><option value="">All shops</option>{% for sp in suppliers %}<option value="{{ sp.id }}" {{ 'selected' if f.supplier == sp.id|string }}>{{ sp.name }}</option>{% endfor %}</select>
   <select name="room" class="in" aria-label="Room"><option value="">All rooms &amp; areas</option>{{ room_options(p.rooms, f.room) }}</select>
-  <button class="btn sm">Filter</button>
-  {% if f.supplier or f.room %}<a class="btn ghost sm" href="/p/{{ p.id }}/cartons">Clear</a>{% endif %}
+  <select name="where" class="in" aria-label="Where"><option value="">Anywhere</option>{% for w in WHERE %}<option value="{{ w }}" {{ 'selected' if f.where == w }}>{{ WHERE_TITLES[w] }}</option>{% endfor %}</select>
+  {% if svs %}<select name="shipment" class="in" aria-label="Shipment"><option value="">Any shipment</option>{% for sv in svs %}<option value="{{ sv.s.id }}" {{ 'selected' if f.shipment == sv.s.id|string }}>{{ sv.name }}</option>{% endfor %}</select>{% endif %}
+  <noscript><button class="btn sm">Filter</button></noscript>
+  {% if filtering %}<a class="btn ghost sm" href="/p/{{ p.id }}/cartons">Clear</a>{% endif %}
   <span class="sp"></span>
   <span class="small muted">{{ rows|length }} of {{ s.cartons }} boxes</span>
 </form>
 
-<div class="tbl"><table>
-  <thead><tr><th>Write on the box</th><th>Supplier</th><th>Contents</th><th class="num">Qty</th><th class="num">CBM</th><th class="num">kg</th><th>By</th><th>Received</th><th></th></tr></thead>
+{% if rows %}
+<form method="post" action="/p/{{ p.id }}/cartons/bulk" id="boxbulk" class="box-bar">
+  <input type="hidden" name="next" value="{{ here }}">
+  <span class="count small muted">Tick boxes, then</span>
+  <button class="btn sm sec" name="action" value="warehouse"><svg class="ic"><use href="#i-check"/></svg>At the warehouse</button>
+  <span class="ship-to"><select name="shipment_id" class="in" aria-label="Shipment">{% for sv in open_ships %}<option value="{{ sv.s.id }}">{{ sv.name }} · {{ sv.stage|lower }}</option>{% endfor %}<option value="new">A new shipment</option></select><button class="btn sm sec" name="action" value="ship"><svg class="ic"><use href="#i-truck"/></svg>Put on</button></span>
+  <button class="btn sm sec" name="action" value="received"><svg class="ic"><use href="#i-home"/></svg>Received on site</button>
+  <span class="undo"><button class="btn sm ghost" name="action" value="unship" title="Off their shipment, back at the warehouse">Off the shipment</button><button class="btn sm ghost" name="action" value="not-warehouse" title="Not at the warehouse after all">Not delivered</button></span>
+</form>
+{% endif %}
+
+<div class="tbl box-tbl"><table>
+  <thead><tr>{% if rows %}<th class="sel"><input type="checkbox" class="box-all" aria-label="Tick all boxes shown"></th>{% endif %}<th>Write on the box</th><th>Shop</th><th>Contents</th><th class="num">Qty</th><th class="num">CBM</th><th class="num">kg</th><th>Where</th><th></th></tr></thead>
   <tbody>
-  {% for c in rows %}{% set bn, bt = pos.get(c.id, (1,1)) %}
-  <tr>
+  {% for c in rows %}{% set bn, bt = pos.get(c.id, (1,1)) %}{% set found, rest = split[c.id] %}{% set lines = bx.lines_of[c.id] %}
+  <tr id="box-{{ c.id }}">
+    <td class="sel"><input type="checkbox" class="box-sel" name="c" value="{{ c.id }}" form="boxbulk" aria-label="Tick box {{ c.id }}"></td>
     <td>
       <div class="b">{{ c.room.label if c.room else 'ALL - Whole house' }}</div>
       <div class="row"><span class="pill accent">BOX {{ bn }} OF {{ bt }}</span><span class="xs muted">#{{ c.id }}</span></div>
     </td>
-    <td>{{ c.supplier.name if c.supplier else '—' }}</td>
-    <td>{{ c.contents }}{% if c.item_codes %}<div class="small muted">{{ c.item_codes }}</div>{% endif %}{% if c.notes %}<div class="small muted">{{ c.notes }}</div>{% endif %}</td>
+    <td>{{ c.supplier.name if c.supplier else '—' }}{% if c.entered_by == 'supplier' %}<div class="xs muted">listed by the shop</div>{% endif %}</td>
+    <td>{{ c.contents }}
+      {% if lines %}<div class="box-lines">{% for i in lines %}<span class="pill" title="{{ i.name }}"><b>{{ i.code }}</b> {{ i.name|truncate(22, true, '…') }}</span>{% endfor %}</div>{% endif %}
+      {% if rest %}<div class="small muted">{{ rest }}</div>{% endif %}
+      {% if c.notes %}<div class="small muted">{{ c.notes }}</div>{% endif %}</td>
     <td class="num">{{ c.qty|num }}</td>
     <td class="num">{% if c.cbm %}{{ '%.3f'|format(c.cbm) }}<div class="xs muted">{{ '%g'|format(c.length_cm) }}×{{ '%g'|format(c.width_cm) }}×{{ '%g'|format(c.height_cm) }}</div>{% else %}<span class="muted">—</span>{% endif %}</td>
     <td class="num">{% if c.weight_kg %}{{ c.weight_kg|num }}{% else %}<span class="muted">—</span>{% endif %}</td>
-    <td><span class="pill{{ ' gold' if c.entered_by == 'supplier' }}">{{ c.entered_by }}</span></td>
-    <td>
-      {% if c.received %}
-      <div class="row nowrap">
-        <span class="pill green"><svg class="ic sm"><use href="#i-check"/></svg>Received</span>
-        <form method="post" action="/p/{{ p.id }}/cartons/{{ c.id }}/received"><input type="hidden" name="received" value="0"><button class="btn ghost sm">Undo</button></form>
-      </div>
-      {% else %}
-      <form method="post" action="/p/{{ p.id }}/cartons/{{ c.id }}/received"><input type="hidden" name="received" value="1"><button class="btn sm"><svg class="ic"><use href="#i-check"/></svg>Received</button></form>
-      {% endif %}
+    <td class="nowrap">{{ where_badge(c, ships, p, WHERE_TITLES, WHERE_COLORS, STAGE_COLORS) }}</td>
+    <td class="right nowrap">
+      {% set sv_ = ships.get(c.shipment_id) %}
+      {% if c.received %}<form method="post" action="/p/{{ p.id }}/cartons/{{ c.id }}/received" class="inline"><input type="hidden" name="received" value="0"><input type="hidden" name="next" value="{{ here }}"><button class="btn sm ghost" title="Not received after all">Undo</button></form>
+      {% elif not sv_ or sv_.stage in ('Arrived', 'Delivered') %}<form method="post" action="/p/{{ p.id }}/cartons/{{ c.id }}/received" class="inline"><input type="hidden" name="received" value="1"><input type="hidden" name="next" value="{{ here }}"><button class="btn icon sm sec" title="Received on site" aria-label="Box {{ c.id }} received on site"><svg class="ic"><use href="#i-check"/></svg></button></form>{% endif %}
+      <a class="btn icon ghost sm" href="/p/{{ p.id }}/cartons/{{ c.id }}" title="Edit box" aria-label="Edit box {{ c.id }}"><svg class="ic"><use href="#i-edit"/></svg></a>
+      <form method="post" action="/p/{{ p.id }}/cartons/{{ c.id }}/delete" class="inline" data-confirm="Delete this box? It comes off the packing list, the labels{% if c.shipment_id %} and its shipment{% endif %}."><input type="hidden" name="next" value="{{ here }}"><button class="btn icon sm danger" title="Delete box" aria-label="Delete box {{ c.id }}"><svg class="ic"><use href="#i-trash"/></svg></button></form>
     </td>
-    <td><form method="post" action="/p/{{ p.id }}/cartons/{{ c.id }}/delete" data-confirm="Delete this box? It comes off the packing list and the labels."><button class="btn icon danger" title="Delete box" aria-label="Delete box"><svg class="ic"><use href="#i-trash"/></svg></button></form></td>
   </tr>
   {% else %}
-  <tr><td colspan="9" class="muted center">{% if f.supplier or f.room %}No boxes match this filter.{% else %}No boxes yet. Add the first one above, or send the supplier their packing link from the Suppliers tab. <a href="#help">How packing works</a>{% endif %}</td></tr>
+  <tr><td colspan="9" class="muted center">{% if filtering %}No boxes match this filter.{% else %}No boxes yet. Add the first one above, or send the shop its packing link from its supplier page. <a href="#help">How shipping works</a>{% endif %}</td></tr>
   {% endfor %}
   </tbody>
 </table></div>

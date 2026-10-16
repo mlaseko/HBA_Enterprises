@@ -320,11 +320,11 @@ ITEMS = [
     ("GF-KIT", "Tiles", "Floor tile, large-format porcelain", "Rectified, R10, matt, 9 mm, 10% extra for cuts", "", "600 x 1200 mm", "Warm grey", 24, "m²", 165, "CNY", "Foshan Tile Co.", "Received", "In stock", ("tile", "#B9B0A4")),
     ("GF-KIT", "Cabinets", "Kitchen cabinets, lacquered", "Plywood carcass, soft-close hinges and drawers, handleless", "", "Per drawing A-101", "Sage green matt lacquer", 1, "set", 28000, "CNY", "Zhongshan Cabinet Works", "Paid", "45 days", ("wood", "#8FA08A")),
     ("GF-KIT", "Countertops", "Quartz worktop, 20 mm", "Mitred edge, undermount sink cut-out, polished", "", "6.4 m² per drawing", "Calacatta look", 6.4, "m²", 980, "CNY", "Zhongshan Cabinet Works", "Paid", "45 days", ("stone", "#E9E4DC")),
-    ("GF-KIT", "Plumbing & Sanitary", "Kitchen mixer, pull-out", "Brass body, ceramic cartridge, 2 spray modes", "", "H 420 mm", "Brushed nickel", 1, "pcs", 620, "CNY", "Kaiping Sanitary Ware", "Shipped", "In stock", ("metal", "#B5B8BC")),
+    ("GF-KIT", "Plumbing & Sanitary", "Kitchen mixer, pull-out", "Brass body, ceramic cartridge, 2 spray modes", "", "H 420 mm", "Brushed nickel", 1, "pcs", 620, "CNY", "Kaiping Sanitary Ware", "Ordered", "In stock", ("metal", "#B5B8BC")),
     ("GF-KIT", "Appliances", "Built-in oven, 60 cm", "72 L, pyrolytic, A+ energy", "", "595 x 595 mm", "Black glass", 1, "pcs", 3600, "CNY", "", "To buy", "", ("metal", "#3B3B3F")),
-    ("GF-GBA", "Plumbing & Sanitary", "Wall-hung WC, rimless", "With concealed cistern and soft-close seat", "", "540 x 360 mm", "White", 1, "pcs", 1350, "CNY", "Kaiping Sanitary Ware", "Received", "In stock", ("metal", "#F2F2F0")),
+    ("GF-GBA", "Plumbing & Sanitary", "Wall-hung WC, rimless", "With concealed cistern and soft-close seat", "", "540 x 360 mm", "White", 1, "pcs", 1350, "CNY", "Kaiping Sanitary Ware", "Ordered", "In stock", ("metal", "#F2F2F0")),
     ("GF-GBA", "Tiles", "Wall tile, zellige look", "Glossy, hand-made look, 15% extra for cuts", "", "100 x 100 mm", "Sea green", 18, "m²", 210, "CNY", "Foshan Tile Co.", "Received", "In stock", ("tile", "#7FA79A")),
-    ("GF-GBA", "Plumbing & Sanitary", "Basin mixer, brushed brass", "Single lever, PVD finish, with waste", "", "H 160 mm", "Brushed brass", 1, "pcs", 540, "CNY", "Kaiping Sanitary Ware", "Shipped", "In stock", ("metal", "#C9A24A")),
+    ("GF-GBA", "Plumbing & Sanitary", "Basin mixer, brushed brass", "Single lever, PVD finish, with waste", "", "H 160 mm", "Brushed brass", 1, "pcs", 540, "CNY", "Kaiping Sanitary Ware", "Ordered", "In stock", ("metal", "#C9A24A")),
     ("GF-OFF", "Furniture", "Writing desk", "Oak veneer, two drawers, cable grommet", "", "1600 x 700 x 750 mm", "Oak", 1, "pcs", 2400, "CNY", "Shunde Furniture Hub", "Quoted", "35 days", ("wood", "#B48B5C")),
     ("GF-OFF", "Lighting", "Desk lamp", "LED, touch dimmer, USB port", "", "H 450 mm", "Matt black", 1, "pcs", 380, "CNY", "Guangzhou Lighting Market", "To buy", "In stock", ("lamp", "#A9A49B")),
     ("GF-ENT", "Lighting", "Entrance pendant, rattan", "E27, natural rattan shade", "", "Ø 500 mm", "Natural", 1, "pcs", 760, "CNY", "Guangzhou Lighting Market", "Ordered", "2 weeks", ("lamp", "#D4B27A")),
@@ -338,7 +338,7 @@ ITEMS = [
     ("FF-MBR", "Curtains & Soft", "Blackout curtains", "Triple weave, pinch pleat, with track", "", "W 3.6 m x H 2.8 m", "Warm taupe", 10, "m²", 220, "CNY", "Shunde Furniture Hub", "To buy", "3 weeks", ("fabric", "#B8A594")),
     ("FF-MEN", "Plumbing & Sanitary", "Freestanding bath", "Acrylic, 1700, with click-clack waste", "", "1700 x 800 x 580 mm", "Gloss white", 1, "pcs", 4800, "CNY", "Kaiping Sanitary Ware", "Paid", "3 weeks", ("metal", "#F4F4F2")),
     ("FF-MEN", "Plumbing & Sanitary", "Rain shower set", "Thermostatic, 300 mm head, hand shower", "", "Head Ø 300 mm", "Brushed brass", 1, "pcs", 1680, "CNY", "Kaiping Sanitary Ware", "Paid", "In stock", ("metal", "#C9A24A")),
-    ("FF-MEN", "Tiles", "Floor tile, slip-resistant", "R11, matt, 10% extra for cuts", "", "600 x 600 mm", "Light stone", 9, "m²", 195, "CNY", "Foshan Tile Co.", "Shipped", "In stock", ("stone", "#D8D0C2")),
+    ("FF-MEN", "Tiles", "Floor tile, slip-resistant", "R11, matt, 10% extra for cuts", "", "600 x 600 mm", "Light stone", 9, "m²", 195, "CNY", "Foshan Tile Co.", "Paid", "In stock", ("stone", "#D8D0C2")),
     ("FF-BR2", "Furniture", "Single bed with storage", "Two drawers, solid pine, lacquered", "", "1000 x 2000 mm", "White", 1, "pcs", 2900, "CNY", "Shunde Furniture Hub", "To buy", "35 days", ("wood", "#E9E3D8")),
     ("FF-BR3", "Furniture", "Wardrobe, sliding doors", "Melamine carcass, soft-close sliders, interior lighting", "", "2400 x 600 x 2400 mm", "Oak + mirror", 1, "pcs", 6200, "CNY", "Zhongshan Cabinet Works", "Quoted", "45 days", ("wood", "#B59364")),
     ("FF-FBA", "Plumbing & Sanitary", "Vanity unit with basin", "Wall-hung, 2 drawers, ceramic basin", "", "900 x 460 mm", "Oak + white", 1, "pcs", 3200, "CNY", "Kaiping Sanitary Ware", "Ordered", "3 weeks", ("stone", "#EDE8E0")),
@@ -354,23 +354,37 @@ ITEMS = [
 ORDERS = [
     ("Foshan Tile Co.", -66, -40, "FT-2608-114", [(-64, "Deposit", 0.3, "WeChat 8831", "Tiles + oak floor deposit", True),
                                                  (-44, "Balance", None, "Bank 20260902-7", "Balance before loading", False)]),
-    ("Zhongshan Cabinet Works", -58, 4, "ZC-0818", [(-57, "Deposit", 0.5, "Bank 20260820-2", "Kitchen + worktop 50%", True)]),
+    ("Zhongshan Cabinet Works", -58, -20, "ZC-0818", [(-57, "Deposit", 0.5, "Bank 20260820-2", "Kitchen + worktop 50%", True),
+                                                     (-22, "Balance", None, "Bank 20260924-3", "Balance before loading", False)]),
     ("Kaiping Sanitary Ware", -34, -3, "KP-0912", [(-32, "Deposit", 0.3, "WeChat 9377", "Sanitary 30%", False)]),
     ("Shunde Furniture Hub", -2, 26, "", []),
     ("Guangzhou Lighting Market", None, None, "", []),
 ]
 WAREHOUSE = dict(warehouse_name="Baiyun Consolidation Warehouse", warehouse_contact="Mr. Liang · +86 131 0000 2468 · WeChat liang_by",
                  warehouse_address="Unit 8, Baiyun Logistics Park, Taihe Town\nBaiyun District, Guangzhou")
-CARTONS = [  # supplier, room, contents, codes, qty, L, W, H, kg, received, by_supplier
-    ("Foshan Tile Co.", "GF-KIT", "Floor tiles 600x1200, 12 cartons on pallet", "GF-KIT-01", 12, 125, 65, 110, 480, True, False),
-    ("Foshan Tile Co.", "GF-HAL", "Floor tiles 600x1200, 8 cartons", "GF-HAL-01", 8, 125, 65, 80, 320, True, False),
-    ("Foshan Tile Co.", "GF-GBA", "Wall tiles 100x100, 6 cartons", "GF-GBA-02", 6, 60, 40, 50, 150, True, False),
-    ("Foshan Tile Co.", "GF-LIV", "Engineered oak, 21 packs", "GF-LIV-04", 21, 195, 60, 60, 410, False, False),
-    ("Kaiping Sanitary Ware", "GF-GBA", "Wall-hung WC + cistern frame", "GF-GBA-01", 1, 70, 45, 60, 38, False, True),
-    ("Kaiping Sanitary Ware", "FF-MEN", "Freestanding bath in crate", "FF-MEN-01", 1, 180, 85, 70, 62, False, True),
-    ("Kaiping Sanitary Ware", "FF-MEN", "Rain shower set, mixers", "FF-MEN-02 GF-KIT-04 GF-GBA-03", 3, 60, 40, 30, 14, False, True),
-    ("Shunde Furniture Hub", "GF-DIN", "Dining table top + legs, crate", "GF-DIN-01", 1, 230, 110, 25, 95, False, False),
-    ("Shunde Furniture Hub", "GF-DIN", "Dining chairs, 2 per carton", "GF-DIN-02", 4, 100, 55, 95, 22, False, False),
+# the boxes: supplier, room, contents, the items inside (their names: every room line of the product in that room), qty,
+# L, W, H, kg, where it is (shop | warehouse | S<n> on that shipment | S<n> site: received on site), listed by the shop
+CARTONS = [
+    ("Foshan Tile Co.", "GF-KIT", "Floor tiles 600x1200, 12 cartons on pallet", "Floor tile, large-format porcelain", 12, 125, 65, 110, 480, "S1 site", False),
+    ("Foshan Tile Co.", "GF-HAL", "Floor tiles 600x1200, 8 cartons", "Corridor floor tile", 8, 125, 65, 80, 320, "S1 site", False),
+    ("Foshan Tile Co.", "GF-GBA", "Wall tiles 100x100, 6 cartons", "Wall tile, zellige look", 6, 60, 40, 50, 150, "S1 site", False),
+    ("Foshan Tile Co.", "GF-LIV", "Engineered oak, 21 packs", "Engineered oak floor, 190 mm plank", 21, 195, 60, 60, 410, "S1", False),
+    ("Zhongshan Cabinet Works", "GF-KIT", "Base cabinets, 4 units, crate", "Kitchen cabinets, lacquered", 4, 245, 70, 95, 210, "S2", False),
+    ("Zhongshan Cabinet Works", "GF-KIT", "Wall cabinets and panels, crate", "Kitchen cabinets, lacquered", 6, 245, 45, 80, 140, "S2", False),
+    ("Zhongshan Cabinet Works", "GF-KIT", "Quartz worktop slabs, A-frame", "Quartz worktop, 20 mm", 3, 330, 40, 120, 380, "S2", False),
+    ("Zhongshan Cabinet Works", "FF-BR3", "Wardrobe carcass and doors, 2 crates", "Wardrobe, sliding doors", 2, 250, 70, 70, 230, "S2", False),
+    ("Foshan Tile Co.", "FF-MEN", "Floor tiles 600x600 R11, 7 cartons on pallet", "Floor tile, slip-resistant", 7, 110, 70, 75, 290, "warehouse", False),
+    ("Foshan Tile Co.", "FF-MEN", "Tile trims and spacers, 2 cartons", "Floor tile, slip-resistant", 2, 60, 40, 30, 24, "warehouse", False),
+    ("Kaiping Sanitary Ware", "GF-GBA", "Wall-hung WC + cistern frame", "Wall-hung WC, rimless", 1, 70, 45, 60, 38, "shop", True),
+    ("Kaiping Sanitary Ware", "FF-MEN", "Freestanding bath in crate", "Freestanding bath", 1, 180, 85, 70, 62, "shop", True),
+    ("Kaiping Sanitary Ware", "FF-MEN", "Rain shower set, mixers", "Rain shower set|Kitchen mixer, pull-out|Basin mixer, brushed brass", 3, 60, 40, 30, 14, "shop", True),
+    ("Shunde Furniture Hub", "GF-DIN", "Dining table top + legs, crate", "Dining table, solid oak", 1, 230, 110, 25, 95, "shop", False),
+    ("Shunde Furniture Hub", "GF-DIN", "Dining chairs, 2 per carton", "Dining chair, upholstered", 4, 100, 55, 95, 22, "shop", False),
+]
+# the shipments: mode, container, seal, forwarder, bill of lading, vessel; loaded, sails, arrives, arrived, delivered (days from today)
+SHIPMENTS = [
+    ("LCL", "", "", "Southbridge Freight", "SBF-DAR-2609-118", "Ocean Pearl 042W", -45, -42, -4, -3, None),
+    ("20ft", "TCNU7731042", "CN2610044", "Southbridge Freight", "SBF-DAR-2610-044", "Coral Bay 017W", -12, -9, 19, None, None),
 ]
 
 
@@ -560,7 +574,13 @@ def seed() -> dict:
         links = {l.supplier_id: l.token for l in db.query(SupplierLink).filter(SupplierLink.project_id == pid)}
         db.close()
         ids["stoken"] = links[sups["Kaiping Sanitary Ware"]]
-        for sup, room, contents, codes, qty, L, W, H, kg, received, by_sup in CARTONS:
+        db = SessionLocal()
+        code_of = {}  # (item name, room code) -> the codes of that product's lines in the room
+        for it in db.query(Item).filter(Item.project_id == pid, Item.draft == False):  # noqa: E712
+            code_of.setdefault((it.name, it.room.code if it.room else ""), []).append(it.code)
+        db.close()
+        for sup, room, contents, names, qty, L, W, H, kg, where, by_sup in CARTONS:
+            codes = " ".join(cd for nm in names.split("|") for cd in code_of.get((nm, room), []) or [cd for (n2, _), cds in code_of.items() if n2 == nm for cd in cds])
             data = {"room_id": str(rooms[room]), "contents": contents, "item_codes": codes, "qty": str(qty), "length_cm": str(L), "width_cm": str(W), "height_cm": str(H), "weight_kg": str(kg)}
             if by_sup:
                 c.post(f"/s/{links[sups[sup]]}/cartons", data=data, follow_redirects=False)
@@ -568,10 +588,30 @@ def seed() -> dict:
                 c.post(f"/p/{pid}/cartons", data=dict(data, supplier_id=str(sups[sup]), notes=""), follow_redirects=False)
         from app.models import Carton
         db = SessionLocal()
-        for ct, (sup, room, contents, codes, qty, L, W, H, kg, received, by_sup) in zip(db.query(Carton).filter(Carton.project_id == pid).order_by(Carton.id), CARTONS):
-            ct.received = received
-        db.commit()
+        box_ids = [ct.id for ct in db.query(Carton).filter(Carton.project_id == pid).order_by(Carton.id)]
         db.close()
+        day = lambda n: (datetime.date.today() + datetime.timedelta(days=n)).isoformat() if n is not None else ""  # noqa: E731
+        # the shipping: delivered to the warehouse, shipped, arrived, received on site (dates from today)
+        on_ship = {}
+        for bid, (*_, where, by_sup) in zip(box_ids, CARTONS):
+            if where != "shop":
+                key = where.split()[0]
+                on_ship.setdefault(key, []).append(bid)
+        c.post(f"/p/{pid}/cartons/bulk", data={"c": [str(b) for b in on_ship.get("warehouse", [])], "action": "warehouse", "on": day(-2)}, follow_redirects=False)
+        ids["shipments"] = []
+        for n, (mode, cont, seal, fwd, bl, vessel, loaded, etd, eta, arrived, delivered) in enumerate(SHIPMENTS, 1):
+            mine = on_ship.get(f"S{n}", [])
+            c.post(f"/p/{pid}/cartons/bulk", data={"c": [str(b) for b in mine], "action": "warehouse", "on": day(loaded - 4)}, follow_redirects=False)
+            r = c.post(f"/p/{pid}/shipments/new", data={"c": [str(b) for b in mine], "mode": mode}, follow_redirects=False)
+            sid = int(r.headers["location"].split("/shipments/")[1].split("?")[0])
+            ids["shipments"].append(sid)
+            c.post(f"/p/{pid}/shipments/{sid}", data={"mode": mode, "container_no": cont, "seal_no": seal, "forwarder": fwd, "bl_no": bl, "vessel": vessel,
+                                                      "port_from": "Nansha, Guangzhou", "port_to": "Dar es Salaam", "cost": "", "notes": "",
+                                                      "loaded_on": day(loaded), "etd": day(etd), "eta": day(eta), "arrived_on": day(arrived), "delivered_on": day(delivered)},
+                   follow_redirects=False)
+            got = [bid for bid, (*_, where, by_sup) in zip(box_ids, CARTONS) if where == f"S{n} site"]
+            if got:
+                c.post(f"/p/{pid}/shipments/{sid}/receive", data={"c": [str(b) for b in got]}, follow_redirects=False)
         # room boxes on the plans and a few item dots
         for floor, layout in (("Ground", GROUND), ("First", FIRST), ("Roof", ROOF)):
             for code, label, x, y, w, h in layout:
@@ -660,6 +700,8 @@ def render_pdfs(ids):
         pdf_png(c.get(f"/p/{pid}/export/labels.pdf").content, "pdf-labels", 0, width=900)
         pdf_png(c.get(f"/p/{pid}/export/packing.pdf").content, "pdf-packing", 0)
         pdf_png(c.get(f"/p/{pid}/orders/{ids['orders']['Kaiping Sanitary Ware']}/po.pdf").content, "pdf-order", 0)
+        pdf_png(c.get(f"/p/{pid}/shipments/{ids['shipments'][1]}/loading.pdf").content, "pdf-loading", 0)
+        pdf_png(c.get(f"/p/{pid}/buying/schedule.pdf").content, "pdf-purchase", 0)
 
 
 # ---- the browser, the pictures ----------------------------------------------------------------------------------------------
