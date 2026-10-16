@@ -26,7 +26,7 @@ ReportLab for PDFs (pure Python — do not add WeasyPrint or anything needing sy
 openpyxl. Hosted on Replit (autoscale deployment, imports from GitHub).
 
 ```
-app/main.py            app, login/logout, /settings (+ /settings/layers…: plan sheet types), /help (user guide = templates/help.html), /media/<key>
+app/main.py            app, login/logout, /settings (+ /settings/layers…: plan sheet types, /settings/warehouse), /help (user guide = templates/help.html), /media/<key>
 app/layers.py          plan sheet types: what a plan can show (plan_layers rows, cached; DEFAULTS seeded at start; from_title(),
                        for_category(), caption_re(), plan_re(), kind()/is_reference(); add/rename/move/remove/set_categories for the settings page)
 app/refs.py            reference sheets: page_refs() (reference codes on a PDF page with positions), item_refs(), match(), ink_block()
@@ -38,7 +38,9 @@ app/models.py          Settings, SchemaMark (one-time data upgrades that ran), P
                        Room (kind = room | area; is_area), Supplier, SupplierLink, Item, ItemPhoto,
                        ItemPrice (the typed USD price; Item.price_currency / price_amount), Payment, Carton,
                        Product (a product's buying data: allowance, pack), Quote (one shop's offer), Purchase (bought from one
-                       shop for whole rooms; Item.purchase_id / Item.purchase; Item.brand_shown = the brand bought, else preferred)
+                       shop for whole rooms; Item.purchase_id / Item.purchase; Item.brand_shown = the brand bought, else preferred),
+                       Order (one shop's purchases, numbered per project: Purchase.order_id, Payment.order_id; confirmed_on None =
+                       a draft; confirmed_total; Project.orders_made = the last number given), Settings.warehouse_* (+ .warehouse)
                        Item.draft = quick-capture draft (no name/code yet); Project.live_items / Project.drafts split them
 app/common.py          templates, auth helpers, number filters, render()/redirect() (render injects `help_tip` for the ? drawer)
 app/help_tips.py       "Help for this page": TIPS (title, what, steps, tips, anchor into help.html) per page key, TEMPLATE_KEYS,
@@ -49,9 +51,19 @@ app/services.py        summary() for dashboards (by_room rows carry kind), sort_
 app/buying.py          Buying: order_qty() (allowance + whole packs), Group (a product's lines: order, quotes, purchases, stage),
                        groups(), sync_products(), cover()/uncover() (a purchase written onto its lines), find_supplier(), set_quote(),
                        follow_quote(), delete_quote(), buy(), set_rooms(), remove_purchase(), drop_supplier(), prune(),
-                       keys()/follow_renames() (products follow renames), upgrade() (one-time, SchemaMark "buying.v1")
-app/routers/buy.py     /p/<id>/buying (list), /buying/schedule (Purchase schedule), /buying/item/<item> (→ its product),
+                       keys()/follow_renames() (products follow renames), upgrade() (one-time, SchemaMark "buying.v1");
+                       Ledger (once per request: purchase views pv, by_order, order totals, paid from p.payments; light product
+                       rows when the page has not loaded p.products; state()/target()), settle() (prune + flush + expire_all
+                       + the statuses of lines on orders), leave_order(), lines_of(); stages up to Ordered / Paid
+app/ordering.py        orders: initials()/ref() ("KH-003"), deposit_from_terms(), next_number() (never reuses: orders_made),
+                       new_order()/add()/take_off()/confirm()/unconfirm()/delete()/record_payment(), claim()/loose_payments()
+                       (earlier payments on no order counted toward an order), OrderView (lines, total,
+                       deposit, paid, balance, stage Draft | Deposit due | Balance due | Paid, changed, late/soon/collect,
+                       ready_text), views(), unordered() (bought, on no order, by shop), wechat_text(), tracker()
+app/routers/buy.py     /p/<id>/buying (list), /buying/schedule (Purchase schedule), /buying/tracker, /buying/item/<item> (→ its product),
                        /buying/<product> (+ POST allowance/pack; /quotes, /quotes/<q>[/delete|/buy], /purchases/<pu>[/delete])
+app/routers/orders.py  /p/<id>/orders (ready to order + orders by stage), /orders/new, /orders/<o> (page; POST details),
+                       /orders/<o>/add|remove/<pu>|confirm|unconfirm|delete|payments|claim, /orders/<o>/po.pdf
 app/storage.py         save_image(max_px=)/save_blob/read_image/delete_image — backends: local | replit | s3 (replit is the
                        default when REPL_ID is set; read_image copies a photo found only on local disk into the bucket);
                        save_photo() = full + small copy (thumb_key), save_thumb(), delete_photo(), prefetch() (parallel warm-up),
@@ -85,7 +97,9 @@ app/pdf/common.py      the older styles, table style, image flowable and footer 
 app/pdf/schedule.py    client schedule PDF on theme.py: layout="category" (cover, at a glance + contents, floor plans with room
                        boxes, mood board, a section per category, summary) or "floor" (each floor's plan, then its rooms in one
                        table with room sub-headers, whole-house section, summary grouped by floor); never suppliers, notes or CNY
-app/pdf/packing.py     packing list, 6-per-page labels, room checklist (page 1 = the room's floor plan), purchase order
+app/pdf/packing.py     packing list, 6-per-page labels, room checklist (page 1 = the room's floor plan), all items of a supplier
+app/pdf/order.py       the purchase order of one order (portrait A4 on theme.py: letterhead, shop / deliver to / project, products
+                       with photo and rooms, totals with deposit, terms, packing note, signature; DRAFT watermark)
 app/templates/         base.html = app shell (desktop sidebar, top bar + project switcher, phone bottom tab bar,
                        "More" sheet, inline SVG icon sprite, public bar for share pages) + pages
                        (capture.html, drafts.html for quick capture; projects/images.html = Images & plans,
@@ -166,6 +180,16 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
   quote. After anything that changes lines' name / size / finish, call `buying.follow_renames(db, p, before)` with
   `before = buying.keys(p)` taken first; after deleting lines, `buying.prune(db, p)`. The session does not autoflush:
   the buying helpers flush before they query. Readers keep reading `item.supplier` / `unit_price` / `lead_time`.
+- **Statuses follow the orders.** On a line whose purchase is on a confirmed order, To buy / Quoted / Ordered / Paid
+  (`buying.AUTO_STATUSES`) are the order's: Ordered, or Paid once paid in full; a draft only lifts To buy to Quoted, so
+  a status set by hand before the order (older projects) stays until it is confirmed. Back to a draft
+  (`ordering.unconfirm`), taking a purchase off and deleting a confirmed order (`buying.leave_order`) set Ordered / Paid
+  back to Quoted. Every route that changes purchases, orders or payments calls `buying.settle(db, p)` before
+  `db.commit()` (it prunes, flushes, expires the session and sets those statuses; capture ids you need afterwards before
+  calling it). Shipped and Received, and lines on no order, are never touched. Payments recorded on no order (before
+  orders existed) are counted toward an order only when the designer ticks them on it (`ordering.claim`). Money is read through one `buying.Ledger(p)` per request (order totals include
+  the allowance and whole packs); to pay = confirmed orders − payments. Order numbers are never reused
+  (`Project.orders_made`), like item codes: a purchase order may already be with the shop.
 - The user guide (`templates/help.html`, `/help`) describes every feature in plain words, with screenshots from
   `app/static/help/` (WebP, sizes in `shots.json`, rendered through the `shot()` macro). When you change or add a feature,
   update its section and its "Help for this page" entry in `app/help_tips.py` in the same change (a new page needs a tip
@@ -273,7 +297,11 @@ ALTER TABLE item_photos ADD COLUMN source VARCHAR(40) NOT NULL DEFAULT '';      
 ALTER TABLE mood_tags ADD COLUMN is_cover BOOLEAN NOT NULL DEFAULT FALSE;                 -- the picture starred as its room's cover
 ALTER TABLE item_photos ADD COLUMN digest VARCHAR(40) NOT NULL DEFAULT '';               -- the fingerprint of a photo
 ALTER TABLE items ADD COLUMN purchase_id INTEGER;                                         -- the purchase supplying the line (Buying)
--- new tables (create_all): products, quotes, purchases
+ALTER TABLE projects ADD COLUMN orders_made INTEGER NOT NULL DEFAULT 0;                   -- the last order number given (never reused)
+ALTER TABLE purchases ADD COLUMN order_id INTEGER;                                        -- the order a purchase is on
+ALTER TABLE payments ADD COLUMN order_id INTEGER;                                         -- the order a payment pays
+ALTER TABLE settings ADD COLUMN warehouse_name / warehouse_address / warehouse_contact;   -- the consolidation warehouse ('' defaults)
+-- new tables (create_all): products, quotes, purchases, orders
 ```
 
 ## Done
@@ -538,7 +566,22 @@ ALTER TABLE items ADD COLUMN purchase_id INTEGER;                               
   the sidebar and in the phone's bottom bar (Packing moved to More). The client schedule and link print no price for a line
   without a shop; the export keeps Price / Supplier / Lead time as grey columns the import ignores (with a warning). One-time
   upgrade at start: "Test" supplier lines and prices without a supplier cleared, other supplier lines → quote + purchase,
-  drafts' prices → notes. Phase 2 (orders) and phase 3 (shipments through the consolidation warehouse) come next.
+  drafts' prices → notes.
+
+- **Orders, payments and the tracker (phase 2 of the purchase process).** `Order` + `ordering.py` + `routers/orders.py` +
+  `templates/buying/orders.html`, `order.html`, `tracker.html` and the Buying tabs (`buying/_tabs.html`: Products, Orders,
+  Tracker, Purchase schedule). What is bought waits per shop under **Ready to order**; **Start an order** makes a numbered
+  draft (deposit % from the supplier's payment terms, `deliver_to` from Studio settings → Warehouse), the order page
+  confirms it (rooms → Ordered), records payments (filled with what is due; paid in full → Paid), takes products off /
+  adds the shop's other purchases, flags a change after confirming until **The shop agreed** re-confirms, and gives the
+  purchase order PDF (`pdf/order.py`) and a WeChat message (bilingual headings, copy button, Web Share of the PDF on
+  phones: `[data-copy]` / `[data-share-pdf]` in app.js). Payments take an `order_id` (Payments page select; the order's
+  shop wins); supplier money is on orders / paid / to pay everywhere (summary, Overview, Payments, Suppliers, supplier
+  page with its orders card; the old per-supplier PO stays as "All their items (PDF)"). The Tracker
+  (`/p/<id>/buying/tracker`, `ordering.tracker`): budget → estimated → committed → ordered → paid → to pay, needs
+  attention (one line per order, most pressing first), by stage / shop / category. Stages Ordered and Paid on the Buying
+  list; the product page shows its order chip; the item's Buying panel names its order. Phase 3 (shipments through the
+  consolidation warehouse) comes next.
 
 ## Backlog (in priority order)
 

@@ -69,6 +69,18 @@
   </div>
 </div>
 
+<form method="post" action="/settings/warehouse" class="card" id="warehouse">
+  <div class="row between"><h2 class="mb-0">Consolidation warehouse</h2><span class="small muted">Where the shops deliver</span></div>
+  {% if ok and 'arehouse' in ok %}<div class="alert mt">{{ ok }}</div>{% endif %}
+  <p class="small muted">Every new order's <b>Deliver to</b> starts from this, and it prints on the purchase order and in the WeChat message; each order can still say something else.</p>
+  <div class="grid g2 stack">
+    <div><label>Name</label><input class="in" type="text" name="warehouse_name" value="{{ s.warehouse_name }}" placeholder="e.g. Foshan Consolidation Co., Warehouse 3"></div>
+    <div><label>Contact</label><input class="in" type="text" name="warehouse_contact" value="{{ s.warehouse_contact }}" placeholder="Person · phone · WeChat"></div>
+    <div class="span2"><label>Address</label><textarea class="in" name="warehouse_address" rows="2" placeholder="Street, district, city">{{ s.warehouse_address }}</textarea></div>
+  </div>
+  <div class="form-actions"><button class="btn"><svg class="ic"><use href="#i-check"/></svg>Save the warehouse</button></div>
+</form>
+
 <div class="card" id="speed">
   <h2>Speed</h2>
   {% if thumbs_done or thumbs_left %}<div class="alert">Done for {{ thumbs_done|int }} photo{{ 's' if thumbs_done|int != 1 }}.{% if thumbs_left|int %} {{ thumbs_left }} to go: press the button again.{% else %} Every photo has its small version and fingerprint now.{% endif %}</div>{% endif %}
@@ -92,7 +104,7 @@
     <span class="small muted">What a floor plan can <b>show</b>: the list behind the Shows dropdown on Images &amp; plans and in the page picker.</span>
   </div>
   {% if err %}<div class="alert err mt">{{ err }}</div>{% endif %}
-  {% if ok %}<div class="alert info mt">{{ ok }}</div>{% endif %}
+  {% if ok and 'arehouse' not in ok %}<div class="alert info mt">{{ ok }}</div>{% endif %}
   <div class="tbl mt"><table class="floors sheets">
     <thead><tr><th>Order</th><th>Title</th><th>Kind</th><th>Words in the drawing title</th><th class="num">Plans</th><th></th></tr></thead>
     <tbody>

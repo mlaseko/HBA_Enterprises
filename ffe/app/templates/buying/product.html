@@ -164,6 +164,18 @@
       <span>→ order <b>{{ v.qty|num(2) }} {{ unit }}</b>{% if v.packs %} · {{ packs(v.packs, pack_word) }}{% endif %}</span>
     </div>
     {% if pu.notes %}<p class="small bu-note">{{ pu.notes }}</p>{% endif %}
+    {% set ov_ = orders.get(pu.order_id) if pu.order_id else none %}
+    <div class="pu-order">
+      {% if ov_ %}
+      <a class="od-chip" href="/p/{{ p.id }}/orders/{{ pu.order_id }}" style="--c:{{ ORDER_COLORS[ov_.stage] }}"><svg class="ic sm"><use href="#i-receipt"/></svg><b>Order {{ ov_.ref }}</b><span class="badge" style="--c:{{ ORDER_COLORS[ov_.stage] }}">{{ ov_.stage }}</span>{% if ov_.o.ready_date %}<span class="muted small">ready by {{ ov_.o.ready_date.strftime('%d %b') }}</span>{% endif %}</a>
+      {% elif pu.supplier %}{% set dr = drafts.get(pu.supplier_id) %}
+      <span class="small muted">Not on an order yet.</span>
+      <form method="post" action="{{ '/p/' ~ p.id ~ '/orders/' ~ dr.o.id ~ '/add' if dr else '/p/' ~ p.id ~ '/orders/new' }}">
+        <input type="hidden" name="supplier_id" value="{{ pu.supplier_id }}"><input type="hidden" name="pu" value="{{ pu.id }}">
+        <button class="btn sm sec"><svg class="ic"><use href="#i-receipt"/></svg>{{ 'Add to draft ' ~ dr.ref if dr else 'Start an order with ' ~ pu.supplier.name }}</button>
+      </form>
+      {% endif %}
+    </div>
     <div class="pu-tools">
       <details class="bu-more"><summary><svg class="ic sm"><use href="#i-layout"/></svg>Rooms</summary>
         <form method="post" action="/p/{{ p.id }}/buying/{{ prod.id }}/purchases/{{ pu.id }}">
@@ -181,7 +193,7 @@
         </form>
       </details>
       <span class="sp"></span>
-      <form method="post" action="/p/{{ p.id }}/buying/{{ prod.id }}/purchases/{{ pu.id }}/delete" data-confirm="Stop buying from {{ pu.supplier.name if pu.supplier else 'this shop' }}? Its {{ v.lines|length }} room{{ 's' if v.lines|length != 1 }} go back to no shop and no price. The quote stays."><button class="btn sm danger"><svg class="ic"><use href="#i-x"/></svg>Stop buying here</button></form>
+      <form method="post" action="/p/{{ p.id }}/buying/{{ prod.id }}/purchases/{{ pu.id }}/delete" data-confirm="Stop buying from {{ pu.supplier.name if pu.supplier else 'this shop' }}? Its {{ v.lines|length }} room{{ 's' if v.lines|length != 1 }} go back to no shop and no price{% if ov_ %}, and it comes off order {{ ov_.ref }}{% if ov_.o.confirmed %} (tell the shop){% endif %}{% endif %}. The quote stays."><button class="btn sm danger"><svg class="ic"><use href="#i-x"/></svg>Stop buying here</button></form>
     </div>
   </article>
   {% else %}

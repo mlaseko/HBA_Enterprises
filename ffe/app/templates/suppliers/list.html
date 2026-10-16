@@ -48,7 +48,7 @@
     </div>
     {% if p %}
     <div class="small">
-      {% if st %}{{ st.count }} items · ordered ¥{{ st.total|money }} · paid ¥{{ st.paid|money }} · <b>balance ¥{{ st.balance|money }}</b>{% else %}<span class="muted">no items in this project</span>{% endif %}
+      {% if st %}{{ st.count }} items · on orders ¥{{ st.ordered|money }} · paid ¥{{ st.paid|money }} · <b>to pay ¥{{ st.balance|money }}</b>{% else %}<span class="muted">no items in this project</span>{% endif %}
       {% if links.get(s.id) %}<div class="mt"><span class="pill sage"><svg class="ic sm"><use href="#i-link"/></svg>packing link active</span></div>{% endif %}
     </div>
     {% endif %}

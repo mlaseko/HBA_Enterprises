@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% from "buying/_tabs.html" import tabs %}
+{% block title %}Tracker · Buying · {{ p.name }}{% endblock %}
+{% block content %}
+{% set rate = t.rate %}
+{% set top = [t.budget, t.estimated, 1]|max %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/buying">Buying</a></div>
+    <h1>Tracker</h1>
+    <p class="sub">Where the buying stands: the money from budget to paid, what needs you now, and the breakdown by stage, category and shop.</p>
+  </div>
+  <div class="actions">
+    <a class="btn sec" href="/p/{{ p.id }}/buying/schedule"><svg class="ic"><use href="#i-file"/></svg>Purchase schedule</a>
+  </div>
+</div>
+{{ tabs(p, 'tracker') }}
+
+<section class="card tr-money">
+  <div class="tr-figs">
+    <div class="b0"><span class="l">Budget</span><span class="v">{% if t.budget %}¥{{ t.budget|money }}{% else %}—{% endif %}</span><span class="s">{% if t.budget %}${{ p.budget_usd|money }}{% else %}<a href="/p/{{ p.id }}/edit">set it in Project settings</a>{% endif %}</span></div>
+    <div class="b1"><span class="l">Estimated</span><span class="v">¥{{ t.estimated|money }}</span><span class="s">{% if t.unpriced %}{{ t.unpriced }} product{{ 's' if t.unpriced != 1 }} not priced yet{% else %}bought + lowest quotes{% endif %}</span></div>
+    <div class="b2"><span class="l">Committed</span><span class="v">¥{{ t.committed|money }}</span><span class="s">bought from shops</span></div>
+    <div class="b3"><span class="l">Ordered</span><span class="v">¥{{ t.ordered|money }}</span><span class="s">on confirmed orders</span></div>
+    <div class="b4"><span class="l">Paid</span><span class="v">¥{{ t.paid|money }}</span><span class="s">${{ (t.paid / rate)|money }}</span></div>
+    <div class="b5"><span class="l">To pay</span><span class="v">¥{{ t.to_pay|money }}</span><span class="s">on confirmed orders</span></div>
+  </div>
+  <div class="tr-bar" role="img" aria-label="Paid, ordered, committed and estimated against {{ 'the budget' if t.budget else 'the estimate' }}">
+    <i class="paid" style="width:{{ (100 * t.paid / top)|round(1) }}%"></i>
+    <i class="ord" style="width:{{ (100 * ([t.ordered - t.paid, 0]|max) / top)|round(1) }}%"></i>
+    <i class="com" style="width:{{ (100 * ([t.committed - [t.ordered, t.paid]|max, 0]|max) / top)|round(1) }}%"></i>
+    <i class="est" style="width:{{ (100 * ([t.estimated - [t.committed, t.ordered, t.paid]|max, 0]|max) / top)|round(1) }}%"></i>
+    {% if t.budget %}<b class="budget" style="left:{{ [100, (100 * t.budget / top)|round(1)]|min }}%" title="Budget"></b>{% endif %}
+  </div>
+  <div class="tr-legend small"><span><i class="paid"></i>Paid</span><span><i class="ord"></i>Ordered</span><span><i class="com"></i>Committed</span><span><i class="est"></i>Estimated rest</span>{% if t.budget %}<span><b class="budget"></b>Budget{% if t.estimated > t.budget %} <b class="over">· estimate ¥{{ (t.estimated - t.budget)|money }} over</b>{% endif %}</span>{% endif %}</div>
+</section>
+
+<section class="bu-sec">
+  <div class="bu-sec-head"><div><h2>Needs attention <span class="n">{{ t.attention|length }}</span></h2><p class="small muted">Late and due first. Tap a line to deal with it.</p></div></div>
+  {% if t.attention %}
+  <div class="card att-list">
+    {% for a in t.attention %}
+    <a class="att {{ a.tone }}" href="{{ a.href }}"><span class="tile"><svg class="ic"><use href="#i-{{ a.icon }}"/></svg></span><span class="txt"><span class="t">{{ a.title }}</span><span class="d">{{ a.detail }}</span></span><svg class="ic chev"><use href="#i-chevron-right"/></svg></a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card bu-none"><svg class="ic"><use href="#i-check"/></svg><div><b>Nothing needs you right now.</b> <span class="muted">Every product has its shop, every order is confirmed and nothing is due.</span></div></div>
+  {% endif %}
+</section>
+
+<section class="bu-sec">
+  <div class="bu-sec-head"><div><h2>By stage</h2><p class="small muted">The products, from no quote yet to paid. Tap a stage to list its products.</p></div></div>
+  {% set n_all = t.stages.values()|map(attribute='products')|sum %}
+  <div class="card tr-stages">
+    <div class="tr-pipe" role="img" aria-label="Products by stage">{% for st in STAGES %}{% set r = t.stages[st] %}{% if r.products %}<i style="flex:{{ r.products }};--c:{{ STAGE_COLORS[st] }}" title="{{ st }}: {{ r.products }}"></i>{% endif %}{% endfor %}</div>
+    <div class="tr-stage-grid">
+      {% for st in STAGES %}{% set r = t.stages[st] %}
+      <a class="tr-stage{{ ' none' if not r.products }}" href="/p/{{ p.id }}/buying?stage={{ st|urlencode }}" style="--c:{{ STAGE_COLORS[st] }}" title="{{ STAGE_HELP[st]|capitalize }}">
+        <span class="k"><i></i>{{ st }}</span>
+        <span class="v">{{ r.products }}<small>{{ ((100 * r.products / n_all)|round|int ~ '%') if n_all else '' }}</small></span>
+        <span class="s">{{ r.lines }} room line{{ 's' if r.lines != 1 }}{% if r.committed %} · ¥{{ r.committed|money }}{% endif %}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="bu-sec">
+  <div class="bu-sec-head"><div><h2>By shop</h2><p class="small muted">Bought, ordered, paid and what is still to pay, with the next ready date.</p></div></div>
+  {% if t.sups %}
+  <div class="tbl"><table class="tr-shops">
+    <thead><tr><th>Shop</th><th class="num">Bought</th><th class="num">Ordered</th><th class="num">Paid</th><th class="num">To pay</th><th class="bar-col"></th><th>Next ready</th></tr></thead>
+    <tbody>
+    {% for r in t.sups %}
+    <tr><td>{% if r.supplier %}<a class="b" href="/suppliers/{{ r.supplier.id }}?project={{ p.id }}">{{ r.supplier.name }}</a>{% else %}<span class="muted">No shop</span>{% endif %}<div class="small muted">{{ r.orders }} order{{ 's' if r.orders != 1 }}</div></td>
+      <td class="num">¥{{ r.committed|money }}</td><td class="num">¥{{ r.ordered|money }}</td><td class="num">¥{{ r.paid|money }}</td><td class="num b">¥{{ r.to_pay|money }}</td>
+      <td class="bar-col"><span class="tr-mini" title="Paid {{ (100 * r.paid / r.committed)|round|int if r.committed else 0 }}% of what was bought"><i class="ord" style="width:{{ [100, (100 * r.ordered / r.committed)|round(1)]|min if r.committed else 0 }}%"></i><i class="paid" style="width:{{ [100, (100 * r.paid / r.committed)|round(1)]|min if r.committed else 0 }}%"></i></span></td>
+      <td class="small nowrap">{% if r.next %}<a href="/p/{{ p.id }}/orders/{{ r.next.o.id }}" class="{{ 'bu-late' if r.next.late }}">{{ r.next.o.ready_date.strftime('%d %b') }}</a><div class="muted">{{ r.next.ready_text }}</div>{% else %}<span class="muted">—</span>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<div class="card bu-none"><svg class="ic"><use href="#i-info"/></svg><div class="muted">No shop chosen yet.</div></div>{% endif %}
+</section>
+
+<section class="bu-sec">
+  <div class="bu-sec-head"><div><h2>By category</h2><p class="small muted">Estimated is what each category will cost at the shops chosen and, for the rest, the lowest quote; paid is shared out over each order's products.</p></div></div>
+  <div class="tbl"><table class="tr-cats">
+    <thead><tr><th>Category</th><th class="num">Products</th><th class="num">Still open</th><th class="num">Estimated</th><th class="num">Committed</th><th class="num">Ordered</th><th class="num">Paid</th><th class="bar-col"></th></tr></thead>
+    <tbody>
+    {% for c in t.cats %}
+    <tr><td><a class="b" href="/p/{{ p.id }}/buying?category={{ c.category|urlencode }}">{{ c.category }}</a></td><td class="num">{{ c.products }}</td><td class="num">{{ c.open or '' }}</td>
+      <td class="num">¥{{ c.estimated|money }}</td><td class="num">¥{{ c.committed|money }}</td><td class="num">¥{{ c.ordered|money }}</td><td class="num">¥{{ c.paid|money }}</td>
+      <td class="bar-col"><span class="tr-mini" title="Paid {{ (100 * c.paid / c.estimated)|round|int if c.estimated else 0 }}% · ordered {{ (100 * c.ordered / c.estimated)|round|int if c.estimated else 0 }}%"><i class="ord" style="width:{{ (100 * c.ordered / c.estimated)|round(1) if c.estimated else 0 }}%"></i><i class="paid" style="width:{{ (100 * c.paid / c.estimated)|round(1) if c.estimated else 0 }}%"></i></span></td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endblock %}

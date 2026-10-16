@@ -13,7 +13,8 @@
   </div>
   {% if p %}
   <div class="actions">
-    <a class="btn" href="/p/{{ p.id }}/export/po/{{ s.id }}.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Purchase order PDF</a>
+    <a class="btn sec" href="/p/{{ p.id }}/orders"><svg class="ic"><use href="#i-file"/></svg>Orders</a>
+    <a class="btn ghost" href="/p/{{ p.id }}/export/po/{{ s.id }}.pdf" target="_blank" title="Every item bought from this supplier on this project, with prices"><svg class="ic"><use href="#i-download"/></svg>All their items (PDF)</a>
   </div>
   {% endif %}
 </div>
@@ -40,16 +41,47 @@
 </form>
 
 {% if p %}
+<div class="card" id="orders">
+  <div class="row between">
+    <h2 class="mb-0">Orders <span class="h-note">{{ ovs|length }}</span></h2>
+    {% if waiting %}
+    <form method="post" action="{{ '/p/' ~ p.id ~ '/orders/' ~ waiting.draft.o.id ~ '/add' if waiting.draft else '/p/' ~ p.id ~ '/orders/new' }}">
+      <input type="hidden" name="supplier_id" value="{{ s.id }}">{% for v in waiting.views %}<input type="hidden" name="pu" value="{{ v.purchase.id }}">{% endfor %}
+      <button class="btn sm accent"><svg class="ic"><use href="#i-plus"/></svg>{% if waiting.draft %}Add {{ waiting.views|length }} waiting to {{ waiting.draft.ref }}{% else %}Order the {{ waiting.views|length }} product{{ 's' if waiting.views|length != 1 }} waiting · ¥{{ waiting.total|money }}{% endif %}</button>
+    </form>
+    {% endif %}
+  </div>
+  {% if ovs %}
+  <div class="tbl mt"><table>
+    <thead><tr><th>Order</th><th>Stage</th><th class="num">Total</th><th class="num">Paid</th><th class="num">To pay</th><th>Ready</th><th></th></tr></thead>
+    <tbody>
+    {% for ov in ovs %}
+    <tr>
+      <td class="nowrap"><a class="b" href="/p/{{ p.id }}/orders/{{ ov.o.id }}">{{ ov.ref }}</a>{% if ov.o.confirmed_on %}<div class="small muted">{{ ov.o.confirmed_on.strftime('%d %b %Y') }}</div>{% endif %}</td>
+      <td><span class="badge" style="--c:{{ ORDER_COLORS[ov.stage] }}">{{ ov.stage }}</span></td>
+      <td class="num">¥{{ ov.total|money }}</td><td class="num">¥{{ ov.paid|money }}</td><td class="num b">¥{{ [ov.balance, 0]|max|money }}</td>
+      <td class="small nowrap{{ ' bu-late' if ov.late }}">{{ ov.o.ready_date.strftime('%d %b') if ov.o.ready_date else '—' }}{% if ov.ready_text %}<div class="muted">{{ ov.ready_text }}</div>{% endif %}</td>
+      <td class="right"><a class="btn ghost sm" href="/p/{{ p.id }}/orders/{{ ov.o.id }}/po.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>PO</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  <p class="small muted mt">{% if waiting %}What you bought from {{ s.name }} on the Buying page is waiting to be ordered: put it on an order, confirm it with the shop and send the purchase order.{% else %}No orders yet. Buy from this shop on the Buying page, then put what you bought on an order.{% endif %}</p>
+  {% endif %}
+</div>
+
 <div class="grid g2 stack">
   <div class="card">
     <div class="row between">
       <h2 class="mb-0">Money</h2>
       <a class="btn sec sm" href="/p/{{ p.id }}/payments"><svg class="ic"><use href="#i-card"/></svg>Record a payment</a>
     </div>
-    <div class="grid g3 mt">
-      <div class="kpi"><div class="v">¥{{ total|money }}</div><div class="l">ordered</div></div>
+    <div class="grid g2 mt">
+      <div class="kpi"><div class="v">¥{{ money.committed|money }}</div><div class="l">bought</div></div>
+      <div class="kpi"><div class="v">¥{{ money.ordered|money }}</div><div class="l">on confirmed orders</div></div>
       <div class="kpi"><div class="v">¥{{ paid|money }}</div><div class="l">paid</div></div>
-      <div class="kpi accent"><div class="v">¥{{ (total-paid)|money }}</div><div class="l">balance</div></div>
+      <div class="kpi accent"><div class="v">¥{{ money.to_pay|money }}</div><div class="l">to pay</div></div>
     </div>
     {% if payments %}
     <div class="eyebrow mt">Payments on this project</div>
@@ -96,8 +128,8 @@
   <div class="empty">
     <div class="ring"><svg class="ic"><use href="#i-grid"/></svg></div>
     <h3>No items assigned yet</h3>
-    <p>Set the supplier on each item and it will show up here, on the purchase order and on the packing link.</p>
-    <a class="btn sec" href="/p/{{ p.id }}/items"><svg class="ic"><use href="#i-grid"/></svg>Go to items</a>
+    <p>Buy from this shop on the Buying page (a quote, then Buy) and its rooms show up here, on its orders and on the packing link.</p>
+    <a class="btn sec" href="/p/{{ p.id }}/buying"><svg class="ic"><use href="#i-bag"/></svg>Go to Buying</a>
   </div>
   {% endfor %}
   </div>

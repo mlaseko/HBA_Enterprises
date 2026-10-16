@@ -60,6 +60,7 @@
       <div class="eyebrow">Buying from</div>
       <div class="b">{{ pu.supplier.name if pu.supplier else 'A shop' }}{% if pu.brand or pu.model %} <span class="muted">· {{ [pu.brand, pu.model]|select|join(' · ') }}</span>{% endif %}</div>
       <div class="small muted">¥{{ it.unit_price|money(2) }} {{ 'each' if it.unit == 'pcs' else 'per ' ~ it.unit }}{% if pu.lead_time %} · Lead time: {{ pu.lead_time }}{% endif %} · this room ¥{{ it.total|money(2) }} (${{ (it.total / (p.rate or 1))|money(2) }})</div>
+      <div class="small">{% if pu.order %}On order <a class="b" href="/p/{{ p.id }}/orders/{{ pu.order_id }}">{{ order_ref(pu.order) }}</a>{% if pu.order.confirmed_on %}, confirmed {{ pu.order.confirmed_on.strftime('%d %b %Y') }}{% if pu.order.ready_date %}, ready by {{ pu.order.ready_date.strftime('%d %b') }}{% endif %}{% else %} (a draft){% endif %}{% else %}<span class="muted">Not on an order yet.</span>{% endif %}</div>
       {% else %}
       <div class="eyebrow">Buying</div>
       <div class="b">No shop chosen yet</div>

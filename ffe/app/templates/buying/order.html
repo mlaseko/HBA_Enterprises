@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% block title %}Order {{ ov.ref }} · {{ p.name }}{% endblock %}
+{% block content %}
+{% set rate = p.rate or 1 %}
+{% set shop = o.supplier.name if o.supplier else 'Shop not known' %}
+{% macro packs(n, word) %}{{ n }} {{ word }}{{ ('es' if word[-1:] in 'xs' else 's') if n != 1 }}{% endmacro %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/buying">Buying</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/orders">Orders</a></div>
+    <h1>Order {{ ov.ref }} <span class="h-note">{{ shop }}</span></h1>
+    <p class="sub">{{ ov.lines|length }} product{{ 's' if ov.lines|length != 1 }} for {{ ov.rooms|length }} room line{{ 's' if ov.rooms|length != 1 }}{% if o.confirmed_on %} · confirmed on {{ o.confirmed_on.strftime('%d %B %Y') }}{% else %} · a draft, not confirmed with the shop yet{% endif %}{% if o.supplier_ref %} · their ref {{ o.supplier_ref }}{% endif %}</p>
+  </div>
+  <div class="actions">
+    <span class="badge" style="--c:{{ STAGE_COLORS[ov.stage] }}" title="{{ STAGE_HELP[ov.stage] }}">{{ ov.stage }}</span>
+    <a class="btn sec" href="/p/{{ p.id }}/orders/{{ o.id }}/po.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Purchase order</a>
+    <a class="btn accent" href="#wechat" data-open="wechat-box"><svg class="ic"><use href="#i-copy"/></svg>Send on WeChat</a>
+  </div>
+</div>
+
+{% if ok %}<div class="alert">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert err">{{ err }}</div>{% endif %}
+{% if ov.changed %}<div class="alert info od-changed"><div><b>Changed since it was confirmed.</b> Confirmed at ¥{{ o.confirmed_total|money(2) }}, now ¥{{ ov.total|money(2) }}: send the shop the new purchase order (or the WeChat message) so you agree on the same order.</div>
+  <form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/confirm"><input type="hidden" name="confirmed_on" value="{{ o.confirmed_on.isoformat() }}"><button class="btn sm sec"><svg class="ic"><use href="#i-check"/></svg>The shop agreed ¥{{ ov.total|money(2) }}</button></form></div>{% endif %}
+
+<div class="od-head">
+  <div class="card od-money">
+    <div class="eyebrow">Money</div>
+    <div class="od-figs">
+      <div><span class="v">¥{{ ov.total|money(2) }}</span><span class="l">Total</span><span class="s">${{ (ov.total / rate)|money(2) }}</span></div>
+      <div><span class="v">¥{{ ov.deposit|money(2) }}</span><span class="l">Deposit {{ '%g'|format(o.deposit_pct or 0) }}%</span><span class="s">{% if not o.deposit_pct %}none{% elif ov.deposit_left > 0.005 %}{% if o.confirmed %}¥{{ ov.deposit_left|money(2) }} still due{% else %}due once confirmed{% endif %}{% else %}<span class="ok"><svg class="ic sm"><use href="#i-check"/></svg>paid</span>{% endif %}</span></div>
+      <div><span class="v">¥{{ ov.paid|money(2) }}</span><span class="l">Paid</span><span class="s">{{ o.payments|length }} payment{{ 's' if o.payments|length != 1 }}</span></div>
+      <div class="hl"><span class="v">¥{{ [ov.balance, 0]|max|money(2) }}</span><span class="l">To pay</span><span class="s">${{ ([ov.balance, 0]|max / rate)|money(2) }}</span></div>
+    </div>
+    <div class="bar"><i style="width:{{ [100, (100 * ov.paid / ov.total)|round|int]|min if ov.total else 0 }}%"></i></div>
+    <p class="small muted od-terms mt"><b>Terms</b> {{ o.terms or 'none written yet: add them under Details' }}</p>
+  </div>
+
+  <div class="card od-status">
+    <div class="eyebrow">Status</div>
+    {% if not o.confirmed %}
+    <p class="b mb-0">Not confirmed with the shop yet.</p>
+    <p class="small muted">Its rooms stay Quoted. Once the shop agrees the products, quantities and prices, confirm it: its rooms become Ordered.</p>
+    <form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/confirm" class="grid g2 stack">
+      <div><label>Confirmed on</label><input class="in" type="date" name="confirmed_on" value="{{ today }}"></div>
+      <div><label>Ready by <span class="muted small">(the shop's date)</span></label><input class="in" type="date" name="ready_date" value="{{ o.ready_date.isoformat() if o.ready_date else '' }}"></div>
+      <div class="span2"><button class="btn"{% if not ov.lines %} disabled{% endif %}><svg class="ic"><use href="#i-check"/></svg>Confirm the order</button></div>
+    </form>
+    {% else %}
+    <p class="b mb-0"><svg class="ic sm"><use href="#i-check"/></svg> Confirmed on {{ o.confirmed_on.strftime('%d %B %Y') }}</p>
+    {% if o.ready_date %}<p class="od-when{{ ' late' if ov.late }}{{ ' soon' if ov.soon }}"><svg class="ic sm"><use href="#i-clock"/></svg><span>Ready by {{ o.ready_date.strftime('%d %B %Y') }}{% if ov.ready_text %} · <b>{{ ov.ready_text }}</b>{% endif %}</span></p>
+    {% else %}<p class="small muted">No ready date yet: add the shop's date under Details.</p>{% endif %}
+    <p class="small muted">Its rooms are {{ 'Paid' if ov.stage == 'Paid' else 'Ordered' }}{% if ov.stage != 'Paid' %}; they become Paid once the order is paid in full{% endif %}. Shipped and Received stay yours to set.</p>
+    <form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/unconfirm" data-confirm="Back to a draft? Its rooms go back to Quoted until you confirm it again. Payments stay."><button class="btn sm ghost">Back to a draft</button></form>
+    {% endif %}
+  </div>
+</div>
+
+{# ---- products ---- #}
+<section class="bu-sec" id="products">
+  <div class="bu-sec-head"><div><h2>Products <span class="n">{{ ov.lines|length }}</span></h2><p class="small muted">What is ordered, for which rooms. Quantities include the allowance, in whole boxes; change them on the product's Buying page.</p></div></div>
+  {% if ov.lines %}
+  <div class="tbl od-lines"><table>
+    <thead><tr><th></th><th>Product</th><th>For the rooms</th><th class="num">To order</th><th class="num">Unit price</th><th class="num">Amount</th><th></th></tr></thead>
+    <tbody>
+    {% for v in ov.lines %}{% set it = v.lines[0] %}{% set pu = v.purchase %}{% set word = v.pack_name or 'pack' %}
+    <tr>
+      <td class="pic">{% if it.cover %}<img src="/media/{{ it.cover.thumb }}" alt="" loading="lazy" data-full="/media/{{ it.cover.file_key }}" data-caption="{{ it.name }}">{% else %}<span class="none"></span>{% endif %}</td>
+      <td class="prod"><a class="b" href="/p/{{ p.id }}/buying/{{ pu.product_id }}">{{ it.name }}</a>
+        <div class="small muted">{{ [it.size, it.finish]|select|join(' · ') }}</div>
+        {% if pu.brand or pu.model %}<div class="small">Brand: {{ [pu.brand, pu.model]|select|join(' · ') }}</div>{% endif %}</td>
+      <td class="rooms">{% for i in v.lines %}<span class="pill"><b>{{ i.code }}</b> {{ i.qty|num(2) }} {{ i.unit }}</span>{% endfor %}</td>
+      <td class="num qty"><b>{{ v.qty|num(2) }} {{ v.unit }}</b>{% if v.packs %}<div class="small muted">{{ packs(v.packs, word) }} of {{ v.pack|num(3) }}</div>{% endif %}</td>
+      <td class="num price">¥{{ pu.unit_price|money(2) }}</td>
+      <td class="num b amt">¥{{ v.total|money(2) }}</td>
+      <td class="right x"><form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/remove/{{ pu.id }}" data-confirm="Take {{ it.name }} off this order? Its rooms keep the shop and wait for another order{% if o.confirmed %}; tell the shop{% endif %}."><button class="btn sm icon ghost danger" title="Take off the order" aria-label="Take {{ it.name }} off the order"><svg class="ic"><use href="#i-x"/></svg></button></form></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+    <tfoot><tr><td colspan="5" class="right">Total</td><td class="num b">¥{{ ov.total|money(2) }}</td><td></td></tr></tfoot>
+  </table></div>
+  {% else %}
+  <div class="card bu-none"><svg class="ic"><use href="#i-info"/></svg><div><b>No products on this order.</b> <span class="muted">Add what is waiting from {{ shop }} below, or delete the order.</span></div></div>
+  {% endif %}
+  {% if more %}
+  <form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/add" class="card od-more">
+    <div class="eyebrow">Also bought from {{ shop }}, not on an order yet</div>
+    <div class="od-picks">
+      {% for v in more %}{% set it = v.lines[0] %}
+      <label class="check"><input type="checkbox" name="pu" value="{{ v.purchase.id }}" checked><span>{{ it.name }}{% if it.size %} · {{ it.size }}{% endif %} <span class="muted small">{{ v.qty|num(2) }} {{ v.unit }} · ¥{{ v.total|money }}</span></span></label>
+      {% endfor %}
+    </div>
+    <button class="btn sm sec"><svg class="ic"><use href="#i-plus"/></svg>Add to this order</button>
+  </form>
+  {% endif %}
+</section>
+
+{# ---- payments ---- #}
+<section class="bu-sec" id="payments">
+  <div class="bu-sec-head"><div><h2>Payments <span class="n">{{ o.payments|length }}</span></h2><p class="small muted">What you paid against this order. Once it is paid in full, its rooms become Paid.</p></div></div>
+  {% if o.payments %}
+  <div class="tbl"><table>
+    <thead><tr><th>Date</th><th>Type</th><th class="num">CNY</th><th>Reference</th><th>Note</th><th>Receipt</th><th></th></tr></thead>
+    <tbody>
+    {% for pay in o.payments %}
+    <tr><td class="nowrap">{{ pay.paid_on.strftime('%d %b %Y') }}</td><td><span class="pill">{{ pay.kind }}</span></td><td class="num b">{{ pay.amount|money(2) }}</td><td>{{ pay.reference }}</td><td class="small muted">{{ pay.note }}</td>
+      <td>{% if pay.receipt_key %}<a href="/media/{{ pay.receipt_key }}" target="_blank" data-caption="Receipt · {{ ov.ref }} · {{ pay.paid_on }}"><img class="thumb sm" src="/media/{{ pay.receipt_key }}" alt="Receipt"></a>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td class="right"><form method="post" action="/p/{{ p.id }}/payments/{{ pay.id }}/delete" data-confirm="Delete this payment? Its receipt is deleted and the order's paid total goes down{% if ov.stage == 'Paid' %}: its rooms go back to Ordered{% endif %}."><input type="hidden" name="next" value="/p/{{ p.id }}/orders/{{ o.id }}#payments"><button class="btn icon sm ghost danger" title="Delete payment" aria-label="Delete payment"><svg class="ic"><use href="#i-trash"/></svg></button></form></td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% endif %}
+  {% if loose %}
+  <form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/claim" class="card od-more od-loose">
+    <div class="eyebrow">Paid to {{ shop }} before, on no order</div>
+    <p class="small muted mb-0">Payments recorded to the shop without an order: before orders existed, or to the shop in general. Tick the ones that paid for this order.</p>
+    <div class="od-picks">
+      {% for pay in loose %}<label class="check"><input type="checkbox" name="pay" value="{{ pay.id }}" checked><span>{{ pay.paid_on.strftime('%d %b %Y') }} · {{ pay.kind }} · <b>¥{{ pay.amount|money(2) }}</b>{% if pay.reference %} <span class="muted small">{{ pay.reference }}</span>{% endif %}</span></label>{% endfor %}
+    </div>
+    <button class="btn sm sec"><svg class="ic"><use href="#i-check"/></svg>Count them toward {{ ov.ref }}</button>
+  </form>
+  {% endif %}
+  <form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/payments" enctype="multipart/form-data" class="card" id="pay">
+    <h2>Record a payment</h2>
+    <div class="grid stack g3">
+      <div><label>Amount (CNY)</label><input class="in" type="number" step="0.01" min="0" name="amount" value="{{ due|plain }}" placeholder="0.00" required inputmode="decimal">
+        <div class="help">{{ due_kind }} due: ¥{{ due|money(2) }}</div></div>
+      <div><label>Type</label><select name="kind" class="in">{% for k in PAYMENT_KINDS %}<option {{ 'selected' if k == due_kind }}>{{ k }}</option>{% endfor %}</select></div>
+      <div><label>Date</label><input class="in" type="date" name="paid_on" value="{{ today }}"></div>
+      <div><label>Reference</label><input class="in" type="text" name="reference" placeholder="Bank ref, WeChat transfer no."></div>
+      <div><label>Receipt photo</label><input type="file" name="receipt" accept="image/*"><div class="filehint help"></div></div>
+      <div><label>Note</label><input class="in" type="text" name="note" placeholder="What it covers"></div>
+    </div>
+    <div class="form-actions"><button class="btn"><svg class="ic"><use href="#i-check"/></svg>Record payment</button><span class="small muted">It also shows on the Payments page and the supplier's page.</span></div>
+  </form>
+</section>
+
+{# ---- details ---- #}
+<section class="bu-sec" id="details">
+  <form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}" class="card">
+    <h2>Details</h2>
+    <div class="grid g3 stack">
+      <div><label>Ready by</label><input class="in" type="date" name="ready_date" value="{{ o.ready_date.isoformat() if o.ready_date else '' }}"></div>
+      <div><label>Deposit %</label><input class="in" type="number" step="0.5" min="0" max="100" name="deposit_pct" value="{{ '%g'|format(o.deposit_pct or 0) }}" inputmode="decimal"></div>
+      <div><label>Shop's reference</label><input class="in" type="text" name="supplier_ref" value="{{ o.supplier_ref }}" placeholder="Their order or invoice no."></div>
+      {% if o.confirmed %}<div><label>Confirmed on</label><input class="in" type="date" name="confirmed_on" value="{{ o.confirmed_on.isoformat() }}"></div>{% endif %}
+      <div class="{{ 'span2' if o.confirmed else 'span3' }}"><label>Payment terms</label><input class="in" type="text" name="terms" value="{{ o.terms }}" placeholder="30% deposit, 70% before loading"></div>
+      <div class="span3"><label>Deliver to</label><textarea class="in" name="deliver_to" rows="4" placeholder="The consolidation warehouse: name, address, contact">{{ o.deliver_to }}</textarea>
+        <div class="help">{% if studio.warehouse %}New orders start with the warehouse from Studio settings.{% else %}Set the consolidation warehouse once in <a href="/settings#warehouse">Studio settings</a> and new orders start with it.{% endif %}</div></div>
+      <div class="span3"><label>Notes</label><textarea class="in" name="notes" rows="2" placeholder="Printed on the purchase order">{{ o.notes }}</textarea></div>
+    </div>
+    <div class="form-actions"><button class="btn"><svg class="ic"><use href="#i-check"/></svg>Save</button></div>
+  </form>
+</section>
+
+{# ---- WeChat ---- #}
+<section class="bu-sec" id="wechat">
+  <details class="card bu-add" id="wechat-box">
+    <summary><svg class="ic"><use href="#i-copy"/></svg>Send to the shop on WeChat</summary>
+    <div class="od-wechat">
+      <p class="small muted">The order as a message, with the Chinese for each heading. Copy it and paste it into the chat; share the purchase order PDF with it.</p>
+      <pre class="wechat" id="wechat-text">{{ wechat }}</pre>
+      <div class="row">
+        <button type="button" class="btn sm" data-copy="wechat-text"><svg class="ic"><use href="#i-copy"/></svg>Copy the message</button>
+        <button type="button" class="btn sm sec" data-share-pdf="/p/{{ p.id }}/orders/{{ o.id }}/po.pdf" data-name="PO-{{ ov.ref }}.pdf" data-title="Purchase order {{ ov.ref }}" hidden><svg class="ic"><use href="#i-upload"/></svg>Share the PDF</button>
+        <a class="btn sm ghost" href="/p/{{ p.id }}/orders/{{ o.id }}/po.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Open the PDF</a>
+      </div>
+    </div>
+  </details>
+</section>
+
+<form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/delete" class="card tight row between od-delete" data-confirm="Delete order {{ ov.ref }}? Its products stay bought and wait for another order{% if o.confirmed %} (their rooms go back to Quoted){% endif %}; its {{ o.payments|length }} payment{{ 's' if o.payments|length != 1 }} stay with {{ shop }}.">
+  <span class="small muted">Delete the order. The products stay bought and the payments stay with the shop.</span>
+  <button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete order</button>
+</form>
+{% endblock %}
