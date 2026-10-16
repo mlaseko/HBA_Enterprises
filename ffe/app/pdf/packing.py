@@ -14,13 +14,15 @@ def _hdr(cols):
     return [Paragraph(f"<font color='white'>{h}</font>", S["cellb"]) for h in cols]
 
 
-def packing_list(p, studio, cartons, title="Packing List") -> bytes:
+def packing_list(p, studio, cartons, title="Packing List", deliver_to="") -> bytes:
+    """Every box with its room label, contents, codes, size and weight. deliver_to: where the boxes go (a shop's packing
+    list: the warehouse), else the project's address."""
     buf = io.BytesIO()
     doc = make_doc(buf, f"{title} - {p.name}")
     W = doc.width
     pos = carton_positions(p.cartons)
     story = [Paragraph(f"{escape(title.upper())} &mdash; {escape(p.name)}", S["h1"]),
-             Paragraph(f"Client: {escape(p.client_name)} &nbsp;&nbsp; Deliver to: {escape(p.address or '-')} &nbsp;&nbsp; {today()}", S["grey"]),
+             Paragraph(f"Client: {escape(p.client_name)} &nbsp;&nbsp; Deliver to: {escape((deliver_to or p.address or '-').replace(chr(10), ', '))} &nbsp;&nbsp; {today()}", S["grey"]),
              Spacer(1, 3 * mm)]
     cols = ["#", "Write on the box", "Supplier", "Contents", "Items", "Qty", "L", "W", "H", "CBM", "kg", "Recv"]
     widths = [8, 50, 30, 60, 30, 10, 10, 10, 10, 12, 10, 10]

@@ -87,7 +87,10 @@ def supplier_packing_pdf(token: str, db: Session = Depends(get_db)):
     if not l:
         raise HTTPException(404)
     cartons = [c for c in l.project.cartons if c.supplier_id == l.supplier_id]
-    return pdf(packing_list(l.project, get_settings(db), cartons, title=f"Packing List - {l.supplier.name}"), "Packing.pdf")
+    from ..shipping import deliver_to
+    studio = get_settings(db)
+    return pdf(packing_list(l.project, studio, cartons, title=f"Packing List - {l.supplier.name}", deliver_to=deliver_to(l.project, l.supplier_id, studio)),
+               "Packing.pdf")
 
 
 @router.get("/p/{project_id}/export/room/{room_id}.pdf", dependencies=[Depends(require_login)])

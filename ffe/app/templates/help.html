@@ -32,7 +32,8 @@
   <a href="#web">Saving from the web</a>
   <a href="#suppliers">Suppliers</a>
   <a href="#purchasing">Orders &amp; payments</a>
-  <a href="#packing">Packing &amp; boxes</a>
+  <a href="#packing">Boxes &amp; labels</a>
+  <a href="#shipping">Shipments</a>
   <a href="#documents">PDFs &amp; Excel</a>
   <a href="#client">The client link</a>
   <a href="#statuses">What the statuses mean</a>
@@ -47,7 +48,7 @@
 
 <section class="card" id="idea">
   <h2>The idea in one minute</h2>
-  <p>You enter each item <b>once</b>: which room it goes in, what it is and a photo of the sample. On <b>Buying</b> you then record what the shops quote and choose which shop supplies which rooms; the price and the brand bought go onto those rooms by themselves. From there the app gives you the client's schedule as a PDF, keeps track of what is quoted, ordered, paid, shipped and received, prints box labels by room, and gives the client a link to follow progress. Nothing is typed twice.</p>
+  <p>You enter each item <b>once</b>: which room it goes in, what it is and a photo of the sample. On <b>Buying</b> you then record what the shops quote and choose which shop supplies which rooms; the price and the brand bought go onto those rooms by themselves. From there the app gives you the client's schedule as a PDF, keeps track of what is quoted, ordered, paid, shipped and received, prints box labels by room, follows every box from the shop through the warehouse and the container to its room, and gives the client a link to follow progress. Nothing is typed twice.</p>
   <p>Everything hangs off <b>rooms and areas</b>. Every item and every box carries a code such as <span class="pill accent">GF-KIT</span>, so a delivery goes straight to the place where it will be installed.</p>
   <p>Yellow boxes are where you type. Everything else is worked out for you.</p>
   <ol class="flow">
@@ -57,15 +58,15 @@
     <li><a href="#s4"><span class="n">4</span><span class="t">Floor plans</span><span class="d">Upload, pick pages, mark rooms.</span></a></li>
     <li><a href="#s5"><span class="n">5</span><span class="t">Items</span><span class="d">Type, shoot or save from the web.</span></a></li>
     <li><a href="#s6"><span class="n">6</span><span class="t">Buying</span><span class="d">Quotes, shops for whole rooms, orders, payments.</span></a></li>
-    <li><a href="#s7"><span class="n">7</span><span class="t">Shipping</span><span class="d">Boxes, labels, packing list.</span></a></li>
+    <li><a href="#s7"><span class="n">7</span><span class="t">Shipping</span><span class="d">Boxes, the warehouse, containers.</span></a></li>
     <li><a href="#s8"><span class="n">8</span><span class="t">The schedule</span><span class="d">PDFs and the client link.</span></a></li>
     <li><a href="#s9"><span class="n">9</span><span class="t">On site</span><span class="d">Receive boxes, tick items, checklists.</span></a></li>
   </ol>
   <div class="who">
     <div class="card soft"><div class="eyebrow">You, the designer</div><p>Log in with the app password. You do everything in this guide; the app is built for your phone in the showroom and your laptop at the desk.</p></div>
-    <div class="card soft"><div class="eyebrow">Suppliers</div><p>Get a <b>packing link</b>, no login. They see only their items and list their own cartons.</p></div>
+    <div class="card soft"><div class="eyebrow">Suppliers</div><p>Get a <b>packing link</b>, no login. They see only their items, list their own cartons and see where to deliver them.</p></div>
     <div class="card soft"><div class="eyebrow">The client</div><p>Gets a <b>client link</b>, no login. Read-only: photos, USD prices (once a shop is chosen), delivery status, the plan and the PDF.</p></div>
-    <div class="card soft"><div class="eyebrow">The site team</div><p>Gets PDFs: the schedule without prices, room checklists with the plan, box labels.</p></div>
+    <div class="card soft"><div class="eyebrow">The site team</div><p>Gets PDFs: the schedule without prices, room checklists with the plan, box labels, the loading list.</p></div>
   </div>
 </section>
 
@@ -164,7 +165,7 @@
       <li><b>Quotes.</b> In the shop, open the product on <b>Buying</b> and press <b>Add a quote</b>: the shop (from the list, or <b>+ New shop…</b> with its name, market and WeChat; it joins the supplier book), the brand and model, the <b>price</b> in CNY or USD, the box size, minimum order and lead time, and a photo of the sample or the price tag. Add one quote per shop. Nothing is chosen yet, and the client sees no price.</li>
       <li><b>Choose.</b> Compare the quotes: each shows what the whole order costs with its own box size, and the cheapest says <b>Lowest price</b>. Press <b>Buy for the rooms without a shop</b> on the one you choose. To split, open <b>Choose the rooms to buy here</b> on each quote and tick its rooms: a room is always bought whole from one shop. Those rooms' lines now carry the shop, its price, the brand bought and the lead time, and move to <span class="badge" style="--c:{{ STATUS_COLORS['Quoted'] }}">Quoted</span>.</li>
       <li><b>Quantities.</b> <b>What to order</b> adds an allowance to the rooms' quantities (10 % for tiles, nothing for the rest) and rounds up to whole boxes; change both per product. A purchase can also take a quantity set by hand.</li>
-      <li><b>Review.</b> <b>Purchase schedule</b> shows every product in the look of the client schedule, with what to order, the shop, the brand bought and the price, by category; print it to PDF to keep or send.</li>
+      <li><b>Review.</b> <b>Purchase schedule</b> shows every product in the look of the client schedule, with what to order, the shop, the brand bought and the price, by category. Its <b>PDF</b> is the internal version, with the shops and the money by shop: filter it by <b>market</b> first to take one market's list with you, or print it all to review with your team.</li>
       <li><b>Order.</b> What you bought from a shop waits on the <b>Orders</b> tab under <b>Ready to order</b>. Press <b>Start an order</b>: the shop's products go onto a numbered draft (MV-001: the project's initials and a number) with each room, what to order in whole boxes, the price and the total. Check it, set the shop's <b>ready date</b> and the deposit (read from the shop's payment terms), and send the shop the <b>Purchase order</b> PDF, or press <b>Send on WeChat</b> for the same order as a message with the Chinese for each heading. When the shop agrees, press <b>Confirm the order</b>: its rooms become <span class="badge" style="--c:{{ STATUS_COLORS['Ordered'] }}">Ordered</span> by themselves.</li>
       <li><b>Pay.</b> Record each deposit and balance on the order (<b>Record a payment</b> comes filled in with what is due) or on <b>Payments</b>: date, amount in CNY, type, the bank or WeChat reference and a photo of the receipt. Once an order is paid in full, its rooms become <span class="badge" style="--c:{{ STATUS_COLORS['Paid'] }}">Paid</span>. What is still to pay, per order and per shop, shows on the order, the supplier, Payments and the Overview.</li>
       <li><b>Track.</b> The <b>Tracker</b> tab puts the money side by side (budget, estimated, committed, ordered, paid, to pay), lists what <b>needs attention</b> (orders past their ready date with money still to pay, deposits to pay, balances due before collection, drafts to confirm, products without a shop or a quote) and breaks the buying down by stage, shop and category.</li>
@@ -192,19 +193,23 @@
 
   <div class="stage" id="s7">
     <div class="eyebrow">Stage 7</div>
-    <h3>Shipping: boxes, labels, container</h3>
+    <h3>Shipping: boxes, the warehouse, the container</h3>
+    <p>Every box travels the same way: from the shop to the consolidation warehouse, into a container, and to site. <b>Shipping</b> follows each one, and the items inside follow their boxes.</p>
     <ol>
-      <li>Open the supplier and press <b>Create packing link</b>, then <b>Copy link</b> and send it on WeChat. With that link, and no login, the supplier lists every carton: the room it goes to, what is inside, item codes, size and weight.</li>
-      <li>Or add the boxes yourself on <b>Packing</b>: <b>Add a box</b> with supplier, room, contents, codes, size and weight.</li>
-      <li>The app numbers each box <b>Box n of N</b> for its room and adds the volume up to a container size. Press <b>Print box labels</b> (six per page) and <b>Packing list PDF</b>; the supplier has the same two buttons on their link.</li>
-      <li>When the goods leave, set the items to <span class="badge" style="--c:{{ STATUS_COLORS['Shipped'] }}">Shipped</span>.</li>
+      <li><b>The shops list their boxes.</b> Open the supplier and press <b>Create packing link</b>, then <b>Copy link</b> and send it on WeChat. With that link, and no login, the shop sees where to deliver and lists every carton: the room it goes to, what is inside, the items in it (they tick them), the size and the weight. Or add the boxes yourself on <b>Shipping › Boxes</b> with <b>Add a box</b>.</li>
+      <li><b>Labels.</b> The app numbers each box <b>Box n of N</b> for its room. Press <b>Print box labels</b> (six per page) and <b>Packing list PDF</b>; the shop has the same two buttons on its link.</li>
+      <li><b>At the warehouse.</b> When a shop delivers, open <b>Shipping › Shipments</b> and press <b>Delivered to the warehouse</b> on its line (or tick the boxes on Boxes and press <b>At the warehouse</b>). They wait under <b>Waiting at the warehouse</b>, which says what they fit together: LCL below about 12 CBM, else a 20ft or a 40ft container.</li>
+      <li><b>Ship.</b> Choose the container and press <b>Ship them: new shipment</b>: every waiting box goes on <b>Shipment 1</b>. The shipment shows the space and the weight used; write its container and seal numbers, the forwarder, the bill of lading and the dates under <b>Details</b>, and give the warehouse the <b>Loading list</b>.</li>
+      <li><b>Loaded, sailed, arrived.</b> Press <b>Loaded today</b> when the container leaves the warehouse: the items in its boxes become <span class="badge" style="--c:{{ STATUS_COLORS['Shipped'] }}">Shipped</span>. Then <b>Sailed today</b> and <b>Arrived today</b> (or on another day). The Overview says when the next shipment arrives, and the Tracker warns you when one is late.</li>
     </ol>
+    {{ shot('shipments', 'Shipments: where the boxes are, what waits at the warehouse and what it fits, the shops still to deliver, then each shipment by stage with how full it is and when it arrives.') }}
+    {{ shot('shipment', 'A shipment: its steps from loading to delivery, the boxes, volume and weight against the container, its dates and papers, then its boxes by room.') }}
     <div class="shots">
-      {{ shot('packing', 'Packing: boxes with their room code and “Box n of N”, who entered them, and a Received button for each.') }}
-      {{ shot('supplier-link', 'What the supplier sees on their packing link: their items, the cartons they listed, and the two print buttons.') }}
+      {{ shot('packing', 'Boxes: where they are, the bar that moves the ticked boxes on, and each box with its room code, “Box n of N”, the items inside and where it is now.') }}
+      {{ shot('supplier-link', 'What the shop sees on its packing link: where to deliver, its items, and the cartons it listed with the items inside.') }}
     </div>
-    {{ shot('pdf-labels', 'Box labels, six per page: the room code large, the box number, the supplier, the contents and the delivery address.', 'narrow') }}
-    <div class="result"><b>Done when:</b> every carton carries a room code and a box number, and the packing list shows the volume and the container.</div>
+    {{ shot('pdf-loading', 'The loading list: the container, the forwarder and the dates, then every box by room with a square to tick at loading and one on site.') }}
+    <div class="result"><b>Done when:</b> every box carries a room code and a box number, and travels on a shipment with its container number and dates.</div>
   </div>
 
   <div class="stage" id="s8">
@@ -231,11 +236,14 @@
     <div class="eyebrow">Stage 9</div>
     <h3>On site: receiving and checklists</h3>
     <ol>
-      <li>When a box arrives, open <b>Packing</b> and press <b>Received</b> on it (<b>Undo</b> if you pressed by mistake). The Overview's boxes-received tile follows.</li>
-      <li>When an item is in place, set it to <span class="badge" style="--c:{{ STATUS_COLORS['Received'] }}">Received</span>, quickest from the plan: tap the room, change the status in the panel.</li>
+      <li>When the shipment reaches site, open it on the phone and press <b>Delivered today</b>. Tap the square of each box as it is checked, <b>Room received</b> for a whole room, or <b>All received</b>. The items in a box become <span class="badge" style="--c:{{ STATUS_COLORS['Received'] }}">Received</span> once every box holding them is received; tap a square again if you pressed by mistake.</li>
+      <li>A box that came another way is received on <b>Shipping › Boxes</b>: the tick button on its line, or tick several and press <b>Received on site</b>. An item can always be set to Received by hand, quickest from the plan: tap the room, change the status in the panel.</li>
       <li>Give the installers each room's <b>Checklist PDF</b> (Rooms page, item list or plan panel). Page one is the room cut out of the plan with a numbered dot per item; the next pages list the items with photos and a tick box.</li>
     </ol>
-    {{ shot('pdf-checklist', 'Page one of a room checklist: the room zoomed in on its plan, its outline, and a dot carrying the number of each item code.') }}
+    <div class="shots">
+      {{ shot('pdf-checklist', 'Page one of a room checklist: the room zoomed in on its plan, its outline, and a dot carrying the number of each item code.') }}
+      {{ shot('phone-receive', 'Receiving on the phone: the shipment\'s boxes by room, a square to tap as each one is checked, and Room received.', 'phone') }}
+    </div>
     <div class="result"><b>Done when:</b> the Overview shows every item and every box received. The client link shows the same.</div>
   </div>
 </section>
@@ -246,7 +254,7 @@
   <ul>
     <li>The <b>default exchange rate</b> is used for new projects. Each project keeps its own rate in Project settings.</li>
     <li>The <b>logo</b> replaces the house glyph in the app. A square PNG or JPG looks best. The PDFs keep their own layout.</li>
-    <li><b>Warehouse.</b> The consolidation warehouse the shops deliver to: name, address and contact. Every new order's <b>Deliver to</b> starts from it, and it prints on the purchase order and in the WeChat message; an order can still say something else.</li>
+    <li><b>Warehouse.</b> The consolidation warehouse the shops deliver to: name, address and contact. Every new order's <b>Deliver to</b> starts from it, and it prints on the purchase order and in the WeChat message; an order can still say something else. A shop's packing link and packing list show where to deliver: its latest order's Deliver to, else this warehouse.</li>
     <li>The app password, the database and the photo storage are set up on the server, not here.</li>
     <li><b>Plan sheet types.</b> What a floor plan can <b>show</b> is a list you keep here: Main plan, Furniture layout, Electrical &amp; lighting, Plumbing &amp; sanitary, Ceiling, Flooring &amp; tiles and Windows &amp; doors to begin with. Each type has a <b>kind</b>: a <i>plan of the floor</i> borrows the main plan's room boxes; a <i>reference sheet</i> (Windows &amp; doors, or a door schedule you add) shows drawings of the items instead, with dots and no boxes, and its drawings can be matched to the items by reference (see The plan). Type a title, pick the kind (and the words the page picker should look for in a drawing title, such as "landscape, garden") and press <b>Add sheet type</b>: it is a choice under <b>Shows</b> on Images &amp; plans and in the page picker at once, and a plan of that type sits under its floor's Sheet switch on the Plan page. Rename a type and every plan that shows it follows; reorder with the arrows; delete one once no plan shows it (the main plan always stays). The table <b>Which sheet a category's items are read from</b> decides which sheets the schedule PDF prints before a category's table: the electrical sheets before Lighting, the windows sheet before Windows &amp; Doors.</li>
     <li><b>Speed.</b> Lists, the plan dots and the PDF tables show a <b>small copy</b> of each photo instead of the full picture, so the Items page and the plan load several times faster. Photos taken from now on get their small copy at once; for photos from before, press <b>Make small versions</b> under Speed until none are left. The card also shows how many pictures the server keeps in memory for the next visitor.</li>
@@ -489,7 +497,7 @@
   <ul>
     <li><b>Add supplier</b>: name, city or market, what they supply, contact person, phone, WeChat, email, payment terms, notes. The supplier book is shared by all your projects.</li>
     <li>A supplier is chosen for items on <a href="#buying">Buying</a>: a quote from them, then Buy. A new shop typed on a quote joins the book by itself. Inside a project the supplier's line shows what is on its confirmed orders, paid and still to pay, and whether a packing link is active.</li>
-    <li>Open a supplier inside a project for its <b>orders</b> (and a button to order what is waiting from it), the money and the <b>packing link</b> (see <a href="#purchasing">orders &amp; payments</a> and <a href="#packing">packing</a>); <b>All their items (PDF)</b> lists everything bought from it on the project. Opened from the Studio menu, without a project, it shows the supplier's items across all projects.</li>
+    <li>Open a supplier inside a project for its <b>orders</b> (and a button to order what is waiting from it), the money and the <b>packing link</b> (see <a href="#purchasing">orders &amp; payments</a> and <a href="#packing">boxes</a>); <b>All their items (PDF)</b> lists everything bought from it on the project. Opened from the Studio menu, without a project, it shows the supplier's items across all projects.</li>
     <li>Deleting a supplier keeps the items; its quotes and purchases go, and the rooms it supplied have no shop again.</li>
   </ul>
 </section>
@@ -504,7 +512,7 @@
     <li><b>Ordered</b>: its order is confirmed with the shop.</li>
     <li><b>Paid</b>: its order is paid in full.</li>
   </ol>
-  <p>The last two follow the orders by themselves: confirming an order makes its rooms Ordered, paying it in full makes them Paid, and <b>Back to a draft</b>, taking a product off or deleting a confirmed order puts them back to Quoted. A draft changes nothing but To buy, so a status you set before the order stays until you confirm it. On a confirmed order, To buy, Quoted, Ordered or Paid set by hand goes back with the order's next change. <b>Shipped</b> and <b>Received</b> are always yours to set, and a line on no order keeps whatever status you give it.</p>
+  <p>The last two follow the orders by themselves: confirming an order makes its rooms Ordered, paying it in full makes them Paid, and <b>Back to a draft</b>, taking a product off or deleting a confirmed order puts them back to Quoted. A draft changes nothing but To buy, so a status you set before the order stays until you confirm it. On a confirmed order, To buy, Quoted, Ordered or Paid set by hand goes back with the order's next change. <b>Shipped</b> and <b>Received</b> follow the boxes holding the item (see <a href="#packing">Boxes</a>), and a line on no order and in no box keeps whatever status you give it.</p>
   <h3>Orders</h3>
   <ul>
     <li>An <b>order</b> is what you buy from one shop at one time, numbered per project: MV-001, MV-002… (the project's initials). <b>Orders</b>, a tab of Buying, shows what is <b>ready to order</b> per shop, then the orders by stage: <b>Draft</b> (not confirmed yet), <b>Deposit due</b>, <b>Balance due</b> and <b>Paid</b>.</li>
@@ -535,16 +543,42 @@
 </section>
 
 <section class="card" id="packing">
-  <h2>Packing &amp; boxes</h2>
-  <p><b>What it is for:</b> making sure every box reaches the right room and nothing is missing on site.</p>
+  <h2>Boxes &amp; labels</h2>
+  <p><b>What it is for:</b> making sure every box reaches the right room and nothing is missing on site. <b>Shipping</b> opens on <b>Boxes</b>, one line per box; <a href="#shipping">Shipments</a> is the tab beside it.</p>
   <ul>
-    <li><b>Add a box</b>: supplier, the room it is installed in, what is inside, the item codes, qty inside, size in cm, weight and notes. The app numbers boxes <b>Box n of N</b> per room, works out the volume and suggests a container size at the top.</li>
-    <li>The <b>By</b> column says whether you or the supplier entered the box. Suppliers enter theirs through their <b>packing link</b>; they can delete a carton until it is marked received.</li>
-    <li><b>Received</b> on a box when it arrives; <b>Undo</b> if needed. The Overview counts boxes received.</li>
-    <li>Filter by supplier or room. <b>Print box labels</b> and <b>Packing list PDF</b> respect the supplier filter, so you can print one supplier's labels only.</li>
-    <li>The label carries the room code large, the room name and floor, "Box n of N for this room" (or area), the supplier and box number, the contents, item codes, quantity and weight, and the delivery address.</li>
+    <li><b>Where each box is.</b> The four tiles count the boxes <b>at the shop</b> (listed, not delivered yet), <b>at the warehouse</b> (waiting for a shipment), <b>on a shipment</b> and <b>received on site</b>; press one to list only those. The <b>Where</b> column says the same per box, with its shipment, the stage and when it arrives.</li>
+    <li><b>Add a box</b>: the shop, the room it is installed in, what is inside, the items inside (tick them: the list shows the room's lines, only that shop's once you choose one), other codes or notes, the quantity, the size in cm, the weight and notes; tick <b>Already at the warehouse</b> if it is there. The shops add theirs on their <b>packing link</b> and can delete a carton until it is delivered.</li>
+    <li><b>Move boxes on in one go.</b> Tick boxes (the square in the heading ticks all shown) and press <b>At the warehouse</b>, <b>Put on</b> a shipment (one being planned or loaded, or <b>A new shipment</b>) or <b>Received on site</b>. <b>Off the shipment</b> and <b>Not delivered</b> undo the first two.</li>
+    <li><b>The items follow their boxes.</b> The items ticked in a box (or their codes typed in it) are the room lines it carries. Once every box holding an item is loaded, the item is <b>Shipped</b>; once every one is received on site, it is <b>Received</b>. An item spread over several boxes waits for the last one. A box taken off a shipment, a loading undone, a box not received after all, changed or deleted puts its items back to what their order gives them (Ordered or Paid). An item no box names keeps the status you give it.</li>
+    <li>The pencil opens a box to change it, and to set the day it reached the warehouse; the bin deletes it.</li>
+    <li>Filter by shop, room, place or shipment. <b>Print box labels</b> and <b>Packing list PDF</b> respect the shop filter, so you can print one shop's labels only.</li>
+    <li>The label carries the room code large, the room name and floor, "Box n of N for this room" (or area), the shop and box number, the contents, item codes, quantity and weight, and the delivery address.</li>
   </ul>
   {{ shot('pdf-packing', 'The packing list PDF: every box with its room, contents, codes, size, volume and weight, and the container at the end.') }}
+  {{ shot('pdf-labels', 'Box labels, six per page: the room code large, the box number, the shop, the contents and the delivery address.', 'narrow') }}
+</section>
+
+<section class="card" id="shipping">
+  <h2>Shipments</h2>
+  <p><b>What it is for:</b> getting the boxes from the consolidation warehouse to site, container by container, and knowing at any moment what is where and when it arrives.</p>
+  <h3>The Shipments page</h3>
+  <ul>
+    <li><b>Waiting at the warehouse</b>: the boxes the shops delivered that are on no shipment yet, by shop, with their volume and weight and what they fit together (LCL below about 12 CBM, sharing a container; else a 20ft, a 40ft or a 40ft high cube). <b>Ship them: new shipment</b> puts them all on a new shipment in the container chosen beside it; <b>Add all to Shipment n</b> adds them to one being planned.</li>
+    <li><b>Still at the shops</b>: boxes listed but not delivered yet. <b>Delivered to the warehouse</b> marks one shop's boxes at once.</li>
+    <li>Then the shipments by stage: <b>Planning</b> (gathering boxes), <b>Loaded</b> (left the warehouse), <b>At sea</b>, <b>Arrived</b> (at the port) and <b>Delivered</b> (on site), each with its container, its boxes, how full it is and when it arrives.</li>
+    <li>Shipments are numbered per project (Shipment 1, Shipment 2…), and a number is never given twice.</li>
+  </ul>
+  <h3>A shipment</h3>
+  <ul>
+    <li>The steps along the top: <b>Gathered</b>, <b>Loaded</b>, <b>Sailed</b>, <b>Arrived</b> and <b>Delivered</b>. The button under them takes the next step today, or on the day you pick beside it; <b>Undo the last step</b> takes it back.</li>
+    <li><b>On board</b>: the boxes, the volume and the weight, with bars against what the container takes (about 28 CBM in a 20ft, 58 in a 40ft, 68 in a 40ft high cube) and a red note when it is too full.</li>
+    <li><b>Boxes on board</b>, by the room they go to. Until it sails, the × takes a box off (it waits at the warehouse again) and <b>Add boxes</b> lists the ones waiting; <b>Also plan with boxes still at the shops</b> adds those not delivered yet.</li>
+    <li><b>Details</b>: the container or mode, the container and seal numbers, the bill of lading (or air waybill), the forwarder, the vessel, the ports, the dates, the freight and charges in CNY and notes. With an ETA, the Tracker tells you when it is due and when it is late.</li>
+    <li><b>Receiving</b>: once it has arrived, tap the square of each box as it is checked on site, <b>Room received</b> for a room, or <b>All received</b>. When every box is received, the shipment is Delivered by itself.</li>
+    <li><b>Loading list</b> is the PDF for the warehouse and the forwarder: the container, seal, bill of lading, forwarder, vessel, ports and dates, then every box by room with its label, shop, contents, items, size, volume and weight, and a square to tick at loading and one on site.</li>
+    <li><b>Delete shipment</b> keeps the boxes: they wait at the warehouse again, and their items are no longer Shipped.</li>
+  </ul>
+  <p>The Tracker's <b>Needs attention</b> lists a shipment that is late or arrives within a week, boxes still to receive on site, a planned shipment that should have sailed, and boxes waiting at the warehouse; its <b>Shipping</b> section counts the boxes by place and lists the shipments. The Overview says when the next shipment arrives.</p>
 </section>
 
 <section class="card" id="documents">
@@ -556,11 +590,12 @@
       <tr><td><b>Client schedule</b></td><td>Cover, At a glance with a contents list, each floor's main plan with the room boxes, mood board, one section per category (photo, code, product and must-haves, brand · finish · size, room, lead time, quantity, unit and total; no price until a shop is chosen) and a summary by room with share bars; by floor: each floor's plan, then its rooms. Suppliers, notes and CNY prices are never printed.</td><td>Client</td><td>Overview › Documents; Images &amp; plans; the client link</td></tr>
       <tr><td><b>Schedule by floor</b></td><td>Each floor's plan, then its rooms in one table with a sub-header per room, then the whole-house items and a summary by floor.</td><td>Client, or the site team without prices</td><td>Overview › Documents</td></tr>
       <tr><td><b>Room checklist</b></td><td>Page one: the room zoomed in on its plan with numbered dots; one more page per other sheet of the floor the room has dots on (the electrical sheet with the lighting dots, say). Then its items with photos, must-haves, quantities and a tick box each. Areas get an "Area checklist".</td><td>Installers</td><td>Rooms page, item list filtered by room, plan panel, Overview by room</td></tr>
-      <tr><td><b>Purchase schedule</b></td><td>Every product once, by category: photo, codes, product and must-haves, rooms, what to order, the shop and brand bought, unit price, total and stage; CNY or USD. Printed from the browser (A4 landscape).</td><td>You, before paying</td><td>Buying › Purchase schedule</td></tr>
+      <tr><td><b>Purchase schedule</b></td><td>Internal. Every product once, by category: photo, codes, product and must-haves, rooms, what to order, the shop and brand bought, unit price, total and stage; then the money by shop (bought, on orders, paid, to pay). CNY or USD, with the page's filters: a category, a floor, a stage or one market.</td><td>You and your team; one market at a time</td><td>Buying › Purchase schedule › PDF; Overview › Documents</td></tr>
       <tr><td><b>Purchase order</b></td><td>One order: the shop, where to deliver, each product with its photo, the rooms with their codes, the quantity in boxes and CNY prices; total, deposit, paid and balance; payment terms, notes and the packing instruction. A draft prints as a draft.</td><td>Supplier</td><td>The order (Buying › Orders); the supplier's orders</td></tr>
       <tr><td><b>All their items</b></td><td>Every item bought from one supplier on the project, with codes, specs, photos, rooms and prices; total, paid and balance.</td><td>You, the supplier</td><td>Supplier page inside the project</td></tr>
-      <tr><td><b>Packing list</b></td><td>Every box with room, contents, codes, size, volume and weight; total volume and container. The supplier's link prints their own.</td><td>Forwarder, site</td><td>Overview › Documents; Packing; supplier link</td></tr>
-      <tr><td><b>Box labels</b></td><td>Six per A4 page, one per box, to stick on the cartons.</td><td>Supplier, site</td><td>Packing; Rooms page (one room); supplier link</td></tr>
+      <tr><td><b>Packing list</b></td><td>Every box with room, contents, codes, size, volume and weight; total volume and container. The supplier's link prints their own, with where to deliver.</td><td>Forwarder, site</td><td>Overview › Documents; Shipping › Boxes; supplier link</td></tr>
+      <tr><td><b>Box labels</b></td><td>Six per A4 page, one per box, to stick on the cartons.</td><td>Supplier, site</td><td>Shipping › Boxes; Rooms page (one room); supplier link</td></tr>
+      <tr><td><b>Loading list</b></td><td>One shipment: container, seal, bill of lading, forwarder, vessel, ports and dates; every box by room with its label, shop, contents, items, size, volume and weight, and squares to tick at loading and on site; the volume and weight against the container.</td><td>Warehouse, forwarder, site</td><td>The shipment (Shipping › Shipments)</td></tr>
       <tr><td><b>Excel export</b></td><td>All items with their fields and codes, totals, and a Rooms sheet with the kind. Change it in Excel and import it back: rows are matched by code and updated.</td><td>You</td><td>Overview › Documents, Import</td></tr>
     </tbody>
   </table></div>
@@ -569,6 +604,7 @@
     {{ shot('pdf-contents', 'The contents page: one entry per category, then the summary; the project description prints below.') }}
   </div>
   {{ shot('pdf-summary', 'The last page of the client schedule: the summary by room and area, with the share of the total per place, in USD.', 'narrow') }}
+  {{ shot('pdf-purchase', 'The internal Purchase schedule: each product with its rooms, what to order, the shop and brand bought, the price and the stage, in CNY or USD.') }}
 </section>
 
 <section class="card" id="client">
@@ -585,7 +621,7 @@
 
 <section class="card" id="statuses">
   <h2>What the statuses mean</h2>
-  <p>The status of an item follows the purchase: To buy, Quoted, Ordered and Paid move by themselves with Buying and the orders; Shipped and Received are yours to set. Change it from the dropdown on the item list, in the plan panel, or on the item itself. The Overview counts items per status, and the ring on each room box of the plan fills as items are received.</p>
+  <p>The status of an item follows the purchase: To buy, Quoted, Ordered and Paid move by themselves with Buying and the orders; Shipped and Received with the boxes that hold the item. You can still set any status by hand: from the dropdown on the item list, in the plan panel, or on the item itself. The Overview counts items per status, and the ring on each room box of the plan fills as items are received.</p>
   <div class="tbl"><table>
     <thead><tr><th>Status</th><th>Meaning</th><th>Set it when</th></tr></thead>
     <tbody>
@@ -594,8 +630,8 @@
         ('Quoted', 'A shop is chosen for the room, at its price.', 'By itself, when you buy from a quote on Buying (and back to To buy if the room loses its shop).'),
         ('Ordered', 'On an order confirmed with the shop.', 'By itself, when you confirm its order (back to Quoted if the order goes back to a draft or the product leaves it).'),
         ('Paid', 'Its order is paid in full.', 'By itself, when the payments recorded against its order reach the order\'s total.'),
-        ('Shipped', 'Left the supplier, on its way.', 'The cartons are listed and loaded.'),
-        ('Received', 'On site.', 'The item is checked on site; the boxes are marked received on Packing.'),
+        ('Shipped', 'Loaded at the warehouse, on its way.', 'By itself, when every box holding it is loaded on a shipment (back if a box comes off or the loading is undone). Or by hand.'),
+        ('Received', 'On site.', 'By itself, when every box holding it is received on site, on its shipment or on Shipping › Boxes. Or by hand, once it is checked in place.'),
       ] %}
       <tr><td><span class="badge" style="--c:{{ STATUS_COLORS[st] }}">{{ st }}</span></td><td>{{ meaning }}</td><td>{{ when }}</td></tr>
       {% endfor %}
@@ -621,10 +657,11 @@
   <h2>Tips for the phone</h2>
   <ul>
     <li>Add the app to your home screen from the browser menu; it then opens like an app.</li>
-    <li>The bottom bar has the pages you use most: <b>Overview</b>, <b>Items</b>, <b>Capture</b> in the middle, <b>Plan</b>, <b>Buying</b>. Everything else (Packing among them), and switching project, is under <b>More</b>.</li>
+    <li>The bottom bar has the pages you use most: <b>Overview</b>, <b>Items</b>, <b>Capture</b> in the middle, <b>Plan</b>, <b>Buying</b>. Everything else (Shipping among them), and switching project, is under <b>More</b>.</li>
     <li>Photos are shrunk on the phone before they upload, so they go through on slow Wi-Fi. Floor plans keep more detail.</li>
     <li>On the plan, pinch to zoom and tap a room; the room's items come up from the bottom. Tap the pin on an item, then the drawing, to place it.</li>
     <li>Tap any picture to open it full screen: pinch to zoom, drag to move, and the Back button closes it.</li>
+    <li>On site, open the shipment: each box has a large square to tap as it is checked, room by room.</li>
     <li>Nothing here needs Google or any outside service, so it works in China.</li>
   </ul>
   <div class="shots">
@@ -639,7 +676,10 @@
   <details><summary>The electrical plan shows no room boxes.</summary><p>Boxes are drawn on the floor's main plan and borrowed by the other sheets of that floor. Check that both sheets carry the same floor name, and that the general floor plan is set to show "Main plan (general floor plan)" under Images &amp; plans. An electrical sheet uploaded before layers existed usually sits under its own floor name ("Ground Electrical"): the Images &amp; plans page shows a yellow note on it with a one-press fix. If the electrical sheet is framed differently and the borrowed boxes sit off, press Mark rooms on it and copy the boxes to adjust them there.</p></details>
   <details><summary>Can I change many statuses or quantities at once?</summary><p>Yes, in Excel. Import → <b>Export all items</b> (or <b>Export a part</b>: a category, floor, room or status; or the Items page's <b>Export</b> of what its filter shows), change the cells, import the file back. Rows are matched by their <b>Code</b>, so the items are updated rather than added again; blank cells leave a value alone and <b>-</b> clears one. Photos and plan dots stay. Price, Supplier and Lead time are grey: they come from Buying, and the import leaves them alone.</p></details>
   <details><summary>Where did the supplier and price fields of the item go?</summary><p>To <a href="#buying">Buying</a>. The item now says only what is needed and where; the shop, its price, the brand bought and the lead time are chosen per product from the quotes, for whole rooms, and then show on the item, the lists, the documents and the client link as before.</p></details>
-  <details><summary>I set a room to Paid and it went back to Ordered.</summary><p>A room line on an order takes its status from the order: Ordered once the order is confirmed, Paid once it is paid in full. Record the payment against the order (on the order, or on Payments with the order chosen) and its rooms become Paid. Shipped and Received are always yours to set.</p></details>
+  <details><summary>I set a room to Paid and it went back to Ordered.</summary><p>A room line on an order takes its status from the order: Ordered once the order is confirmed, Paid once it is paid in full. Record the payment against the order (on the order, or on Payments with the order chosen) and its rooms become Paid. Shipped and Received follow the boxes holding the item.</p></details>
+  <details><summary>An item stays Ordered although its box was loaded.</summary><p>The app knows what is in a box from the items ticked on it, or their codes typed in it. Open the box (Shipping › Boxes, the pencil) and tick the item: it becomes Shipped once every box holding it is loaded. An item spread over several boxes waits for the last one.</p></details>
+  <details><summary>The shop delivered, but its boxes are not on the Shipments page.</summary><p>Boxes show up once they are listed. Ask the shop to list them on its packing link, or add them on Shipping › Boxes with <b>Already at the warehouse</b> ticked. Listed boxes not delivered yet are under <b>Still at the shops</b>: press <b>Delivered to the warehouse</b>.</p></details>
+  <details><summary>A box went on the wrong shipment.</summary><p>Until the shipment sails, open it and press × on the box: it waits at the warehouse again, ready for another shipment. On Shipping › Boxes, tick it and choose the right shipment beside <b>Put on</b>.</p></details>
   <details><summary>I paid the shop before I made the order.</summary><p>Open the order: the payments to that shop recorded without an order are listed under <b>Paid to … before, on no order</b>. Tick the ones that paid for this order and press <b>Count them toward</b> it; the order's paid total, its stage and its rooms follow. A status you set by hand before the order stays while the order is a draft.</p></details>
   <details><summary>The shop changed a price after we confirmed the order.</summary><p>Correct the quote on the product's Buying page: its rooms and the order follow, and the order says <b>Changed since it was confirmed</b> with both totals (the Tracker lists it too). Send the shop the new purchase order; once they agree, press <b>The shop agreed</b> on the order.</p></details>
   <details><summary>We buy the same tile from two shops.</summary><p>Open the product on Buying and add both quotes. On each quote open <b>Choose the rooms to buy here</b> and tick its rooms: a room is bought whole from one shop. Each shop then has its own line under <b>Buying from</b>, and the Purchase schedule shows both with their rooms.</p></details>

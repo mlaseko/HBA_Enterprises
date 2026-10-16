@@ -11,8 +11,9 @@ chooses a shop for whole rooms, and the app gives him:
 1. the **client-facing Furniture & Fixture Schedule PDF** (his old Canva document, now generated from data),
 2. **purchase control**: the buying list by product (quotes, shops per room, what to order, the Purchase schedule),
    status per item, suppliers, payments, balances,
-3. **packing by room**: every box carries a room code and "Box n of N", labels, packing list, container size,
-   suppliers list their own boxes through a no-login link,
+3. **shipping by room**: every box carries a room code and "Box n of N", labels, packing list; suppliers list their own
+   boxes (ticking the items inside) through a no-login link; boxes go from the shop to the consolidation warehouse, onto
+   a shipment (container, dates, loading list) and to site, and the items' statuses follow their boxes,
 4. a **read-only client link** so the client follows progress.
 
 Users: the designer (one app password). Clients and suppliers only ever receive share links. No roles.
@@ -40,7 +41,9 @@ app/models.py          Settings, SchemaMark (one-time data upgrades that ran), P
                        Product (a product's buying data: allowance, pack), Quote (one shop's offer), Purchase (bought from one
                        shop for whole rooms; Item.purchase_id / Item.purchase; Item.brand_shown = the brand bought, else preferred),
                        Order (one shop's purchases, numbered per project: Purchase.order_id, Payment.order_id; confirmed_on None =
-                       a draft; confirmed_total; Project.orders_made = the last number given), Settings.warehouse_* (+ .warehouse)
+                       a draft; confirmed_total; Project.orders_made = the last number given), Settings.warehouse_* (+ .warehouse),
+                       Shipment (a container, LCL share or air freight, numbered per project: Project.shipments_made; dates
+                       loaded_on / etd / eta / arrived_on / delivered_on), Carton.warehouse_on / Carton.shipment_id
                        Item.draft = quick-capture draft (no name/code yet); Project.live_items / Project.drafts split them
 app/common.py          templates, auth helpers, number filters, render()/redirect() (render injects `help_tip` for the ? drawer)
 app/help_tips.py       "Help for this page": TIPS (title, what, steps, tips, anchor into help.html) per page key, TEMPLATE_KEYS,
@@ -59,11 +62,25 @@ app/ordering.py        orders: initials()/ref() ("KH-003"), deposit_from_terms()
                        new_order()/add()/take_off()/confirm()/unconfirm()/delete()/record_payment(), claim()/loose_payments()
                        (earlier payments on no order counted toward an order), OrderView (lines, total,
                        deposit, paid, balance, stage Draft | Deposit due | Balance due | Paid, changed, late/soon/collect,
-                       ready_text), views(), unordered() (bought, on no order, by shop), wechat_text(), tracker()
-app/routers/buy.py     /p/<id>/buying (list), /buying/schedule (Purchase schedule), /buying/tracker, /buying/item/<item> (→ its product),
+                       ready_text), views(), unordered() (bought, on no order, by shop), wechat_text(), tracker() (also the
+                       shipping lines of needs attention and the boxes / shipments it shows)
+app/shipping.py        boxes and shipments: codes_in()/split_codes()/join_codes() (Carton.item_codes ↔ the ticked lines),
+                       item_choices() (the lines a box can hold), Boxes (once per request: lines_of box → lines, boxes_of
+                       line → boxes, shipments), where() (shop | warehouse | shipment | site), target(), settle() (Shipped /
+                       Received from the boxes, undone lines step back), stage()/capacity()/fits(), new_shipment()/put_on()/
+                       take_off()/delete()/receive()/at_warehouse(), ShipmentView, views(), attention() (the Tracker's
+                       shipping lines), deliver_to() (where a shop delivers), by_supplier()/totals()
+app/routers/buy.py     /p/<id>/buying (list), /buying/schedule (Purchase schedule; ?market=), /buying/schedule.pdf (the internal
+                       PDF, same filters), /buying/tracker, /buying/item/<item> (→ its product),
                        /buying/<product> (+ POST allowance/pack; /quotes, /quotes/<q>[/delete|/buy], /purchases/<pu>[/delete])
 app/routers/orders.py  /p/<id>/orders (ready to order + orders by stage), /orders/new, /orders/<o> (page; POST details),
                        /orders/<o>/add|remove/<pu>|confirm|unconfirm|delete|payments|claim, /orders/<o>/po.pdf
+app/routers/cartons.py Shipping › Boxes: /p/<id>/cartons (?supplier= &room= &where= &shipment=; POST adds a box), /cartons/bulk
+                       (action warehouse | not-warehouse | ship (shipment_id or "new") | unship | received | not-received),
+                       /cartons/<c> (box page; POST saves), /cartons/<c>/received, /cartons/<c>/delete; all take `next`
+app/routers/shipping.py Shipments: /p/<id>/shipments, /shipments/new (all=1 or c=…, mode), /shipments/<s> (page; ?more=1 adds the
+                       boxes still at the shops; POST details), /shipments/<s>/step (loaded | sailed | arrived | delivered, undo,
+                       on), /boxes, /boxes/<c>/remove, /receive (all=1 | room | c=…; on=0 undoes), /delete, /loading.pdf
 app/storage.py         save_image(max_px=)/save_blob/read_image/delete_image — backends: local | replit | s3 (replit is the
                        default when REPL_ID is set; read_image copies a photo found only on local disk into the bucket);
                        save_photo() = full + small copy (thumb_key), save_thumb(), delete_photo(), prefetch() (parallel warm-up),
@@ -100,6 +117,9 @@ app/pdf/schedule.py    client schedule PDF on theme.py: layout="category" (cover
 app/pdf/packing.py     packing list, 6-per-page labels, room checklist (page 1 = the room's floor plan), all items of a supplier
 app/pdf/order.py       the purchase order of one order (portrait A4 on theme.py: letterhead, shop / deliver to / project, products
                        with photo and rooms, totals with deposit, terms, packing note, signature; DRAFT watermark)
+app/pdf/purchase.py    the internal Purchase schedule (SheetDoc: theme.py without the cover; products by category with rooms,
+                       what to order, shops, prices, stage; the money by shop)
+app/pdf/shipping.py    the loading list of a shipment (facts, tiles, boxes by room with drawn Tick squares for loading / receiving)
 app/templates/         base.html = app shell (desktop sidebar, top bar + project switcher, phone bottom tab bar,
                        "More" sheet, inline SVG icon sprite, public bar for share pages) + pages
                        (capture.html, drafts.html for quick capture; projects/images.html = Images & plans,
@@ -186,10 +206,19 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
   (`ordering.unconfirm`), taking a purchase off and deleting a confirmed order (`buying.leave_order`) set Ordered / Paid
   back to Quoted. Every route that changes purchases, orders or payments calls `buying.settle(db, p)` before
   `db.commit()` (it prunes, flushes, expires the session and sets those statuses; capture ids you need afterwards before
-  calling it). Shipped and Received, and lines on no order, are never touched. Payments recorded on no order (before
+  calling it). Shipped and Received belong to the boxes (next rule), and lines on no order are never touched. Payments recorded on no order (before
   orders existed) are counted toward an order only when the designer ticks them on it (`ordering.claim`). Money is read through one `buying.Ledger(p)` per request (order totals include
   the allowance and whole packs); to pay = confirmed orders − payments. Order numbers are never reused
   (`Project.orders_made`), like item codes: a purchase order may already be with the shop.
+- **Shipped and Received follow the boxes.** A box names the room lines it holds in `Carton.item_codes` (ticked codes
+  first, then free text), read through `shipping.Boxes(p)` against the live codes. A line becomes Shipped when every box
+  naming it is loaded (`Shipment.loaded_on`) or received, Received when every one is received; raising only happens from
+  `buying.AUTO_STATUSES` (Received from anything). Every route that changes boxes or shipments calls
+  `shipping.settle(db, p, undone)` before `db.commit()`, with `undone` = `shipping.lines_named(bx, boxes)` taken *before*
+  the change whenever a step goes back (box off a shipment, loading undone, not received, box edited or deleted,
+  shipment deleted): those lines step back to what their order gives them (`_base`). A line no box names keeps whatever
+  status it has. Shipment numbers are never reused (`Project.shipments_made`). The bulk bar offers only Planning /
+  Loaded shipments; boxes go on or come off a shipment only before it sails.
 - The user guide (`templates/help.html`, `/help`) describes every feature in plain words, with screenshots from
   `app/static/help/` (WebP, sizes in `shots.json`, rendered through the `shot()` macro). When you change or add a feature,
   update its section and its "Help for this page" entry in `app/help_tips.py` in the same change (a new page needs a tip
@@ -301,7 +330,10 @@ ALTER TABLE projects ADD COLUMN orders_made INTEGER NOT NULL DEFAULT 0;         
 ALTER TABLE purchases ADD COLUMN order_id INTEGER;                                        -- the order a purchase is on
 ALTER TABLE payments ADD COLUMN order_id INTEGER;                                         -- the order a payment pays
 ALTER TABLE settings ADD COLUMN warehouse_name / warehouse_address / warehouse_contact;   -- the consolidation warehouse ('' defaults)
--- new tables (create_all): products, quotes, purchases, orders
+ALTER TABLE projects ADD COLUMN shipments_made INTEGER NOT NULL DEFAULT 0;                -- the last shipment number given (never reused)
+ALTER TABLE cartons ADD COLUMN warehouse_on DATE;                                         -- the day a box reached the warehouse
+ALTER TABLE cartons ADD COLUMN shipment_id INTEGER;                                       -- the shipment a box is on
+-- new tables (create_all): products, quotes, purchases, orders, shipments
 ```
 
 ## Done
@@ -580,14 +612,24 @@ ALTER TABLE settings ADD COLUMN warehouse_name / warehouse_address / warehouse_c
   page with its orders card; the old per-supplier PO stays as "All their items (PDF)"). The Tracker
   (`/p/<id>/buying/tracker`, `ordering.tracker`): budget → estimated → committed → ordered → paid → to pay, needs
   attention (one line per order, most pressing first), by stage / shop / category. Stages Ordered and Paid on the Buying
-  list; the product page shows its order chip; the item's Buying panel names its order. Phase 3 (shipments through the
-  consolidation warehouse) comes next.
+  list; the product page shows its order chip; the item's Buying panel names its order.
+
+- **Shipping (phase 3 of the purchase process).** Packing became **Shipping** (nav; tabs Boxes · Shipments in
+  `shipping/_tabs.html`). Boxes (`cartons.html`, `carton.html`, macros in `shipping/_parts.html`: `where_badge`,
+  `pick_codes`, `box_fields`): the items inside are ticked (`pick-codes` filtered by room / shop in app.js) or typed, where
+  each box is (tiles + column), filters, the bulk bar (`form.box-bar#boxbulk`, buttons enabled once a box is ticked).
+  Shipments (`shipping/list.html`): waiting at the warehouse with what it fits, still at the shops, shipments by stage
+  with fill bars. A shipment (`shipping/shipment.html`): the steps with one-press next step and undo, on board vs the
+  container (`config.CONTAINERS`, `CONTAINER_KG`, `LCL_UP_TO`), dates & papers, boxes by room with receive squares, add
+  boxes, details, delete; the loading list PDF. The supplier link shows where to deliver (`shipping.deliver_to`), offers
+  the shop's lines to tick, and refuses to delete a delivered box. Tracker: shipping lines in needs attention and a
+  Shipping section; Overview: boxes by place and the next arrival. The internal Purchase schedule PDF
+  (`pdf/purchase.py`) with a market filter on the page.
 
 ## Backlog (in priority order)
 
-1. **Receiving on the phone.** Per-room checklist page with tap-to-tick for packed / received / installed per
-   item (store three booleans or dates on Item), fed by the Cartons "received" action. The room checklist PDF
-   should print the same state.
+1. **Installing on the phone.** Per-room checklist page with tap-to-tick for installed per item (store a date on
+   Item); boxes are already received on the phone per shipment. The room checklist PDF should print the same state.
 2. **Item library.** Reusable standard items (spec, size, finish, photo) across projects — e.g. "316L basin
    mixer" — with "add from library" on the item form. Table `library_items`; copy, don't link.
 3. **Reports page.** Spend vs budget by category and by room, paid vs balance per supplier, items by status,
@@ -596,7 +638,7 @@ ALTER TABLE settings ADD COLUMN warehouse_name / warehouse_address / warehouse_c
    supplier packing link when present. (ReportLab needs a CJK font: bundle a free one, e.g. Noto Sans SC,
    in `app/static/fonts` and register it in `pdf/common.py`.)
 5. **Studio branding on PDFs.** The schedule carries the logo (cover, Prepared by); still to do: an accent colour setting,
-   and the packing list, labels, checklist and PO on `pdf/theme.py`.
+   and the packing list, labels and checklist on `pdf/theme.py` (the PO, the purchase schedule and the loading list are).
 6. **Alembic migrations** replacing `create_all` + manual ALTERs.
 7. **Flaky-network resilience.** Save-draft on the item form (localStorage), retry on upload failure,
    clear error messages instead of silent failures.
