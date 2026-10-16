@@ -96,9 +96,17 @@ def apply_suggestion(item, s: dict, rooms, only_empty: bool = True) -> list[str]
         return True
     done = []
     for field, key in (("name", "name"), ("brand", "brand"), ("spec", "spec"), ("size", "size"), ("finish", "finish"),
-                       ("category", "category"), ("unit", "unit"), ("unit_price", "unit_price_cny")):
+                       ("category", "category"), ("unit", "unit")):
         if put(field, (s.get(key) or "").strip() if isinstance(s.get(key), str) else s.get(key)):
             done.append(field)
+    try:  # a price is a shop's quote, recorded on the Buying page: the one seen on the page is only noted
+        seen = float(s.get("unit_price_cny") or 0)
+    except (TypeError, ValueError):
+        seen = 0.0
+    note = f"Price seen on the page: ¥{seen:,.2f}"
+    if seen > 0 and note not in (item.notes or ""):
+        item.notes = ((item.notes + "\n") if item.notes else "") + note
+        done.append("price seen (in the notes)")
     if s.get("room") and (not only_empty or item.room_id is None):
         want = s["room"].strip().lower()
         for r in rooms:

@@ -39,7 +39,7 @@
       <div class="pic{{ '' if i.cover else ' empty' }}">{% if i.cover %}<img src="/media/{{ i.cover.thumb }}" loading="lazy" alt="{{ i.name }}" data-full="/media/{{ i.cover.file_key }}">{% else %}no photo{% endif %}</div>
       <div class="body">
         <div class="t">{{ i.name }}</div>
-        <div class="m">{{ i.qty|num }} {{ i.unit }}{% if i.brand %} · {{ i.brand }}{% endif %}{% if i.size %} · {{ i.size }}{% endif %}{% if i.finish %} · {{ i.finish }}{% endif %}{% if i.optional %} · optional{% endif %}</div>
+        <div class="m">{{ i.qty|num }} {{ i.unit }}{% if i.brand_shown %} · {{ i.brand_shown }}{% endif %}{% if i.size %} · {{ i.size }}{% endif %}{% if i.finish %} · {{ i.finish }}{% endif %}{% if i.optional %} · optional{% endif %}</div>
         <div class="m row">{% if i.unit_price %}<span class="b">${{ (i.total / usd)|money }}</span>{% endif %}<span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status }}</span></div>
       </div>
       {% if q %}<button type="button" class="btn ghost sm icon pinbtn" title="Show where it goes on the plan" aria-label="Show {{ i.name }} on the plan"><svg class="ic"><use href="#i-map"/></svg></button>{% endif %}

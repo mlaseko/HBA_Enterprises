@@ -33,7 +33,7 @@ class Money:
 
 
 def _facts(i) -> str:
-    parts = [esc(x) for x in (i.brand, i.finish, i.size) if x]
+    parts = [esc(x) for x in (i.brand_shown, i.finish, i.size) if x]  # the brand bought once a shop is chosen, else the preferred one
     if i.optional:
         parts.insert(0, "optional")
     return " · ".join(parts)
@@ -84,7 +84,8 @@ def _table(items, mny: Money, show_prices: bool, include_photos: bool, where="ro
                 row.append(picture(storage.read_image(i.cover.thumb), widths[0] - 8, 46) if i.cover else "")
             row += [P(i.code, "cellm"), _product_cell(i), P(_room_label(i) if where == "room" else i.category), P(i.lead_time, "cellm")]
             if show_prices:
-                row += [P(f"{num(i.qty)} {i.unit}", "num"), P(mny.fmt(i.unit_price), "num"), para(f"<b>{mny.fmt(i.total)}</b>", "num")]
+                row += [P(f"{num(i.qty)} {i.unit}", "num"), P(mny.fmt(i.unit_price) if i.unit_price else "", "num"),  # no price until a shop is chosen
+                        para(f"<b>{mny.fmt(i.total)}</b>" if i.unit_price else "", "num")]
             else:
                 row += [P(f"{num(i.qty)} {i.unit}", "num")]
             rows.append(row)

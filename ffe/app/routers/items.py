@@ -5,10 +5,10 @@ import re
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from ..db import get_db
-from ..models import Project, Item, ItemPhoto, Supplier, Room
+from ..models import Project, Item, ItemPhoto, Supplier, Room, Product
 from ..common import render, redirect, require_login, get_project, ffloat, fint, safe_next
-from ..services import next_code, set_price, copy_price, sort_items, moods_for, product_key, _key, _SIZE_SEP_RE, photos_of, forget_pools, release_photos, same_picture  # noqa: F401  (sort_items, product_key are imported from here by share.py, plan.py, importer.py)
-from .. import storage, config, webimage, ai, drawings
+from ..services import next_code, sort_items, moods_for, product_key, _key, _SIZE_SEP_RE, photos_of, forget_pools, release_photos, same_picture  # noqa: F401  (sort_items, product_key are imported from here by share.py, plan.py, importer.py)
+from .. import storage, config, webimage, ai, drawings, buying
 
 router = APIRouter(dependencies=[Depends(require_login)])
 
@@ -149,6 +149,8 @@ def delete_selected(p: Project = Depends(get_project), db: Session = Depends(get
     for i in items:
         release_photos(db, p, i, survivors)  # photos stay with the product's other rooms; deleted only when none is left
         db.delete(i)
+    if items:
+        buying.prune(db, p)  # a purchase left without rooms goes
     db.commit()
     keep = {k: v for k, v in dict(floor=floor, room=room, category=category, status=status, supplier=supplier, q=q, view=view).items() if v}
     if items:
@@ -158,8 +160,7 @@ def delete_selected(p: Project = Depends(get_project), db: Session = Depends(get
 
 @router.get("/p/{project_id}/items/new")
 def new_item(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), room: str = "", category: str = ""):
-    suppliers = db.query(Supplier).order_by(Supplier.name).all()
-    return render(request, "items/form.html", p=p, item=None, suppliers=suppliers, pre_room=fint(room), pre_cat=category, suggest=suggestions(db, p))
+    return render(request, "items/form.html", p=p, item=None, pre_room=fint(room), pre_cat=category, suggest=suggestions(db, p))
 
 
 def apply_form(item: Item, db: Session, p: Project, form: dict):
@@ -170,34 +171,33 @@ def apply_form(item: Item, db: Session, p: Project, form: dict):
     item.room_id = room.id if room else None
     item.category = form.get("category") or "Other"
     item.name = (form.get("name") or "").strip()
-    item.brand = (form.get("brand") or "").strip()
+    item.brand = (form.get("brand") or "").strip()  # the preferred brand, when the design asks for one
     item.spec = (form.get("spec") or "").strip()
     item.size = (form.get("size") or "").strip()
     item.finish = (form.get("finish") or "").strip()
     item.qty = ffloat(form.get("qty"), 1)
     item.unit = form.get("unit") or "pcs"
-    set_price(item, ffloat(form.get("unit_price")), form.get("price_currency"), p.rate)
-    item.lead_time = (form.get("lead_time") or "").strip()
+    # Supplier, price and lead time are not typed here: they come from the purchase that covers the line (buying.py).
     item.status = form.get("status") if form.get("status") in config.STATUSES else "To buy"
     item.optional = form.get("optional") in ("on", "1", "true")
     item.notes = (form.get("notes") or "").strip()
-    sup = fint(form.get("supplier_id"))
-    item.supplier_id = sup if sup else None
     if item.draft and item.name:
         item.draft = False  # a quick-capture draft becomes a real item once it has a name
     if not item.draft and (not item.code or form.get("regen_code") == "1"):
         item.code = next_code(db, p, room)
 
 
-# Fields that describe the product itself. The same product used in several rooms is one Item row per room
-# (own code, qty, status, cartons); "apply to all rooms" copies these fields across them.
-SHARED_FIELDS = ("name", "category", "brand", "spec", "size", "finish", "unit", "unit_price", "lead_time", "supplier_id")
-# What makes two rows the same product: the name says what it is ("Floor tiles"); size, colour/finish and brand tell one
-# variant from another. "Floor tiles" 1200x600 cream in twelve rooms is one product; the same name in 800x400 is another,
-# so editing one never touches the other and the Item list shows them as two lines.
-IDENTITY_FIELDS = ("name", "size", "finish", "brand")
+# Fields that describe the product itself (the design's requirement). The same product used in several rooms is one Item
+# row per room (own code, qty, status, cartons); "apply to all rooms" copies these fields across them. Supplier, price and
+# lead time are not among them: they come from the purchases on the Buying page (buying.py), room by room.
+SHARED_FIELDS = ("name", "category", "brand", "spec", "size", "finish", "unit")
+# What makes two rows the same product: the name says what it is ("Floor tiles"); size and colour/finish tell one variant
+# from another. "Floor tiles" 1200x600 cream in twelve rooms is one product; the same name in 800x400 is another, so
+# editing one never touches the other and the Item list shows them as two lines. The brand is decided while buying.
+IDENTITY_FIELDS = ("name", "size", "finish")
+SUGGEST_FIELDS = ("name", "size", "finish", "brand")  # the fields with a list of the values already used
 # The shared fields outside the identity: where the other rooms' lines of a product may still have been set up differently.
-DIFF_LABELS = {"category": "category", "spec": "spec", "unit": "unit", "unit_price": "price", "lead_time": "lead time", "supplier_id": "supplier"}
+DIFF_LABELS = {"category": "category", "spec": "spec", "unit": "unit", "brand": "preferred brand"}
 # product_key(), _key() and _SIZE_SEP_RE live in services.py (the photo pools need them too) and are imported above.
 
 
@@ -226,7 +226,7 @@ def suggestions(db: Session, p: Project) -> dict[str, list[str]]:
     project's first, most used first, then the other projects'. Typing them the same way keeps a product one product."""
     rows = db.query(Item.project_id, Item.name, Item.size, Item.finish, Item.brand).filter(Item.draft == False, Item.name != "").all()  # noqa: E712
     out: dict[str, list[str]] = {}
-    for f in IDENTITY_FIELDS:
+    for f in SUGGEST_FIELDS:
         seen: dict[str, list] = {}  # key → [spelling, uses in this project, uses anywhere]
         for r in rows:
             v = " ".join((getattr(r, f) or "").split())
@@ -247,8 +247,7 @@ def _form_rooms(p: Project, ids) -> list[Room]:
 def _copy_to_room(db: Session, p: Project, src: Item, room: Room | None) -> Item:
     new = Item(project=p, code="", room_id=room.id if room else None, optional=src.optional, notes=src.notes, qty=src.qty,
                status="To buy", **{f: getattr(src, f) for f in SHARED_FIELDS})
-    new.code = next_code(db, p, room)
-    copy_price(src, new)
+    new.code = next_code(db, p, room)  # no shop yet: the Buying page shows the new room as still open
     db.add(new)
     return new
 
@@ -311,13 +310,13 @@ def item_detail(request: Request, item_id: int, p: Project = Depends(get_project
     item = db.get(Item, item_id)
     if not item or item.project_id != p.id:
         return redirect(f"/p/{p.id}/items")
-    suppliers = db.query(Supplier).order_by(Supplier.name).all()
     others = sorted(same_item_elsewhere(p, item), key=lambda i: i.code)
     with_rooms = [o.room_id for o in others if o.room_id]  # the checklist: rooms that have this item (its own room is locked)
     room_links = {o.room_id: (o.code, f"/p/{p.id}/items/{o.id}") for o in others if o.room_id}
-    return render(request, "items/form.html", p=p, item=item, suppliers=suppliers, pre_room=None, pre_cat="", err=err[:200],
+    prod = None if item.draft else db.query(Product).filter(Product.project_id == p.id, Product.key == product_key(item)).first()
+    return render(request, "items/form.html", p=p, item=item, pre_room=None, pre_cat="", err=err[:200],
                   filled=filled[:200], others=others, differs=twin_differences(item, others), with_rooms=with_rooms, room_links=room_links,
-                  next=safe_next(next, ""), suggest=suggestions(db, p))
+                  next=safe_next(next, ""), suggest=suggestions(db, p), quote_count=len(prod.quotes) if prod is not None else 0)
 
 
 @router.post("/p/{project_id}/items/{item_id}")
@@ -329,6 +328,7 @@ async def update_item(request: Request, item_id: int, p: Project = Depends(get_p
     old_room, was_draft = item.room_id, item.draft
     siblings = same_item_elsewhere(p, item) if not was_draft else []  # the same product in other rooms, by its identity before this save
     others = siblings if form.get("apply_all") == "1" else []
+    before = buying.keys(p)  # the products' keys, so their quotes and purchases follow a rename
     apply_form(item, db, p, form)
     if item.room_id != old_room and not was_draft and not item.draft:
         item.code = next_code(db, p, item.room)
@@ -337,7 +337,6 @@ async def update_item(request: Request, item_id: int, p: Project = Depends(get_p
     for o in others:  # same product in other rooms: copy the product fields, keep their own room, qty, status, notes
         for f in SHARED_FIELDS:
             setattr(o, f, getattr(item, f))
-        copy_price(item, o)
     copies, removed = [], []
     if not item.draft:
         have = {o.room_id: o for o in siblings if o.room_id}
@@ -356,6 +355,8 @@ async def update_item(request: Request, item_id: int, p: Project = Depends(get_p
     for o in removed:  # taken out of that room: its line goes like a delete; its photos stay with the item
         release_photos(db, p, o, survivors=[item])
         db.delete(o)
+    if not was_draft:
+        buying.follow_renames(db, p, before)  # also drops a purchase whose rooms were all taken out
     db.commit()
     nxt = safe_next(form.get("next"), "")
     if err:
@@ -406,7 +407,10 @@ def suggest_fields(item_id: int, p: Project = Depends(get_project), db: Session 
     s = ai.suggest_item(photo, text, url, [r.label for r in p.rooms])
     if not s:
         return redirect(f"/p/{p.id}/items/{item_id}?err=" + quote("Claude could not fill this in. Add a photo or a source link in the notes and try again."))
+    before = buying.keys(p)
     filled = ai.apply_suggestion(item, s, p.rooms)
+    if not item.draft:
+        buying.follow_renames(db, p, before)
     db.commit()
     return redirect(f"/p/{p.id}/items/{item_id}?filled=" + quote(", ".join(filled) if filled else "nothing new"))
 
@@ -465,6 +469,7 @@ def delete_item(item_id: int, p: Project = Depends(get_project), db: Session = D
     if item and item.project_id == p.id:
         release_photos(db, p, item)  # its photos stay with the product's other rooms; deleted only when none is left
         db.delete(item)
+        buying.prune(db, p)  # a purchase left without rooms goes
         db.commit()
     return redirect(f"/p/{p.id}/items")
 
@@ -474,11 +479,9 @@ def duplicate_item(item_id: int, p: Project = Depends(get_project), db: Session 
     src = db.get(Item, item_id)
     if not src or src.project_id != p.id:
         return redirect(f"/p/{p.id}/items")
-    new = Item(project_id=p.id, room_id=src.room_id, supplier_id=src.supplier_id, category=src.category, name=src.name,
-               brand=src.brand, spec=src.spec, size=src.size, finish=src.finish, qty=src.qty, unit=src.unit,
-               unit_price=src.unit_price, lead_time=src.lead_time, status="To buy", optional=src.optional, notes=src.notes)
-    new.code = next_code(db, p, src.room)
-    copy_price(src, new)
+    new = Item(project_id=p.id, room_id=src.room_id, category=src.category, name=src.name, brand=src.brand, spec=src.spec,
+               size=src.size, finish=src.finish, qty=src.qty, unit=src.unit, status="To buy", optional=src.optional, notes=src.notes)
+    new.code = next_code(db, p, src.room)  # a copy to tweak: no shop or price until it is bought (Buying)
     db.add(new)
     db.commit()
     return redirect(f"/p/{p.id}/items/{new.id}")

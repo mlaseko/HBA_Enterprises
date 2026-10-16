@@ -1,4 +1,20 @@
 {
+"buying": [
+1100,
+684
+],
+"buying-product": [
+1100,
+1385
+],
+"buying-quote": [
+788,
+998
+],
+"buying-schedule": [
+1100,
+684
+],
 "client": [
 1100,
 684
@@ -38,10 +54,6 @@
 "item-new": [
 1100,
 684
-],
-"item-price": [
-996,
-182
 ],
 "items": [
 1100,
@@ -126,6 +138,10 @@
 "pdf-table": [
 1100,
 778
+],
+"phone-buying": [
+780,
+1688
 ],
 "phone-capture": [
 780,

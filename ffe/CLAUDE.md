@@ -5,10 +5,12 @@ Read this before touching anything. It is the brief for continuing this project.
 ## What this is
 
 A web app for an interior designer (single user) who buys finishing items in China for his clients' houses.
-He enters each item once (room, spec, photo of the sample, supplier, price) and the app gives him:
+He enters each item once (room, spec, quantity, photo of the sample), records the shops' quotes on the Buying page,
+chooses a shop for whole rooms, and the app gives him:
 
 1. the **client-facing Furniture & Fixture Schedule PDF** (his old Canva document, now generated from data),
-2. **purchase control**: status per item, suppliers, payments, balances,
+2. **purchase control**: the buying list by product (quotes, shops per room, what to order, the Purchase schedule),
+   status per item, suppliers, payments, balances,
 3. **packing by room**: every box carries a room code and "Box n of N", labels, packing list, container size,
    suppliers list their own boxes through a no-login link,
 4. a **read-only client link** so the client follows progress.
@@ -34,14 +36,22 @@ app/db.py              engine/session; create_all on startup + migrate(): COLUMN
 app/models.py          Settings, SchemaMark (one-time data upgrades that ran), Project, ProjectImage, PlanTag, RoomPin, ItemPin, DrawingSet, DrawingPage (title block per page),
                        Floor (the project's floor list: name, kind floor | area, sort), MoodTag (a mood-board picture's room and whether the client added it),
                        Room (kind = room | area; is_area), Supplier, SupplierLink, Item, ItemPhoto,
-                       ItemPrice (the typed USD price; Item.price_currency / price_amount), Payment, Carton
+                       ItemPrice (the typed USD price; Item.price_currency / price_amount), Payment, Carton,
+                       Product (a product's buying data: allowance, pack), Quote (one shop's offer), Purchase (bought from one
+                       shop for whole rooms; Item.purchase_id / Item.purchase; Item.brand_shown = the brand bought, else preferred)
                        Item.draft = quick-capture draft (no name/code yet); Project.live_items / Project.drafts split them
 app/common.py          templates, auth helpers, number filters, render()/redirect() (render injects `help_tip` for the ? drawer)
 app/help_tips.py       "Help for this page": TIPS (title, what, steps, tips, anchor into help.html) per page key, TEMPLATE_KEYS,
                        tip_for(template, ctx); shots() reads static/help/shots.json (picture sizes for the guide)
 app/services.py        summary() for dashboards (by_room rows carry kind), sort_items() (schedule order; routers.items re-exports it),
                        next_code(), guess_kind() (room | area from the name),
-                       set_price()/copy_price() (CNY storage, USD entry), carton_positions(), container_for()
+                       product_key() (name + size + finish), carton_positions(), container_for()
+app/buying.py          Buying: order_qty() (allowance + whole packs), Group (a product's lines: order, quotes, purchases, stage),
+                       groups(), sync_products(), cover()/uncover() (a purchase written onto its lines), find_supplier(), set_quote(),
+                       follow_quote(), delete_quote(), buy(), set_rooms(), remove_purchase(), drop_supplier(), prune(),
+                       keys()/follow_renames() (products follow renames), upgrade() (one-time, SchemaMark "buying.v1")
+app/routers/buy.py     /p/<id>/buying (list), /buying/schedule (Purchase schedule), /buying/item/<item> (→ its product),
+                       /buying/<product> (+ POST allowance/pack; /quotes, /quotes/<q>[/delete|/buy], /purchases/<pu>[/delete])
 app/storage.py         save_image(max_px=)/save_blob/read_image/delete_image — backends: local | replit | s3 (replit is the
                        default when REPL_ID is set; read_image copies a photo found only on local disk into the bucket);
                        save_photo() = full + small copy (thumb_key), save_thumb(), delete_photo(), prefetch() (parallel warm-up),
@@ -127,9 +137,9 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
   photo compression, copy link). No frontend framework, no build step.
 - Yellow inputs (`class="in"`) = the user types; everything else is calculated.
 - **One product, many rooms.** A product used in several rooms is one `Item` row per room. What makes rows the same product is
-  `items.product_key`: name + size + finish + brand (`IDENTITY_FIELDS`; case, spacing and the x of a size normalised). Keep
-  names short and generic ("Floor tiles") and the variation in size / finish / brand; never fold the size or colour into the
-  name. `same_item_elsewhere` (apply-to-other-rooms, the rooms checklist) and `group_items` (the Item list) must keep using
+  `services.product_key`: name + size + finish (`IDENTITY_FIELDS`; case, spacing and the x of a size normalised). The
+  preferred brand (`Item.brand`) is shared by the twins but is not identity. Keep names short and generic ("Floor tiles")
+  and the variation in size / finish; never fold the size or colour into the name. `same_item_elsewhere` (apply-to-other-rooms, the rooms checklist) and `group_items` (the Item list) must keep using
   that one rule. The name, size, finish and brand inputs carry `<datalist>` suggestions from `items.suggestions` so values are
   typed the same way; add the list to any new form with those fields.
 - **Messages and confirmations are the app's own.** Never call `alert()`, `confirm()` or `prompt()` (the browser's grey
@@ -148,9 +158,14 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
   `p.items`. A draft becomes a real item (draft=False + `next_code()`) the moment it is saved with a name — on the
   Drafts page or on the full item form. Discarding a draft deletes its photos through `storage.py`.
 - Jinja: `summary()` returns a dict; write `s['items']`, not `s.items` (that resolves to `dict.items`).
-- Prices are stored in CNY; USD is derived with `project.rate`. Keep it that way. The designer may *type* a price in
-  USD: always go through `services.set_price(item, amount, currency, rate)` (converts, remembers the USD entry in
-  `item_prices`) and `copy_price()` when copying an item; never write `unit_price` from a form directly.
+- Prices are stored in CNY; USD is derived with `project.rate`. Keep it that way.
+- **Supplier, price and lead time come only from purchases.** An item is the generic requirement; nothing (item form,
+  Drafts, AI fill, import, duplicate) writes `Item.supplier_id`, `unit_price`, `price_entry` or `lead_time` except
+  `buying.cover()` / `uncover()` (and the one-time `buying.upgrade`). A price is typed on a `Quote`, in CNY or USD
+  (`buying.set_quote` converts at `project.rate`); `buy()` covers whole room lines (`Item.purchase_id`), one purchase per
+  quote. After anything that changes lines' name / size / finish, call `buying.follow_renames(db, p, before)` with
+  `before = buying.keys(p)` taken first; after deleting lines, `buying.prune(db, p)`. The session does not autoflush:
+  the buying helpers flush before they query. Readers keep reading `item.supplier` / `unit_price` / `lead_time`.
 - The user guide (`templates/help.html`, `/help`) describes every feature in plain words, with screenshots from
   `app/static/help/` (WebP, sizes in `shots.json`, rendered through the `shot()` macro). When you change or add a feature,
   update its section and its "Help for this page" entry in `app/help_tips.py` in the same change (a new page needs a tip
@@ -257,6 +272,8 @@ ALTER TABLE plan_layers ADD COLUMN kind VARCHAR(10) NOT NULL DEFAULT 'plan';    
 ALTER TABLE item_photos ADD COLUMN source VARCHAR(40) NOT NULL DEFAULT '';               -- 'sheet:<image id>' for a cut-out drawing
 ALTER TABLE mood_tags ADD COLUMN is_cover BOOLEAN NOT NULL DEFAULT FALSE;                 -- the picture starred as its room's cover
 ALTER TABLE item_photos ADD COLUMN digest VARCHAR(40) NOT NULL DEFAULT '';               -- the fingerprint of a photo
+ALTER TABLE items ADD COLUMN purchase_id INTEGER;                                         -- the purchase supplying the line (Buying)
+-- new tables (create_all): products, quotes, purchases
 ```
 
 ## Done
@@ -355,7 +372,7 @@ ALTER TABLE item_photos ADD COLUMN digest VARCHAR(40) NOT NULL DEFAULT '';      
   columns. The Rooms sheet starts with quick-pick rows (kind `pick`: All rooms / areas / bedrooms / bathrooms / All on <floor>);
   the importer skips them (`is_pick`) and `rooms_from_cell()` expands them, a label, a code, a name or a `;`-separated list into
   the target rooms (one new `Item` per room, like the form). A row whose Code matches a live item updates it in place
-  (`apply_update`: filled cells change, blank stay, `-` clears, prices through `set_price`, a changed room clears `item.pins`);
+  (`apply_update`: filled cells change, blank stay, `-` clears, a changed room clears `item.pins`; price, supplier and lead time are no longer imported since Buying);
   only rows that actually changed count as updated. Codes are never rewritten by an update. `run_import(p, db, wb, replace, dry)`
   does the whole run in one transaction (flushes, no intermediate commits) and returns the plan (`new`, `changes` with per-field
   old → new, `new_rooms`, `new_suppliers`, counts, warnings); `dry=True` rolls back, so `POST /import` with a file shows the
@@ -387,11 +404,11 @@ ALTER TABLE item_photos ADD COLUMN digest VARCHAR(40) NOT NULL DEFAULT '';      
   it), and the Studio menu's Help link deep-links to the section of the current page. Screenshots come from a fictional
   demo project seeded by `tools/help_shots.py`.
 
-- **Product identity and naming.** `items.product_key` = name + size + finish + brand (`IDENTITY_FIELDS`; `_key` lowercases
+- **Product identity and naming.** `services.product_key` = name + size + finish (brand left it with Buying) (`IDENTITY_FIELDS`; `_key` lowercases
   and collapses spaces, `_SIZE_SEP_RE` makes 1200 x 600 / 1200*600 / 1200×600 one size) is the one rule behind
   `same_item_elsewhere` (the apply-to-other-rooms twins and the "Rooms with this item" checklist) and `group_items` (the Item
   list, which shows size · finish · brand under the name so variants read apart). `twin_differences(item, others)` lists the
-  shared fields outside the identity (`DIFF_LABELS`: category, spec, unit, price, lead time, supplier) on which the twins no
+  shared fields outside the identity (`DIFF_LABELS`: category, spec, unit, preferred brand) on which the twins no
   longer match; the item form pre-ticks Apply only when it is empty and otherwise names the differences. `suggestions(db, p)`
   (one query over all live items) feeds `<datalist id="dl-name|size|finish|brand">` on the item form and `dl-name` on the
   Drafts page: this project's values first, most used first, one spelling per key.
@@ -510,6 +527,18 @@ ALTER TABLE item_photos ADD COLUMN digest VARCHAR(40) NOT NULL DEFAULT '';      
   `data-search` (code, name, spec, brand, size, finish, category, room label and floor, supplier, status, unit, notes; `item_query` searches the same joined text on the server, so Enter gives the same lines) and `app.js` hides
   the rows that do not match every word (`*` any, `?` one char), unticks hidden rows, hides empty card groups and sends a
   `livesearch` event the selection bar listens to; the header box ticks visible rows only.
+
+- **Buying (phase 1 of the purchase process).** The item became the generic requirement: the item form, Drafts, AI fill and
+  the import no longer take a supplier, price or lead time; "Brand" is the **preferred brand** and left the product
+  identity. `buying.py` + `routers/buy.py` + `templates/buying/` (list.html, product.html with `_parts.html` macros
+  `line_picks` / `quote_fields`, schedule.html): products by stage (To source, Quoting, Part sourced, Sourced), quotes
+  recorded on the spot (new shop by name → `find_supplier`, photo via `storage.save_photo` under `p<id>/quotes`), purchases
+  for whole rooms (split between shops room by room), what to order (allowance 10 % for Tiles by default, packs from the
+  quote or the product), the Purchase schedule (category sections, CNY/USD, browser print). Nav: **Buying** after Items in
+  the sidebar and in the phone's bottom bar (Packing moved to More). The client schedule and link print no price for a line
+  without a shop; the export keeps Price / Supplier / Lead time as grey columns the import ignores (with a warning). One-time
+  upgrade at start: "Test" supplier lines and prices without a supplier cleared, other supplier lines → quote + purchase,
+  drafts' prices → notes. Phase 2 (orders) and phase 3 (shipments through the consolidation warehouse) come next.
 
 ## Backlog (in priority order)
 

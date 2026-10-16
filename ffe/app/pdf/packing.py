@@ -165,7 +165,7 @@ def purchase_order(p, studio, supplier, items, payments) -> bytes:
     for i in items:
         total += i.total
         img = img_flowable(i.cover.thumb, widths[0] - 4, 30) if i.cover else ""
-        rows.append([img, P(i.code), P(f"<b>{i.name}</b>" + (f"<br/>{i.brand}" if i.brand else "")), P(i.spec),
+        rows.append([img, P(i.code), P(f"<b>{i.name}</b>" + (f"<br/>{i.brand_shown}" if i.brand_shown else "") + (f" {i.purchase.model}" if i.purchase is not None and i.purchase.model else "")), P(i.spec),
                      P(" / ".join(x for x in [i.size, i.finish] if x)), P(i.room.label if i.room else "Whole house"),
                      P(f"{num(i.qty)} {i.unit}"), P(money(i.unit_price, 2)), P(money(i.total, 2)), P(i.lead_time)])
     paid = sum(x.amount for x in payments)

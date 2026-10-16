@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Buying · {{ p.name }}{% endblock %}
+{% block content %}
+{% set rate = p.rate or 1 %}
+{% set filtering = f.category or f.floor or f.stage %}
+{% set bq = base_qs ~ '&' if base_qs else '' %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
+    <h1>Buying <span class="h-note">{{ all.products }} product{{ 's' if all.products != 1 }} · {{ all.lines }} room line{{ 's' if all.lines != 1 }}</span></h1>
+    <p class="sub">Every product of the design once, whatever its rooms. Record each shop's quote on the spot, then choose the shop for whole rooms: its price, brand and lead time go onto those rooms.</p>
+  </div>
+  <div class="actions">
+    <a class="btn sec" href="/p/{{ p.id }}/buying/schedule{% if base_qs %}?{{ base_qs }}{% endif %}"><svg class="ic"><use href="#i-file"/></svg>Purchase schedule</a>
+  </div>
+</div>
+
+{% if ok %}<div class="alert">{{ ok }}</div>{% endif %}
+
+<div class="grid g4 kpis bu-kpis">
+  <div class="kpi"><svg class="ic"><use href="#i-tag"/></svg><div class="v">{{ all.products }}</div><div class="l">Products</div><div class="d">{{ all.lines }} room line{{ 's' if all.lines != 1 }} in the design</div></div>
+  <div class="kpi sage"><svg class="ic"><use href="#i-check"/></svg><div class="v">{{ all.covered }}<span class="of">/{{ all.lines }}</span></div><div class="l">Rooms with a shop</div><div class="bar"><i style="width:{{ all.pct }}%"></i></div><div class="d">{{ all.pct }}% sourced</div></div>
+  <div class="kpi gold"><svg class="ic"><use href="#i-users"/></svg><div class="v">{{ all.quotes }}</div><div class="l">Quotes recorded</div><div class="d">from {{ all.shops }} shop{{ 's' if all.shops != 1 }}</div></div>
+  <div class="kpi ink"><svg class="ic"><use href="#i-card"/></svg><div class="v">¥{{ all.committed|money }}</div><div class="l">Committed</div><div class="d">${{ (all.committed / rate)|money }} · allowances and whole packs included</div></div>
+</div>
+
+<nav class="bu-stages" aria-label="Stage">
+  <a href="/p/{{ p.id }}/buying{% if base_qs %}?{{ base_qs }}{% endif %}" class="bu-stage all{{ ' on' if not f.stage }}" style="--c:var(--accent)"{% if not f.stage %} aria-current="page"{% endif %}>
+    <span class="n">{{ stage_counts.values()|sum }}</span><span class="t">All products</span><span class="d">{{ 'with these filters' if base_qs else 'the whole design' }}</span></a>
+  {% for st in STAGES %}
+  <a href="/p/{{ p.id }}/buying?{{ bq }}stage={{ st|urlencode }}" class="bu-stage{{ ' on' if f.stage == st }}" style="--c:{{ STAGE_COLORS[st] }}"{% if f.stage == st %} aria-current="page"{% endif %}>
+    <span class="n">{{ stage_counts[st] or 0 }}</span><span class="t">{{ st }}</span><span class="d">{{ STAGE_HELP[st] }}</span></a>
+  {% endfor %}
+</nav>
+
+<form method="get" class="card filters">
+  <select name="category" class="in" aria-label="Category"><option value="">All categories</option>{% for c in CATEGORIES %}<option {{ 'selected' if f.category == c }}>{{ c }}</option>{% endfor %}</select>
+  {% if floors %}<select name="floor" class="in" aria-label="Floor"><option value="">All floors</option>{% for grp in ['Floors', 'Separate areas', 'Other'] %}{% set opts = floors|selectattr('group', 'equalto', grp)|list %}{% if opts %}<optgroup label="{{ grp }}">{% for o in opts %}<option value="{{ o.value }}" {{ 'selected' if f.floor and o.value|lower == f.floor|lower }}>{{ o.title }}</option>{% endfor %}</optgroup>{% endif %}{% endfor %}</select>{% endif %}
+  {% if f.stage %}<input type="hidden" name="stage" value="{{ f.stage }}">{% endif %}
+  <noscript><button class="btn sm">Filter</button></noscript>
+  {% if filtering %}<a class="btn ghost sm" href="/p/{{ p.id }}/buying">Clear</a>{% endif %}
+  <span class="sp"></span>
+  <span class="small muted">{{ shown|length }} of {{ all.products }} shown</span>
+</form>
+<div class="card livesearch">
+  <span class="search"><svg class="ic"><use href="#i-search"/></svg><input class="in" type="search" id="live-q" placeholder="Search products, codes, rooms, floors, shops, brands… ( * = anything )" aria-label="Search the products" autocomplete="off"></span>
+  <span class="small muted ls-count" aria-live="polite"></span>
+  <button type="button" class="btn ghost sm ls-clear" hidden>Clear</button>
+</div>
+
+{% if not shown %}
+<div class="card empty">
+  <div class="ring"><svg class="ic"><use href="#i-bag"/></svg></div>
+  <h3>{{ 'Nothing matches' if filtering else 'Nothing to buy yet' }}</h3>
+  <p>{% if filtering %}Try another category, floor or stage, or clear the filters.{% else %}The products appear here once the design has items: add them on the Items page, capture them in the showroom or import the Excel schedule.{% endif %}</p>
+  {% if filtering %}<a class="btn sec" href="/p/{{ p.id }}/buying">Show everything</a>{% else %}<a class="btn" href="/p/{{ p.id }}/items/new"><svg class="ic"><use href="#i-plus"/></svg>Add an item</a>{% endif %}
+</div>
+{% endif %}
+
+{% for cat, gs in sections %}
+{% set cat_total = gs|sum(attribute='committed') %}
+<div class="group-title"><h2>{{ cat }}</h2><span class="n">{{ gs|length }} product{{ 's' if gs|length != 1 }}{% if cat_total %} · ¥{{ cat_total|money }}{% endif %}</span></div>
+<div class="cards bu-grid">
+  {% for g in gs %}{% set o = g.order %}{% set n = g.lines|length %}{% set pus = g.purchases %}{% set best = g.best_quote %}
+  <a class="bu-card" href="/p/{{ p.id }}/buying/{{ g.product.id }}" data-search="{{ g.search }}" style="--c:{{ STAGE_COLORS[g.stage] }}">
+    <span class="pic">{% if g.cover %}<img src="/media/{{ g.cover.thumb }}" alt="" loading="lazy">{% else %}<svg class="ic"><use href="#i-image"/></svg>{% endif %}</span>
+    <span class="body">
+      <span class="t">{{ g.name }}</span>
+      <span class="m">{% for v in [g.item.size, g.item.finish]|select %}{{ v }}{% if not loop.last %} · {% endif %}{% endfor %}{% if g.item.brand %}{% if g.item.size or g.item.finish %} · {% endif %}<span class="pref" title="Preferred brand">pref. {{ g.item.brand }}</span>{% endif %}</span>
+      <span class="m where"><svg class="ic sm"><use href="#i-layout"/></svg>{{ n }} room{{ 's' if n != 1 }}{% if g.floors %} · {{ g.floors|join(', ') }}{% endif %}</span>
+      <span class="facts">
+        <span><span class="v">{{ o.qty|num(2) }}<small>{{ g.unit }}</small></span><span class="l">to order{% if o.packs %} · {{ o.packs }} {{ g.pack_name or 'pack' }}{{ ('es' if (g.pack_name or 'pack')[-1:] in 'xs' else 's') if o.packs != 1 }}{% endif %}</span></span>
+        {% if g.committed %}<span><span class="v">¥{{ g.committed|money }}</span><span class="l">committed</span></span>
+        {% elif best %}<span><span class="v">¥{{ best.unit_price|money(2) }}<small>/{{ g.unit }}</small></span><span class="l">best quote</span></span>
+        {% else %}<span class="none"><span class="v">—</span><span class="l">no price yet</span></span>{% endif %}
+      </span>
+      <span class="shop">{% if pus %}<svg class="ic sm"><use href="#i-truck"/></svg><span>{{ pus[0].supplier.name if pus[0].supplier else 'A shop' }}{% if pus|length > 1 %} + {{ pus|length - 1 }} more{% endif %}</span>
+        {% elif g.quotes %}<svg class="ic sm"><use href="#i-users"/></svg><span>{{ g.quotes|length }} quote{{ 's' if g.quotes|length != 1 }}{% if best and best.supplier %} · best from {{ best.supplier.name }}{% endif %}</span>
+        {% else %}<svg class="ic sm"><use href="#i-search"/></svg><span class="muted">No quote yet</span>{% endif %}</span>
+      <span class="foot"><span class="badge" style="--c:{{ STAGE_COLORS[g.stage] }}">{{ g.stage }}</span><span class="bar" title="{{ g.covered }} of {{ n }} rooms have a shop"><i style="width:{{ (100 * g.covered / n)|round|int if n else 0 }}%"></i></span><span class="frac">{{ g.covered }}/{{ n }}</span></span>
+    </span>
+  </a>
+  {% endfor %}
+</div>
+{% endfor %}
+{% endblock %}
