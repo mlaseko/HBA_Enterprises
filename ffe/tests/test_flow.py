@@ -1324,6 +1324,26 @@ with TestClient(app) as c:
     assert "Prepare 1 older photo" in c.get("/settings").text; c.post("/settings/thumbs", follow_redirects=False); db=SessionLocal(); assert len(db.get(ItemPhoto,ph0id).digest)==40; db.close()  # the backfill fingerprints older photos
     assert "livesearch" in open("app/static/app.js").read() and ".livesearch{" in open("app/static/app.css").read()
     print("shared photos + live search ok")
+
+    # the floor filter: every room and area on a floor, separate areas and site places, whole-house items, export and delete keep it
+    r=c.post("/projects/new", data={"client_name":"Floors","name":"Floor filter","rate":"7.1"}, follow_redirects=False); pf=r.headers["location"].split("/")[-1]
+    for code,name,fl,kind in [("GF-LIV","Living","Ground","room"),("GF-STA","Stairs","Ground floor","area"),("FF-MBR","Master","First","room"),("BQ","Quarters","Staff quarters","room"),("EXT","Fence","Site","area")]:
+        c.post(f"/p/{pf}/rooms", data={"code":code,"name":name,"floor":fl,"kind":kind}, follow_redirects=False)
+    db=SessionLocal(); fr={x.code:x.id for x in db.query(Room).filter(Room.project_id==int(pf))}; db.close()
+    for code in ["GF-LIV","GF-STA","FF-MBR","BQ","EXT"]:
+        c.post(f"/p/{pf}/items/new", data={"room_ids":[str(fr[code])],"category":"Lighting","name":f"Light {code}","qty":"1","unit":"pcs","status":"To buy"}, follow_redirects=False)
+    c.post(f"/p/{pf}/items/new", data={"category":"Lighting","name":"Spare bulbs","qty":"1","unit":"set","status":"To buy"}, follow_redirects=False)
+    h=c.get(f"/p/{pf}/items?view=table").text
+    assert '<select name="floor"' in h and '<optgroup label="Floors">' in h and '<option value="Ground" >Ground floor</option>' in h and '<option value="Site" >Site</option>' in h and '<option value="none" >No floor (whole house)</option>' in h, re.findall(r'<select name="floor".*?</select>', h)[:1]
+    def rows(qs): return set(re.findall(r'<tr id="item-\d+" data-search="([A-Z]+-?[A-Z]*)-\d+ ', c.get(f"/p/{pf}/items?view=table&{qs}").text))
+    assert rows("floor=Ground")=={"GF-LIV","GF-STA"} and rows("floor=ground%20floor")=={"GF-LIV","GF-STA"} and rows("floor=First")=={"FF-MBR"} and rows("floor=Staff%20quarters")=={"BQ"} and rows("floor=Site")=={"EXT"} and rows("floor=none")=={"ALL"}, (rows("floor=Ground"), rows("floor=none"))
+    h=c.get(f"/p/{pf}/items?view=table&floor=Ground").text; assert f'value="{fr["GF-LIV"]}"' in h and f'value="{fr["FF-MBR"]}"' not in h and "All rooms &amp; areas on Ground floor" in h and 'value="Ground" selected' in h  # the Room list narrows
+    assert rows(f"floor=Ground&room={fr['FF-MBR']}")=={"GF-LIV","GF-STA"} and rows(f"floor=Ground&room={fr['GF-STA']}")=={"GF-STA"}  # a room from another floor is let go
+    x=c.get(f"/p/{pf}/export/items.xlsx?floor=First"); wbx=openpyxl.load_workbook(io.BytesIO(x.content)); assert [r_[0] for r_ in wbx["Shopping List"].iter_rows(min_row=2, values_only=True) if r_[0]]==["FF-MBR-01"] and "First" in x.headers["content-disposition"]
+    x=c.get(f"/p/{pf}/export/items.xlsx?floor=none"); assert [r_[0] for r_ in openpyxl.load_workbook(io.BytesIO(x.content))["Shopping List"].iter_rows(min_row=2, values_only=True) if r_[0]]==["ALL-01"]
+    h=c.get(f"/p/{pf}/items?view=table&floor=Ground").text; assert '<input type="hidden" name="floor" value="Ground">' in h and "export/items.xlsx?floor=Ground" in h
+    r=c.post(f"/p/{pf}/items/delete-selected", data={"ids":[],"floor":"Ground","view":"table"}, follow_redirects=False); assert r.headers["location"]==f"/p/{pf}/items?floor=Ground&view=table", r.headers["location"]
+    print("floor filter ok")
     # nothing chosen, a bad link, the cap per room, someone else's picture, a wrong token
     r=c2.post(f"/c/{itok}/inspiration", data={"room_id":str(kit)}, follow_redirects=False); assert "err=" in r.headers["location"]
     r=c2.post(f"/c/{itok}/inspiration", data={"room_id":str(kit),"url":"https://shop.example/empty"}, follow_redirects=False); assert "err=" in r.headers["location"]

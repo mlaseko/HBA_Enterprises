@@ -10,7 +10,7 @@ import re
 from .. import drawings
 from ..pdf.schedule import build_schedule
 from ..pdf.packing import packing_list, labels, room_checklist, purchase_order
-from .items import sort_items, item_query
+from .items import sort_items, item_query, NO_FLOOR
 router = APIRouter()
 log = logging.getLogger("ffe.pdf")
 
@@ -115,12 +115,9 @@ def items_xlsx(p: Project = Depends(get_project), db: Session = Depends(get_db),
     file can be changed in Excel and imported back: rows are matched by code and updated. With the Items page filters
     (room, category, status, supplier, q) or a floor, only those items go in: a short sheet for one category, one floor
     or one room, named after the choice."""
-    items = item_query(db, p, room, category, status, supplier, q).all()
-    if floor:
-        k = drawings.floor_key(floor)
-        items = [i for i in items if i.room is not None and drawings.floor_key(i.room.floor) == k]
+    items = item_query(db, p, room, category, status, supplier, q, floor).all()  # floor: the same rule as the Items page filter
     data = importer.build_workbook(p, db, items=sort_items(items, p))
     room_name = "no-room" if room == "none" else next((r.code for r in p.rooms if str(r.id) == room), "") if room else ""
-    what = [category, drawings.floor_title(floor, p) if floor else "", room_name, status, q.strip()]
+    what = [category, ("No floor" if floor == NO_FLOOR else drawings.floor_title(floor, p)) if floor else "", room_name, status, q.strip()]
     suffix = "-".join(re.sub(r"[^A-Za-z0-9]+", "-", x).strip("-") for x in what if x) or "items"
     return Response(content=data, media_type=importer.XLSX, headers=content_disposition(f"{p.name}-{suffix}.xlsx"))

@@ -23,6 +23,7 @@ const DESKTOP = [
   ['items', `/p/${pid}/items?room=${kit}`],
   ['items-table', `/p/${pid}/items?view=table&category=Tiles`],
   ['items-search', `/p/${pid}/items?view=table`, async p => { await p.fill('#live-q', 'tile warm'); await p.waitForTimeout(400); }],
+  ['items-floor', `/p/${pid}/items?view=table&floor=Ground`],
   ['items-list', `/p/${pid}/items?view=list`, async p => { await p.click('th[data-sort]:has-text("Rooms")'); await p.click('th[data-sort]:has-text("Rooms")'); await p.waitForTimeout(200); }],
   ['items-select', `/p/${pid}/items?view=table&category=Tiles`, async p => { await p.locator('input.sel-box').nth(0).check(); await p.locator('input.sel-box').nth(2).check(); await p.waitForTimeout(200); }],
   ['items-codes', `/p/${pid}/items?view=table&category=Tiles`, async p => { const codes = await p.$$eval('input.sel-box', xs => xs.slice(0, 3).map(x => x.dataset.codes).join(', ')); await p.click('.select-bar .by-codes'); await p.fill('.select-bar textarea', codes + ', GF-LIV-99'); await p.click('.select-bar .apply'); await p.waitForTimeout(300); }],
