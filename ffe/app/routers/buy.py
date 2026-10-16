@@ -1,5 +1,7 @@
-"""The Buying pages (buying.py holds the rules): the buying list, one page per product with its quotes and purchases, and
-the Purchase schedule, a review of every product in the look of the client schedule, with shops and prices."""
+"""The Buying pages (buying.py holds the rules): the buying list, one page per product with its quotes and purchases, the
+Purchase schedule (a review of every product in the look of the client schedule, with shops and prices) and the tracker
+(the money from budget to paid, and what needs attention). Orders have their own router (orders.py). Every change ends
+with buying.settle, so purchases left without rooms go and the room lines follow their orders."""
 from collections import Counter
 from urllib.parse import quote as urlquote, urlencode
 
@@ -7,6 +9,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from sqlalchemy.orm import Session
 
 from .. import buying as bz
+from .. import ordering as od
 from .. import config, drawings
 from ..common import ffloat, fint, get_project, redirect, render, require_login
 from ..db import get_db
@@ -77,6 +80,18 @@ def purchase_schedule(request: Request, p: Project = Depends(get_project), db: S
                   rate=(p.rate or 1) if usd else 1, sym="$" if usd else "¥", qs=urlencode({k: v for k, v in f.items() if v}))
 
 
+@router.get("/p/{project_id}/buying/tracker")
+def tracker(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    prods = bz.sync_products(db, p)
+    db.commit()
+    led = bz.Ledger(p)
+    gs = bz.groups(p, prods, led)
+    ovs = od.views(p, led)
+    t = od.tracker(p, led, gs, ovs)
+    return render(request, "buying/tracker.html", p=p, t=t, ovs=ovs, STAGES=bz.STAGES, STAGE_COLORS=bz.STAGE_COLORS, STAGE_HELP=bz.STAGE_HELP,
+                  ORDER_COLORS=od.STAGE_COLORS)
+
+
 @router.get("/p/{project_id}/buying/item/{item_id}")
 def buying_for_item(item_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
     """From an item's page: the Buying page of its product."""
@@ -105,7 +120,8 @@ def product_page(request: Request, product_id: int, p: Project = Depends(get_pro
         return redirect(f"/p/{p.id}/buying")
     bz.sync_products(db, p)
     db.commit()
-    g = bz.group_of(p, prod)
+    led = bz.Ledger(p)
+    g = bz.group_of(p, prod, led)
     if g is None:  # its lines were deleted or renamed onto another product
         return redirect(f"/p/{p.id}/buying?ok=" + urlquote("That product has no rooms any more."))
     suppliers = db.query(Supplier).order_by(Supplier.name).all()
@@ -116,9 +132,14 @@ def product_page(request: Request, product_id: int, p: Project = Depends(get_pro
     by_floor: dict[str, list] = {}
     for i in g.lines:
         by_floor.setdefault(drawings.floor_title(i.room.floor, p) if i.room is not None and i.room.floor else "No floor", []).append(i)
+    orders = {o.id: od.OrderView(o, led) for o in led.orders}
+    drafts = {}
+    for ov in orders.values():
+        if not ov.o.confirmed:
+            drafts.setdefault(ov.o.supplier_id, ov)
     return render(request, "buying/product.html", p=p, prod=prod, g=g, quotes=quotes, best=best, views=views, open_lines=open_lines,
                   by_floor=by_floor, suppliers=suppliers, STAGE_COLORS=bz.STAGE_COLORS, STAGE_HELP=bz.STAGE_HELP, ok=ok[:200], err=err[:200],
-                  committed=round(sum(v["total"] for v in views), 2))
+                  committed=round(sum(v["total"] for v in views), 2), orders=orders, drafts=drafts, ORDER_COLORS=od.STAGE_COLORS)
 
 
 @router.post("/p/{project_id}/buying/{product_id}")
@@ -132,6 +153,7 @@ def save_quantities(product_id: int, p: Project = Depends(get_project), db: Sess
     prod.pack_size = max(0.0, ffloat(pack_size, 0))
     prod.pack_name = " ".join(pack_name.split())[:20]
     prod.notes = notes.strip()
+    bz.settle(db, p)
     db.commit()
     return _back(p, prod, "#quantity", ok="Quantity to order saved.")
 
@@ -178,6 +200,7 @@ async def add_quote(request: Request, product_id: int, p: Project = Depends(get_
             msg = f"Quote from {sup.name} added, and bought for {len(lines)} room{'s' if len(lines) != 1 else ''}."
     elif form.get("buy") == "open":
         msg += " Not bought yet: add its price first."
+    bz.settle(db, p)
     db.commit()
     return _back(p, prod, "#quotes", ok=msg)
 
@@ -200,8 +223,10 @@ async def edit_quote(request: Request, product_id: int, quote_id: int, p: Projec
     if data:
         bz.set_quote_photo(q, data, p)
     bz.follow_quote(db, q)  # the rooms bought from it follow the corrected price
+    qid, followed = q.id, db.query(Purchase).filter(Purchase.quote_id == q.id).count()
+    bz.settle(db, p)
     db.commit()
-    return _back(p, prod, f"#quote-{q.id}", ok="Quote saved." + (" The rooms bought from it follow." if q.id and db.query(Purchase).filter(Purchase.quote_id == q.id).count() else ""))
+    return _back(p, prod, f"#quote-{qid}", ok="Quote saved." + (" The rooms bought from it follow." if followed else ""))
 
 
 @router.post("/p/{project_id}/buying/{product_id}/quotes/{quote_id}/delete")
@@ -210,6 +235,7 @@ def delete_quote(product_id: int, quote_id: int, p: Project = Depends(get_projec
     q = _quote(db, prod, quote_id) if prod is not None else None
     if q is not None:
         bz.delete_quote(db, q)
+        bz.settle(db, p)
         db.commit()
     return _back(p, prod, "#quotes", ok="Quote deleted.") if prod is not None else redirect(f"/p/{p.id}/buying")
 
@@ -237,6 +263,7 @@ async def buy_from_quote(request: Request, product_id: int, quote_id: int, p: Pr
         pu = next((x for x in g.purchases if x.quote_id == q.id), None)
         if pu is not None:
             bz.set_rooms(db, p, pu, lines, g.lines)
+            bz.settle(db, p)
             db.commit()
             if not lines:
                 return _back(p, prod, "#buying-from", ok=f"No longer buying from {who}: no rooms ticked.")
@@ -246,6 +273,7 @@ async def buy_from_quote(request: Request, product_id: int, quote_id: int, p: Pr
     if not lines:
         return _back(p, prod, f"#quote-{q.id}", err="Tick at least one room to buy for.")
     bz.buy(db, p, prod, q, lines)
+    bz.settle(db, p)
     db.commit()
     return _back(p, prod, "#buying-from", ok=f"Buying from {who} for {len(lines)} room{'s' if len(lines) != 1 else ''}.")
 
@@ -265,16 +293,20 @@ async def edit_purchase(request: Request, product_id: int, purchase_id: int, p: 
     g = bz.group_of(p, prod)
     if form.get("rooms") == "1":
         lines = _lines_from_form(g, form.getlist("line"))
+        puid = pu.id
         bz.set_rooms(db, p, pu, lines, g.lines)
+        bz.settle(db, p)
         db.commit()
         if not lines:
             return _back(p, prod, "#buying-from", ok="Purchase removed: no rooms ticked.")
-        return _back(p, prod, f"#purchase-{pu.id}", ok="Rooms saved.")
+        return _back(p, prod, f"#purchase-{puid}", ok="Rooms saved.")
     qty = (form.get("qty") or "").strip()
     pu.qty = max(0.0, ffloat(qty, 0)) if qty else None
     pu.notes = (form.get("notes") or "").strip()
+    puid = pu.id
+    bz.settle(db, p)
     db.commit()
-    return _back(p, prod, f"#purchase-{pu.id}", ok="Purchase saved.")
+    return _back(p, prod, f"#purchase-{puid}", ok="Purchase saved.")
 
 
 @router.post("/p/{project_id}/buying/{product_id}/purchases/{purchase_id}/delete")
@@ -283,5 +315,6 @@ def delete_purchase(product_id: int, purchase_id: int, p: Project = Depends(get_
     pu = _purchase(db, prod, purchase_id) if prod is not None else None
     if pu is not None:
         bz.remove_purchase(db, p, pu)
+        bz.settle(db, p)
         db.commit()
     return _back(p, prod, "#buying-from", ok="Purchase removed: those rooms have no shop again.") if prod is not None else redirect(f"/p/{p.id}/buying")

@@ -1510,4 +1510,121 @@ with TestClient(app) as c:
     assert d_.unit_price==0 and d_.status=="To buy" and e_.unit_price==0 and "Price noted at capture: ¥30.00" in e_.notes; db.close()
     db=SessionLocal(); assert _bz.upgrade(db)=={}; db.close()  # once only
     print("buying ok")
+    # ---- Orders: what was bought, on numbered orders per shop; confirming, paying, the statuses that follow, the tracker ----
+    import datetime as _dt
+    from app import ordering as _od
+    from app.models import Order as _O, Payment as _Pay
+    r=c.post("/settings/warehouse", data={"warehouse_name":"Baiyun Warehouse","warehouse_address":"Unit 8, Logistics Park\nGuangzhou","warehouse_contact":"Mr. Liang"}, follow_redirects=False)
+    assert r.headers["location"].endswith("#warehouse") and 'value="Baiyun Warehouse"' in c.get("/settings").text
+    r=c.post("/projects/new", data={"client_name":"Orders","name":"Kilimani House","rate":"7","budget_usd":"5000"}, follow_redirects=False); pid_o=int(r.headers["location"].split("/")[-1])
+    for code,name in (("LIV","Living room"),("KIT","Kitchen"),("BED","Bedroom")):
+        c.post(f"/p/{pid_o}/rooms", data={"code":code,"name":name,"floor":"Ground","kind":"room"}, follow_redirects=False)
+    db=SessionLocal(); orr={x.code:x.id for x in db.query(Room).filter(Room.project_id==pid_o)}; db.close()
+    c.post(f"/p/{pid_o}/items/new", data={"room_ids":[str(orr["LIV"]),str(orr["KIT"])],"category":"Tiles","name":"Floor tile","size":"600 x 600 mm","qty":"20","unit":"m²","status":"To buy"}, follow_redirects=False)
+    c.post(f"/p/{pid_o}/items/new", data={"room_ids":[str(orr["BED"])],"category":"Furniture","name":"Bed","qty":"1","unit":"pcs","status":"To buy"}, follow_redirects=False)
+    c.post(f"/p/{pid_o}/items/new", data={"room_ids":[str(orr["LIV"])],"category":"Lighting","name":"Floor lamp","qty":"2","unit":"pcs","status":"To buy"}, follow_redirects=False)
+    db=SessionLocal(); oi={(i.name, i.room.code):i.id for i in db.query(Item).filter(Item.project_id==pid_o)}; db.close()
+    p_tile,q_tile=buy(c, pid_o, oi[("Floor tile","LIV")], "Tile Shop", 80, pack_size="1.44")
+    p_bed,_=buy(c, pid_o, oi[("Bed","BED")], "Tile Shop", 3000)
+    p_lamp,_=buy(c, pid_o, oi[("Floor lamp","LIV")], "Lamp Shop", 400)
+    db=SessionLocal(); ts=db.query(_S).filter(_S.name=="Tile Shop").one().id; ls=db.query(_S).filter(_S.name=="Lamp Shop").one().id
+    db.get(_S, ts).payment_terms="40% deposit, 60% before loading"; db.commit(); db.close()
+    tile_bed=[oi[("Floor tile","LIV")], oi[("Floor tile","KIT")], oi[("Bed","BED")]]
+    def _sts(ids):
+        db=SessionLocal(); out=[db.get(Item,x).status for x in ids]; db.close(); return out
+    assert _od.initials("Kilimani House")=="KH" and _od.initials("")=="PO" and _od.deposit_from_terms("30% deposit, 70% before loading")==30 and _od.deposit_from_terms("Deposit 50%, rest on loading")==50 and _od.deposit_from_terms("Full payment on order")==100 and _od.deposit_from_terms("Net 30")is None
+    # what is bought waits under Ready to order; Start an order makes a numbered draft for the shop with the warehouse
+    h=c.get(f"/p/{pid_o}/orders").text
+    assert 'data-key="orders"' in h and "Ready to order" in h and "Tile Shop" in h and "Lamp Shop" in h and "Start an order" in h and f'href="/p/{pid_o}/orders" class="on"' in h and 'href="#help"' not in h
+    h=c.get(f"/p/{pid_e}/orders").text; assert "No orders yet" in h and 'href="#help"' in h  # the empty state points at the help
+    r=c.post(f"/p/{pid_o}/orders/new", data={"supplier_id":str(ts)}, follow_redirects=False); assert "ok=" in r.headers["location"]
+    oid=int(r.headers["location"].split("/orders/")[1].split("?")[0])
+    db=SessionLocal(); o=db.get(_O,oid)
+    assert o.number==1 and _od.ref(o)=="KH-001" and o.deposit_pct==40 and o.terms.startswith("40%") and o.deliver_to.startswith("Baiyun Warehouse\nUnit 8") and not o.confirmed and len(o.purchases)==2
+    led=_bz.Ledger(db.get(_P,pid_o)); assert led.total[oid]==6571.2 and led.state(o.purchases[0])=="bought", led.total; db.close()  # 44.64 m² of tile (31 boxes) + the bed
+    assert _sts(tile_bed)==["Quoted"]*3  # a draft changes no status
+    r=c.post(f"/p/{pid_o}/orders/new", data={"supplier_id":str(ts)}, follow_redirects=False); assert "err=" in r.headers["location"]  # nothing left waiting from that shop
+    lamp=oi[("Floor lamp","LIV")]; c.post(f"/p/{pid_o}/items/{lamp}/status", data={"status":"Ordered"})  # set by hand before the order
+    r=c.post(f"/p/{pid_o}/orders/new", data={"supplier_id":str(ls)}, follow_redirects=False); oid2=int(r.headers["location"].split("/orders/")[1].split("?")[0])
+    db=SessionLocal(); assert _od.ref(db.get(_O,oid2))=="KH-002" and db.get(_O,oid2).deposit_pct==30; db.close()
+    assert _sts([lamp])==["Ordered"]  # a draft never lowers a status
+    h=c.get(f"/p/{pid_o}/orders/{oid}").text; wc=h.split('id="wechat-text">')[1].split("</pre>")[0]
+    assert 'data-key="order"' in h and "Order KH-001" in h and "¥6,571.20" in h and "Confirm the order" in h and "Deposit 40%" in h and "due once confirmed" in h and "Baiyun Warehouse" in h
+    assert "采购订单 KH-001" in wc and "LIV-01" in wc and "KIT-01" in wc and "BED-01" in wc and "Deliver to 送货地址" in wc and "Baiyun Warehouse" in wc and "¥6,571.20" in wc
+    r=c.get(f"/p/{pid_o}/orders/{oid}/po.pdf"); t=pdf_text(r.content)
+    assert r.status_code==200 and r.headers["content-type"]=="application/pdf" and "PO-KH-001" in r.headers["content-disposition"]
+    assert "KH-001" in t and "Floor tile" in t and "LIV-01" in t and "Baiyun Warehouse" in t and "Draft" in t and "6,571.20" in t and "31 boxes" in t, t[:600]
+    # confirming: the rooms become Ordered; the deposit is due; the product page, the item and the Buying list follow
+    r=c.post(f"/p/{pid_o}/orders/{oid}/confirm", data={"confirmed_on":"2026-10-01","ready_date":"2026-10-20"}, follow_redirects=False); assert "ok=" in r.headers["location"]
+    db=SessionLocal(); o=db.get(_O,oid); assert o.confirmed_on==_dt.date(2026,10,1) and o.ready_date==_dt.date(2026,10,20) and o.confirmed_total==6571.2; db.close()
+    assert _sts(tile_bed)==["Ordered"]*3 and _sts([lamp])==["Ordered"]
+    h=c.get(f"/p/{pid_o}/buying/{p_tile}").text; assert "Order KH-001" in h and "Deposit due" in h
+    assert "On order" in c.get(f"/p/{pid_o}/items/{oi[('Bed','BED')]}").text and "KH-001" in c.get(f"/p/{pid_o}/items/{oi[('Bed','BED')]}").text
+    assert c.get(f"/p/{pid_o}/buying?stage=Ordered").text.count('class="bu-card"')==2
+    assert "KH-001" not in pdf_text(c.get(f"/p/{pid_o}/orders/{oid2}/po.pdf").content)  # each order its own PO
+    # paying: the deposit on the order page, the balance on Payments with the order chosen; paid in full = Paid; shipped stays shipped
+    c.post(f"/p/{pid_o}/items/{oi[('Bed','BED')]}/status", data={"status":"Shipped"})
+    r=c.post(f"/p/{pid_o}/orders/{oid}/payments", data={"amount":"2628.48","kind":"Deposit","paid_on":"2026-10-02","reference":"WX1"}, files={"receipt":("r.jpg",img("green"),"image/jpeg")}, follow_redirects=False)
+    assert r.headers["location"].endswith("#payments") and "ok=" in r.headers["location"]
+    db=SessionLocal(); pay1=db.query(_Pay).filter(_Pay.order_id==oid).one(); assert pay1.supplier_id==ts and pay1.receipt_key
+    ov=_od.OrderView(db.get(_O,oid), _bz.Ledger(db.get(_P,pid_o)), today=_dt.date(2026,10,16)); assert ov.stage=="Balance due" and ov.deposit_left==0 and ov.balance==3942.72 and ov.soon and not ov.late and ov.ready_text=="in 4 days"; db.close()
+    assert _sts(tile_bed)==["Ordered","Ordered","Shipped"]
+    assert 'value="3942.72"' in c.get(f"/p/{pid_o}/orders/{oid}").text  # the form offers what is due
+    h=c.get(f"/p/{pid_o}/payments").text; assert f'<option value="{oid}">KH-001 · Tile Shop · to pay ¥3,943</option>' in h and "On orders" in h and "KH-001" in h.split("All payments")[1]
+    c.post(f"/p/{pid_o}/payments", data={"order_id":str(oid),"supplier_id":str(ls),"paid_on":"2026-10-15","amount":"3942.72","kind":"Balance","reference":"BANK2"}, follow_redirects=False)
+    db=SessionLocal(); pay2=db.query(_Pay).filter(_Pay.order_id==oid, _Pay.kind=="Balance").one(); assert pay2.supplier_id==ts; pay2=pay2.id; db.close()  # the order's shop, not the one picked
+    assert _sts(tile_bed)==["Paid","Paid","Shipped"] and c.get(f"/p/{pid_o}/buying?stage=Paid").text.count('class="bu-card"')==2  # the stage reads the order
+    r=c.post(f"/p/{pid_o}/payments/{pay2}/delete", data={"next":f"/p/{pid_o}/orders/{oid}#payments"}, follow_redirects=False); assert r.headers["location"]==f"/p/{pid_o}/orders/{oid}#payments"
+    assert _sts(tile_bed)==["Ordered","Ordered","Shipped"]
+    # money: summary, Overview, Payments, the supplier page and its list
+    db=SessionLocal(); s=_summary(db, db.get(_P,pid_o)); db.close()
+    assert s["ordered"]==6571.2 and s["paid"]==2628.48 and s["to_pay"]==3942.72 and s["orders"]==2 and {r_["label"]:r_["bought"] for r_ in s["by_sup"]}=={"Tile Shop":6571.2,"Lamp Shop":800}
+    assert "¥3,943 still to pay on ¥6,571 ordered" in c.get(f"/p/{pid_o}").text
+    h=c.get(f"/suppliers/{ts}?project={pid_o}").text; assert 'id="orders"' in h and "KH-001" in h and f"/p/{pid_o}/orders/{oid}/po.pdf" in h and "on confirmed orders" in h
+    assert "to pay ¥3,943" in c.get(f"/p/{pid_o}/suppliers").text
+    assert c.get(f"/p/{pid_o}/export/po/{ts}.pdf").status_code==200  # every item from the shop, as before
+    # a change after confirming shows on the order and the tracker until the shop agrees the new total
+    c.post(f"/p/{pid_o}/buying/{p_tile}/quotes/{q_tile}", data={"supplier_id":str(ts),"amount":"85","currency":"CNY","pack_size":"1.44"}, follow_redirects=False)
+    h=c.get(f"/p/{pid_o}/orders/{oid}").text; assert "Changed since it was confirmed" in h and "¥6,794.40" in h and "The shop agreed" in h
+    assert "KH-001 changed after it was confirmed" in c.get(f"/p/{pid_o}/buying/tracker").text
+    c.post(f"/p/{pid_o}/orders/{oid}/confirm", data={"confirmed_on":"2026-10-01"}, follow_redirects=False)
+    db=SessionLocal(); o=db.get(_O,oid); assert o.confirmed_total==6794.4 and o.confirmed_on==_dt.date(2026,10,1); db.close()
+    assert "Changed since it was confirmed" not in c.get(f"/p/{pid_o}/orders/{oid}").text
+    # off the order and back; back to a draft; deleting an order keeps its products bought and its payments
+    db=SessionLocal(); pu_bed=db.query(_Pu).filter(_Pu.product_id==p_bed).one().id; pu_tile=db.query(_Pu).filter(_Pu.product_id==p_tile).one().id; db.close()
+    c.post(f"/p/{pid_o}/items/{oi[('Bed','BED')]}/status", data={"status":"Ordered"})
+    r=c.post(f"/p/{pid_o}/orders/{oid}/remove/{pu_bed}", follow_redirects=False); assert "ok=" in r.headers["location"]
+    assert _sts(tile_bed)==["Ordered","Ordered","Quoted"] and "Bed" in c.get(f"/p/{pid_o}/orders").text.split("Ready to order")[1].split("</section>")[0]
+    h=c.get(f"/p/{pid_o}/orders/{oid}").text; assert "Also bought from Tile Shop" in h
+    c.post(f"/p/{pid_o}/orders/{oid}/add", data={"pu":[str(pu_bed)]}, follow_redirects=False); assert _sts(tile_bed)==["Ordered"]*3
+    r=c.post(f"/p/{pid_o}/orders/{oid}/add", data={"pu":[str(pu_tile)]}, follow_redirects=False); assert "err=" in r.headers["location"]  # already on it
+    c.post(f"/p/{pid_o}/orders/{oid}/unconfirm", follow_redirects=False); assert _sts(tile_bed)==["Quoted"]*3
+    db=SessionLocal(); assert db.get(_O,oid).confirmed_on is None and db.query(_Pay).filter(_Pay.order_id==oid).count()==1; db.close()
+    c.post(f"/p/{pid_o}/orders/{oid}/confirm", data={}, follow_redirects=False); assert _sts(tile_bed)==["Ordered"]*3
+    db=SessionLocal(); assert db.get(_O,oid).confirmed_on==_dt.date.today(); db.close()
+    # the tracker: the money, what needs attention, the stages, the shops, the categories
+    h=c.get(f"/p/{pid_o}/buying/tracker").text
+    assert 'data-key="tracker"' in h and "Needs attention" in h and "Draft KH-002 to confirm with the shop" in h and "By stage" in h and "By shop" in h and "By category" in h and "¥35,000" in h, h[:300]
+    db=SessionLocal(); P=db.get(_P,pid_o); led=_bz.Ledger(P); t=_od.tracker(P, led, _bz.groups(P, ledger=led), _od.views(P, led, _dt.date(2026,10,25)), _dt.date(2026,10,25)); db.close()
+    assert t["ordered"]==6794.4 and t["paid"]==2628.48 and t["to_pay"]==4165.92 and t["stages"]["Ordered"]["products"]==2 and t["stages"]["Sourced"]["products"]==1
+    assert t["attention"][0]["tone"]=="red" and t["attention"][0]["title"]=="KH-001 was due 5 days ago" and sum(1 for a in t["attention"] if "KH-001" in a["title"])==1, t["attention"]
+    # a payment to the shop on no order (made before orders existed, say) can be counted toward the order
+    c.post(f"/p/{pid_o}/payments", data={"order_id":"","supplier_id":str(ts),"paid_on":"2026-09-20","amount":"1000","kind":"Deposit","reference":"OLD1"}, follow_redirects=False)
+    h=c.get(f"/p/{pid_o}/orders/{oid}").text; assert "Paid to Tile Shop before, on no order" in h and "OLD1" in h
+    db=SessionLocal(); loose=db.query(_Pay).filter(_Pay.reference=="OLD1").one().id; db.close()
+    r=c.post(f"/p/{pid_o}/orders/{oid}/claim", data={}, follow_redirects=False); assert "err=" in r.headers["location"]
+    r=c.post(f"/p/{pid_o}/orders/{oid}/claim", data={"pay":[str(loose)]}, follow_redirects=False); assert "ok=" in r.headers["location"]
+    db=SessionLocal(); assert db.get(_Pay,loose).order_id==oid and _od.OrderView(db.get(_O,oid), _bz.Ledger(db.get(_P,pid_o))).paid==3628.48; db.close()
+    assert "Paid to Tile Shop before" not in c.get(f"/p/{pid_o}/orders/{oid}").text
+    c.post(f"/p/{pid_o}/orders/{oid2}/delete", follow_redirects=False); assert _sts([lamp])==["Ordered"]  # a draft deleted lowers nothing either
+    r=c.post(f"/p/{pid_o}/orders/new", data={"supplier_id":str(ls)}, follow_redirects=False); oid3=int(r.headers["location"].split("/orders/")[1].split("?")[0])
+    db=SessionLocal(); assert _od.ref(db.get(_O,oid3))=="KH-003" and db.query(_O).filter(_O.project_id==pid_o, _O.number==2).count()==0; db.close()  # a number is never given twice
+    c.post(f"/p/{pid_o}/orders/{oid}/delete", follow_redirects=False)
+    db=SessionLocal(); assert db.get(_O,oid) is None and db.get(_Pay,pay1.id).order_id is None and db.get(_Pay,pay1.id).supplier_id==ts and db.query(_Pu).filter(_Pu.supplier_id==ts).count()==2; db.close()
+    assert _sts(tile_bed)==["Quoted"]*3
+    # another project's order is not reachable; a supplier deleted takes its orders with it
+    assert c.get(f"/p/{pid_b}/orders/{oid3}", follow_redirects=False).headers["location"]==f"/p/{pid_b}/orders"
+    c.post(f"/suppliers/{ls}/delete", follow_redirects=False)
+    db=SessionLocal(); assert db.get(_O,oid3) is None and db.query(_O).filter(_O.project_id==pid_o).count()==0; db.close()
+    print("orders ok")
     print("ALL OK")

@@ -42,6 +42,12 @@ COLUMN_MIGRATIONS = [
     ("mood_tags", "is_cover", "BOOLEAN NOT NULL DEFAULT FALSE"),  # the inspiration picture starred as its room's cover
     ("item_photos", "digest", "VARCHAR(40) NOT NULL DEFAULT ''"),  # the fingerprint of a photo ('' = not computed yet)
     ("items", "purchase_id", "INTEGER"),  # the purchase that supplies the room line (buying.py); NULL = no supplier chosen yet
+    ("projects", "orders_made", "INTEGER NOT NULL DEFAULT 0"),  # the last order number given, so a deleted order's number is not reused
+    ("purchases", "order_id", "INTEGER"),  # the order a purchase is on (ordering.py); NULL = not ordered yet
+    ("payments", "order_id", "INTEGER"),  # the order a payment pays; NULL = paid to the supplier in general
+    ("settings", "warehouse_name", "VARCHAR(160) NOT NULL DEFAULT ''"),  # the consolidation warehouse the shops deliver to
+    ("settings", "warehouse_address", "TEXT NOT NULL DEFAULT ''"),
+    ("settings", "warehouse_contact", "VARCHAR(160) NOT NULL DEFAULT ''"),
 ]
 
 # Data fixes for rows written by an older version. Each must be idempotent (safe to run at every start, by several instances):

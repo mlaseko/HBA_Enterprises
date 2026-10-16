@@ -55,6 +55,13 @@ const PHONE = [
   ['phone-items', `/p/${pid}/items?room=${kit}`],
   ['phone-buying', `/p/${pid}/buying/${ids.products['Bedside wall light']}`, async p => { await p.evaluate(() => { document.documentElement.style.scrollBehavior = 'auto'; const q = document.getElementById('quotes'); window.scrollTo(0, q.getBoundingClientRect().top + window.scrollY - 72); }); await p.waitForTimeout(400); }],
   ['phone-help', `/p/${pid}/items`, async p => { await p.click('#help-btn'); await p.waitForTimeout(450); }],
+  ['phone-order', `/p/${pid}/orders/${ids.orders['Kaiping Sanitary Ware']}`, async p => { await p.evaluate(() => { document.documentElement.style.scrollBehavior = 'auto'; document.getElementById('wechat-box').open = true; const w = document.getElementById('wechat'); window.scrollTo(0, w.getBoundingClientRect().top + window.scrollY - 72); }); await p.waitForTimeout(400); }],
+];
+// pages shown whole: a taller window (name, path, height)
+const TALL = [
+  ['orders', `/p/${pid}/orders`, 1500],
+  ['order', `/p/${pid}/orders/${ids.orders['Kaiping Sanitary Ware']}`, 1240],
+  ['tracker', `/p/${pid}/buying/tracker`, 1640],
 ];
 
 (async () => {
@@ -89,6 +96,14 @@ const PHONE = [
     await s.page.screenshot({ path: `${out}/buying-product.png` }); console.log('shot buying-product');
     await s.page.setViewportSize({ width: 1366, height: 850 });
   }
+  for (const [name, path, h] of TALL) {
+    if (only.length && !only.includes(name)) continue;
+    await s.page.setViewportSize({ width: 1366, height: h });
+    await s.page.goto(base + path); await s.page.waitForLoadState('networkidle'); await s.page.waitForTimeout(350);
+    await s.page.evaluate(() => { const n = document.getElementById('help-nudge'); if (n) n.hidden = true; });
+    await s.page.screenshot({ path: `${out}/${name}.png` }); console.log('shot', name);
+  }
+  await s.page.setViewportSize({ width: 1366, height: 850 });
   // the quote form, filled in as in the shop, cropped
   if (!only.length || only.includes('buying-quote')) {
     await s.page.setViewportSize({ width: 820, height: 1400 });

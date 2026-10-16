@@ -36,7 +36,7 @@
   </div>
   <div class="kpi">
     <div class="v">¥{{ s.paid|money }}</div><div class="l">Paid</div>
-    <div class="d">Balance ¥{{ s.balance|money }}</div>
+    <div class="d">{% if s.ordered %}¥{{ s.to_pay|money }} still to pay on ¥{{ s.ordered|money }} ordered{% else %}Nothing on a confirmed order yet{% endif %}</div>
     <svg class="ic"><use href="#i-check"/></svg>
   </div>
   <div class="kpi sage">
@@ -122,12 +122,12 @@
   <div class="card">
     <div class="row between"><h2 class="mb-0">By supplier</h2><a class="small" href="/p/{{ p.id }}/payments">Payments</a></div>
     <div class="tbl mt"><table>
-      <thead><tr><th>Supplier</th><th class="num">Items</th><th class="num">Ordered</th><th class="num">Paid</th><th class="num">Balance</th></tr></thead>
+      <thead><tr><th>Supplier</th><th class="num">Items</th><th class="num">On orders</th><th class="num">Paid</th><th class="num">To pay</th></tr></thead>
       <tbody>
       {% for r in s.by_sup %}
       <tr>
         <td>{% if r.key %}<a href="/suppliers/{{ r.key }}?project={{ p.id }}">{{ r.label }}</a>{% else %}<span class="muted">{{ r.label }}</span>{% endif %}</td>
-        <td class="num">{{ r.count }}</td><td class="num">{{ r.total|money }}</td><td class="num">{{ r.paid|money }}</td><td class="num{% if r.balance > 0 %} b{% endif %}">{{ r.balance|money }}</td>
+        <td class="num">{{ r.count }}</td><td class="num">{{ r.ordered|money }}</td><td class="num">{{ r.paid|money }}</td><td class="num{% if r.balance > 0 %} b{% endif %}">{{ r.balance|money }}</td>
       </tr>
       {% else %}<tr><td colspan="5" class="muted center">No items yet.</td></tr>{% endfor %}
       </tbody>

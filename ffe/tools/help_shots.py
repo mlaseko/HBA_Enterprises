@@ -10,6 +10,7 @@ enough for its picture in the guide to be wrong.
 
 Env: HELP_SHOTS_CHROME = path of the chrome binary for Playwright (default: Playwright's own download),
      NODE_PATH = where `require('playwright')` is found when it is not installed next to this repo."""
+import datetime
 import io
 import openpyxl
 import json
@@ -41,7 +42,7 @@ from reportlab.pdfgen import canvas  # noqa: E402
 import pypdfium2 as pdfium  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from app.main import app  # noqa: E402
-from app import drawings  # noqa: E402
+from app import buying, drawings  # noqa: E402
 
 random.seed(7)
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf"
@@ -348,13 +349,18 @@ ITEMS = [
     ("", "Paint", "Interior emulsion, matt", "Low VOC, 2 coats, 18 L buckets", "", "18 L", "Warm white", 18, "pcs", 380, "CNY", "", "To buy", "", ("fabric", "#F1EDE4")),
     ("GF-GBA", "Lighting", "Mirror light", "LED 3000K, IP44", "", "L 600 mm", "Brushed brass", 1, "pcs", 42, "USD", "Guangzhou Lighting Market", "To buy", "In stock", ("lamp", "#D8B36A")),
 ]
-PAYMENTS = [  # supplier, date, amount, kind, reference, note, receipt
-    ("Foshan Tile Co.", "2026-08-12", 8000, "Deposit", "WeChat 8831", "Tiles + oak floor deposit", True),
-    ("Foshan Tile Co.", "2026-09-02", 12736, "Balance", "Bank 20260902-7", "Balance before loading", False),
-    ("Zhongshan Cabinet Works", "2026-08-20", 17000, "Deposit", "Bank 20260820-2", "Kitchen + worktop 50%", False),
-    ("Shunde Furniture Hub", "2026-09-10", 9000, "Deposit", "WeChat 9120", "Sofa, table, chairs, bed 40%", False),
-    ("Kaiping Sanitary Ware", "2026-09-14", 4500, "Deposit", "WeChat 9377", "Sanitary 30%", False),
+# the orders: supplier, confirmed and ready by (days from today; None = a draft), the shop's reference, and the payments against it:
+# (days from today, kind, share of the order's total or None for the rest, reference, note, receipt photo)
+ORDERS = [
+    ("Foshan Tile Co.", -66, -40, "FT-2608-114", [(-64, "Deposit", 0.3, "WeChat 8831", "Tiles + oak floor deposit", True),
+                                                 (-44, "Balance", None, "Bank 20260902-7", "Balance before loading", False)]),
+    ("Zhongshan Cabinet Works", -58, 4, "ZC-0818", [(-57, "Deposit", 0.5, "Bank 20260820-2", "Kitchen + worktop 50%", True)]),
+    ("Kaiping Sanitary Ware", -34, -3, "KP-0912", [(-32, "Deposit", 0.3, "WeChat 9377", "Sanitary 30%", False)]),
+    ("Shunde Furniture Hub", -2, 26, "", []),
+    ("Guangzhou Lighting Market", None, None, "", []),
 ]
+WAREHOUSE = dict(warehouse_name="Baiyun Consolidation Warehouse", warehouse_contact="Mr. Liang · +86 131 0000 2468 · WeChat liang_by",
+                 warehouse_address="Unit 8, Baiyun Logistics Park, Taihe Town\nBaiyun District, Guangzhou")
 CARTONS = [  # supplier, room, contents, codes, qty, L, W, H, kg, received, by_supplier
     ("Foshan Tile Co.", "GF-KIT", "Floor tiles 600x1200, 12 cartons on pallet", "GF-KIT-01", 12, 125, 65, 110, 480, True, False),
     ("Foshan Tile Co.", "GF-HAL", "Floor tiles 600x1200, 8 cartons", "GF-HAL-01", 8, 125, 65, 80, 320, True, False),
@@ -421,7 +427,7 @@ def seed() -> dict:
             c.post("/suppliers/new", data={"name": name, "city": city, "category": cat, "contact": contact, "phone": phone, "wechat": wechat,
                                            "payment_terms": terms, "back": f"/p/{pid}/suppliers"}, follow_redirects=False)
         from app.db import SessionLocal
-        from app.models import Room, Supplier, Item, Project, ProjectImage, DrawingSet, SupplierLink
+        from app.models import Room, Supplier, Item, Order, Project, ProjectImage, DrawingSet, SupplierLink
         db = SessionLocal()
         rooms = {x.code: x.id for x in db.query(Room).filter(Room.project_id == pid)}
         sups = {x.name: x.id for x in db.query(Supplier)}
@@ -521,10 +527,32 @@ def seed() -> dict:
         from app.models import Product
         ids["products"] = {pr.title.split(" · ")[0]: pr.id for pr in db.query(Product).filter(Product.project_id == pid)}
         db.close()
-        for sup, date, amount, kind, ref, note, rec in PAYMENTS:
-            files = [("receipt", ("receipt.jpg", receipt(), "image/jpeg"))] if rec else []
-            c.post(f"/p/{pid}/payments", data={"supplier_id": str(sups[sup]), "paid_on": date, "amount": str(amount), "kind": kind, "reference": ref, "note": note},
-                   files=files, follow_redirects=False)
+        # the orders: what was bought from each shop, confirmed with it and paid against (dates from today, so something is due)
+        c.post("/settings/warehouse", data=WAREHOUSE, follow_redirects=False)
+        day = lambda n: (datetime.date.today() + datetime.timedelta(days=n)).isoformat()  # noqa: E731
+        ids["orders"] = {}
+        for sup, confirmed, ready, ref, pays in ORDERS:
+            r = c.post(f"/p/{pid}/orders/new", data={"supplier_id": str(sups[sup])}, follow_redirects=False)
+            oid = int(r.headers["location"].split("/orders/")[1].split("?")[0])
+            ids["orders"][sup] = oid
+            if confirmed is not None:
+                c.post(f"/p/{pid}/orders/{oid}/confirm", data={"confirmed_on": day(confirmed), "ready_date": day(ready)}, follow_redirects=False)
+            if ref:
+                db = SessionLocal()
+                o = db.get(Order, oid)
+                o.supplier_ref = ref
+                db.commit()
+                db.close()
+            db = SessionLocal()
+            total = buying.Ledger(db.get(Project, pid)).total.get(oid, 0.0)
+            db.close()
+            paid = 0.0
+            for when, kind, share, reference, note, rec in pays:
+                amount = round(total * share) if share else round(total - paid, 2)
+                paid += amount
+                files = [("receipt", ("receipt.jpg", receipt(), "image/jpeg"))] if rec else []
+                c.post(f"/p/{pid}/orders/{oid}/payments", data={"paid_on": day(when), "amount": str(amount), "kind": kind, "reference": reference, "note": note},
+                       files=files, follow_redirects=False)
         # packing links for two suppliers; the supplier enters some boxes through their link
         for sup in ("Kaiping Sanitary Ware", "Foshan Tile Co."):
             c.post(f"/p/{pid}/suppliers/{sups[sup]}/link", data={"action": "create"}, follow_redirects=False)
@@ -631,7 +659,7 @@ def render_pdfs(ids):
         pdf_png(c.get(f"/p/{pid}/export/room/{kit}.pdf").content, "pdf-checklist", 0)
         pdf_png(c.get(f"/p/{pid}/export/labels.pdf").content, "pdf-labels", 0, width=900)
         pdf_png(c.get(f"/p/{pid}/export/packing.pdf").content, "pdf-packing", 0)
-        pdf_png(c.get(f"/p/{pid}/export/po/{ids['sups']['Foshan Tile Co.']}.pdf").content, "pdf-po", 0)
+        pdf_png(c.get(f"/p/{pid}/orders/{ids['orders']['Kaiping Sanitary Ware']}/po.pdf").content, "pdf-order", 0)
 
 
 # ---- the browser, the pictures ----------------------------------------------------------------------------------------------

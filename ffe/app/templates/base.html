@@ -46,6 +46,8 @@
   <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 0 1 5 0c0 1.8-2.5 2.2-2.5 4"/><circle cx="12" cy="17" r=".6"/></symbol>
   <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="8" r=".6"/></symbol>
   <symbol id="i-bag" viewBox="0 0 24 24"><path d="M5 8h14l-1.2 11.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8z"/><path d="M9 10V7a3 3 0 0 1 6 0v3"/></symbol>
+  <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M6 3h12v18l-3-1.8L12 21l-3-1.8L6 21z"/><path d="M9 8h6"/><path d="M9 12h6"/><path d="M9 16h3"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 20h18"/><path d="M6 20v-6"/><path d="M11 20V9"/><path d="M16 20v-9"/><path d="M21 20V5"/></symbol>
   <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 17l.7 1.8 1.8.7-1.8.7L19 22l-.7-1.8-1.8-.7 1.8-.7z"/></symbol>
 </svg>
 {% set path = request.url.path %}
@@ -53,7 +55,7 @@
 {% macro project_links(p, path, nav) %}
   <a href="/p/{{ p.id }}" class="{{ 'on' if path == '/p/' ~ p.id }}">{{ ic('home') }}Overview</a>
   <a href="/p/{{ p.id }}/items" class="{{ 'on' if '/items' in path }}">{{ ic('grid') }}Items</a>
-  <a href="/p/{{ p.id }}/buying" class="{{ 'on' if '/buying' in path }}">{{ ic('bag') }}Buying</a>
+  <a href="/p/{{ p.id }}/buying" class="{{ 'on' if '/buying' in path or '/orders' in path }}">{{ ic('bag') }}Buying</a>
   <a href="/p/{{ p.id }}/drafts" class="{{ 'on' if '/drafts' in path or '/capture' in path }}">{{ ic('clock') }}Drafts{% if nav.drafts %}<span class="count">{{ nav.drafts }}</span>{% endif %}</a>
   <a href="/p/{{ p.id }}/plan" class="{{ 'on' if path.startswith('/p/' ~ p.id ~ '/plan') }}">{{ ic('map') }}Plan</a>
   <a href="/p/{{ p.id }}/rooms" class="{{ 'on' if '/rooms' in path }}">{{ ic('layout') }}Rooms</a>
@@ -135,14 +137,14 @@
   <a href="/p/{{ p.id }}/items" class="{{ 'on' if '/items' in path or '/drafts' in path }}">{{ ic('grid') }}<span>Items</span>{% if nav.drafts %}<span class="dot">{{ nav.drafts }}</span>{% endif %}</a>
   <a href="/p/{{ p.id }}/capture" class="capture"><span class="ring">{{ ic('camera') }}</span><span>Capture</span></a>
   <a href="/p/{{ p.id }}/plan" class="{{ 'on' if path.startswith('/p/' ~ p.id ~ '/plan') }}">{{ ic('map') }}<span>Plan</span></a>
-  <a href="/p/{{ p.id }}/buying" class="{{ 'on' if '/buying' in path }}">{{ ic('bag') }}<span>Buying</span></a>
+  <a href="/p/{{ p.id }}/buying" class="{{ 'on' if '/buying' in path or '/orders' in path }}">{{ ic('bag') }}<span>Buying</span></a>
   {% else %}
   <a href="/" class="{{ 'on' if path == '/' }}">{{ ic('folder') }}<span>Projects</span></a>
   <a href="/suppliers" class="{{ 'on' if path.startswith('/suppliers') }}">{{ ic('users') }}<span>Suppliers</span></a>
   <a href="/projects/new" class="capture"><span class="ring">{{ ic('plus') }}</span><span>New</span></a>
   <a href="/settings" class="{{ 'on' if path == '/settings' }}">{{ ic('settings') }}<span>Settings</span></a>
   {% endif %}
-  {% if p %}{% set on_tab = path == '/p/' ~ p.id or '/items' in path or '/drafts' in path or '/capture' in path or path.startswith('/p/' ~ p.id ~ '/plan') or '/buying' in path %}{% else %}{% set on_tab = path == '/' or path.startswith('/suppliers') or path == '/projects/new' or path == '/settings' %}{% endif %}
+  {% if p %}{% set on_tab = path == '/p/' ~ p.id or '/items' in path or '/drafts' in path or '/capture' in path or path.startswith('/p/' ~ p.id ~ '/plan') or '/buying' in path or '/orders' in path %}{% else %}{% set on_tab = path == '/' or path.startswith('/suppliers') or path == '/projects/new' or path == '/settings' %}{% endif %}
   <button type="button" class="{{ 'on' if not on_tab }}" onclick="toggleMore()">{{ ic('more') }}<span>More</span></button>
 </nav>
 <div class="sheet" id="more" aria-hidden="true">

@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% from "buying/_tabs.html" import tabs %}
+{% block title %}Orders · {{ p.name }}{% endblock %}
+{% block content %}
+{% set rate = p.rate or 1 %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/buying">Buying</a></div>
+    <h1>Orders <span class="h-note">{{ ovs|length }} order{{ 's' if ovs|length != 1 }}{% if money.ordered %} · ¥{{ money.ordered|money }} confirmed{% endif %}</span></h1>
+    <p class="sub">What you bought, put together by shop into numbered orders. Confirm each with the shop, send it the purchase order, and record what you pay against it: the rooms' statuses follow.</p>
+  </div>
+  <div class="actions">
+    <a class="btn sec" href="/p/{{ p.id }}/payments"><svg class="ic"><use href="#i-card"/></svg>Payments</a>
+  </div>
+</div>
+{{ tabs(p, 'orders') }}
+
+{% if ok %}<div class="alert">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert err">{{ err }}</div>{% endif %}
+
+<div class="grid g4 kpis od-kpis">
+  <div class="kpi"><svg class="ic"><use href="#i-receipt"/></svg><div class="v">¥{{ money.ordered|money }}</div><div class="l">On confirmed orders</div><div class="d">${{ (money.ordered / rate)|money }}</div></div>
+  <div class="kpi sage"><svg class="ic"><use href="#i-check"/></svg><div class="v">¥{{ money.paid|money }}</div><div class="l">Paid against them</div>{% if money.ordered %}<div class="bar"><i style="width:{{ [100, (100 * money.paid / money.ordered)|round|int]|min }}%"></i></div>{% endif %}</div>
+  <div class="kpi ink"><svg class="ic"><use href="#i-card"/></svg><div class="v">¥{{ money.balance|money }}</div><div class="l">Still to pay</div><div class="d">${{ (money.balance / rate)|money }}</div></div>
+  <div class="kpi gold"><svg class="ic"><use href="#i-file"/></svg><div class="v">¥{{ money.drafts|money }}</div><div class="l">In draft orders</div><div class="d">{% set nd = ovs|rejectattr('o.confirmed')|list|length %}{{ nd }} draft{{ 's' if nd != 1 }} to confirm</div></div>
+</div>
+
+<section class="bu-sec" id="ready">
+  <div class="bu-sec-head"><div><h2>Ready to order <span class="n">{{ ready|length }}</span></h2><p class="small muted">Bought from a shop on the Buying page, not on an order yet. One order per shop: start it, or add to the shop's draft.</p></div></div>
+  {% if ready %}
+  <div class="od-ready">
+    {% for e in ready %}
+    <article class="card od-shop">
+      <div class="od-shop-head">
+        <div class="who"><svg class="ic"><use href="#i-truck"/></svg><div><div class="shop">{{ e.supplier.name if e.supplier else 'Shop not known' }}</div>
+          <div class="m">{{ e.views|length }} product{{ 's' if e.views|length != 1 }} · {% set nr = e.views|map(attribute='lines')|map('length')|sum %}{{ nr }} room line{{ 's' if nr != 1 }}</div></div></div>
+        <div class="amt"><span class="v">¥{{ e.total|money }}</span><span class="small muted">${{ (e.total / rate)|money }}</span></div>
+      </div>
+      <ul class="od-prods">
+        {% for v in e.views %}{% set it = v.lines[0] %}
+        <li><span class="pic">{% if it.cover %}<img src="/media/{{ it.cover.thumb }}" alt="" loading="lazy">{% endif %}</span>
+          <span class="nm">{{ it.name }}{% if it.size %} <span class="muted">· {{ it.size }}</span>{% endif %}</span>
+          <span class="q">{{ v.qty|num(2) }} {{ v.unit }}</span><span class="t">¥{{ v.total|money }}</span></li>
+        {% endfor %}
+      </ul>
+      {% if e.supplier %}
+      <form method="post" action="{{ '/p/' ~ p.id ~ '/orders/' ~ e.draft.o.id ~ '/add' if e.draft else '/p/' ~ p.id ~ '/orders/new' }}" class="row">
+        <input type="hidden" name="supplier_id" value="{{ e.supplier.id }}">{% for v in e.views %}<input type="hidden" name="pu" value="{{ v.purchase.id }}">{% endfor %}
+        <button class="btn sm accent"><svg class="ic"><use href="#i-plus"/></svg>{{ 'Add to draft ' ~ e.draft.ref if e.draft else 'Start an order' }}</button>
+        <span class="small muted">{{ 'Its draft is not confirmed yet.' if e.draft else 'A draft first: you confirm it once the shop agrees.' }}</span>
+      </form>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card bu-none"><svg class="ic"><use href="#i-check"/></svg><div><b>Nothing waiting.</b> <span class="muted">{% if ovs %}Everything bought is on an order.{% else %}Buy from a shop on the Products tab first: what you buy from a shop waits here for its order.{% endif %}</span></div></div>
+  {% endif %}
+</section>
+
+{% for st, group in by_stage %}{% if group %}
+<section class="bu-sec">
+  <div class="group-title"><h2>{{ st }}</h2><span class="n">{{ group|length }} · {{ STAGE_HELP[st] }}</span></div>
+  <div class="od-grid">
+    {% for ov in group %}{% set o = ov.o %}
+    <a class="od-card" href="/p/{{ p.id }}/orders/{{ o.id }}" style="--c:{{ STAGE_COLORS[ov.stage] }}">
+      <span class="od-top"><span class="ref">{{ ov.ref }}</span><span class="badge" style="--c:{{ STAGE_COLORS[ov.stage] }}">{{ ov.stage }}</span></span>
+      <span class="shop">{{ o.supplier.name if o.supplier else 'Shop not known' }}</span>
+      <span class="m">{{ ov.lines|length }} product{{ 's' if ov.lines|length != 1 }} · {{ ov.rooms|length }} room line{{ 's' if ov.rooms|length != 1 }}{% if o.confirmed_on %} · confirmed {{ o.confirmed_on.strftime('%d %b') }}{% endif %}</span>
+      {% if o.ready_date %}<span class="m ready{{ ' late' if ov.late }}{{ ' soon' if ov.soon }}"><svg class="ic sm"><use href="#i-clock"/></svg>Ready by {{ o.ready_date.strftime('%d %b %Y') }}{% if ov.ready_text %} · {{ ov.ready_text }}{% endif %}</span>{% endif %}
+      {% if ov.changed %}<span class="m warn"><svg class="ic sm"><use href="#i-info"/></svg>Changed since it was confirmed</span>{% endif %}
+      <span class="money"><span><span class="v">¥{{ ov.total|money }}</span><span class="l">total</span></span><span><span class="v">¥{{ ov.paid|money }}</span><span class="l">paid</span></span><span><span class="v">¥{{ [ov.balance, 0]|max|money }}</span><span class="l">to pay</span></span></span>
+      <span class="bar"><i style="width:{{ [100, (100 * ov.paid / ov.total)|round|int]|min if ov.total else 0 }}%"></i></span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}{% endfor %}
+
+{% if not ovs and not ready %}
+<div class="card empty">
+  <div class="ring"><svg class="ic"><use href="#i-receipt"/></svg></div>
+  <h3>No orders yet</h3>
+  <p>On the Products tab, record the shops' quotes and buy for the rooms. What you buy from a shop then waits here, ready to become its order. <a href="#help">How orders work</a></p>
+  <a class="btn" href="/p/{{ p.id }}/buying"><svg class="ic"><use href="#i-bag"/></svg>Go to the products</a>
+</div>
+{% endif %}
+{% endblock %}

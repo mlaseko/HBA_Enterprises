@@ -613,3 +613,37 @@
     show(el);
   });
 })();
+
+// Orders: data-copy="id" copies the text of that element (the WeChat message) and says Copied for a moment;
+// data-share-pdf="url" (with data-name, data-title) hands the PDF to the phone's share sheet, so it goes straight to a
+// WeChat chat. The share button stays hidden where the browser cannot share files (most desktops).
+(function () {
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-copy]'); if (!b) return;
+    var el = document.getElementById(b.dataset.copy); if (!el) return;
+    var txt = el.tagName === 'TEXTAREA' ? el.value : el.textContent;
+    function done() { var o = b.innerHTML; b.textContent = 'Copied'; setTimeout(function () { b.innerHTML = o; }, 1400); }
+    function fallback() {
+      var ta = document.createElement('textarea'); ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (err) { /* nothing more to try */ }
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, fallback); else fallback();
+  });
+  var probe = null;
+  try { probe = new File([new Blob(['x'])], 'x.pdf', { type: 'application/pdf' }); } catch (e) { probe = null; }
+  var canShare = !!(probe && navigator.share && navigator.canShare && navigator.canShare({ files: [probe] }));
+  document.querySelectorAll('[data-share-pdf]').forEach(function (b) {
+    if (!canShare) return;
+    b.hidden = false;
+    b.addEventListener('click', function () {
+      b.disabled = true;
+      fetch(b.dataset.sharePdf, { credentials: 'same-origin' })
+        .then(function (r) { if (!r.ok) throw new Error('pdf'); return r.blob(); })
+        .then(function (blob) { return navigator.share({ files: [new File([blob], b.dataset.name || 'order.pdf', { type: 'application/pdf' })], title: b.dataset.title || '' }); })
+        .catch(function () { /* cancelled, or the app refused the file */ })
+        .then(function () { b.disabled = false; });
+    });
+  });
+})();

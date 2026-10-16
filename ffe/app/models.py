@@ -23,6 +23,15 @@ class Settings(Base):
     studio_website: Mapped[str] = mapped_column(String(120), default="")
     default_rate: Mapped[float] = mapped_column(Float, default=7.10)
     logo_key: Mapped[str] = mapped_column(String(255), default="")
+    # the consolidation warehouse the shops deliver to (an order's "Deliver to" starts from it)
+    warehouse_name: Mapped[str] = mapped_column(String(160), default="")
+    warehouse_address: Mapped[str] = mapped_column(Text, default="")
+    warehouse_contact: Mapped[str] = mapped_column(String(160), default="")
+
+    @property
+    def warehouse(self) -> str:
+        """The warehouse as it is printed on an order: name, address, contact, one per line."""
+        return "\n".join(x.strip() for x in (self.warehouse_name or "", self.warehouse_address or "", self.warehouse_contact or "") if x and x.strip())
 
 
 class Project(Base):
@@ -34,6 +43,7 @@ class Project(Base):
     rate: Mapped[float] = mapped_column(Float, default=7.10)  # CNY per 1 USD
     tile_extra: Mapped[float] = mapped_column(Float, default=0.12)
     budget_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    orders_made: Mapped[int] = mapped_column(Integer, default=0)  # the last order number given: numbers are never reused (ordering.py)
     status: Mapped[str] = mapped_column(String(30), default="Active")
     description: Mapped[str] = mapped_column(Text, default="")
     client_token: Mapped[str] = mapped_column(String(60), default=token)
@@ -51,6 +61,7 @@ class Project(Base):
     floors: Mapped[list["Floor"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="Floor.sort")
     # Buying (buying.py): one row per product bought for this house, with its quotes and purchases.
     products: Mapped[list["Product"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="Product.id")
+    orders: Mapped[list["Order"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="Order.number")
 
     @property
     def live_items(self) -> list["Item"]:
@@ -552,11 +563,45 @@ class Purchase(Base):
     qty: Mapped[float | None] = mapped_column(Float, nullable=True)  # the quantity to order when set by hand; None = from the rooms
     lead_time: Mapped[str] = mapped_column(String(60), default="")
     notes: Mapped[str] = mapped_column(Text, default="")
+    order_id: Mapped[int | None] = mapped_column(ForeignKey("orders.id"), nullable=True)  # the order it is on (None = not ordered yet)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     product: Mapped["Product"] = relationship(back_populates="purchases")
     supplier: Mapped["Supplier | None"] = relationship(lazy="joined")
     quote: Mapped["Quote | None"] = relationship()
     lines: Mapped[list["Item"]] = relationship(back_populates="purchase")
+    order: Mapped["Order | None"] = relationship(back_populates="purchases")
+
+
+class Order(Base):
+    """What is ordered from one shop for one project in one go (Buying → Orders): numbered per project, holding purchases
+    (Purchase.order_id) with their rooms, the terms, deposit, ready date and payments (Payment.order_id). A draft until it
+    is confirmed with the shop (confirmed_on); the room lines' statuses follow it (buying.settle). The total is worked out
+    from its purchases; confirmed_total keeps the total it was confirmed at, so a later change shows."""
+    __tablename__ = "orders"
+    __table_args__ = (UniqueConstraint("project_id", "number", name="uq_orders_project_number"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
+    supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id"), nullable=True)
+    number: Mapped[int] = mapped_column(Integer, default=1)
+    confirmed_on: Mapped[date | None] = mapped_column(Date, nullable=True)  # None = a draft
+    confirmed_total: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ready_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    deposit_pct: Mapped[float] = mapped_column(Float, default=30.0)
+    terms: Mapped[str] = mapped_column(String(200), default="")
+    deliver_to: Mapped[str] = mapped_column(Text, default="")
+    supplier_ref: Mapped[str] = mapped_column(String(80), default="")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    project: Mapped["Project"] = relationship(back_populates="orders")
+    supplier: Mapped["Supplier | None"] = relationship(lazy="joined")
+    # loaded on demand (one order's page); lists of orders read both through buying.Ledger, which works them out from the
+    # room lines and the project's payments without a query per order
+    purchases: Mapped[list["Purchase"]] = relationship(back_populates="order", order_by="Purchase.id")
+    payments: Mapped[list["Payment"]] = relationship(back_populates="order", order_by="Payment.paid_on")
+
+    @property
+    def confirmed(self) -> bool:
+        return self.confirmed_on is not None
 
 
 class Payment(Base):
@@ -570,8 +615,10 @@ class Payment(Base):
     reference: Mapped[str] = mapped_column(String(120), default="")
     note: Mapped[str] = mapped_column(String(255), default="")
     receipt_key: Mapped[str] = mapped_column(String(255), default="")
+    order_id: Mapped[int | None] = mapped_column(ForeignKey("orders.id"), nullable=True)  # the order it pays (None = to the supplier in general)
     project: Mapped["Project"] = relationship(back_populates="payments")
     supplier: Mapped["Supplier | None"] = relationship(lazy="joined")
+    order: Mapped["Order | None"] = relationship(back_populates="payments")
 
 
 class Carton(Base):

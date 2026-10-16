@@ -120,10 +120,16 @@ def fint(v, default=None):
         return default
 
 
+def _order_ref(o) -> str:
+    from .ordering import ref  # here: ordering imports the models and buying, which this module must not need at import
+    return ref(o)
+
+
 templates.env.filters["money"] = fmt_money
 templates.env.filters["num"] = fnum
 templates.env.filters["plain"] = fplain
 templates.env.filters["floor_title"] = jinja2.pass_context(lambda ctx, s: drawings.floor_title(s, ctx.get("p")))  # the project's floor list decides the spelling and the kind
+templates.env.globals.update(order_ref=_order_ref)
 templates.env.globals.update(AI_ENABLED=lambda: bool(__import__('os').getenv('ANTHROPIC_API_KEY')), APP_NAME=config.APP_NAME, CATEGORIES=config.CATEGORIES, UNITS=config.UNITS,
                              STATUSES=config.STATUSES, STATUS_COLORS=config.STATUS_COLORS,
                              PAYMENT_KINDS=config.PAYMENT_KINDS, PRICE_CURRENCIES=config.PRICE_CURRENCIES, plan_caption=drawings.plan_caption,

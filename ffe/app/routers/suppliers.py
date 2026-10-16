@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Project, Supplier, SupplierLink, Item, Payment
 from ..common import render, redirect, require_login, get_project
-from .. import buying
+from .. import buying, ordering
 
 router = APIRouter(dependencies=[Depends(require_login)])
 
@@ -62,9 +62,18 @@ def supplier_detail(request: Request, supplier_id: int, db: Session = Depends(ge
     total = sum(i.total for i in items)
     paid = sum(x.amount for x in payments)
     link = None
+    ovs, waiting, money = [], None, {}
     if p:
         link = next((l for l in p.links if l.supplier_id == s.id and l.active), None)
-    return render(request, "suppliers/detail.html", s=s, p=p, items=items, payments=payments, total=total, paid=paid, link=link)
+        led = buying.Ledger(p)
+        all_ovs = ordering.views(p, led)
+        ovs = [ov for ov in all_ovs if ov.o.supplier_id == s.id]
+        waiting = next((e for e in ordering.unordered(p, led, all_ovs) if e["supplier"] is not None and e["supplier"].id == s.id), None)
+        ordered = round(sum(ov.total for ov in ovs if ov.o.confirmed), 2)
+        money = dict(committed=round(sum(v["total"] for v in led.pv.values() if v["purchase"].supplier_id == s.id), 2), ordered=ordered,
+                     to_pay=round(max(0.0, ordered - paid), 2))
+    return render(request, "suppliers/detail.html", s=s, p=p, items=items, payments=payments, total=total, paid=paid, link=link, ovs=ovs,
+                  waiting=waiting, money=money, ORDER_COLORS=ordering.STAGE_COLORS)
 
 
 @router.post("/suppliers/{supplier_id}")

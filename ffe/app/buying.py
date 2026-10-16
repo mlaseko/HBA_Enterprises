@@ -11,25 +11,35 @@ product, and the product is what gets bought. Its buying data lives apart from t
 A covered line carries the purchase's supplier, unit price (CNY, with the USD entry when the price was typed in USD) and
 lead time, written here and nowhere else: the item form, the drafts and the Excel import no longer set them. Everything
 that already reads item.supplier / item.unit_price (the supplier pages, the purchase order, payments, the schedules, the
-client link, the exports) shows the purchase without knowing about it. A line moves from "To buy" to "Quoted" when it is
-covered and back when it is not; the later statuses stay the designer's.
+client link, the exports) shows the purchase without knowing about it.
+
+Statuses: a line moves from "To buy" to "Quoted" when it is covered and back when it is not. A purchase on an order
+(Order, ordering.py) gives its lines the order's status: Quoted while the order is a draft, Ordered once it is confirmed,
+Paid once it is paid in full (settle). Shipped and Received stay the designer's. The Ledger works out the money of the
+purchases and orders once per request: what each purchase orders and costs, each order's total and payments.
 """
 from __future__ import annotations
 
 import math
 from collections import defaultdict
+from functools import cached_property
+
+from sqlalchemy import inspect as sa_inspect
 
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from . import config, drawings, storage
-from .models import Item, ItemPrice, Payment, Carton, Product, Project, Purchase, Quote, SchemaMark, Supplier, SupplierLink
+from .models import Item, ItemPrice, Payment, Carton, Order, Product, Project, Purchase, Quote, SchemaMark, Supplier, SupplierLink
 from .services import product_key, sort_items
 
-STAGES = ["To source", "Quoting", "Part sourced", "Sourced"]
+STAGES = ["To source", "Quoting", "Part sourced", "Sourced", "Ordered", "Paid"]
 STAGE_HELP = {"To source": "no quote yet", "Quoting": "quotes in, no shop chosen", "Part sourced": "a shop chosen for some rooms",
-              "Sourced": "every room has its shop and price"}
-STAGE_COLORS = {"To source": "#9CA3AF", "Quoting": "#F59E0B", "Part sourced": "#3B82F6", "Sourced": "#16A34A"}
+              "Sourced": "every room has its shop and price", "Ordered": "every room on a confirmed order",
+              "Paid": "every room's order paid in full"}
+STAGE_COLORS = {"To source": "#9CA3AF", "Quoting": "#F59E0B", "Part sourced": "#14B8A6", "Sourced": "#16A34A", "Ordered": "#3B82F6",
+                "Paid": "#8B5CF6"}
+AUTO_STATUSES = ("To buy", "Quoted", "Ordered", "Paid")  # the statuses buying and the orders set; Shipped and Received stay the designer's
 DEFAULT_ALLOWANCE = {"Tiles": 0.10}  # extra on top of the rooms' quantities, by category; everything else 0
 PACK_NAMES = {"m²": "box", "m": "box", "lm": "box"}  # what a pack is called by default; other units are bought one by one
 WHOLE_UNITS = {"pcs", "set", "box", "roll"}  # bought in whole units: an allowance on 7 pcs rounds up, not to 7.7
@@ -63,10 +73,11 @@ def order_qty(needed: float, allowance: float, pack: float, unit: str, override:
 
 # ---- the products of a project ---------------------------------------------------------------------------------------------
 class Group:
-    """The room lines of one product, in schedule order, with its Product row (None until the Buying page has seen it)."""
+    """The room lines of one product, in schedule order, with its Product row (None until the Buying page has seen it) and
+    the project's Ledger (the money of its purchases and orders)."""
 
-    def __init__(self, key: str, lines: list[Item], product: Product | None):
-        self.key, self.lines, self.product = key, lines, product
+    def __init__(self, key: str, lines: list[Item], product: Product | None, ledger: "Ledger | None" = None):
+        self.key, self.lines, self.product, self.ledger = key, lines, product, ledger
         self.item = lines[0]
         units = sorted({(i.unit or "").strip() for i in lines})
         self.unit = units[0] if len(units) == 1 else "mixed"
@@ -115,7 +126,7 @@ class Group:
     def pack_name(self) -> str:
         return pack_name_of(self.product, self.unit)
 
-    @property
+    @cached_property
     def order(self) -> dict:
         """What to order for the whole product: what each purchase orders (its rooms, its pack, a quantity set by hand) plus,
         for the rooms without a shop, their quantity with the allowance (in whole packs when the product's pack is known).
@@ -134,7 +145,7 @@ class Group:
     def quotes(self) -> list[Quote]:
         return list(self.product.quotes) if self.product is not None else []
 
-    @property
+    @cached_property
     def purchases(self) -> list[Purchase]:
         """The purchases that cover at least one of these lines, in the order they were made."""
         seen, out = set(), []
@@ -149,10 +160,17 @@ class Group:
     def covered(self) -> int:
         return sum(1 for i in self.lines if i.purchase_id)
 
-    @property
+    @cached_property
     def stage(self) -> str:
+        """To source, Quoting, Part sourced; once every room has its shop: Sourced, Ordered when every room is on a
+        confirmed order, Paid when every one of those orders is paid in full."""
         n, c = len(self.lines), self.covered
         if n and c == n:
+            states = {self.ledger.state(i.purchase) for i in self.lines} if self.ledger is not None else {"bought"}
+            if states == {"paid"}:
+                return "Paid"
+            if states <= {"ordered", "paid"}:
+                return "Ordered"
             return "Sourced"
         if c:
             return "Part sourced"
@@ -169,10 +187,11 @@ class Group:
         return min(priced, key=lambda q: q.unit_price) if priced else None
 
     def purchase_view(self, pu: Purchase) -> dict:
-        lines = [i for i in self.lines if i.purchase_id == pu.id]
-        return purchase_view(pu, lines, self.allowance, self.pack_size, self.unit)
+        if self.ledger is not None and pu.id in self.ledger.pv:
+            return self.ledger.pv[pu.id]
+        return view_of(pu, [i for i in self.lines if i.purchase_id == pu.id], self.product)
 
-    @property
+    @cached_property
     def committed(self) -> float:
         return round(sum(self.purchase_view(pu)["total"] for pu in self.purchases), 2)
 
@@ -188,17 +207,81 @@ def purchase_view(pu: Purchase, lines: list[Item], allowance: float, product_pac
     """A purchase as the pages show it: the lines it covers, their quantity, what to order and what it costs."""
     needed = round(sum(i.qty or 0 for i in lines), 3)
     o = order_qty(needed, allowance, pu.pack_size or product_pack, unit, pu.qty)
-    return dict(o, purchase=pu, lines=lines, needed=needed, pack=pu.pack_size or product_pack, total=round(o["qty"] * (pu.unit_price or 0), 2))
+    return dict(o, purchase=pu, lines=lines, needed=needed, pack=pu.pack_size or product_pack, unit=unit,
+                total=round(o["qty"] * (pu.unit_price or 0), 2))
 
 
-def groups(p: Project, products: dict | None = None) -> list[Group]:
+def view_of(pu: Purchase, lines: list[Item], product: Product | None) -> dict:
+    """purchase_view() with the allowance, pack and unit read from the product and the lines themselves."""
+    units = sorted({(i.unit or "").strip() for i in lines})
+    unit = units[0] if len(units) == 1 else ("mixed" if units else "")
+    category = lines[0].category if lines else ""
+    v = purchase_view(pu, lines, allowance_of(product, category), product.pack_size if product is not None else 0.0, unit)
+    v["pack_name"] = pack_name_of(product, unit)
+    return v
+
+
+class Ledger:
+    """The money of a project's purchases and orders, worked out once per request from the live room lines: what each
+    purchase covers, orders and costs (pv, by purchase id), each order's total and what was paid against it."""
+
+    def __init__(self, p: Project):
+        self.p = p
+        self.orders = list(p.orders)  # loaded first: a purchase's order is then found in the session, without a query
+        products = self._products(p)
+        self.lines: dict[int, list[Item]] = defaultdict(list)
+        for i in sort_items(p.live_items, p):
+            if i.purchase_id and i.purchase is not None:
+                self.lines[i.purchase_id].append(i)
+        self.pv = {pid: view_of(ls[0].purchase, ls, products.get(ls[0].purchase.product_id)) for pid, ls in self.lines.items()}
+        self.by_order: dict[int, list[dict]] = defaultdict(list)  # an order's purchases (their views), in the order they were made
+        for pid in sorted(self.pv):
+            if self.pv[pid]["purchase"].order_id:
+                self.by_order[self.pv[pid]["purchase"].order_id].append(self.pv[pid])
+        paid: dict[int, float] = defaultdict(float)
+        for pay in p.payments:
+            if pay.order_id:
+                paid[pay.order_id] += pay.amount or 0
+        self.total = {o.id: round(sum(v["total"] for v in self.by_order.get(o.id, [])), 2) for o in self.orders}
+        self.paid = {o.id: round(paid.get(o.id, 0.0), 2) for o in self.orders}
+
+    @staticmethod
+    def _products(p: Project) -> dict:
+        """Each product's allowance and pack by id: the loaded rows when the page has them, else just those columns (the
+        Overview and the order pages need no quotes)."""
+        if "products" not in sa_inspect(p).unloaded:
+            return {pr.id: pr for pr in p.products}
+        db = object_session(p)
+        return {r.id: r for r in db.query(Product.id, Product.allowance, Product.pack_size, Product.pack_name).filter(Product.project_id == p.id)}
+
+    def paid_in_full(self, o: Order) -> bool:
+        total = self.total.get(o.id, 0.0)
+        return total > 0 and self.paid.get(o.id, 0.0) >= total - 0.005
+
+    def state(self, pu: Purchase | None) -> str:
+        """bought (not on a confirmed order), ordered, or paid (its order paid in full)."""
+        o = pu.order if pu is not None else None
+        if o is None or not o.confirmed:
+            return "bought"
+        return "paid" if self.paid_in_full(o) else "ordered"
+
+    def target(self, o: Order) -> str:
+        """The status an order gives its room lines."""
+        if not o.confirmed:
+            return "Quoted"
+        return "Paid" if self.paid_in_full(o) else "Ordered"
+
+
+def groups(p: Project, products: dict | None = None, ledger: Ledger | None = None) -> list[Group]:
     """Every product of the project, in schedule order (category, then the first line's place), with its room lines."""
     if products is None:
         products = {pr.key: pr for pr in p.products}
+    if ledger is None:
+        ledger = Ledger(p)
     by_key: dict[str, list[Item]] = {}
     for i in sort_items(p.live_items, p):
         by_key.setdefault(product_key(i) or f"#{i.id}", []).append(i)
-    return [Group(k, lines, products.get(k)) for k, lines in by_key.items()]
+    return [Group(k, lines, products.get(k), ledger) for k, lines in by_key.items()]
 
 
 def sync_products(db: Session, p: Project) -> dict[str, Product]:
@@ -221,8 +304,8 @@ def sync_products(db: Session, p: Project) -> dict[str, Product]:
     return have
 
 
-def group_of(p: Project, product: Product) -> Group | None:
-    return next((g for g in groups(p) if g.key == product.key), None)
+def group_of(p: Project, product: Product, ledger: Ledger | None = None) -> Group | None:
+    return next((g for g in groups(p, ledger=ledger) if g.key == product.key), None)
 
 
 def product_of(db: Session, p: Project, item: Item) -> Product:
@@ -232,7 +315,9 @@ def product_of(db: Session, p: Project, item: Item) -> Product:
 
 # ---- writing a purchase onto its room lines ---------------------------------------------------------------------------------
 def cover(item: Item, pu: Purchase) -> None:
-    """The line is supplied by this purchase: its supplier, price and lead time follow it."""
+    """The line is supplied by this purchase: its supplier, price and lead time follow it. A line new to the purchase
+    starts at Quoted (settle then gives it the status of the purchase's order)."""
+    moved = item.purchase is not pu
     item.purchase = pu
     item.supplier_id = pu.supplier_id
     item.unit_price = pu.unit_price or 0.0
@@ -243,29 +328,60 @@ def cover(item: Item, pu: Purchase) -> None:
     else:
         item.price_entry = None
     item.lead_time = pu.lead_time or ""
-    if item.status == "To buy":
+    if item.status == "To buy" or (moved and item.status in AUTO_STATUSES):
         item.status = "Quoted"
 
 
 def uncover(item: Item) -> None:
-    """No shop for this line any more: no supplier, no price."""
+    """No shop for this line any more: no supplier, no price, To buy again."""
     item.purchase = None
     item.supplier_id = None
     item.unit_price = 0.0
     item.price_entry = None
     item.lead_time = ""
-    if item.status == "Quoted":
+    if item.status in AUTO_STATUSES:
         item.status = "To buy"
 
 
-def _lines(db: Session, pu: Purchase) -> list[Item]:
+def lines_of(db: Session, pu: Purchase) -> list[Item]:
+    """The room lines a purchase supplies, read back from the database."""
     db.flush()  # the session does not autoflush: write the lines just covered or uncovered before asking
     return db.query(Item).filter(Item.purchase_id == pu.id).all() if pu.id else []
 
 
 def refresh(db: Session, pu: Purchase) -> None:
-    for i in _lines(db, pu):
+    for i in lines_of(db, pu):
         cover(i, pu)
+
+
+def settle(db: Session, p: Project) -> None:
+    """After anything that changes purchases, orders or payments: purchases left without rooms go, and the room lines on an
+    order take its status (Quoted while it is a draft, Ordered once confirmed, Paid once paid in full). Shipped and
+    Received, set by hand, stay. Everything is read back from the database, so changes made through ids show."""
+    prune(db, p)
+    db.flush()
+    db.expire_all()
+    led = Ledger(p)
+    for o in led.orders:
+        target = led.target(o)
+        for v in led.by_order.get(o.id, []):
+            for i in v["lines"]:
+                if target == "Quoted":  # a draft only lifts To buy: a status set by hand before the order stays until it is confirmed
+                    if i.status == "To buy":
+                        i.status = "Quoted"
+                elif i.status in AUTO_STATUSES and i.status != target:
+                    i.status = target
+
+
+def leave_order(db: Session, pu: Purchase) -> None:
+    """A purchase comes off its order: its lines go back to Quoted when the order was confirmed (a draft set no status;
+    Shipped and Received stay)."""
+    if pu.order is not None and pu.order.confirmed:
+        for i in lines_of(db, pu):
+            if i.status in ("Ordered", "Paid"):
+                i.status = "Quoted"
+    pu.order = None
+    pu.order_id = None
 
 
 def prune(db: Session, p: Project) -> int:
@@ -382,20 +498,28 @@ def set_rooms(db: Session, p: Project, pu: Purchase, lines: list[Item], all_line
 
 
 def remove_purchase(db: Session, p: Project, pu: Purchase) -> None:
-    for i in _lines(db, pu):
+    for i in lines_of(db, pu):
         uncover(i)
     db.delete(pu)
     db.flush()
 
 
 def drop_supplier(db: Session, s: Supplier) -> None:
-    """A supplier is deleted: the rooms it supplied have no shop again, its purchases and quotes go."""
+    """A supplier is deleted: the rooms it supplied have no shop again, its purchases, quotes and orders go (payments stay,
+    off their order)."""
     db.flush()
     for pu in db.query(Purchase).filter(Purchase.supplier_id == s.id).all():
         p = db.get(Project, pu.project_id)
         remove_purchase(db, p, pu)
     for q in db.query(Quote).filter(Quote.supplier_id == s.id).all():
         delete_quote(db, q)
+    db.flush()
+    for o in db.query(Order).filter(Order.supplier_id == s.id).all():
+        for pay in list(o.payments):
+            pay.order_id = None
+            pay.order = None
+        db.delete(o)
+    db.flush()
 
 
 # ---- renames ---------------------------------------------------------------------------------------------------------------------

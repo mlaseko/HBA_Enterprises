@@ -179,17 +179,30 @@ def summary(db: Session, p: Project) -> dict:
     paid_by_sup = defaultdict(float)
     for pay in p.payments:
         paid_by_sup[pay.supplier_id or 0] += pay.amount or 0
+    from . import buying  # here: buying imports this module
+    led = buying.Ledger(p)
+    ordered_by_sup = defaultdict(float)  # what is on confirmed orders, with allowances and whole packs (ordering.py)
+    for o in led.orders:
+        if o.confirmed:
+            ordered_by_sup[o.supplier_id or 0] += led.total.get(o.id, 0.0)
+    bought_by_sup = defaultdict(float)  # what its purchases cost, allowances and whole packs included (Buying)
+    for v in led.pv.values():
+        bought_by_sup[v["purchase"].supplier_id or 0] += v["total"]
     for r in by_sup:
+        r["bought"] = round(bought_by_sup.get(r["key"], 0.0), 2)
         r["paid"] = paid_by_sup.get(r["key"], 0.0)
-        r["balance"] = r["total"] - r["paid"]
+        r["ordered"] = round(ordered_by_sup.get(r["key"], 0.0), 2)
+        r["balance"] = round(max(0.0, r["ordered"] - r["paid"]), 2)  # still to pay on its confirmed orders
     paid_total = sum(paid_by_sup.values())
+    ordered = round(sum(ordered_by_sup.values()), 2)
     cartons = p.cartons
     cbm = sum(c.cbm for c in cartons)
     kg = sum(c.weight_kg or 0 for c in cartons)
     return {
         "items": len(items), "drafts": len(p.items) - len(items), "priced": priced, "received": received, "total": total, "must": must,
         "total_usd": total / rate, "must_usd": must / rate, "paid": paid_total, "paid_usd": paid_total / rate,
-        "balance": total - paid_total, "by_status": by_status, "by_room": by_room, "by_cat": by_cat,
+        "balance": total - paid_total, "ordered": ordered, "to_pay": round(sum(r["balance"] for r in by_sup), 2),
+        "orders": len(led.orders), "by_status": by_status, "by_room": by_room, "by_cat": by_cat,
         "by_sup": by_sup, "cartons": len(cartons), "cartons_received": sum(1 for c in cartons if c.received),
         "cbm": cbm, "kg": kg, "container": container_for(cbm),
         "budget_used": (total / rate / p.budget_usd) if p.budget_usd else None,

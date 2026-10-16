@@ -13,7 +13,7 @@ from .models import Project, Settings, ItemPhoto
 from urllib.parse import quote
 from .common import (render, redirect, require_login, LoginRequired, make_session_cookie, check_password, COOKIE,
                      get_settings, is_logged_in, ffloat)
-from .routers import projects, rooms, items, suppliers, payments, cartons, share, exports, importer, capture, clip, plan, buy
+from .routers import projects, rooms, items, suppliers, payments, cartons, share, exports, importer, capture, clip, plan, buy, orders
 
 app = FastAPI(title=config.APP_NAME)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -43,8 +43,8 @@ def startup():
     with engine.begin() as conn:
         s = conn.execute(text("SELECT id FROM settings WHERE id=1")).first()
         if not s:
-            conn.execute(text("INSERT INTO settings (id, studio_name, studio_email, studio_phone, studio_website, default_rate, logo_key) "
-                              "VALUES (1, 'My Design Studio', '', '', '', 7.10, '')"))
+            conn.execute(text("INSERT INTO settings (id, studio_name, studio_email, studio_phone, studio_website, default_rate, logo_key, "
+                              "warehouse_name, warehouse_address, warehouse_contact) VALUES (1, 'My Design Studio', '', '', '', 7.10, '', '', '', '')"))
     with SessionLocal() as db:
         layers.seed(db, kind_added="plan_layers.kind" in added)  # the built-in plan sheet types on an empty list (Studio settings → Plan sheet types edits it)
     with SessionLocal() as db:
@@ -195,6 +195,16 @@ def help_page(request: Request):
     return render(request, "help.html")
 
 
+@app.post("/settings/warehouse", dependencies=[Depends(require_login)])
+def settings_warehouse(db: Session = Depends(get_db), warehouse_name: str = Form(""), warehouse_address: str = Form(""),
+                       warehouse_contact: str = Form("")):
+    """The consolidation warehouse the shops deliver to: new orders' Deliver to starts from it (ordering.new_order)."""
+    s = get_settings(db)
+    s.warehouse_name, s.warehouse_address, s.warehouse_contact = warehouse_name.strip()[:160], warehouse_address.strip(), warehouse_contact.strip()[:160]
+    db.commit()
+    return redirect(f"/settings?ok={quote('Warehouse saved: new orders deliver there.')}#warehouse")
+
+
 @app.post("/settings", dependencies=[Depends(require_login)])
 async def settings_save(request: Request, db: Session = Depends(get_db), studio_name: str = Form(""),
                         studio_email: str = Form(""), studio_phone: str = Form(""), studio_website: str = Form(""),
@@ -214,6 +224,7 @@ app.include_router(projects.router)
 app.include_router(rooms.router)
 app.include_router(items.router)
 app.include_router(buy.router)
+app.include_router(orders.router)
 app.include_router(suppliers.router)
 app.include_router(payments.router)
 app.include_router(cartons.router)
