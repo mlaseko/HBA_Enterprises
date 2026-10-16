@@ -495,6 +495,12 @@ ALTER TABLE item_photos ADD COLUMN digest VARCHAR(40) NOT NULL DEFAULT '';      
   room directory (`_intro.html`, `covers` from `stage_ctx`), `.rcover` in the open card, `.ph-cover` at the top of the room
   panel (`room_ctx` passes `cover`; the client sees it too, never the star). The star (`form.star`, `#i-star`) sits top-left
   on the pictures of the inspiration strip and the mood board; `.g.cover` rings the chosen one gold.
+- **Floor filter on the Items page.** `items.item_query(..., floor)` keeps the items whose room is on that floor
+  (`items.on_floor`, matched by `drawings.floor_key`; `NO_FLOOR` = "none" = no room or a room without a floor); the list
+  route, `delete-selected` (keeps it in the redirect) and `export/items.xlsx` all pass it. `items.floor_choices(p)` builds
+  the dropdown: `floor_order` grouped into Floors and Separate areas (`Floor.kind`), then pseudo floors rooms still use
+  (Site, Outside, All) and No floor under Other. Choosing a floor narrows the Room dropdown (`room_list`) and drops a room
+  filter from another floor.
 - **Shared photos and the live search.** See the Conventions bullet "Photos belong to the product": `services.product_key`
   (moved from routers/items.py, which re-exports it), `twins`, `photo_pools` / `photos_of` / `forget_pools`,
   `same_picture`, `release_photos`; `ItemPhoto.digest` (column via `db.COLUMN_MIGRATIONS`, written by `storage.save_photo`,

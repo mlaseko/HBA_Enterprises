@@ -3,7 +3,7 @@
 {% block title %}Items · {{ p.name }}{% endblock %}
 {% block content %}
 {% set qroom = f.room if f.room not in ('', 'none') else '' %}
-{% set filtering = f.room or f.category or f.status or f.supplier or f.q %}
+{% set filtering = f.floor or f.room or f.category or f.status or f.supplier or f.q %}
 {% set view = f.view if f.view in ('cards', 'table') else 'list' %}
 {% set qs_ = qs ~ '&' if qs else '' %}
 <div class="page-head">
@@ -23,7 +23,8 @@
 
 {% if deleted %}<div class="alert">{{ deleted }} item{{ 's' if deleted != 1 }} deleted.</div>{% endif %}
 <form method="get" class="card filters">
-  <select name="room" class="in" aria-label="Room"><option value="">All rooms &amp; areas</option>{{ room_options(p.rooms, f.room) }}<option value="none" {{ 'selected' if f.room == 'none' }}>Unassigned</option></select>
+  {% if floors %}<select name="floor" class="in" aria-label="Floor"><option value="">All floors</option>{% for grp in ['Floors', 'Separate areas', 'Other'] %}{% set opts = floors|selectattr('group', 'equalto', grp)|list %}{% if opts %}<optgroup label="{{ grp }}">{% for o in opts %}<option value="{{ o.value }}" {{ 'selected' if f.floor and o.value|lower == f.floor|lower }}>{{ o.title }}</option>{% endfor %}</optgroup>{% endif %}{% endfor %}</select>{% endif %}
+  <select name="room" class="in" aria-label="Room"><option value="">{{ 'All rooms & areas on ' ~ floor_name if f.floor and f.floor != NO_FLOOR else 'All rooms & areas' }}</option>{{ room_options(room_list, f.room) }}{% if not f.floor or f.floor == NO_FLOOR %}<option value="none" {{ 'selected' if f.room == 'none' }}>Unassigned</option>{% endif %}</select>
   <select name="category" class="in" aria-label="Category"><option value="">All categories</option>{% for c in CATEGORIES %}<option {{ 'selected' if f.category == c }}>{{ c }}</option>{% endfor %}</select>
   <select name="status" class="in" aria-label="Status"><option value="">Any status</option>{% for st in STATUSES %}<option {{ 'selected' if f.status == st }}>{{ st }}</option>{% endfor %}</select>
   <select name="supplier" class="in" aria-label="Supplier"><option value="">Any supplier</option>{% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if f.supplier == s.id|string }}>{{ s.name }}</option>{% endfor %}</select>
@@ -45,7 +46,7 @@
 </div>
 {% if items %}
 <form method="post" id="bulk" action="/p/{{ p.id }}/items/delete-selected" class="select-bar" data-confirm="Delete the ticked items? Their plan dots go with them. A photo stays with the same item in its other rooms and goes only when no room is left; everything not ticked stays.">
-  {% for k in ['room', 'category', 'status', 'supplier', 'q'] %}{% if f[k] %}<input type="hidden" name="{{ k }}" value="{{ f[k] }}">{% endif %}{% endfor %}
+  {% for k in ['floor', 'room', 'category', 'status', 'supplier', 'q'] %}{% if f[k] %}<input type="hidden" name="{{ k }}" value="{{ f[k] }}">{% endif %}{% endfor %}
   {% if view != 'list' %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
   {% if view == 'cards' %}<label class="check"><input type="checkbox" class="sel-all" aria-label="Select all shown"> All shown</label>{% endif %}
   <span class="count small muted">Tick the lines to delete, then press the button. A filter on its own never deletes anything.</span>

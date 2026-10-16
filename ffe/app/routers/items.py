@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
 from fastapi.responses import JSONResponse
 from urllib.parse import quote, urlencode
 import re
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Project, Item, ItemPhoto, Supplier, Room
@@ -13,8 +13,41 @@ from .. import storage, config, webimage, ai, drawings
 router = APIRouter(dependencies=[Depends(require_login)])
 
 
-def item_query(db: Session, p: Project, room: str = "", category: str = "", status: str = "", supplier: str = "", q: str = ""):
+NO_FLOOR = "none"  # the Floor filter's value for items without a room, or in a room without a floor
+
+
+def on_floor(room: Room | None, floor: str) -> bool:
+    """Whether a room is on the floor chosen in the Floor filter (matched like plans and rooms: "Ground" = "ground floor")."""
+    if floor == NO_FLOOR:
+        return room is None or not drawings.floor_key(room.floor)
+    return room is not None and drawings.floor_key(room.floor) == drawings.floor_key(floor)
+
+
+def floor_choices(p: Project) -> list[dict]:
+    """The Floor filter of the Items page: the project's floors in order (group "Floors"), its separate areas such as the
+    staff quarters (Floor.kind "area"), then the other places rooms give as their floor (Site, Outside, All) and "No floor"
+    when some items have no room or their room no floor (group "Other")."""
+    out, seen = [], set()
+    for f in drawings.floor_order(p):
+        entry = drawings.floor_entry(p, f)
+        out.append(dict(value=f, title=drawings.floor_title(f, p), group="Separate areas" if entry is not None and entry.kind == "area" else "Floors"))
+        seen.add(drawings.floor_key(f))
+    for r in sorted(p.rooms, key=lambda r: (r.sort, r.id)):
+        k = drawings.floor_key(r.floor)
+        if k and k not in seen:
+            seen.add(k)
+            out.append(dict(value=r.floor.strip(), title=r.floor.strip(), group="Other"))
+    if any(on_floor(i.room, NO_FLOOR) for i in p.live_items):
+        out.append(dict(value=NO_FLOOR, title="No floor (whole house)", group="Other"))
+    return out
+
+
+def item_query(db: Session, p: Project, room: str = "", category: str = "", status: str = "", supplier: str = "", q: str = "",
+               floor: str = ""):
     qs = db.query(Item).filter(Item.project_id == p.id, Item.draft == False)  # noqa: E712  drafts live on /drafts
+    if floor:  # the rooms and areas on that floor; "none" = no room, or a room without a floor
+        ids = [r.id for r in p.rooms if on_floor(r, floor)]
+        qs = qs.filter(or_(Item.room_id.is_(None), Item.room_id.in_(ids))) if floor == NO_FLOOR else qs.filter(Item.room_id.in_(ids))
     if room:
         qs = qs.filter(Item.room_id == int(room)) if room != "none" else qs.filter(Item.room_id.is_(None))
     if category:
@@ -76,24 +109,34 @@ def group_items(items: list[Item]) -> list[dict]:
 
 @router.get("/p/{project_id}/items")
 def list_items(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), room: str = "",
-               category: str = "", status: str = "", supplier: str = "", q: str = "", view: str = "", deleted: int = 0):
-    items = sort_items(item_query(db, p, room, category, status, supplier, q).all(), p)
+               category: str = "", status: str = "", supplier: str = "", q: str = "", view: str = "", deleted: int = 0,
+               floor: str = ""):
+    floor = floor.strip()
+    if floor and room:  # a room from another floor would leave nothing: picking a floor lets go of it
+        if (room == "none" and floor != NO_FLOOR) or (room != "none" and not on_floor(next((r for r in p.rooms if str(r.id) == room), None), floor)):
+            room = ""
+    items = sort_items(item_query(db, p, room, category, status, supplier, q, floor).all(), p)
     suppliers = db.query(Supplier).order_by(Supplier.name).all()
     total = sum(i.total for i in items)
     drafts = db.query(Item).filter(Item.project_id == p.id, Item.draft == True).count()  # noqa: E712
     room_obj = next((r for r in p.rooms if r.id == fint(room)), None) if room and room != "none" else None
     zoom = drawings.room_zoom(p, room_obj, items) if room_obj is not None else None  # the room on the plan, zoomed, with its dots
     view = view if view in ("cards", "table", "list") else "list"  # the Item list (one line per product) is the default view
-    f = dict(room=room, category=category, status=status, supplier=supplier, q=q, view=view)
+    f = dict(floor=floor, room=room, category=category, status=status, supplier=supplier, q=q, view=view)
     qs = urlencode({k: v for k, v in f.items() if v and k != "view"})  # the filters, for the view switch links
     rows = group_items(items) if view == "list" else None  # the Item list view: one line per product across its rooms
+    floors = floor_choices(p)
+    floor_name = next((c["title"] for c in floors if drawings.floor_key(c["value"]) == drawings.floor_key(floor)), floor) if floor else ""
+    room_list = [r for r in p.rooms if on_floor(r, floor)] if floor else p.rooms  # the Room dropdown narrows to the floor
     return render(request, "items/list.html", p=p, items=items, suppliers=suppliers, total=total, drafts=drafts, room_obj=room_obj, zoom=zoom,
-                  f=f, qs=qs, rows=rows, deleted=deleted, moods=moods_for(p, room_obj) if room_obj is not None else [])
+                  f=f, qs=qs, rows=rows, deleted=deleted, moods=moods_for(p, room_obj) if room_obj is not None else [],
+                  floors=floors, floor_name=floor_name, room_list=room_list, NO_FLOOR=NO_FLOOR)
 
 
 @router.post("/p/{project_id}/items/delete-selected")
 def delete_selected(p: Project = Depends(get_project), db: Session = Depends(get_db), ids: list[str] = Form([]), room: str = Form(""),
-                    category: str = Form(""), status: str = Form(""), supplier: str = Form(""), q: str = Form(""), view: str = Form("")):
+                    category: str = Form(""), status: str = Form(""), supplier: str = Form(""), q: str = Form(""), view: str = Form(""),
+                    floor: str = Form("")):
     """Deletes the lines ticked on the Items page and nothing else: what goes is the user's own selection, never what a
     filter happens to show. A box in the Item list stands for a product in all its rooms, so one value may carry several
     ids ("12 13 14"). Ids outside this project, drafts (they live on /drafts) and anything that is not a number are
@@ -107,7 +150,7 @@ def delete_selected(p: Project = Depends(get_project), db: Session = Depends(get
         release_photos(db, p, i, survivors)  # photos stay with the product's other rooms; deleted only when none is left
         db.delete(i)
     db.commit()
-    keep = {k: v for k, v in dict(room=room, category=category, status=status, supplier=supplier, q=q, view=view).items() if v}
+    keep = {k: v for k, v in dict(floor=floor, room=room, category=category, status=status, supplier=supplier, q=q, view=view).items() if v}
     if items:
         keep["deleted"] = len(items)
     return redirect(f"/p/{p.id}/items" + (f"?{urlencode(keep)}" if keep else ""))
