@@ -38,7 +38,7 @@
       </div>
       <ul class="od-prods">
         {% for v in e.views %}{% set it = v.lines[0] %}
-        <li><span class="pic">{% if it.cover %}<img src="/media/{{ it.cover.thumb }}" alt="" loading="lazy">{% endif %}</span>
+        <li><span class="pic">{% if it.cover %}<img src="/media/{{ it.cover.thumb }}" alt="{{ it.name }}" loading="lazy" data-full="/media/{{ it.cover.file_key }}" data-caption="{{ it.name }}">{% endif %}</span>
           <span class="nm">{{ it.name }}{% if it.size %} <span class="muted">· {{ it.size }}</span>{% endif %}</span>
           <span class="q">{{ v.qty|num(2) }} {{ v.unit }}</span><span class="t">¥{{ v.total|money }}</span></li>
         {% endfor %}

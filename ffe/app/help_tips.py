@@ -110,7 +110,8 @@ TIPS = {
                "Filtered by one room, the top shows that room zoomed in on the plan; tap a dot to jump to its item.",
                "To delete several at once, <b>tick</b> the lines (the box at the top of the Table or Item list ticks all shown) and press <b>Delete selected</b>; the bar says how many are ticked and how many of those have photos, and you confirm before anything goes. A filter on its own never deletes anything.",
                "To tick many lines by their codes, press <b>Tick by codes</b> in the bar, paste the codes (from Excel, a message or a duplicate check, in any order) and press <b>Tick these</b>: the bar says how many it found and which are not on the page. Best in the Table view, where every room line has its own box."],
-        tips=["The status follows the purchase: To buy → Quoted (a shop chosen on the Buying page) → Ordered → Paid → Shipped → Received.",
+        tips=["Tap a photo to see it full screen (‹ › for the next ones); tap the name to open the item.",
+              "The status follows the purchase: To buy → Quoted (a shop chosen on the Buying page) → Ordered → Paid → Shipped → Received.",
               "The category decides which page of the client schedule the item prints on."]),
     "item_new": dict(
         title="New item", anchor="items",

@@ -62,7 +62,7 @@
       <tbody>
       {% for g in gs %}{% set o = g.order %}{% set pus = g.purchases %}{% set best = g.best_quote %}{% set pv = [] %}{% for pu in pus %}{% set _ = pv.append(g.purchase_view(pu)) %}{% endfor %}
       <tr>
-        <td class="sc-ph">{% if g.cover %}<img src="/media/{{ g.cover.thumb }}" alt="" loading="lazy">{% else %}<span class="none"></span>{% endif %}</td>
+        <td class="sc-ph">{% if g.cover %}<img src="/media/{{ g.cover.thumb }}" alt="{{ g.name }}" loading="lazy" data-full="/media/{{ g.cover.file_key }}" data-caption="{{ g.name }}">{% else %}<span class="none"></span>{% endif %}</td>
         <td class="prod">
           <a class="nm" href="/p/{{ p.id }}/buying/{{ g.product.id }}">{{ g.name }}</a>
           <div class="codes">{{ g.codes[:6]|join(' · ') }}{% if g.codes|length > 6 %} · +{{ g.codes|length - 6 }}{% endif %}</div>
