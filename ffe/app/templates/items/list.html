@@ -97,7 +97,7 @@
   {% for i in items %}
   <tr id="item-{{ i.id }}" data-search="{{ i.code }} {{ i.name }} {{ i.spec[:300] }} {{ i.brand }} {{ i.brand_shown }} {{ i.size }} {{ i.finish }} {{ i.category }} {{ i.room.label if i.room else 'ALL whole house' }} {{ (i.room.floor|floor_title) if i.room and i.room.floor else '' }} {{ i.supplier.name if i.supplier else '' }} {{ i.status }} {{ i.unit }} {{ i.notes[:200] }}">
     <td class="sel"><label><input type="checkbox" class="sel-box" name="ids" value="{{ i.id }}" form="bulk"{% if i.photos %} data-photos="1"{% endif %} data-codes="{{ i.code }}" aria-label="Select {{ i.code }}"></label></td>
-    <td>{% if i.cover %}<a href="/p/{{ p.id }}/items/{{ i.id }}"><img class="thumb sm" src="/media/{{ i.cover.thumb }}" alt=""></a>{% endif %}</td>
+    <td>{% if i.cover %}<img class="thumb sm" src="/media/{{ i.cover.thumb }}" alt="{{ i.name }}" data-full="/media/{{ i.cover.file_key }}" data-caption="{{ i.code }} · {{ i.name }}">{% endif %}</td>
     <td class="small muted nowrap">{{ i.code }}</td>
     <td data-v="{{ i.name }}"><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a>{% if i.optional %} <span class="pill">optional</span>{% endif %}{% if i.size or i.finish %}<div class="small muted">{{ i.size }}{% if i.size and i.finish %} · {% endif %}{{ i.finish }}</div>{% endif %}</td>
     <td class="small" data-v="{{ i.room.name if i.room else '' }}">{{ i.room.name if i.room else '—' }}</td>
@@ -120,7 +120,7 @@
   {% set with_photos = g.rows|selectattr('photos')|list|length %}
   <tr id="item-{{ i.id }}" data-items="{% for r in g.rows %}{{ r.id }}{% if not loop.last %} {% endif %}{% endfor %}" data-search="{{ g.codes }} {{ i.name }} {{ i.spec[:300] }} {{ i.brand }} {{ i.brand_shown }} {{ i.size }} {{ i.finish }} {{ i.category }} {% for r in g.rooms %}{{ r.label if r else 'ALL whole house' }} {{ (r.floor|floor_title) if r and r.floor else '' }} {% endfor %}{% for s in g.suppliers %}{{ s.name }} {% endfor %}{{ g.statuses.keys()|join(' ') }} {{ g.unit }} {{ i.notes[:200] }}">
     <td class="sel"><label><input type="checkbox" class="sel-box" name="ids" value="{% for r in g.rows %}{{ r.id }}{% if not loop.last %} {% endif %}{% endfor %}" form="bulk"{% if with_photos %} data-photos="{{ with_photos }}"{% endif %} data-codes="{% for r in g.rows %}{{ r.code }}{% if not loop.last %} {% endif %}{% endfor %}" aria-label="Select {{ i.name }}"></label></td>
-    <td>{% if g.cover %}<a href="/p/{{ p.id }}/items/{{ i.id }}"><img class="thumb sm" src="/media/{{ g.cover.thumb }}" alt=""></a>{% endif %}</td>
+    <td>{% if g.cover %}<img class="thumb sm" src="/media/{{ g.cover.thumb }}" alt="{{ i.name }}" data-full="/media/{{ g.cover.file_key }}" data-caption="{{ i.name }}">{% endif %}</td>
     <td data-v="{{ i.name }}"><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a>{% if i.optional %} <span class="pill">optional</span>{% endif %}<div class="small muted">{{ g.codes }}{% for v in [i.size, i.finish, i.brand_shown]|select %} · {{ v }}{% endfor %}</div></td>
     <td class="small">{{ i.category }}</td>
     <td class="rooms" data-v="{{ g.rooms|length }}">{% set names = [] %}{% for r in g.rooms %}{% set _ = names.append(r.name if r else 'Whole house') %}{% endfor %}
@@ -148,7 +148,7 @@
     {% set ns.last = grp %}{% set ns.open = true %}
   {% endif %}
   <div class="item-card" id="item-{{ i.id }}" data-search="{{ i.code }} {{ i.name }} {{ i.spec[:300] }} {{ i.brand }} {{ i.brand_shown }} {{ i.size }} {{ i.finish }} {{ i.category }} {{ i.room.label if i.room else 'ALL whole house' }} {{ (i.room.floor|floor_title) if i.room and i.room.floor else '' }} {{ i.supplier.name if i.supplier else '' }} {{ i.status }} {{ i.unit }} {{ i.notes[:200] }}">
-    {% if i.cover %}<a class="pic" href="/p/{{ p.id }}/items/{{ i.id }}"><img src="/media/{{ i.cover.thumb }}" alt=""></a>{% else %}<a class="pic empty" href="/p/{{ p.id }}/items/{{ i.id }}">no photo</a>{% endif %}
+    {% if i.cover %}<span class="pic"><img src="/media/{{ i.cover.thumb }}" alt="{{ i.name }}" data-full="/media/{{ i.cover.file_key }}" data-caption="{{ i.code }} · {{ i.name }}"></span>{% else %}<a class="pic empty" href="/p/{{ p.id }}/items/{{ i.id }}">no photo</a>{% endif %}
     <div class="body">
       <div class="t"><a href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a></div>
       <div class="m"><span class="pill">{{ i.room.name if i.room else 'Whole house' }}</span> {{ i.code }} · {{ i.qty|num }} {{ i.unit }}{% if i.unit_price %} · ¥{{ i.unit_price|money(2) }}/{{ i.unit }}{% endif %}</div>
