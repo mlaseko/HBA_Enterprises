@@ -44,7 +44,8 @@
       </div>
       {% if q %}<button type="button" class="btn ghost sm icon pinbtn" title="Show where it goes on the plan" aria-label="Show {{ i.name }} on the plan"><svg class="ic"><use href="#i-map"/></svg></button>{% endif %}
       {% else %}
-      <a class="pic{{ '' if i.cover else ' empty' }}" href="/p/{{ p.id }}/items/{{ i.id }}?next={{ here|urlencode }}">{% if i.cover %}<img src="/media/{{ i.cover.thumb }}" loading="lazy" alt="">{% else %}no photo{% endif %}</a>
+      {% if i.cover %}<div class="pic"><img src="/media/{{ i.cover.thumb }}" loading="lazy" alt="{{ i.name }}" data-full="/media/{{ i.cover.file_key }}" data-caption="{{ i.code }} · {{ i.name }}" title="Open the picture"></div>
+      {% else %}<a class="pic empty" href="/p/{{ p.id }}/items/{{ i.id }}?next={{ here|urlencode }}" title="Open the item to add a photo">no photo</a>{% endif %}
       <div class="body">
         <a class="t" href="/p/{{ p.id }}/items/{{ i.id }}?next={{ here|urlencode }}">{{ i.name }}</a>
         <div class="m">{{ i.code }} · {{ i.qty|num }} {{ i.unit }}{% if i.unit_price %} · ¥{{ i.total|money }}{% endif %}{% if i.supplier %} · {{ i.supplier.name }}{% endif %}{% if i.optional %} · optional{% endif %}</div>
