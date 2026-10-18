@@ -65,7 +65,7 @@
 <div class="cards bu-grid">
   {% for g in gs %}{% set o = g.order %}{% set n = g.lines|length %}{% set pus = g.purchases %}{% set best = g.best_quote %}
   <a class="bu-card" href="/p/{{ p.id }}/buying/{{ g.product.id }}" data-search="{{ g.search }}" style="--c:{{ STAGE_COLORS[g.stage] }}">
-    <span class="pic">{% if g.cover %}<img src="/media/{{ g.cover.thumb }}" alt="" loading="lazy">{% else %}<svg class="ic"><use href="#i-image"/></svg>{% endif %}</span>
+    <span class="pic">{% if g.cover %}<img src="/media/{{ g.cover.thumb }}" alt="{{ g.name }}" loading="lazy" data-full="/media/{{ g.cover.file_key }}" data-caption="{{ g.name }}">{% else %}<svg class="ic"><use href="#i-image"/></svg>{% endif %}</span>
     <span class="body">
       <span class="t">{{ g.name }}</span>
       <span class="m">{% for v in [g.item.size, g.item.finish]|select %}{{ v }}{% if not loop.last %} · {% endif %}{% endfor %}{% if g.item.brand %}{% if g.item.size or g.item.finish %} · {% endif %}<span class="pref" title="Preferred brand">pref. {{ g.item.brand }}</span>{% endif %}</span>
