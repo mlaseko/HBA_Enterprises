@@ -1,0 +1,1 @@
+- [Publishing archive errors](publishing-archive-errors.md) — archive failures can recur with aligned manifests; distinguish packaging from app startup.
