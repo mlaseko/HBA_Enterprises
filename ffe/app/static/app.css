@@ -1345,3 +1345,4 @@ table.ls tr.muted td{color:var(--muted)}
 .qi-steps li .m{font-size:.8rem;color:var(--muted);font-weight:400}
 .qi-spin{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:lbspin .9s linear infinite;margin-right:6px;vertical-align:-2px}
 @media (max-width:700px){.qi-top{grid-template-columns:1fr}.qi-top .g3{grid-template-columns:1fr 1fr}.qi-doc{min-width:860px}.qi-doc th:nth-child(2),.qi-doc td:nth-child(2){width:64px}.qi-head .qi-act{max-width:none}.qi-bar{position:static}.qi-bar .btn{width:100%;justify-content:center}.qi-doc td,.qi-doc th{font-size:.85rem}.qi-line{padding:10px}.qi-summary .row{gap:6px}}
+.qi-sim{margin-bottom:12px}.qi-sim .kpis{margin-bottom:0}

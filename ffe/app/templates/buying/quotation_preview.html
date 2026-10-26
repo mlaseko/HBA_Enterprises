@@ -50,6 +50,18 @@
   </div>
 </div>
 
+<div class="card qi-sim" id="qi-sim" data-products="{{ totals.products }}" data-lines="{{ totals.lines }}" data-quoted="{{ totals.quoted }}" data-rate="{{ p.rate or 1 }}" data-cur="{{ cur }}">
+  <div class="row between top">
+    <div><h2 class="mb-0">If you posted it now</h2><div class="small muted">A simulation from the choices below, updated as you change them. Nothing is posted until you press Save the quotation.</div></div>
+  </div>
+  <div class="grid g4 kpis bu-kpis mt">
+    <div class="kpi sage"><div class="v" id="sim-products">0<span class="of">/{{ totals.products }}</span></div><div class="l">Products priced by this sheet</div><div class="d" id="sim-products-d"></div></div>
+    <div class="kpi"><div class="v" id="sim-lines">0<span class="of">/{{ totals.lines }}</span></div><div class="l">Room lines covered</div><div class="bar"><i id="sim-bar" style="width:0%"></i></div><div class="d" id="sim-lines-d">0% of the design would have a price from this shop</div></div>
+    <div class="kpi accent"><div class="v" id="sim-new">0</div><div class="l">New items</div><div class="d" id="sim-new-d">added to the design on posting</div></div>
+    <div class="kpi ink"><div class="v" id="sim-amount">{{ cur }} 0</div><div class="l">Amount quoted</div><div class="d" id="sim-amount-d"></div></div>
+  </div>
+</div>
+
 <div class="card tight qi-summary">
   <div class="row">
     <span class="pill green">{{ counts.quote }} matched</span>
@@ -66,7 +78,7 @@
   {% for l in lines %}{% set s = l.sug %}
   {% if l.section != ns.section %}{% set ns.section = l.section %}{% if l.section %}<div class="qi-section">{{ l.section }}</div>{% endif %}{% endif %}
   {% set conf = s.confidence or 0 %}
-  <article class="qi-line act-{{ s.action or 'skip' }}" id="line-{{ l.no }}">
+  <article class="qi-line act-{{ s.action or 'skip' }}" id="line-{{ l.no }}" data-amount="{{ l.amount|plain }}">
     <div class="qi-pic">{% if l.pic %}<a href="/media/{{ l.full }}" target="_blank" data-caption="Line {{ l.no }} · {{ l.name }}"><img src="/media/{{ l.pic }}" alt=""></a>{% else %}<span class="pic empty"><svg class="ic"><use href="#i-image"/></svg></span>{% endif %}</div>
     <div class="qi-what">
       <div class="qi-no">L{{ l.no }}{% if l.place %} · {{ l.place }}{% endif %}{% if l.ref %} · <b>{{ l.ref }}</b>{% endif %}</div>
@@ -88,7 +100,7 @@
       <div class="qi-f qi-f-quote">
         <select class="in qi-prod" name="prod_{{ l.no }}" aria-label="Product for line {{ l.no }}">
           <option value="">— pick the product —</option>
-          {% for cat, cs in by_cat.items() %}<optgroup label="{{ cat }}">{% for c in cs %}<option value="{{ c.id }}" data-q="{{ c.quoted_by }}" {{ 'selected' if s.product_id == c.id }}>{{ c.title }} · {{ c.qty|num(2) }} {{ c.unit }}{% if c.rooms|length == 1 %} · {{ c.rooms[0].code }}{% elif c.rooms|length %} · {{ c.rooms|length }} rooms{% endif %}</option>{% endfor %}</optgroup>{% endfor %}
+          {% for cat, cs in by_cat.items() %}<optgroup label="{{ cat }}">{% for c in cs %}<option value="{{ c.id }}" data-q="{{ c.quoted_by }}" data-n="{{ c.rooms|length }}" {{ 'selected' if s.product_id == c.id }}>{{ c.title }} · {{ c.qty|num(2) }} {{ c.unit }}{% if c.rooms|length == 1 %} · {{ c.rooms[0].code }}{% elif c.rooms|length %} · {{ c.rooms|length }} rooms{% endif %}</option>{% endfor %}</optgroup>{% endfor %}
         </select>
         <div class="qi-upd small muted"></div>
         {% if s.shortlist %}<div class="qi-short small">{% for o in s.shortlist[:4] %}<button type="button" class="qi-chip{{ ' on' if o.id == s.product_id }}" data-id="{{ o.id }}" title="{{ o.rooms }}">{{ o.title }} <span class="muted">{{ (o.score * 100)|round|int }}%</span></button>{% endfor %}</div>{% endif %}
@@ -133,13 +145,28 @@
   form.querySelectorAll('.qi-line').forEach(show);
   form.addEventListener('change',function(e){ var line=e.target.closest('.qi-line'); if(line&&e.target.classList.contains('qi-act')) show(line); });
   form.addEventListener('click',function(e){ var chip=e.target.closest('.qi-chip'); if(!chip) return; var line=chip.closest('.qi-line'); var sel=line.querySelector('.qi-prod'); sel.value=chip.dataset.id;
-    line.querySelector('.qi-act').value='quote'; show(line); upd(line); line.querySelectorAll('.qi-chip').forEach(function(c){c.classList.toggle('on',c===chip);}); });
+    line.querySelector('.qi-act').value='quote'; show(line); upd(line); simulate(); line.querySelectorAll('.qi-chip').forEach(function(c){c.classList.toggle('on',c===chip);}); });
   var sup=document.getElementById('qi-sup');
   function upd(line){ var sel=line.querySelector('.qi-prod'), out=line.querySelector('.qi-upd'); if(!sel||!out) return; var o=sel.options[sel.selectedIndex]; var q=(o&&o.dataset.q)||'';
     var mine=null, others=0; q.split(';').forEach(function(x){ if(!x) return; var i=x.indexOf(':'); if(x.slice(0,i)===sup.value) mine=x.slice(i+1); else others++; });
     out.textContent=!sel.value?'':(mine?'Updates this shop\u2019s quote of '+mine+' on this product; rooms bought from it follow.':'Adds a new quote on this product'+(others?' (already quoted by '+others+' other shop'+(others>1?'s':'')+')':'')+'.'); }
   function newsup(){ var on=sup.value==='__new__'; form.querySelectorAll('.qi-newsup').forEach(function(d){d.hidden=!on;}); form.querySelectorAll('.qi-line').forEach(upd); }
   sup.addEventListener('change',newsup); newsup();
+  var sim=document.getElementById('qi-sim');
+  function simulate(){ if(!sim) return; var prods={}, covered=0, newItems=0, skipped=0, amount=0, extra=0;
+    form.querySelectorAll('.qi-line').forEach(function(line){ var a=line.querySelector('.qi-act').value; var amt=parseFloat(line.dataset.amount||'0')||0;
+      if(a==='quote'){ var sel=line.querySelector('.qi-prod'); var o=sel.options[sel.selectedIndex]; if(sel.value){ if(!prods[sel.value]){ prods[sel.value]=1; covered+=parseInt(o.dataset.n||'0',10)||0; } amount+=amt; } else skipped++; }
+      else if(a==='new'){ newItems++; covered+=1; amount+=amt; } else if(a==='merge'){ amount+=amt; } else if(a==='extra'){ extra+=amt; } else skipped++; });
+    var n=Object.keys(prods).length, P=parseInt(sim.dataset.products,10)||0, L=parseInt(sim.dataset.lines,10)||0, cur=sim.dataset.cur, rate=parseFloat(sim.dataset.rate)||1;
+    var disc=parseFloat((form.querySelector('[name=discount]')||{}).value||'0')||0, tot=parseFloat((form.querySelector('[name=total]')||{}).value||'0')||0; var f=(tot>0&&disc>0&&disc<tot)?(tot-disc)/tot:1;
+    var fmt=function(x){return x.toLocaleString(undefined,{maximumFractionDigits:0});};
+    document.getElementById('sim-products').innerHTML=n+'<span class="of">/'+P+'</span>'; document.getElementById('sim-products-d').textContent=(n+newItems)+' quote'+((n+newItems)===1?'':'s')+' would be made · '+skipped+' line'+(skipped===1?'':'s')+' skipped';
+    document.getElementById('sim-lines').innerHTML=covered+'<span class="of">/'+(L+newItems)+'</span>'; var pc=(L+newItems)?Math.round(100*covered/(L+newItems)):0; document.getElementById('sim-bar').style.width=pc+'%';
+    document.getElementById('sim-lines-d').textContent=pc+'% of the design would have a price from this shop';
+    document.getElementById('sim-new').textContent=newItems;
+    var net=amount*f; document.getElementById('sim-amount').textContent=cur+' '+fmt(net); var alt=cur==='USD'?('¥'+fmt(net*rate)):('$'+fmt(net/rate));
+    document.getElementById('sim-amount-d').textContent=alt+(f<1?' · after the '+Math.round(100*(1-f))+'% discount':'')+(extra?' · extras '+cur+' '+fmt(extra)+' on the document':''); }
+  form.addEventListener('change',simulate); form.addEventListener('input',function(e){ if(e.target.name==='discount'||e.target.name==='total') simulate(); }); simulate();
   form.addEventListener('submit',function(e){ var d=document.getElementById('qi-draft'), b=document.getElementById('qi-save'); var asDraft=e.submitter&&e.submitter.id==='qi-draft';
     var hit=asDraft?d:b; if(hit){ hit.disabled=true; hit.innerHTML='<span class="qi-spin"></span>'+(asDraft?'Saving the draft…':'Saving the quotation…'); } if(d&&!asDraft) d.disabled=true; if(b&&asDraft) b.disabled=true; });
   form.addEventListener('change',function(e){ var line=e.target.closest('.qi-line'); if(line&&e.target.classList.contains('qi-prod')) upd(line); });
