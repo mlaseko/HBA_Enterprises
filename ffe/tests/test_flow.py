@@ -1947,6 +1947,41 @@ with TestClient(app) as c:
     db=SessionLocal(); assert db.get(_QD, qd_id) is None and db.query(_QL).filter(_QL.quotation_id==qd_id).count()==0 and db.get(_Qt, q1.id) is not None and db.get(_Qt, q2.id) is None and db.get(_Qt, q4.id) is None
     assert db.query(Item).filter(Item.project_id==pid_q, Item.name=="Stair handrail with glass").first() is not None  # the item stays
     db.close(); assert _st.read_image(fk) is None and _st.read_image(pk) is None
+    # a draft: the preview saved with its choices, reopened from the Drafts card, edited, then posted; discard of a failed upload
+    loc5,st5=upload_quote("Tile quotation v5.xlsx", quote_sheet(), str(shop.id)); key5=_unq(loc5.split("key=")[1])
+    from app.models import QuotationUpload as _QU
+    db=SessionLocal(); up5=db.query(_QU).filter(_QU.state_key==key5).first(); assert up5 is not None and up5.stage=="done"; up5_id=up5.id; db.close()
+    h=c.get(f"/p/{pid_q}/quotations").text; assert "Drafts and uploads under way" in h and "Tile quotation v5.xlsx" in h and "Ready to check" in h and f"/quotations/working/{up5_id}/discard" in h
+    dform=dict(base, key=key5, supplier_id="__new__", supplier_name="Draft Shop", supplier_city="Foshan", notes="draft note", title="Draft title", act_1="skip", act_4="new", name_4="Handrail v5", act_5="merge", into_5="4", rooms_4=str(_sta))
+    r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(dform, supplier_id="", supplier_name=""), follow_redirects=False); assert "err=" in r.headers["location"]  # still refused without a shop when posting
+    r=c.post(f"/p/{pid_q}/quotations/draft", data=dform, follow_redirects=False); assert r.status_code==303 and "Draft%20saved" in r.headers["location"], r.headers["location"]
+    assert _st.read_image(key5) is None  # the old state key is gone, a new one carries the draft
+    db=SessionLocal(); up5=db.get(_QU, up5_id); key5b=up5.state_key; assert key5b!=key5 and key5b.endswith(".json") and up5.message=="draft"; db.close()
+    h=c.get(f"/p/{pid_q}/quotations").text; assert ">Draft<" in h and "Continue" in h and f"preview?key={key5b}" in h.replace("%2F", "/")
+    h=c.get(f"/p/{pid_q}/quotations/preview?key={key5b}").text
+    assert "A draft saved" in h and 'value="draft note"' in h and 'value="Draft title"' in h and 'value="Draft Shop"' in h and 'value="__new__" selected' in h
+    assert re.search(r'name="act_1"[^>]*>(?:(?!</select>).)*value="skip" selected', h, re.S) and re.search(r'name="act_4"[^>]*>(?:(?!</select>).)*value="new" selected', h, re.S) and 'value="Handrail v5"' in h
+    assert re.search(r'name="rooms_4"[^>]*>(?:(?!</select>).)*value="%d" selected' % _sta, h, re.S) and re.search(r'name="into_5"[^>]*>(?:(?!</select>).)*value="4" selected', h, re.S)
+    assert "Save as draft" in h and "/quotations/draft" in h
+    # the draft saved again (a second key), then posted from it
+    r=c.post(f"/p/{pid_q}/quotations/draft", data=dict(dform, key=key5b, notes="draft note 2"), follow_redirects=False); assert "Draft%20saved" in r.headers["location"]
+    db=SessionLocal(); key5c=db.get(_QU, up5_id).state_key; assert key5c not in (key5, key5b); db.close()
+    r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(dform, key=key5c, notes="draft note 2"), follow_redirects=False); assert r.status_code==303 and "/quotations/" in r.headers["location"] and "err=" not in r.headers["location"], r.headers["location"]
+    qd5=int(r.headers["location"].split("/quotations/")[1].split("?")[0])
+    db=SessionLocal(); d5=db.get(_QD, qd5); assert d5.notes=="draft note 2" and d5.title=="Draft title" and d5.supplier.name=="Draft Shop" and {ln.no: ln.action for ln in d5.lines}[1]=="skip" and {ln.no: ln.action for ln in d5.lines}[4]=="new"
+    assert db.get(_QU, up5_id) is None and db.query(Item).filter(Item.project_id==pid_q, Item.name=="Handrail v5").count()==1; db.close()
+    assert _st.read_image(key5c) is None and "Tile quotation v5.xlsx" not in c.get(f"/p/{pid_q}/quotations").text
+    c.post(f"/p/{pid_q}/quotations/{qd5}/delete", follow_redirects=False)
+    # a failed upload sits in the list until discarded
+    loc6,st6=upload_quote("broken.xlsx", b2.getvalue()); assert st6["stage"]=="error"
+    h=c.get(f"/p/{pid_q}/quotations").text; assert "broken.xlsx" in h and ">Failed<" in h
+    db=SessionLocal(); up6=db.query(_QU).filter(_QU.project_id==pid_q, _QU.stage=="error").first(); up6_id=up6.id; db.close()
+    r=c.post(f"/p/{pid_q}/quotations/working/{up6_id}/discard", follow_redirects=False); assert r.status_code==303
+    db=SessionLocal(); assert db.get(_QU, up6_id) is None; db.close()
+    # cancel from the preview drops the upload row too
+    loc7,_=upload_quote("Tile quotation v7.xlsx", quote_sheet(), str(shop.id)); key7=_unq(loc7.split("key=")[1])
+    c.post(f"/p/{pid_q}/quotations/cancel", data={"key":key7}, follow_redirects=False)
+    db=SessionLocal(); assert db.query(_QU).filter(_QU.state_key==key7).count()==0; db.close()
     # deleting the shop: its remembered matches go, its quotation sheets stay without a shop, its quotes go with the purchases (buying.drop_supplier)
     loc4,_=upload_quote("Tile quotation v4.xlsx", quote_sheet(), str(shop.id)); key4=_unq(loc4.split("key=")[1])
     r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(base, key=key4, supplier_id=str(shop.id), act_4="skip", act_5="skip"), follow_redirects=False); qd4=int(r.headers["location"].split("/quotations/")[1].split("?")[0])

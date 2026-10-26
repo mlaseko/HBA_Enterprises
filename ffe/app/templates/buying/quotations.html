@@ -65,6 +65,30 @@
   </form>
 </div>
 
+{% if drafts %}
+<div class="card mt" id="drafts">
+  <h2 class="mb-0">Drafts and uploads under way</h2>
+  <p class="small muted">Sheets read but not posted yet. Open one to carry on where you left it; nothing is on the Buying page until you save it.</p>
+  <div class="tbl mt"><table>
+    <thead><tr><th>Sheet</th><th>State</th><th class="num">Lines</th><th>Saved</th><th></th></tr></thead>
+    <tbody>
+    {% for d in drafts %}{% set u = d.up %}
+    <tr>
+      <td><a href="{{ d.url }}"><b>{{ u.filename }}</b></a></td>
+      <td>{% if d.draft %}<span class="pill gold">Draft</span>{% elif u.stage == 'done' %}<span class="pill green">Ready to check</span>{% elif u.stage == 'error' %}<span class="pill red">Failed</span><div class="small muted">{{ u.message }}</div>{% else %}<span class="pill">Reading…</span>{% endif %}</td>
+      <td class="num">{{ u.lines or '—' }}</td>
+      <td class="nowrap small muted">{{ u.updated_at.strftime('%Y-%m-%d %H:%M') if u.updated_at else '' }}</td>
+      <td class="nowrap"><div class="row">
+        {% if u.stage == 'done' %}<a class="btn sm" href="{{ d.url }}"><svg class="ic"><use href="#i-edit"/></svg>{{ 'Continue' if d.draft else 'Check' }}</a>{% endif %}
+        {% if u.stage in ('done', 'error') %}<form method="post" action="/p/{{ p.id }}/quotations/working/{{ u.id }}/discard" data-confirm="Discard this upload? The sheet, its pictures and your choices on it are dropped; the project is not changed."><button class="btn sm sec"><svg class="ic"><use href="#i-trash"/></svg>Discard</button></form>{% endif %}
+      </div></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endif %}
+
 {% if rows %}
 <div class="tbl mt"><table>
   <thead><tr><th>Quotation</th><th>Shop</th><th>Date</th><th class="num">Lines</th><th class="num">Quotes</th><th class="num">Total</th><th>Valid until</th><th></th></tr></thead>

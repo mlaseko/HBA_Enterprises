@@ -92,7 +92,7 @@ app/quotations.py      supplier quotation sheets (Buying › Quotations): read_s
                        start_upload()/process_upload() (the upload read on a thread: QuotationUpload stages, state written to storage when done)
 app/routers/quotations.py /p/<id>/quotations (list, upload form, inquiry form; POST upload → working page, JSON {next} for the form's
                        uploader), /quotations/working/<u> (+ /status JSON polled by the page), /quotations/preview?key=,
-                       /quotations/apply, /quotations/cancel, /quotations/inquiry.xlsx, /quotations/<q> (document page), /<q>/file, /<q>/delete
+                       /quotations/draft (save the preview to come back to), /quotations/apply, /quotations/cancel, /working/<u>/discard, /quotations/inquiry.xlsx, /quotations/<q> (document page), /<q>/file, /<q>/delete
 app/routers/orders.py  /p/<id>/orders (ready to order + orders by stage), /orders/new, /orders/<o> (page; POST details),
                        /orders/<o>/add|remove/<pu>|confirm|unconfirm|delete|payments|claim, /orders/<o>/po.pdf
 app/routers/cartons.py Shipping › Boxes: /p/<id>/cartons (?supplier= &room= &where= &shipment=; POST adds a box), /cartons/bulk
@@ -684,6 +684,10 @@ ALTER TABLE projects ADD COLUMN deposit_pct / soon_days / balance_days / lcl_up_
   The upload runs on a thread (`start_upload` / `process_upload`, `QuotationUpload` row with the stage) so the working
   page (`quotation_working.html`, polling `/working/<u>/status`) shows the progress; the form uploads through XHR with a
   byte progress bar and follows the JSON `next`. Never put `wrap` on a `.row`: `.wrap` is the page container.
+  Drafts: `POST /quotations/draft` writes the form (`_read_form`: choices + head + the shop) into the state under a new
+  key and points the `QuotationUpload` at it (`message = "draft"`); `_preview_ctx` lays a draft's choices over the
+  suggestions (`doc`, `new_sup`, `draft_at`); the Quotations page lists the uploads not posted yet (Continue / Discard);
+  apply, cancel and `/working/<u>/discard` delete the row.
 
 ## Backlog (in priority order)
 
