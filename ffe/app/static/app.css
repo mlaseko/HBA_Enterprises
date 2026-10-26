@@ -1321,16 +1321,27 @@ table.ls tr.muted td{color:var(--muted)}
 .qi-nums{font-size:.85rem;color:var(--ink-2)}
 .qi-detail summary{cursor:pointer;color:var(--muted);font-size:.8rem;margin-top:4px}
 .qi-detail div{white-space:pre-wrap;margin-top:4px;color:var(--ink-2)}
-.qi-head{margin-bottom:6px}.qi-head .qi-act{max-width:240px}
+.qi-head{display:flex;gap:8px;align-items:center;flex-wrap:nowrap;margin-bottom:6px}.qi-head .qi-act{max-width:240px;flex:1 1 auto;min-width:0}
 .qi-f{display:none}.act-quote .qi-f-quote,.act-merge .qi-f-merge,.act-new .qi-f-new{display:block}
 .qi-short{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
 .qi-chip{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:2px 9px;font-size:.74rem;cursor:pointer;color:var(--ink-2)}
 .qi-chip.on{border-color:var(--green);background:var(--green-soft);color:var(--green)}
 .qi-why{margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.qi-bar{position:sticky;bottom:calc(var(--tab-h, 0px) + 8px);z-index:3;margin-top:8px}
+.qi-bar{position:sticky;bottom:12px;z-index:3;margin-top:8px}
 .qi-doc tr.qi-sec td{background:var(--surface-3);font-weight:600;font-size:.85rem}
 .qi-doc tr.act-skip td{color:var(--muted)}
 .qi-became .pill{white-space:normal;text-align:left}
 .qi-gaps{padding-left:1.1rem;margin:0}.qi-gaps li{margin:4px 0}
 .qi-terms{white-space:pre-wrap;font:inherit;font-size:.85rem;background:var(--surface-2);padding:10px;border-radius:8px;margin:8px 0 0}
 @media (max-width:760px){.qi-line{grid-template-columns:56px minmax(0,1fr)}.qi-pick{grid-column:1/-1}.qi-pic img,.qi-pic .pic.empty{width:56px;height:56px}}
+.qi-upload{margin-top:10px}.qi-upload .bar{height:10px}.qi-upload .bar i{transition:width .3s}
+.qi-working .bar{height:10px;margin-top:14px}.qi-working .bar i{transition:width .4s}
+.qi-steps{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.qi-steps li{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:.95rem}
+.qi-steps li .dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none;background:var(--surface)}
+.qi-steps li .dot .ic{width:14px;height:14px;opacity:0}
+.qi-steps li.done{color:var(--ink)}.qi-steps li.done .dot{background:var(--green);border-color:var(--green);color:#fff}.qi-steps li.done .dot .ic{opacity:1}
+.qi-steps li.now{color:var(--ink);font-weight:600}.qi-steps li.now .dot{border-color:var(--accent);border-top-color:transparent;animation:lbspin .9s linear infinite}
+.qi-steps li .m{font-size:.8rem;color:var(--muted);font-weight:400}
+.qi-spin{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:lbspin .9s linear infinite;margin-right:6px;vertical-align:-2px}
+@media (max-width:700px){.qi-top{grid-template-columns:1fr}.qi-top .g3{grid-template-columns:1fr 1fr}.qi-doc{min-width:860px}.qi-doc th:nth-child(2),.qi-doc td:nth-child(2){width:64px}.qi-head .qi-act{max-width:none}.qi-bar{position:static}.qi-bar .btn{width:100%;justify-content:center}.qi-doc td,.qi-doc th{font-size:.85rem}.qi-line{padding:10px}.qi-summary .row{gap:6px}}

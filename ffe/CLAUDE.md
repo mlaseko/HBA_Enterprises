@@ -89,7 +89,9 @@ app/quotations.py      supplier quotation sheets (Buying › Quotations): read_s
                        them), shortlist() (our code, QuoteMatch memory, then score()), ask_claude() (SUGGEST_SYSTEM / SUGGEST_SCHEMA through
                        ai._call), suggest() (the preview's suggestion per line with flags()), apply() (Quotation + lines, new items, one
                        Quote per product, remember()), delete(), gaps(), inquiry_workbook()
-app/routers/quotations.py /p/<id>/quotations (list, upload form, inquiry form; POST upload → state kept in storage), /quotations/preview?key=,
+                       start_upload()/process_upload() (the upload read on a thread: QuotationUpload stages, state written to storage when done)
+app/routers/quotations.py /p/<id>/quotations (list, upload form, inquiry form; POST upload → working page, JSON {next} for the form's
+                       uploader), /quotations/working/<u> (+ /status JSON polled by the page), /quotations/preview?key=,
                        /quotations/apply, /quotations/cancel, /quotations/inquiry.xlsx, /quotations/<q> (document page), /<q>/file, /<q>/delete
 app/routers/orders.py  /p/<id>/orders (ready to order + orders by stage), /orders/new, /orders/<o> (page; POST details),
                        /orders/<o>/add|remove/<pu>|confirm|unconfirm|delete|payments|claim, /orders/<o>/po.pdf
@@ -360,7 +362,7 @@ ALTER TABLE projects ADD COLUMN shipments_made INTEGER NOT NULL DEFAULT 0;      
 ALTER TABLE cartons ADD COLUMN warehouse_on DATE;                                         -- the day a box reached the warehouse
 ALTER TABLE cartons ADD COLUMN shipment_id INTEGER;                                       -- the shipment a box is on
 ALTER TABLE projects ADD COLUMN deposit_pct / soon_days / balance_days / lcl_up_to;       -- the project's defaults (lists.py)
--- new tables (create_all): products, quotes, purchases, orders, shipments, project_lists, quotations, quotation_lines, quote_matches
+-- new tables (create_all): products, quotes, purchases, orders, shipments, project_lists, quotations, quotation_lines, quote_matches, quotation_uploads
 ```
 
 ## Done
@@ -679,6 +681,9 @@ ALTER TABLE projects ADD COLUMN deposit_pct / soon_days / balance_days / lcl_up_
   product page names the quotation a quote came from (`from_doc`). `/quotations/inquiry.xlsx` is the inquiry sheet
   (`inquiry_workbook`: our code, photo, spec, rooms, quantity, yellow cells for the shop). `gaps()` lists the products of
   the touched categories the shop did not price. Deleting a document deletes its quotes that no purchase uses.
+  The upload runs on a thread (`start_upload` / `process_upload`, `QuotationUpload` row with the stage) so the working
+  page (`quotation_working.html`, polling `/working/<u>/status`) shows the progress; the form uploads through XHR with a
+  byte progress bar and follows the JSON `next`. Never put `wrap` on a `.row`: `.wrap` is the page container.
 
 ## Backlog (in priority order)
 

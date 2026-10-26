@@ -232,6 +232,10 @@ name** (or set the Kind by hand): every existing entry starts as a room.
   several tables on one sheet), the lines with section headings, item numbers, sizes (or width × height), packs, weights,
   pictures by row anchor, the extra charges, the total, an after-discount total and the terms. The file, its pictures and
   the preview's state wait in storage under `quotations/p<id>/` between the preview and apply, like the Excel import.
+- The upload (`quotations.start_upload`) keeps the file, makes a `quotation_uploads` row and reads the sheet on a thread
+  (`process_upload`: stages saved → reading → pictures → matching → done, or error); the form posts with
+  `Accept: application/json` to show the bytes going up, `/quotations/working/<id>` shows the stages (polling
+  `/working/<id>/status`) and opens the preview when done.
 - Matching: a confirmed match from an earlier sheet of the same shop (`quote_matches`, by item number or wording) or our
   own code (a reply to the inquiry sheet) wins; otherwise `score()` shortlists products by words, size, unit, rooms and
   quantity, and Claude (`ai._call` with `SUGGEST_SYSTEM` / `SUGGEST_SCHEMA`, effort medium, up to 40 line pictures) picks
@@ -247,7 +251,7 @@ name** (or set the Kind by hand): every existing entry starts as a room.
   made that no purchase uses.
 - `GET /p/<id>/quotations/inquiry.xlsx?category=&floor=&currency=` is the inquiry sheet for a supplier: one row per
   product with our code, photo, spec, rooms, quantity and yellow cells for their price; a reply keeps the code column and
-  matches on import. New tables: `quotations`, `quotation_lines`, `quote_matches` (create_all). New dependency: `xlrd`.
+  matches on import. New tables: `quotations`, `quotation_lines`, `quote_matches`, `quotation_uploads` (create_all). New dependency: `xlrd`.
 
 ## Shipping
 

@@ -1,6 +1,26 @@
 {% extends "base.html" %}
 {% from "buying/_tabs.html" import tabs %}
 {% block title %}Quotations · {{ p.name }}{% endblock %}
+{% block scripts %}
+<script>
+(function(){
+  var form=document.getElementById('upload'); if(!form||!window.XMLHttpRequest||!window.FormData) return;
+  var box=document.getElementById('qi-upload'), bar=box.querySelector('.bar i'), note=document.getElementById('qi-upload-note'), err=document.getElementById('qi-upload-err'), go=document.getElementById('qi-go');
+  function mb(n){ return n>=1048576?(n/1048576).toFixed(1)+' MB':Math.round(n/1024)+' KB'; }
+  form.addEventListener('submit',function(e){
+    var f=form.querySelector('input[type=file]'); if(!f||!f.files||!f.files[0]) return;  // the browser says what is missing
+    e.preventDefault(); err.hidden=true; box.hidden=false; go.disabled=true; bar.style.width='2%'; note.textContent='Uploading '+mb(f.files[0].size)+'…';
+    var xhr=new XMLHttpRequest(); xhr.open('POST', form.action, true); xhr.setRequestHeader('Accept','application/json');
+    xhr.upload.onprogress=function(ev){ if(ev.lengthComputable){ var pc=Math.round(100*ev.loaded/ev.total); bar.style.width=Math.max(2,pc)+'%'; note.textContent=pc<100?'Uploading '+mb(ev.loaded)+' of '+mb(ev.total)+' ('+pc+'%)':'Uploaded. Starting to read the sheet…'; } };
+    xhr.onload=function(){ var d=null; try{ d=JSON.parse(xhr.responseText); }catch(x){}
+      if(xhr.status<400&&d&&d.next){ note.textContent='Opening…'; location.href=d.next; return; }
+      err.textContent=(d&&d.error)||'The upload failed ('+xhr.status+'). Try again.'; err.hidden=false; box.hidden=true; go.disabled=false; };
+    xhr.onerror=function(){ err.textContent='The upload did not get through. Check the connection and try again.'; err.hidden=false; box.hidden=true; go.disabled=false; };
+    xhr.send(new FormData(form));
+  });
+})();
+</script>
+{% endblock %}
 {% block content %}
 <div class="page-head">
   <div>
@@ -27,8 +47,10 @@
         <select class="in" name="supplier_id"><option value="">Not sure yet</option>{% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}{% if s.city %} · {{ s.city }}{% endif %}</option>{% endfor %}</select>
         <div class="help">Naming the shop lets earlier confirmed matches from it apply at once.</div></div>
     </div>
-    <div class="row mt"><button class="btn accent"><svg class="ic"><use href="#i-upload"/></svg>Read the sheet</button>
+    <div class="row mt"><button class="btn accent" id="qi-go"><svg class="ic"><use href="#i-upload"/></svg>Read the sheet</button>
       <span class="small muted">{% if claude %}Claude suggests the matches; you confirm every line.{% else %}Matched by words and sizes; set ANTHROPIC_API_KEY for Claude's suggestions.{% endif %}</span></div>
+    <div class="qi-upload" id="qi-upload" hidden><div class="bar"><i style="width:0"></i></div><div class="small muted" id="qi-upload-note">Uploading…</div></div>
+    <div class="alert err mt" id="qi-upload-err" hidden></div>
   </form>
 
   <form method="get" action="/p/{{ p.id }}/quotations/inquiry.xlsx" class="card" id="inquiry">

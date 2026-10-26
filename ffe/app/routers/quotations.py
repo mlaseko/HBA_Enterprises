@@ -8,7 +8,7 @@ import re
 import uuid
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 from urllib.parse import quote as urlquote
 
@@ -17,7 +17,7 @@ from .. import drawings, lists, storage
 from .. import quotations as qz
 from ..common import content_disposition, ffloat, fint, get_project, redirect, render, require_login
 from ..db import get_db
-from ..models import Project, Quotation, QuotationLine, Supplier
+from ..models import Project, Quotation, QuotationLine, QuotationUpload, Supplier
 from .items import floor_choices, on_floor
 
 router = APIRouter(dependencies=[Depends(require_login)])
@@ -77,34 +77,57 @@ def quotations_page(request: Request, p: Project = Depends(get_project), db: Ses
 @router.post("/p/{project_id}/quotations")
 async def upload_quotation(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), file: UploadFile | None = File(None),
                            supplier_id: str = Form("")):
-    """Step one: read the sheet, keep the file and its pictures, work out the suggestions, show the preview."""
+    """Step one: keep the file and read it on a thread; the working page shows the stages and opens the preview. With
+    Accept: application/json (the form's own uploader, which shows the bytes going up) the answer is {"next": url}."""
     data = await file.read() if file is not None else b""
     name = (file.filename or "quotation.xlsx") if file is not None else ""
     ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    wants_json = "application/json" in (request.headers.get("accept") or "")
     if not data or ext not in qz.EXTENSIONS:
-        return redirect(f"/p/{p.id}/quotations?err=" + urlquote("Choose the supplier's Excel file (.xlsx or .xls) first."))
-    try:
-        parsed = qz.parse(qz.read_sheets(data, name), name)
-    except qz.ReadError as e:
-        return redirect(f"/p/{p.id}/quotations?err=" + urlquote(str(e)))
-    supplier = db.get(Supplier, int(supplier_id)) if supplier_id.isdigit() else None
-    base = f"quotations/p{p.id}/{uuid.uuid4().hex}"
-    file_key = storage.save_blob(data, f"{base}.{ext}", qz.XLSX if ext != "xls" else "application/vnd.ms-excel")
-    pictures: dict[int, tuple[str, str]] = {}
-    for no, blob in parsed["pictures"].items():
-        try:
-            fk, tk, _ = storage.save_photo(blob, f"p{p.id}/quotations")
-        except Exception:
-            continue
-        pictures[int(no)] = (fk, tk)
-    raw_pictures = parsed.pop("pictures")
-    sug = qz.suggest(db, p, parsed, raw_pictures, supplier)
-    db.commit()  # product rows made on the way
-    state = dict(parsed=parsed, suggestions=sug["lines"], claude=sug["claude"], pictures={str(k): list(v) for k, v in pictures.items()},
-                 file_key=file_key, supplier_id=supplier.id if supplier else None)
-    key = f"{base}.json"
-    storage.save_blob(json.dumps(state, ensure_ascii=False).encode("utf-8"), key, "application/json")
-    return redirect(f"/p/{p.id}/quotations/preview?key={urlquote(key)}")
+        err = "Choose the supplier's Excel file (.xlsx or .xls) first."
+        if wants_json:
+            return JSONResponse({"error": err}, status_code=400)
+        return redirect(f"/p/{p.id}/quotations?err=" + urlquote(err))
+    sid = int(supplier_id) if supplier_id.isdigit() and db.get(Supplier, int(supplier_id)) is not None else None
+    up = qz.start_upload(db, p, data, name, sid)
+    url = f"/p/{p.id}/quotations/working/{up.id}"
+    if wants_json:
+        return JSONResponse({"next": url})
+    return redirect(url)
+
+
+def _upload(db: Session, p: Project, upload_id: int) -> QuotationUpload | None:
+    up = db.get(QuotationUpload, upload_id)
+    return up if up is not None and up.project_id == p.id else None
+
+
+def _upload_status(p: Project, up: QuotationUpload) -> dict:
+    stages = [k for k, _ in qz.STAGES]
+    at = stages.index(up.stage) if up.stage in stages else (len(stages) if up.stage == "done" else -1)
+    return dict(stage=up.stage, message=up.message, lines=up.lines, pictures=up.pictures, claude=up.claude, done=up.stage == "done",
+                error=up.message if up.stage == "error" else "", at=at,
+                next=f"/p/{p.id}/quotations/preview?key={urlquote(up.state_key)}" if up.stage == "done" else "",
+                steps=[dict(key=k, title=t, state="done" if (up.stage == "done" or i < at) else ("now" if i == at else "")) for i, (k, t) in enumerate(qz.STAGES)])
+
+
+@router.get("/p/{project_id}/quotations/working/{upload_id}")
+def working_page(request: Request, upload_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    up = _upload(db, p, upload_id)
+    if up is None:
+        return redirect(f"/p/{p.id}/quotations?err=" + urlquote("That upload is no longer here."))
+    st = _upload_status(p, up)
+    if st["done"]:
+        return redirect(st["next"])
+    return render(request, "buying/quotation_working.html", p=p, up=up, st=st)
+
+
+@router.get("/p/{project_id}/quotations/working/{upload_id}/status")
+def working_status(upload_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    up = _upload(db, p, upload_id)
+    if up is None:
+        return JSONResponse({"stage": "error", "error": "That upload is no longer here.", "done": False, "steps": []}, status_code=404)
+    db.refresh(up)
+    return JSONResponse(_upload_status(p, up))
 
 
 def _preview_ctx(db: Session, p: Project, state: dict) -> dict:
