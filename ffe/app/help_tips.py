@@ -161,6 +161,12 @@ TIPS = {
                "<b>Inquiry sheet for a supplier</b>: download one row per product (a category or a floor) with our code, the spec and the quantity, and yellow cells for their price. When they fill it in and send it back, the code column matches every line on its own."],
         tips=["Open a quotation to see each line as written, what it became, the terms, and the products of those categories the shop did not price.",
               "Deleting a quotation deletes the quotes it made that nothing was bought from; rooms already bought keep their prices."]),
+    "quotation_working": dict(
+        title="Reading a quotation", anchor="quotations",
+        what="The sheet is being read on the server: the file received, the sheet read, its pictures saved, the lines matched. The preview opens by itself when it is ready.",
+        steps=["Wait: a big sheet with many pictures takes up to a minute, longer with Claude matching. Each step ticks as it finishes.",
+               "If it stops with an error, the message says why (an unreadable file, no header row); go back and upload the right file."],
+        tips=["Leaving the page does not stop the work: Back to quotations and open the preview later from the same link, or upload again."]),
     "quotation_preview": dict(
         title="Checking a quotation", anchor="quotations",
         what="The sheet read line by line, with the product each line seems to quote. Nothing is saved until you press Save the quotation.",
@@ -354,7 +360,7 @@ TEMPLATE_KEYS = {
     "import.html": "import", "settings.html": "settings", "clip.html": "clip", "share/supplier.html": "share_supplier", "plan/match.html": "plan_match",
     "share/client.html": "share_client", "buying/list.html": "buying", "buying/product.html": "buying_product", "buying/schedule.html": "buying_schedule",
     "buying/orders.html": "orders", "buying/order.html": "order", "buying/tracker.html": "tracker",
-    "buying/quotations.html": "quotations", "buying/quotation_preview.html": "quotation_preview", "buying/quotation.html": "quotation",
+    "buying/quotations.html": "quotations", "buying/quotation_preview.html": "quotation_preview", "buying/quotation_working.html": "quotation_working", "buying/quotation.html": "quotation",
     "carton.html": "carton", "shipping/list.html": "shipments", "shipping/shipment.html": "shipment", "lists.html": "lists",
 }
 

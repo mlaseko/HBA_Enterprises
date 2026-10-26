@@ -50,7 +50,7 @@
 </div>
 
 <div class="card tight qi-summary">
-  <div class="row wrap">
+  <div class="row">
     <span class="pill green">{{ counts.quote }} matched</span>
     <span class="pill accent">{{ counts.new }} new</span>
     <span class="pill gold">{{ counts.merge }} merged</span>
@@ -74,7 +74,7 @@
       {% if l.detail %}<details class="qi-detail"><summary>Description</summary><div class="small">{{ l.detail }}</div></details>{% endif %}
     </div>
     <div class="qi-pick">
-      <div class="row wrap qi-head">
+      <div class="row qi-head">
         <select class="in qi-act" name="act_{{ l.no }}" aria-label="What to do with line {{ l.no }}">
           <option value="quote" {{ 'selected' if s.action == 'quote' }}>Quotes a product</option>
           <option value="new" {{ 'selected' if s.action == 'new' }}>New item in the design</option>
@@ -114,9 +114,9 @@
 </div>
 
 <div class="card tight qi-bar">
-  <div class="row between wrap">
-    <span class="small muted">Lines that quote the same product are combined into one quote (total amount over total quantity). Confirmed matches are remembered for this shop's next sheet.</span>
-    <button class="btn accent lg"><svg class="ic"><use href="#i-check"/></svg>Save the quotation</button>
+  <div class="row between">
+    <span class="small muted hide-m">Lines that quote the same product are combined into one quote (total amount over total quantity). Confirmed matches are remembered for this shop's next sheet.</span>
+    <button class="btn accent lg" id="qi-save"><svg class="ic"><use href="#i-check"/></svg>Save the quotation</button>
   </div>
 </div>
 </form>
@@ -136,6 +136,7 @@
     out.textContent=!sel.value?'':(mine?'Updates this shop\u2019s quote of '+mine+' on this product; rooms bought from it follow.':'Adds a new quote on this product'+(others?' (already quoted by '+others+' other shop'+(others>1?'s':'')+')':'')+'.'); }
   function newsup(){ var on=sup.value==='__new__'; form.querySelectorAll('.qi-newsup').forEach(function(d){d.hidden=!on;}); form.querySelectorAll('.qi-line').forEach(upd); }
   sup.addEventListener('change',newsup); newsup();
+  form.addEventListener('submit',function(){ var b=document.getElementById('qi-save'); if(b){ b.disabled=true; b.innerHTML='<span class="qi-spin"></span>Saving the quotation…'; } });
   form.addEventListener('change',function(e){ var line=e.target.closest('.qi-line'); if(line&&e.target.classList.contains('qi-prod')) upd(line); });
 })();
 </script>

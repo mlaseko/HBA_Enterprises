@@ -1824,10 +1824,27 @@ with TestClient(app) as c:
         ws.append(["Notes."]); ws.append(["1.Delivery Term: EXW"]); ws.append(["2.Payment terms: 50% deposit by T/T"])
         pic=_XLImage(io.BytesIO(img("teal"))); pic.width, pic.height = 60, 60; ws.add_image(pic, "F10")
         buf=io.BytesIO(); wb.save(buf); return buf.getvalue()
+    import time as _time
+    def upload_quote(name, data, supplier_id=""):
+        """Upload a sheet and wait for the working page to finish; returns (preview location, last status dict)."""
+        r=c.post(f"/p/{pid_q}/quotations", data={"supplier_id":supplier_id}, files={"file":(name, data)}, follow_redirects=False)
+        assert r.status_code==303 and "/quotations/working/" in r.headers["location"], (r.status_code, r.headers.get("location"))
+        wurl=r.headers["location"]; st=None
+        for _ in range(300):
+            st=c.get(wurl+"/status").json()
+            if st["done"] or st["stage"]=="error": break
+            _time.sleep(0.1)
+        assert st is not None and (st["done"] or st["stage"]=="error"), st
+        if st["done"]:
+            r=c.get(wurl, follow_redirects=False); assert r.status_code==303 and r.headers["location"]==st["next"]  # the page itself opens the preview once done
+        return (st["next"] if st["done"] else ""), st
     # bad files
     r=c.post(f"/p/{pid_q}/quotations", files={"file":("q.txt", b"hello")}, follow_redirects=False); assert "err=" in r.headers["location"]
+    r=c.post(f"/p/{pid_q}/quotations", files={"file":("q.txt", b"hello")}, headers={"Accept":"application/json"}); assert r.status_code==400 and "Excel" in r.json()["error"]
     nb=openpyxl.Workbook(); nb.active.append(["Just","a","note"]); b2=io.BytesIO(); nb.save(b2)
-    r=c.post(f"/p/{pid_q}/quotations", files={"file":("q.xlsx", b2.getvalue())}, follow_redirects=False); assert "No%20quotation%20lines" in r.headers["location"], r.headers["location"]
+    loc,st=upload_quote("q.xlsx", b2.getvalue()); assert loc=="" and st["stage"]=="error" and "No quotation lines" in st["error"], st
+    r=c.get(f"/p/{pid_q}/quotations/working/999999", follow_redirects=False); assert "no%20longer%20here" in r.headers["location"]
+    assert c.get(f"/p/{pid_q}/quotations/working/999999/status").status_code==404
     # Claude picks from the shortlists; its answer is checked against the real products
     import app.ai as ai
     os.environ["ANTHROPIC_API_KEY"]="test-key"; qcalls=[]
@@ -1843,12 +1860,20 @@ with TestClient(app) as c:
                          {"line":5,"action":"merge","product":"","merge_into":4,"room":"","category":"","confidence":0.85,"reason":"glass of the handrail"},
                          {"line":99,"action":"quote","product":"P1","merge_into":0,"room":"","category":"","confidence":1,"reason":"ignored: no such line"}]}
     ai._call=fake_quote_call
-    r=c.post(f"/p/{pid_q}/quotations", files={"file":("Tile quotation.xlsx", quote_sheet())}, follow_redirects=False); assert r.status_code==303 and "preview?key=" in r.headers["location"], r.headers
+    r=c.post(f"/p/{pid_q}/quotations", files={"file":("Tile quotation.xlsx", quote_sheet())}, headers={"Accept":"application/json"}); assert r.status_code==200 and "/quotations/working/" in r.json()["next"], r.text[:300]
+    wurl=r.json()["next"]; r=c.get(wurl); assert r.status_code in (200, 303)  # the working page (or the preview already, when the thread was quick)
+    if r.status_code==200: assert "Reading the quotation" in r.text and "Matching the lines" in r.text
+    for _ in range(300):
+        st=c.get(wurl+"/status").json()
+        if st["done"] or st["stage"]=="error": break
+        _time.sleep(0.1)
+    assert st["done"] and st["lines"]==5 and st["pictures"]==1 and st["claude"] and st["steps"][-1]["state"]=="done", st
+    loc=st["next"]; assert "preview?key=" in loc
     from urllib.parse import unquote as _unq
-    qkey=_unq(r.headers["location"].split("key=")[1]); assert qkey.startswith(f"quotations/p{pid_q}/") and qkey.endswith(".json")
+    qkey=_unq(loc.split("key=")[1]); assert qkey.startswith(f"quotations/p{pid_q}/") and qkey.endswith(".json")
     assert qcalls and kw_ok(qcalls[-1][1]) if (kw_ok:=lambda kw: kw.get("system") and kw.get("effort")=="medium" and kw.get("max_tokens")>=8000) else False
     assert any(b.get("type")=="image" for b in qcalls[-1][0]) and "Picture of line L1" in [b["text"] for b in qcalls[-1][0] if b.get("type")=="text"][0]
-    r=c.get(r.headers["location"]); assert r.status_code==200 and "Check the quotation" in r.text and "Tile quotation" in r.text
+    r=c.get(loc); assert r.status_code==200 and "Check the quotation" in r.text and "Tile quotation" in r.text
     h=r.text
     assert 'name="act_1"' in h and h.count('<article class="qi-line')==5 and "First floor (Including 10% of wastage)" in h
     assert re.search(r'name="act_1"[^>]*>\s*<option value="quote" selected', h) and re.search(r'name="act_3"[^>]*>(?:(?!</select>).)*value="skip" selected', h, re.S) and re.search(r'name="act_4"[^>]*>(?:(?!</select>).)*value="new" selected', h, re.S)
@@ -1890,9 +1915,9 @@ with TestClient(app) as c:
     r=c.get(f"/p/{pid_q}/quotations"); assert "Tiles from Cathy" in r.text and "Foshan Ceramics" in r.text and "1 new" in r.text
     # the same sheet again, Claude off: the shop's remembered matches apply by item number
     del os.environ["ANTHROPIC_API_KEY"]; qcalls.clear()
-    r=c.post(f"/p/{pid_q}/quotations", data={"supplier_id":str(shop.id)}, files={"file":("Tile quotation v2.xlsx", quote_sheet())}, follow_redirects=False); key2=_unq(r.headers["location"].split("key=")[1])
-    assert not qcalls
-    h=c.get(r.headers["location"]).text; assert "matched before by item number" in h and "97%" in h and re.search(r'name="prod_1"[^>]*>(?:(?!</select>).)*value="%d"[^>]*selected'%big_id, h, re.S) and re.search(r'name="act_3"[^>]*>(?:(?!</select>).)*value="skip" selected', h, re.S)
+    loc2,st=upload_quote("Tile quotation v2.xlsx", quote_sheet(), str(shop.id)); key2=_unq(loc2.split("key=")[1])
+    assert not qcalls and not st["claude"]
+    h=c.get(loc2).text; assert "matched before by item number" in h and "97%" in h and re.search(r'name="prod_1"[^>]*>(?:(?!</select>).)*value="%d"[^>]*selected'%big_id, h, re.S) and re.search(r'name="act_3"[^>]*>(?:(?!</select>).)*value="skip" selected', h, re.S)
     assert f'<option value="{shop.id}" selected' in h  # the shop named on the upload
     assert re.search(r'data-q="[^"]*%d:USD 14\.41[^"]*"[^>]*selected' % shop.id, h), "the product option says the shop quoted it"
     assert re.search(r'name="act_4"[^>]*>(?:(?!</select>).)*value="quote" selected', h, re.S) and "matched before by wording" in h  # the new item of the first round is a product now
@@ -1909,7 +1934,7 @@ with TestClient(app) as c:
     db.close()
     r=c.get(f"/p/{pid_q}/quotations/{qd2_id}"); assert r.status_code==200 and "second round" in r.text
     # a third upload, discarded
-    r=c.post(f"/p/{pid_q}/quotations", data={"supplier_id":str(shop.id)}, files={"file":("Tile quotation v3.xlsx", quote_sheet())}, follow_redirects=False); key3=_unq(r.headers["location"].split("key=")[1])
+    loc3,_=upload_quote("Tile quotation v3.xlsx", quote_sheet(), str(shop.id)); key3=_unq(loc3.split("key=")[1])
     r=c.post(f"/p/{pid_q}/quotations/cancel", data={"key":key3}, follow_redirects=False); assert r.headers["location"]==f"/p/{pid_q}/quotations"
     r=c.get(f"/p/{pid_q}/quotations/preview?key={key3}", follow_redirects=False); assert "no%20longer%20here" in r.headers["location"]
     r=c.post(f"/p/{pid_q}/quotations/{qd2_id}/delete", follow_redirects=False); assert "2%20quotes%20nothing%20was%20bought%20from" in r.headers["location"], r.headers["location"]  # the second document: its quotes are the first's
@@ -1923,7 +1948,7 @@ with TestClient(app) as c:
     assert db.query(Item).filter(Item.project_id==pid_q, Item.name=="Stair handrail with glass").first() is not None  # the item stays
     db.close(); assert _st.read_image(fk) is None and _st.read_image(pk) is None
     # deleting the shop: its remembered matches go, its quotation sheets stay without a shop, its quotes go with the purchases (buying.drop_supplier)
-    r=c.post(f"/p/{pid_q}/quotations", data={"supplier_id":str(shop.id)}, files={"file":("Tile quotation v4.xlsx", quote_sheet())}, follow_redirects=False); key4=_unq(r.headers["location"].split("key=")[1])
+    loc4,_=upload_quote("Tile quotation v4.xlsx", quote_sheet(), str(shop.id)); key4=_unq(loc4.split("key=")[1])
     r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(base, key=key4, supplier_id=str(shop.id), act_4="skip", act_5="skip"), follow_redirects=False); qd4=int(r.headers["location"].split("/quotations/")[1].split("?")[0])
     r=c.post(f"/suppliers/{shop.id}/delete", follow_redirects=False); assert r.status_code==303
     db=SessionLocal(); assert db.get(Supplier, shop.id) is None and db.query(_QM).filter(_QM.supplier_id==shop.id).count()==0

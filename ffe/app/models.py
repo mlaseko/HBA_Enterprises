@@ -762,6 +762,23 @@ class QuotationLine(Base):
         return self.thumb_key or self.photo_key
 
 
+class QuotationUpload(Base):
+    """A quotation sheet being read: the upload page follows its stages (saved → reading → pictures → matching → done)
+    while quotations.process_upload works on a thread of its own, then opens the preview (state_key)."""
+    __tablename__ = "quotation_uploads"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
+    filename: Mapped[str] = mapped_column(String(255), default="")
+    stage: Mapped[str] = mapped_column(String(12), default="saved")  # saved | reading | pictures | matching | done | error
+    message: Mapped[str] = mapped_column(String(300), default="")
+    lines: Mapped[int] = mapped_column(Integer, default=0)
+    pictures: Mapped[int] = mapped_column(Integer, default=0)
+    claude: Mapped[bool] = mapped_column(Boolean, default=False)
+    state_key: Mapped[str] = mapped_column(String(255), default="")  # the preview's state once done
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+
 class QuoteMatch(Base):
     """A match the designer confirmed on a quotation preview: this supplier's item number or wording means that product
     (by product key, so it carries across projects). The next quotation from the shop matches by it before anything

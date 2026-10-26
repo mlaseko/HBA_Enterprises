@@ -21,6 +21,8 @@ import datetime as dt
 import io
 import json
 import re
+import threading
+import uuid
 from collections import Counter
 
 from openpyxl import Workbook, load_workbook
@@ -31,7 +33,7 @@ from PIL import Image as PILImage
 from sqlalchemy.orm import Session
 
 from . import ai, buying, config, drawings, lists, storage
-from .models import Item, Product, Project, Purchase, Quotation, QuotationLine, Quote, QuoteMatch, Supplier
+from .models import Item, Product, Project, Purchase, Quotation, QuotationLine, QuotationUpload, Quote, QuoteMatch, Supplier
 from .services import next_code, product_key
 
 # ---- reading the sheet ---------------------------------------------------------------------------------------------------
@@ -1088,3 +1090,69 @@ def inquiry_workbook(p: Project, db: Session, cands: list[Candidate], currency: 
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
+
+
+# ---- reading an upload on a thread, so the page can show the stages ----------------------------------------------------------
+STAGES = [("saved", "File received"), ("reading", "Reading the sheet"), ("pictures", "Saving the pictures"), ("matching", "Matching the lines to products"),
+          ("done", "Ready to check")]
+
+
+def start_upload(db: Session, p: Project, data: bytes, filename: str, supplier_id: int | None) -> QuotationUpload:
+    """Keep the file, make the upload row, and read the sheet on a thread of its own (process_upload). Returns the row
+    (committed) that the working page follows."""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "xlsx"
+    base = f"quotations/p{p.id}/{uuid.uuid4().hex}"
+    file_key = storage.save_blob(data, f"{base}.{ext}", XLSX if ext != "xls" else "application/vnd.ms-excel")
+    up = QuotationUpload(project_id=p.id, filename=filename[:255], stage="saved", message=f"{len(data) / 1024:,.0f} KB received")
+    db.add(up)
+    db.commit()
+    threading.Thread(target=process_upload, args=(up.id, p.id, data, filename, file_key, base, supplier_id), name=f"quotation-{up.id}", daemon=True).start()
+    return up
+
+
+def _set_stage(upload_id: int, stage: str, **fields) -> None:
+    from .db import SessionLocal
+    with SessionLocal() as db:
+        up = db.get(QuotationUpload, upload_id)
+        if up is not None:
+            up.stage = stage
+            for k, v in fields.items():
+                setattr(up, k, v)
+            db.commit()
+
+
+def process_upload(upload_id: int, project_id: int, data: bytes, filename: str, file_key: str, base: str, supplier_id: int | None) -> None:
+    """The work behind the upload page: parse, save the pictures, suggest the matches, write the preview's state."""
+    from .db import SessionLocal
+    try:
+        _set_stage(upload_id, "reading")
+        parsed = parse(read_sheets(data, filename), filename)
+        n_pics = len(parsed["pictures"])
+        _set_stage(upload_id, "pictures", lines=len(parsed["lines"]), pictures=n_pics,
+                   message=f"{len(parsed['lines'])} lines, {n_pics} picture{'s' if n_pics != 1 else ''}")
+        pictures: dict[int, tuple[str, str]] = {}
+        for no, blob in parsed["pictures"].items():
+            try:
+                fk, tk, _ = storage.save_photo(blob, f"p{project_id}/quotations")
+            except Exception:
+                continue
+            pictures[int(no)] = (fk, tk)
+        raw_pictures = parsed.pop("pictures")
+        _set_stage(upload_id, "matching", claude=ai.enabled(),
+                   message="Claude is reading the lines and pictures" if ai.enabled() else "Matching by words and sizes")
+        with SessionLocal() as db:
+            p = db.get(Project, project_id)
+            supplier = db.get(Supplier, supplier_id) if supplier_id else None
+            sug = suggest(db, p, parsed, raw_pictures, supplier)
+            db.commit()  # product rows made on the way
+        state = dict(parsed=parsed, suggestions=sug["lines"], claude=sug["claude"], pictures={str(k): list(v) for k, v in pictures.items()},
+                     file_key=file_key, supplier_id=supplier_id)
+        key = f"{base}.json"
+        storage.save_blob(json.dumps(state, ensure_ascii=False).encode("utf-8"), key, "application/json")
+        _set_stage(upload_id, "done", state_key=key, claude=sug["claude"], message="")
+    except ReadError as e:
+        storage.delete_image(file_key)
+        _set_stage(upload_id, "error", message=str(e)[:300])
+    except Exception as e:  # anything else: say so rather than hang the page
+        storage.delete_image(file_key)
+        _set_stage(upload_id, "error", message=f"Could not read the sheet: {type(e).__name__}: {str(e)[:200]}")
