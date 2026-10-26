@@ -13,7 +13,7 @@ from .models import Project, Settings, ItemPhoto
 from urllib.parse import quote
 from .common import (render, redirect, require_login, LoginRequired, make_session_cookie, check_password, COOKIE,
                      get_settings, is_logged_in, ffloat)
-from .routers import projects, rooms, items, suppliers, payments, cartons, share, exports, importer, capture, clip, plan, buy, orders, shipping, lists as lists_page
+from .routers import projects, rooms, items, suppliers, payments, cartons, share, exports, importer, capture, clip, plan, buy, orders, shipping, quotations, lists as lists_page
 
 app = FastAPI(title=config.APP_NAME)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -230,6 +230,7 @@ app.include_router(rooms.router)
 app.include_router(items.router)
 app.include_router(buy.router)
 app.include_router(orders.router)
+app.include_router(quotations.router)
 app.include_router(suppliers.router)
 app.include_router(payments.router)
 app.include_router(cartons.router)

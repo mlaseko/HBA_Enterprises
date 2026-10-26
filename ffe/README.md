@@ -224,6 +224,31 @@ name** (or set the Kind by hand): every existing entry starts as a room.
   lines of the supplier named "Test" and prices without a supplier are cleared; every other supplier typed on a line
   becomes a quote and a purchase covering those lines (statuses kept); a draft's price moves into its notes.
 
+## Supplier quotations
+
+- **Buying › Quotations** (`app/quotations.py`, `routers/quotations.py`): a supplier's own Excel quotation (.xlsx with its
+  pictures, .xls through `xlrd` without them) is read whatever its layout: the header block (date, valid until, sales,
+  lead time, payment terms), the header row found by its words (`HEADER_WORDS`, merged headers filled to the right,
+  several tables on one sheet), the lines with section headings, item numbers, sizes (or width × height), packs, weights,
+  pictures by row anchor, the extra charges, the total, an after-discount total and the terms. The file, its pictures and
+  the preview's state wait in storage under `quotations/p<id>/` between the preview and apply, like the Excel import.
+- Matching: a confirmed match from an earlier sheet of the same shop (`quote_matches`, by item number or wording) or our
+  own code (a reply to the inquiry sheet) wins; otherwise `score()` shortlists products by words, size, unit, rooms and
+  quantity, and Claude (`ai._call` with `SUGGEST_SYSTEM` / `SUGGEST_SCHEMA`, effort medium, up to 40 line pictures) picks
+  from the shortlists with a confidence and a reason when `ANTHROPIC_API_KEY` is set. The designer confirms every line on
+  the preview: quote (with the product), new (an item is created in the chosen rooms), merge (into another line), extra,
+  skip. Servant / staff quarters lines are skipped by default.
+- Apply (`quotations.apply`): a `Quotation` row (supplier, title, date, validity, currency, total, discount, charges,
+  terms, lead time, the file) with a `QuotationLine` per line (as written, picture, action, product, quote, merged-into),
+  one `Quote` per product (a shop that already quoted the product has that quote corrected through `buying.follow_quote`,
+  never a second one; lines of the same product combined: total amount over total quantity, merged lines' amounts
+  added, the discount pro rata, the item numbers in `Quote.model`, the picture copied, the lead time from the sheet, the
+  differences noted), new items with `next_code`, and the matches remembered. Deleting a quotation deletes the quotes it
+  made that no purchase uses.
+- `GET /p/<id>/quotations/inquiry.xlsx?category=&floor=&currency=` is the inquiry sheet for a supplier: one row per
+  product with our code, photo, spec, rooms, quantity and yellow cells for their price; a reply keeps the code column and
+  matches on import. New tables: `quotations`, `quotation_lines`, `quote_matches` (create_all). New dependency: `xlrd`.
+
 ## Shipping
 
 - A box (`cartons`) names the room lines it holds in `item_codes`: the codes ticked on the box form, then any free text

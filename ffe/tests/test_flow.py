@@ -1773,4 +1773,162 @@ with TestClient(app) as c:
     # the studio's category -> plan sheet table offers every project's categories
     assert "Murals" in c.get("/settings").text
     print("lists ok")
+    # ---- supplier quotations: upload a supplier's sheet, confirm the preview, apply; the inquiry sheet; memory; delete ----
+    import datetime as _dt
+    from openpyxl.drawing.image import Image as _XLImage
+    from app.models import Quotation as _QD, QuotationLine as _QL, QuoteMatch as _QM, Product as _Pr, Quote as _Qt, Purchase as _Pu
+    from app import quotations as _qz
+    r=c.post("/projects/new", data={"client_name":"M","name":"Quote House","rate":"7.1"}, follow_redirects=False); pid_q=int(r.headers["location"].split("/")[-1])
+    with open("samples/Kinondoni_House_Procurement_List.xlsx","rb") as f:
+        r=c.post(f"/p/{pid_q}/import", files={"file":("list.xlsx", f.read())}, data={"apply":"1"}); assert "Imported" in r.text
+    r=c.get(f"/p/{pid_q}/quotations"); assert r.status_code==200 and "Upload a quotation" in r.text and "Inquiry sheet" in r.text and "No quotation yet" in r.text
+    assert 'href="/p/%d/quotations"'%pid_q in c.get(f"/p/{pid_q}/buying").text  # the tab
+    # the inquiry sheet: one row per product of the category, our code first, yellow cells for the shop
+    r=c.get(f"/p/{pid_q}/quotations/inquiry.xlsx?category=Tiles"); assert r.status_code==200 and r.headers["content-type"].startswith("application/vnd.openxml")
+    iw=openpyxl.load_workbook(io.BytesIO(r.content)); iws=iw["Inquiry"]; hdr=[c_.value for c_ in iws[4]]; assert hdr[:2]==["Our code","Product"] and "Unit price" in hdr
+    irows=[[c_.value for c_ in row] for row in iws.iter_rows(min_row=5) if row[0].value]; assert any(x[0]=="GF-ENT-01" and x[1].startswith("Floor - big") for x in irows) and all("Tiles" not in str(x[1]) or True for x in irows), irows[:2]
+    assert not any(x[1].startswith("Basin mixer") for x in irows)  # only the category asked
+    # the parser on the sample supplier files (when they are in the repo), and its units and sizes
+    assert _qz.dims("600*1200")==[1200.0,600.0] and _qz.dims("main cabinet:1470*420*350")==[1470.0,420.0,350.0] and _qz.dims("1200 x 2400 mm, satin")==[2400.0,1200.0] and _qz.dims("90 cm")==[900.0] and _qz.dims("T=12")==[]
+    assert _qz._unit("SQM")=="m²" and _qz._unit("PCS")=="pcs" and _qz._unit("set")=="set" and _qz._unit("M")=="m"
+    _sdir=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "samples", "quotes", "kinondoni")
+    _tile=os.path.join(_sdir, "KINO-tile quotation.xlsx")
+    if os.path.exists(_tile):
+        _pt=_qz.parse(_qz.read_sheets(open(_tile,"rb").read(), "KINO-tile quotation.xlsx"), "KINO-tile quotation.xlsx")
+        assert len(_pt["lines"])==29 and _pt["currency"]=="USD" and round(_pt["total"])==22586 and _pt["charges"][0]["amount"]==950 and _pt["head"]["sales"]=="Cathy" and _pt["head"]["quote_date"]=="2026-10-26"
+        l1=_pt["lines"][0]; assert l1["ref"]=="GC-CX612Y91-SW" and l1["place"]=="main floor" and l1["section"].startswith("Basement floor") and l1["unit"]=="m²" and l1["qty"]==132.48 and l1["unit_price"]==16 and l1["pack_size"]==1.44 and l1["picture"]=="yes"
+        assert _qz.out_of_scope(_pt["lines"][21]) and len(_pt["pictures"])>=25 and any(t.startswith("1.Delivery") for t in _pt["terms"])
+        _door=os.path.join(_sdir, "Kino Porject- aluminum door and window quotation--10.26 .xls")
+        if os.path.exists(_door):
+            _pd=_qz.parse(_qz.read_sheets(open(_door,"rb").read(), "x.xls"), "x.xls")
+            assert len(_pd["lines"])==35 and _pd["lines"][0]["ref"]=="F1-W01" and _pd["lines"][0]["size"]=="2160 x 2860 mm" and round(_pd["discount"])==630 and _pd["head"]["quote_date"]=="2026-10-24" and _pd["head"]["valid_until"]=="15 days"
+            assert "Sliding Window" in _pd["lines"][0]["detail"] and "glass:" in _pd["lines"][0]["detail"].lower()
+    # a supplier's sheet in their own layout: header block, merged "Area" header, a section row, a picture, a charge, discount, terms
+    def quote_sheet():
+        wb=openpyxl.Workbook(); ws=wb.active; ws.title="Quotation"
+        ws["A2"]="Customer"; ws["K2"]="Customer Country"; ws["N2"]="Tanzania"
+        ws["A4"]="Quote Date"; ws["F4"]=_dt.datetime(2026,10,26); ws["K4"]="Valid until"; ws["N4"]="15 days"
+        ws["A5"]="Order NO"; ws["K5"]="Sales"; ws["N5"]="Cathy"; ws["A6"]="Date of order"; ws["K6"]="Date of deliver"; ws["N6"]="25-30 days after deposit"
+        ws.append([]); ws.append(["No","Area",None,"Product Type","Item Number","Design","Size(mm)","Total QTY","Unit","Unit Price(USD)","Amount(USD)","Description","PCS/CTN","SQM/CTN","Remarks"])
+        ws.merge_cells("B8:C8")
+        ws.append([None,"First floor (Including 10% of wastage)"])
+        ws.append([1,None,"main floor","Porcelain tile","GC-1",None,"600*1200",100,"SQM",16,1600,"Surface:Matte\nThickness:9mm",2,1.44,None])
+        ws.append([2,None,"bath floor","Porcelain tile","GC-2",None,"600*1200",20,"SQM",12,240,"Matte",2,1.44,None])
+        ws.append([3,None,"Servant quarters floor","Porcelain tile","GC-1",None,"600*1200",10,"SQM",16,160,"Matte",2,1.44,None])
+        ws.append([4,None,"stairs","Stair handrail",None,None,"75*45",20,"m",24,480,"solid wood top rail, beech wood",None,None,None])
+        ws.append([5,None,None,None,"Glass",None,"T=12",23,"SQM",44,1012,"12 mm tempered",None,None,None])
+        ws.append(["wooden pallet",None,None,None,None,None,None,None,None,None,950])
+        ws.append(["Total amount:",None,None,None,None,None,None,None,None,None,None,None,None,4442])
+        ws.append(["AFTER DISCOUNT:",None,None,None,None,None,None,None,None,None,None,None,None,4000])
+        ws.append(["Deposit:",None,None,None,None,None,None,None,None,None,None,None,None,2000])
+        ws.append(["Notes."]); ws.append(["1.Delivery Term: EXW"]); ws.append(["2.Payment terms: 50% deposit by T/T"])
+        pic=_XLImage(io.BytesIO(img("teal"))); pic.width, pic.height = 60, 60; ws.add_image(pic, "F10")
+        buf=io.BytesIO(); wb.save(buf); return buf.getvalue()
+    # bad files
+    r=c.post(f"/p/{pid_q}/quotations", files={"file":("q.txt", b"hello")}, follow_redirects=False); assert "err=" in r.headers["location"]
+    nb=openpyxl.Workbook(); nb.active.append(["Just","a","note"]); b2=io.BytesIO(); nb.save(b2)
+    r=c.post(f"/p/{pid_q}/quotations", files={"file":("q.xlsx", b2.getvalue())}, follow_redirects=False); assert "No%20quotation%20lines" in r.headers["location"], r.headers["location"]
+    # Claude picks from the shortlists; its answer is checked against the real products
+    import app.ai as ai
+    os.environ["ANTHROPIC_API_KEY"]="test-key"; qcalls=[]
+    def fake_quote_call(content, schema=None, **kw):
+        qcalls.append((content, kw))
+        text=[b for b in content if b.get("type")=="text"][-1]["text"]
+        big=re.search(r"P(\d+) \| Tiles \| Floor - big porcelain slab", text).group(1); bath=re.search(r"P(\d+) \| Tiles \| Bathroom floor - anti-slip", text).group(1)
+        assert "L1 | First floor (Including 10% of wastage) / main floor | GC-1 | Porcelain tile | 600*1200 | 100 m² | 16 USD" in text, text[:3000]
+        return {"lines":[{"line":1,"action":"quote","product":"P"+big,"merge_into":0,"room":"","category":"","confidence":0.92,"reason":"main floor tile"},
+                         {"line":2,"action":"quote","product":"P"+bath,"merge_into":0,"room":"","category":"","confidence":0.88,"reason":"bathroom floor"},
+                         {"line":3,"action":"skip","product":"","merge_into":0,"room":"","category":"","confidence":0.9,"reason":"servant quarters"},
+                         {"line":4,"action":"new","product":"","merge_into":0,"room":"GF-STA","category":"Hardware","confidence":0.8,"reason":"no handrail in the design"},
+                         {"line":5,"action":"merge","product":"","merge_into":4,"room":"","category":"","confidence":0.85,"reason":"glass of the handrail"},
+                         {"line":99,"action":"quote","product":"P1","merge_into":0,"room":"","category":"","confidence":1,"reason":"ignored: no such line"}]}
+    ai._call=fake_quote_call
+    r=c.post(f"/p/{pid_q}/quotations", files={"file":("Tile quotation.xlsx", quote_sheet())}, follow_redirects=False); assert r.status_code==303 and "preview?key=" in r.headers["location"], r.headers
+    from urllib.parse import unquote as _unq
+    qkey=_unq(r.headers["location"].split("key=")[1]); assert qkey.startswith(f"quotations/p{pid_q}/") and qkey.endswith(".json")
+    assert qcalls and kw_ok(qcalls[-1][1]) if (kw_ok:=lambda kw: kw.get("system") and kw.get("effort")=="medium" and kw.get("max_tokens")>=8000) else False
+    assert any(b.get("type")=="image" for b in qcalls[-1][0]) and "Picture of line L1" in [b["text"] for b in qcalls[-1][0] if b.get("type")=="text"][0]
+    r=c.get(r.headers["location"]); assert r.status_code==200 and "Check the quotation" in r.text and "Tile quotation" in r.text
+    h=r.text
+    assert 'name="act_1"' in h and h.count('<article class="qi-line')==5 and "First floor (Including 10% of wastage)" in h
+    assert re.search(r'name="act_1"[^>]*>\s*<option value="quote" selected', h) and re.search(r'name="act_3"[^>]*>(?:(?!</select>).)*value="skip" selected', h, re.S) and re.search(r'name="act_4"[^>]*>(?:(?!</select>).)*value="new" selected', h, re.S)
+    assert "size offered 600*1200 vs 1200 x 2400 mm, satin finish asked" in h and "main floor tile" in h and "92%" in h and "servant quarters" in h
+    assert 'value="15 days"' in h and 'value="2026-10-26"' in h and 'value="Cathy"' in h and 'value="25-30 days after deposit"' in h and 'value="4442"' in h and 'value="442"' in h and "wooden pallet 950" in h
+    assert "1.Delivery Term: EXW" in h and "/media/" in h  # the terms and the line's picture
+    db=SessionLocal(); _sta=db.query(Room).filter(Room.project_id==pid_q, Room.code=="GF-STA").first().id
+    big_id=db.query(_Pr).filter(_Pr.project_id==pid_q, _Pr.title.like("Floor - big porcelain slab%")).first().id; bath_id=db.query(_Pr).filter(_Pr.project_id==pid_q, _Pr.title.like("Bathroom floor - anti-slip%")).first().id
+    n_items=db.query(Item).filter(Item.project_id==pid_q).count(); db.close()
+    # apply without a shop: refused; then with a new shop
+    base={"key":qkey,"title":"Tiles from Cathy","sales":"Cathy","quote_date":"2026-10-26","valid_until":"15 days","currency":"USD","lead_time":"25-30 days after deposit","total":"4442","discount":"442","charges":"950","terms":"1.Delivery Term: EXW","notes":"first round",
+          "act_1":"quote","prod_1":str(big_id),"act_2":"quote","prod_2":str(bath_id),"act_3":"skip","act_4":"new","name_4":"Stair handrail with glass","cat_4":"Hardware","rooms_4":str(_sta),"act_5":"merge","into_5":"4"}
+    r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(base, supplier_id=""), follow_redirects=False); assert "err=" in r.headers["location"] and "preview?key=" in r.headers["location"]
+    r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(base, supplier_id="__new__", supplier_name="Foshan Ceramics", supplier_city="Foshan"), follow_redirects=False)
+    assert r.status_code==303 and "/quotations/" in r.headers["location"] and "3%20quotes%20from%20Foshan%20Ceramics%20added." in r.headers["location"], r.headers["location"]
+    qd_id=int(r.headers["location"].split("/quotations/")[1].split("?")[0])
+    db=SessionLocal(); qd=db.get(_QD, qd_id); shop=qd.supplier
+    assert shop.name=="Foshan Ceramics" and shop.contact=="Cathy" and qd.currency=="USD" and qd.total==4442 and qd.discount==442 and qd.charges==950 and qd.net==4000 and qd.valid_until=="15 days" and qd.lead_time=="25-30 days after deposit" and qd.quote_date==_dt.date(2026,10,26) and qd.title=="Tiles from Cathy" and qd.file_key.endswith(".xlsx") and qd.filename=="Tile quotation.xlsx" and "EXW" in qd.terms and qd.notes=="first round"
+    ls={ln.no: ln for ln in qd.lines}; assert len(ls)==5 and ls[3].action=="skip" and ls[3].quote_id is None and ls[1].thumb_key and ls[1].section=="First floor (Including 10% of wastage) / main floor"
+    f=4000/4442
+    q1=ls[1].quote; assert q1 is not None and q1.product_id==big_id and q1.supplier_id==shop.id and q1.currency=="USD" and abs(q1.amount-round(16*f,4))<0.01 and abs(q1.unit_price-16*f*7.1)<0.1 and q1.model=="GC-1" and q1.pack_size==1.44 and q1.lead_time=="25-30 days after deposit" and q1.photo_key and q1.photo_key!=ls[1].photo_key
+    assert "Sheet discount of 10.0% applied" in q1.notes and "size offered 600*1200" in q1.notes and "Surface:Matte" in q1.notes and "Tiles from Cathy of 2026-10-26" in q1.notes, q1.notes
+    q2=ls[2].quote; assert q2.product_id==bath_id and abs(q2.amount-12*f)<0.01 and q2.model=="GC-2"
+    # the new item: one line in the stairs room, the product made, the quote on it with the merged glass added
+    new_item=db.query(Item).filter(Item.project_id==pid_q, Item.name=="Stair handrail with glass").first()
+    assert new_item is not None and new_item.room_id==_sta and new_item.code=="GF-STA-04" and new_item.category=="Hardware" and new_item.qty==20 and new_item.unit=="m" and new_item.size=="75*45" and "beech wood" in new_item.spec and new_item.unit_price==0 and len(new_item.photos)==0
+    assert db.query(Item).filter(Item.project_id==pid_q).count()==n_items+1
+    q4=ls[4].quote; assert ls[4].action=="new" and ls[4].product_id and q4 is not None and abs(q4.amount-round((480+1012)/20*f,4))<0.01 and "Includes: Glass 23 m² = 1012" in q4.notes, (q4.amount, q4.notes)
+    assert ls[5].action=="merge" and ls[5].into_id==ls[4].id and ls[5].quote_id==q4.id and ls[5].product_id is None
+    ms=db.query(_QM).filter(_QM.supplier_id==shop.id).all(); assert {m.ref for m in ms}>={"gc-1","gc-2"} and any(m.product_key.startswith("floor - big porcelain slab") for m in ms if m.ref=="gc-1"), [(m.ref, m.text, m.product_key) for m in ms]
+    from app import storage as _st; assert _st.read_image(qkey) is None and _st.read_image(qd.file_key)  # the state is gone, the file stays
+    db.close()
+    # the document page, the file, the product page's link, the list
+    r=c.get(f"/p/{pid_q}/quotations/{qd_id}"); assert r.status_code==200, r.text[:500]
+    h=r.text; assert "Tiles from Cathy" in h and "Foshan Ceramics" in h and "Original file" in h and "Part of L4" in h and "New item ·" in h and "Skipped" in h and "USD 4,000" in h and "Not quoted" in h and "Stair risers" in h and "1.Delivery Term: EXW" in h
+    assert f"/p/{pid_q}/buying/{big_id}#quote-{q1.id}" in h and "size offered 600*1200" in h
+    r=c.get(f"/p/{pid_q}/quotations/{qd_id}/file"); assert r.status_code==200 and r.headers["content-type"].startswith("application/vnd.openxml") and "Tile%20quotation.xlsx" in r.headers.get("content-disposition","") or "Tile quotation.xlsx" in r.headers.get("content-disposition","")
+    r=c.get(f"/p/{pid_q}/buying/{big_id}"); assert "Tiles from Cathy" in r.text and f"/quotations/{qd_id}" in r.text and "GC-1" in r.text
+    r=c.get(f"/p/{pid_q}/quotations"); assert "Tiles from Cathy" in r.text and "Foshan Ceramics" in r.text and "1 new" in r.text
+    # the same sheet again, Claude off: the shop's remembered matches apply by item number
+    del os.environ["ANTHROPIC_API_KEY"]; qcalls.clear()
+    r=c.post(f"/p/{pid_q}/quotations", data={"supplier_id":str(shop.id)}, files={"file":("Tile quotation v2.xlsx", quote_sheet())}, follow_redirects=False); key2=_unq(r.headers["location"].split("key=")[1])
+    assert not qcalls
+    h=c.get(r.headers["location"]).text; assert "matched before by item number" in h and "97%" in h and re.search(r'name="prod_1"[^>]*>(?:(?!</select>).)*value="%d"[^>]*selected'%big_id, h, re.S) and re.search(r'name="act_3"[^>]*>(?:(?!</select>).)*value="skip" selected', h, re.S)
+    assert f'<option value="{shop.id}" selected' in h  # the shop named on the upload
+    assert re.search(r'data-q="[^"]*%d:USD 14\.41[^"]*"[^>]*selected' % shop.id, h), "the product option says the shop quoted it"
+    assert re.search(r'name="act_4"[^>]*>(?:(?!</select>).)*value="quote" selected', h, re.S) and "matched before by wording" in h  # the new item of the first round is a product now
+    # buy a room from the first quote, then apply the second sheet (prices raised): the shop's quotes are corrected, not doubled, and the room follows
+    r=c.post(f"/p/{pid_q}/buying/{big_id}/quotes/{q1.id}/buy", follow_redirects=False); assert r.status_code==303 and "err=" not in r.headers["location"]
+    db=SessionLocal(); pu=db.query(_Pu).filter(_Pu.quote_id==q1.id).first(); assert pu is not None and abs(pu.amount-14.41)<0.01; n_quotes=db.query(_Qt).filter(_Qt.project_id==pid_q).count(); hand_pid=ls[4].product_id; db.close()
+    base2=dict(base, key=key2, supplier_id=str(shop.id), discount="0", notes="second round", act_4="quote", prod_4=str(hand_pid), act_5="merge", into_5="4")
+    r=c.post(f"/p/{pid_q}/quotations/apply", data=base2, follow_redirects=False); assert "0%20quotes%20from%20Foshan%20Ceramics%20added%2C%203%20updated" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); assert db.query(_Qt).filter(_Qt.project_id==pid_q).count()==n_quotes
+    q1b=db.get(_Qt, q1.id); assert q1b.amount==16 and abs(q1b.unit_price-16*7.1)<0.01 and "Replaces this shop" in q1b.notes and "earlier quote of USD 14.41" in q1b.notes and q1b.model=="GC-1", q1b.notes
+    pu=db.query(_Pu).filter(_Pu.quote_id==q1.id).first(); assert abs(pu.amount-16)<0.01 and pu.lines and abs(pu.lines[0].unit_price-16*7.1)<0.01  # the room bought follows
+    assert db.query(Item).filter(Item.project_id==pid_q, Item.name=="Stair handrail with glass").count()==1  # no second item
+    qd2=db.query(_QD).filter(_QD.project_id==pid_q).order_by(_QD.id.desc()).first(); assert qd2.id!=qd_id and {ln.no: ln.quote_id for ln in qd2.lines}[4]==q4.id and {ln.no: ln.action for ln in qd2.lines}[5]=="merge"; qd2_id=qd2.id
+    db.close()
+    r=c.get(f"/p/{pid_q}/quotations/{qd2_id}"); assert r.status_code==200 and "second round" in r.text
+    # a third upload, discarded
+    r=c.post(f"/p/{pid_q}/quotations", data={"supplier_id":str(shop.id)}, files={"file":("Tile quotation v3.xlsx", quote_sheet())}, follow_redirects=False); key3=_unq(r.headers["location"].split("key=")[1])
+    r=c.post(f"/p/{pid_q}/quotations/cancel", data={"key":key3}, follow_redirects=False); assert r.headers["location"]==f"/p/{pid_q}/quotations"
+    r=c.get(f"/p/{pid_q}/quotations/preview?key={key3}", follow_redirects=False); assert "no%20longer%20here" in r.headers["location"]
+    r=c.post(f"/p/{pid_q}/quotations/{qd2_id}/delete", follow_redirects=False); assert "2%20quotes%20nothing%20was%20bought%20from" in r.headers["location"], r.headers["location"]  # the second document: its quotes are the first's
+    db=SessionLocal(); assert db.get(_Qt, q1.id) is not None and db.get(_Qt, q2.id) is None; db.close()
+    # the first document's lines now point at quotes that are gone (q2, q4): its page still renders, and deleting it finds no more to delete
+    r=c.get(f"/p/{pid_q}/quotations/preview?key=quotations/p1/nope.json", follow_redirects=False); assert "err=" in r.headers["location"]
+    r=c.get(f"/p/{pid_q}/quotations/{qd_id}"); assert r.status_code==200
+    db=SessionLocal(); fk=db.get(_QD, qd_id).file_key; pk=ls[1].photo_key; db.close()
+    r=c.post(f"/p/{pid_q}/quotations/{qd_id}/delete", follow_redirects=False); assert "0%20quotes%20nothing%20was%20bought%20from" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); assert db.get(_QD, qd_id) is None and db.query(_QL).filter(_QL.quotation_id==qd_id).count()==0 and db.get(_Qt, q1.id) is not None and db.get(_Qt, q2.id) is None and db.get(_Qt, q4.id) is None
+    assert db.query(Item).filter(Item.project_id==pid_q, Item.name=="Stair handrail with glass").first() is not None  # the item stays
+    db.close(); assert _st.read_image(fk) is None and _st.read_image(pk) is None
+    # deleting the shop: its remembered matches go, its quotation sheets stay without a shop, its quotes go with the purchases (buying.drop_supplier)
+    r=c.post(f"/p/{pid_q}/quotations", data={"supplier_id":str(shop.id)}, files={"file":("Tile quotation v4.xlsx", quote_sheet())}, follow_redirects=False); key4=_unq(r.headers["location"].split("key=")[1])
+    r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(base, key=key4, supplier_id=str(shop.id), act_4="skip", act_5="skip"), follow_redirects=False); qd4=int(r.headers["location"].split("/quotations/")[1].split("?")[0])
+    r=c.post(f"/suppliers/{shop.id}/delete", follow_redirects=False); assert r.status_code==303
+    db=SessionLocal(); assert db.get(Supplier, shop.id) is None and db.query(_QM).filter(_QM.supplier_id==shop.id).count()==0
+    q4d=db.get(_QD, qd4); assert q4d is not None and q4d.supplier_id is None and all(ln.quote_id is None for ln in q4d.lines) and db.query(_Qt).filter(_Qt.project_id==pid_q).count()==0; db.close()
+    assert c.get(f"/p/{pid_q}/quotations/{qd4}").status_code==200 and "no shop" in c.get(f"/p/{pid_q}/quotations/{qd4}").text
+    ai._call=lambda content, schema=None, **kw: (_ for _ in ()).throw(RuntimeError("down"))
+    print("quotations ok")
     print("ALL OK")

@@ -47,12 +47,13 @@ def _schema(categories: list[str] | None, units: list[str] | None) -> dict:
     return s
 
 
-def _call(content: list, schema: dict | None = None) -> dict:
-    """One Claude request, JSON back. Separate so tests can replace it."""
+def _call(content: list, schema: dict | None = None, system: str | None = None, effort: str = "low", max_tokens: int = 2048) -> dict:
+    """One Claude request, JSON back. Separate so tests can replace it. The quotation matcher (quotations.py) passes
+    its own system prompt, a higher effort and more room for the answer."""
     import anthropic
     client = anthropic.Anthropic()
-    kwargs = dict(model=MODEL, max_tokens=2048, system=SYSTEM,
-                  output_config={"effort": "low", "format": {"type": "json_schema", "schema": schema or SCHEMA}},
+    kwargs = dict(model=MODEL, max_tokens=max_tokens, system=system or SYSTEM,
+                  output_config={"effort": effort, "format": {"type": "json_schema", "schema": schema or SCHEMA}},
                   messages=[{"role": "user", "content": content}])
     try:
         resp = client.beta.messages.create(betas=["server-side-fallback-2026-07-01"], fallbacks="default", **kwargs)

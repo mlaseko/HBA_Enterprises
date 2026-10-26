@@ -30,7 +30,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, object_session
 
 from . import config, drawings, lists, storage
-from .models import Item, ItemPrice, Payment, Carton, Order, Product, Project, Purchase, Quote, SchemaMark, Supplier, SupplierLink
+from .models import Item, ItemPrice, Payment, Carton, Order, Product, Project, Purchase, Quote, SchemaMark, Supplier, SupplierLink, QuotationLine
 from .services import product_key, sort_items
 
 STAGES = ["To source", "Quoting", "Part sourced", "Sourced", "Ordered", "Paid"]
@@ -467,6 +467,8 @@ def delete_quote(db: Session, q: Quote) -> None:
     db.flush()
     for pu in db.query(Purchase).filter(Purchase.quote_id == q.id).all():
         pu.quote_id = None
+    for ln in db.query(QuotationLine).filter(QuotationLine.quote_id == q.id).all():  # a quotation sheet's line that made it
+        ln.quote_id = None
     for k in (q.photo_key, q.thumb_key):
         if k:
             storage.delete_image(k)

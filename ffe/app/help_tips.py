@@ -153,6 +153,34 @@ TIPS = {
         tips=["A room is bought whole from one shop: its line takes that shop's price, brand and lead time, and moves from To buy to Quoted; then Ordered and Paid with its order.",
               "Correcting a quote corrects every room bought from it. Deleting a quote keeps what was already bought from it.",
               "The preferred brand comes from the item; the brand bought is the quote's."]),
+    "quotations": dict(
+        title="Quotations", anchor="quotations",
+        what="The quotation sheets suppliers send, uploaded as they are. Each line is matched to a product of the design; what you confirm becomes that shop's quotes, and the sheet stays with the project.",
+        steps=["<b>Upload a quotation</b>: the supplier's own Excel file (.xlsx with its pictures; .xls without). Naming the shop first lets the matches you confirmed on their earlier sheets apply at once.",
+               "Check the preview, then <b>Save the quotation</b>. The list below shows every sheet received with its shop, date, lines, the quotes it made and its total.",
+               "<b>Inquiry sheet for a supplier</b>: download one row per product (a category or a floor) with our code, the spec and the quantity, and yellow cells for their price. When they fill it in and send it back, the code column matches every line on its own."],
+        tips=["Open a quotation to see each line as written, what it became, the terms, and the products of those categories the shop did not price.",
+              "Deleting a quotation deletes the quotes it made that nothing was bought from; rooms already bought keep their prices."]),
+    "quotation_preview": dict(
+        title="Checking a quotation", anchor="quotations",
+        what="The sheet read line by line, with the product each line seems to quote. Nothing is saved until you press Save the quotation.",
+        steps=["<b>The document</b>: the shop (pick one, or + New shop), what it quotes, the date, validity, currency, lead time, the total, a discount (spread over the line prices) and extra charges such as pallets. Correct what the sheet left out.",
+               "Each line shows the supplier's picture, words, size, quantity and price, and a choice: <b>Quotes a product</b> (pick the product; the chips under it are the best guesses), <b>New item in the design</b> (name, category and rooms: the item is created and the quote put on it), <b>Part of another line</b> (its amount joins that line's quote: the hardware of a handrail, the parts of a set), <b>Extra charge</b>, or <b>Skip</b> (out of scope, another building).",
+               "Green is a confident match, gold needs a look, grey had little to go on. A gold flag names what differs from the design: the size offered, the unit, or a quantity far from the rooms' needs.",
+               "<b>Save the quotation</b>: one quote per product (lines of the same product are combined: total amount over total quantity), the pictures and the supplier's item numbers on them, and the matches remembered for this shop's next sheet."],
+        tips=["The items of the design are never changed by a sheet; a shop that already quoted a product has that quote corrected (the note under the product pick says adds or updates), and rooms bought from it follow the new price.",
+              "Claude suggests the matches from the words, sizes, rooms and pictures when the key is set; without it the words and sizes alone do, and you decide more often.",
+              "Floors are read the supplier's way: their Floor 1 is the ground floor. Servant or staff quarters are skipped by default.",
+              "Discard drops the upload and changes nothing."]),
+    "quotation": dict(
+        title="A quotation", anchor="quotations",
+        what="One supplier's sheet as received: every line as written, what it became, the money, the terms and the original file.",
+        steps=["The tiles: the quoted total after discount, the quotes made, the date and validity, the lead time.",
+               "The table: each line with its picture, quantity and price, and what it became: a green link opens the product's Buying page at that quote; <b>Part of</b>, <b>Extra charge</b> and <b>Skipped</b> say the rest. Gold flags repeat what differed.",
+               "<b>Not quoted</b> lists the products of the same categories the shop gave no price for: ask them, or source them elsewhere.",
+               "<b>Original file</b> downloads the sheet as sent."],
+        tips=["The quote on the Buying page says which quotation it came from.",
+              "Delete the quotation to undo an import: its quotes that nothing was bought from go with it."]),
     "buying_schedule": dict(
         title="Purchase schedule", anchor="buying",
         what="Every product with what the rooms need, what to order, the shop, the brand bought and the price: the buying side of the client schedule.",
@@ -326,6 +354,7 @@ TEMPLATE_KEYS = {
     "import.html": "import", "settings.html": "settings", "clip.html": "clip", "share/supplier.html": "share_supplier", "plan/match.html": "plan_match",
     "share/client.html": "share_client", "buying/list.html": "buying", "buying/product.html": "buying_product", "buying/schedule.html": "buying_schedule",
     "buying/orders.html": "orders", "buying/order.html": "order", "buying/tracker.html": "tracker",
+    "buying/quotations.html": "quotations", "buying/quotation_preview.html": "quotation_preview", "buying/quotation.html": "quotation",
     "carton.html": "carton", "shipping/list.html": "shipments", "shipping/shipment.html": "shipment", "lists.html": "lists",
 }
 

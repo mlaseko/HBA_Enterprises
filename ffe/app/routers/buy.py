@@ -14,7 +14,7 @@ from .. import shipping as sh
 from .. import drawings, lists
 from ..common import content_disposition, ffloat, fint, get_project, get_settings, redirect, render, require_login
 from ..db import get_db
-from ..models import Item, Product, Project, Purchase, Quote, Supplier
+from ..models import Item, Product, Project, Purchase, Quotation, QuotationLine, Quote, Supplier
 from .items import NO_FLOOR, floor_choices, on_floor
 
 router = APIRouter(dependencies=[Depends(require_login)])
@@ -198,7 +198,11 @@ def product_page(request: Request, product_id: int, p: Project = Depends(get_pro
     for ov in orders.values():
         if not ov.o.confirmed:
             drafts.setdefault(ov.o.supplier_id, ov)
-    return render(request, "buying/product.html", p=p, prod=prod, g=g, quotes=quotes, best=best, views=views, open_lines=open_lines,
+    from_doc = {}  # quote id -> the quotation document it was read from (Buying › Quotations)
+    if quotes:
+        for ln in db.query(QuotationLine).filter(QuotationLine.quote_id.in_([q.id for q in quotes])).all():
+            from_doc.setdefault(ln.quote_id, ln.quotation)
+    return render(request, "buying/product.html", p=p, prod=prod, g=g, quotes=quotes, best=best, views=views, open_lines=open_lines, from_doc=from_doc,
                   by_floor=by_floor, suppliers=suppliers, STAGE_COLORS=bz.STAGE_COLORS, STAGE_HELP=bz.STAGE_HELP, ok=ok[:200], err=err[:200],
                   committed=round(sum(v["total"] for v in views), 2), orders=orders, drafts=drafts, ORDER_COLORS=od.STAGE_COLORS)
 

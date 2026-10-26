@@ -69,6 +69,7 @@ class Project(Base):
     products: Mapped[list["Product"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="Product.id")
     orders: Mapped[list["Order"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="Order.number")
     shipments: Mapped[list["Shipment"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="Shipment.number")
+    quotations: Mapped[list["Quotation"]] = relationship(back_populates="project", cascade="all, delete-orphan", order_by="Quotation.id")
     # The project's own lists (lists.py): what the item form, the filters, the import and the PDFs offer.
     # One table for all four, so a page reads them in one query.
     list_rows: Mapped[list["ListEntry"]] = relationship(cascade="all, delete-orphan", order_by="ListEntry.sort")
@@ -690,6 +691,89 @@ class Shipment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     project: Mapped["Project"] = relationship(back_populates="shipments")
     cartons: Mapped[list["Carton"]] = relationship(back_populates="shipment", order_by="Carton.id")
+
+
+# ---- supplier quotations (quotations.py) --------------------------------------------------------------------------------
+class Quotation(Base):
+    """A quotation document as a supplier sent it (an Excel proforma invoice uploaded on Buying › Quotations): who, when,
+    valid until, the totals, discount, extra charges and terms as read from the sheet, and the original file. Its lines
+    (QuotationLine) are what was quoted; the ones matched to a product produced a Quote each."""
+    __tablename__ = "quotations"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
+    supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id"), nullable=True)
+    filename: Mapped[str] = mapped_column(String(255), default="")
+    file_key: Mapped[str] = mapped_column(String(255), default="")  # the uploaded file in storage
+    title: Mapped[str] = mapped_column(String(200), default="")  # what the sheet is about ("Tiles", "Sanitary ware"…), from the file name
+    sales: Mapped[str] = mapped_column(String(120), default="")  # the sales person named on the sheet
+    quote_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    valid_until: Mapped[str] = mapped_column(String(60), default="")  # a date or "15 days", as written
+    currency: Mapped[str] = mapped_column(String(3), default="USD")
+    total: Mapped[float] = mapped_column(Float, default=0.0)  # the lines' total as on the sheet (before discount)
+    discount: Mapped[float] = mapped_column(Float, default=0.0)  # taken off the total (after-discount price on the sheet)
+    charges: Mapped[float] = mapped_column(Float, default=0.0)  # extras on top (pallet, packing) that belong to no line
+    terms: Mapped[str] = mapped_column(Text, default="")  # delivery / payment / packing notes as written
+    lead_time: Mapped[str] = mapped_column(String(120), default="")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    project: Mapped["Project"] = relationship(back_populates="quotations")
+    supplier: Mapped["Supplier | None"] = relationship(lazy="joined")
+    lines: Mapped[list["QuotationLine"]] = relationship(back_populates="quotation", cascade="all, delete-orphan", order_by="QuotationLine.no", lazy="selectin")
+
+    @property
+    def net(self) -> float:
+        """What the sheet asks after its discount (the sheet's total already carries the extra charges when it lists them)."""
+        return round((self.total or 0) - (self.discount or 0), 2)
+
+
+class QuotationLine(Base):
+    """One line of a quotation as the supplier wrote it, and what became of it: matched to a product (product_id, and the
+    Quote it made: quote_id), merged into another line (into_id), made a new item (product_id too), an extra charge, or
+    skipped (out of scope). The supplier's picture is kept with it."""
+    __tablename__ = "quotation_lines"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    quotation_id: Mapped[int] = mapped_column(ForeignKey("quotations.id"))
+    no: Mapped[int] = mapped_column(Integer, default=0)  # the line's order on the sheet
+    section: Mapped[str] = mapped_column(String(200), default="")  # the heading row above it ("First floor (Including 10% of wastage)")
+    ref: Mapped[str] = mapped_column(String(120), default="")  # the supplier's item number / code
+    name: Mapped[str] = mapped_column(String(300), default="")  # product type / name as written
+    detail: Mapped[str] = mapped_column(Text, default="")  # description, specification, remarks as written
+    size: Mapped[str] = mapped_column(String(200), default="")
+    qty: Mapped[float] = mapped_column(Float, default=0.0)
+    unit: Mapped[str] = mapped_column(String(20), default="")
+    unit_price: Mapped[float] = mapped_column(Float, default=0.0)  # in the quotation's currency, as written
+    amount: Mapped[float] = mapped_column(Float, default=0.0)
+    pack_size: Mapped[float] = mapped_column(Float, default=0.0)  # m² or pieces per carton when the sheet says
+    weight: Mapped[float] = mapped_column(Float, default=0.0)  # kg, when the sheet says
+    cbm: Mapped[float] = mapped_column(Float, default=0.0)
+    photo_key: Mapped[str] = mapped_column(String(255), default="")
+    thumb_key: Mapped[str] = mapped_column(String(255), default="")
+    action: Mapped[str] = mapped_column(String(10), default="skip")  # quote | merge | new | extra | skip
+    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"), nullable=True)
+    quote_id: Mapped[int | None] = mapped_column(ForeignKey("quotes.id"), nullable=True)
+    into_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # merged into this line (its id; no constraint: the document's lines go together)
+    notes: Mapped[str] = mapped_column(Text, default="")  # what the preview flagged (size differs, quantity differs…)
+    quotation: Mapped["Quotation"] = relationship(back_populates="lines")
+    product: Mapped["Product | None"] = relationship(lazy="joined")
+    quote: Mapped["Quote | None"] = relationship(lazy="joined")
+
+    @property
+    def thumb(self) -> str:
+        return self.thumb_key or self.photo_key
+
+
+class QuoteMatch(Base):
+    """A match the designer confirmed on a quotation preview: this supplier's item number or wording means that product
+    (by product key, so it carries across projects). The next quotation from the shop matches by it before anything
+    else."""
+    __tablename__ = "quote_matches"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id"), nullable=True)
+    ref: Mapped[str] = mapped_column(String(120), default="")  # the supplier's item number, lower-cased; '' when none
+    text: Mapped[str] = mapped_column(String(300), default="")  # name + size as written, normalised
+    product_key: Mapped[str] = mapped_column(String(600))
+    times: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
 
 
 # ---- the project's own lists (lists.py) --------------------------------------------------------------------------------

@@ -52,7 +52,9 @@ app/models.py          Settings, SchemaMark (one-time data upgrades that ran), P
                        a draft; confirmed_total; Project.orders_made = the last number given), Settings.warehouse_* (+ .warehouse),
                        Shipment (a container, LCL share or air freight, numbered per project: Project.shipments_made; dates
                        loaded_on / etd / eta / arrived_on / delivered_on), Carton.warehouse_on / Carton.shipment_id
-                       Item.draft = quick-capture draft (no name/code yet); Project.live_items / Project.drafts split them
+                       Item.draft = quick-capture draft (no name/code yet); Project.live_items / Project.drafts split them,
+                       Quotation (a supplier's sheet as received: Project.quotations), QuotationLine (a line and what it became: action
+                       quote | merge | new | extra | skip, product_id, quote_id, into_id), QuoteMatch (a confirmed match remembered per shop)
 app/common.py          templates, auth helpers, number filters, render()/redirect() (render injects `help_tip` for the ? drawer)
 app/help_tips.py       "Help for this page": TIPS (title, what, steps, tips, anchor into help.html) per page key, TEMPLATE_KEYS,
                        tip_for(template, ctx); shots() reads static/help/shots.json (picture sizes for the guide)
@@ -81,6 +83,14 @@ app/shipping.py        boxes and shipments: codes_in()/split_codes()/join_codes(
 app/routers/buy.py     /p/<id>/buying (list), /buying/schedule (Purchase schedule; ?market=), /buying/schedule.pdf (the internal
                        PDF, same filters), /buying/tracker, /buying/item/<item> (→ its product),
                        /buying/<product> (+ POST allowance/pack; /quotes, /quotes/<q>[/delete|/buy], /purchases/<pu>[/delete])
+app/quotations.py      supplier quotation sheets (Buying › Quotations): read_sheets() (.xlsx with pictures by row, .xls via xlrd) → parse()
+                       (header block, header row by HEADER_WORDS with merged headers filled, several tables, lines with section / place /
+                       ref / size / qty / unit / price / pack, charges, total, discount, terms), candidates() (products as the matcher sees
+                       them), shortlist() (our code, QuoteMatch memory, then score()), ask_claude() (SUGGEST_SYSTEM / SUGGEST_SCHEMA through
+                       ai._call), suggest() (the preview's suggestion per line with flags()), apply() (Quotation + lines, new items, one
+                       Quote per product, remember()), delete(), gaps(), inquiry_workbook()
+app/routers/quotations.py /p/<id>/quotations (list, upload form, inquiry form; POST upload → state kept in storage), /quotations/preview?key=,
+                       /quotations/apply, /quotations/cancel, /quotations/inquiry.xlsx, /quotations/<q> (document page), /<q>/file, /<q>/delete
 app/routers/orders.py  /p/<id>/orders (ready to order + orders by stage), /orders/new, /orders/<o> (page; POST details),
                        /orders/<o>/add|remove/<pu>|confirm|unconfirm|delete|payments|claim, /orders/<o>/po.pdf
 app/routers/cartons.py Shipping › Boxes: /p/<id>/cartons (?supplier= &room= &where= &shipment=; POST adds a box), /cartons/bulk
@@ -350,7 +360,7 @@ ALTER TABLE projects ADD COLUMN shipments_made INTEGER NOT NULL DEFAULT 0;      
 ALTER TABLE cartons ADD COLUMN warehouse_on DATE;                                         -- the day a box reached the warehouse
 ALTER TABLE cartons ADD COLUMN shipment_id INTEGER;                                       -- the shipment a box is on
 ALTER TABLE projects ADD COLUMN deposit_pct / soon_days / balance_days / lcl_up_to;       -- the project's defaults (lists.py)
--- new tables (create_all): products, quotes, purchases, orders, shipments, project_lists
+-- new tables (create_all): products, quotes, purchases, orders, shipments, project_lists, quotations, quotation_lines, quote_matches
 ```
 
 ## Done
@@ -652,6 +662,23 @@ ALTER TABLE projects ADD COLUMN deposit_pct / soon_days / balance_days / lcl_up_
   joins the list, `new_categories` / `new_units` in the preview) and its template's Lists sheet, Claude auto-fill
   (`ai._schema` enums), buying allowances and whole units, order deposit and Tracker timings, shipping capacity / fits /
   modes and `services.container_for`.
+
+- **Supplier quotations (Buying › Quotations).** `quotations.py` + `routers/quotations.py` + `templates/buying/quotations.html`,
+  `quotation_preview.html`, `quotation.html`, a Quotations tab in `buying/_tabs.html`. A supplier's own Excel sheet is read
+  whatever its layout (`parse`: header block, header row by words with merged headers filled to the right, several tables,
+  sections, item numbers, sizes or width × height, packs, pictures by row, charges, total, after-discount, terms; .xls via
+  `xlrd` without pictures), each line matched to a product (our code from the inquiry sheet, then a remembered `QuoteMatch`
+  of the shop, then `score()` on words / size / unit / rooms / quantity capped at `MAX_SCORE`, then Claude through
+  `ai._call(system=, effort=, max_tokens=)` with up to 40 line pictures) and confirmed on the preview (quote / new / merge /
+  extra / skip; the chips are the shortlist; flags say what differs). `apply` writes the `Quotation` document, its lines with
+  their pictures, new items (`next_code`, the photo on the first room's line), one `Quote` per product (the shop's existing
+  quote on it corrected via `follow_quote` rather than a second one, `existing_quote`; lines combined:
+  amount over quantity, merged lines added, the discount pro rata, item numbers in `Quote.model`, the picture copied with
+  `set_quote_photo`, lead time from the sheet), and `remember()`s the matches. Between preview and apply the file, pictures
+  and state wait under `quotations/p<id>/` (cancel drops them; apply keeps the file and pictures with the document). The
+  product page names the quotation a quote came from (`from_doc`). `/quotations/inquiry.xlsx` is the inquiry sheet
+  (`inquiry_workbook`: our code, photo, spec, rooms, quantity, yellow cells for the shop). `gaps()` lists the products of
+  the touched categories the shop did not price. Deleting a document deletes its quotes that no purchase uses.
 
 ## Backlog (in priority order)
 

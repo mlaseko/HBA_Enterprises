@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request, Depends, Form
 from sqlalchemy.orm import Session
 from ..db import get_db
-from ..models import Project, Supplier, SupplierLink, Item, Payment
+from ..models import Project, Supplier, SupplierLink, Item, Payment, Quotation, QuoteMatch
 from ..common import render, redirect, require_login, get_project
 from .. import buying, ordering
 
@@ -97,6 +97,10 @@ def delete_supplier(supplier_id: int, db: Session = Depends(get_db)):
             db.delete(l)
         for pay in db.query(Payment).filter(Payment.supplier_id == s.id).all():
             pay.supplier_id = None
+        for q in db.query(Quotation).filter(Quotation.supplier_id == s.id).all():  # its quotation sheets stay, without a shop
+            q.supplier_id = None
+        for m in db.query(QuoteMatch).filter(QuoteMatch.supplier_id == s.id).all():
+            db.delete(m)
         db.delete(s)
         db.commit()
     return redirect("/suppliers")

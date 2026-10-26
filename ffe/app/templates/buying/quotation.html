@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% from "buying/_tabs.html" import tabs %}
+{% block title %}{{ q.title or 'Quotation' }} · {{ p.name }}{% endblock %}
+{% block content %}
+{% set cur = q.currency %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/quotations">Quotations</a></div>
+    <h1>{{ q.title or q.filename or 'Quotation' }} <span class="h-note">{{ q.supplier.name if q.supplier else 'no shop' }}</span></h1>
+    <p class="sub">The sheet as the supplier sent it, and what each line became. {{ q.lines|length }} line{{ 's' if q.lines|length != 1 }}: {{ counts.quote + counts.new }} quoting a product, {{ counts.merge }} merged, {{ counts.extra }} extra, {{ counts.skip }} skipped.</p>
+  </div>
+  <div class="actions">
+    {% if q.file_key %}<a class="btn sec" href="/p/{{ p.id }}/quotations/{{ q.id }}/file"><svg class="ic"><use href="#i-download"/></svg>Original file</a>{% endif %}
+    {% if q.supplier %}<a class="btn sec" href="/suppliers/{{ q.supplier.id }}"><svg class="ic"><use href="#i-users"/></svg>{{ q.supplier.name }}</a>{% endif %}
+  </div>
+</div>
+{{ tabs(p, 'quotations') }}
+
+{% if ok %}<div class="alert">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert err">{{ err }}</div>{% endif %}
+
+<div class="grid g4 kpis bu-kpis">
+  <div class="kpi"><svg class="ic"><use href="#i-file"/></svg><div class="v">{{ cur }} {{ q.net|money }}</div><div class="l">Quoted</div><div class="d">{% if q.discount %}{{ q.total|money(2) }} less {{ q.discount|money(2) }} discount{% else %}total on the sheet{% endif %}{% if q.charges %} · extras {{ q.charges|money(2) }}{% endif %}</div></div>
+  <div class="kpi sage"><svg class="ic"><use href="#i-check"/></svg><div class="v">{{ by_quote|length }}</div><div class="l">Quotes made</div><div class="d">on the Buying page, from {{ counts.quote + counts.new }} line{{ 's' if counts.quote + counts.new != 1 }}</div></div>
+  <div class="kpi gold"><svg class="ic"><use href="#i-clock"/></svg><div class="v">{{ q.quote_date.isoformat() if q.quote_date else '—' }}</div><div class="l">Quote date</div><div class="d">{% if q.valid_until %}valid until {{ q.valid_until }}{% else %}no validity given{% endif %}</div></div>
+  <div class="kpi ink"><svg class="ic"><use href="#i-truck"/></svg><div class="v">{{ q.lead_time or '—' }}</div><div class="l">Lead time</div><div class="d">{{ q.sales or (q.supplier.contact if q.supplier else '') or 'as written on the sheet' }}</div></div>
+</div>
+
+<div class="tbl"><table class="qi-doc">
+  <thead><tr><th></th><th>Line</th><th>As written</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Amount</th><th>Became</th></tr></thead>
+  <tbody>
+  {% set ns = namespace(section=none) %}
+  {% for ln in q.lines %}
+  {% if ln.section != ns.section %}{% set ns.section = ln.section %}{% if ln.section %}<tr class="qi-sec"><td colspan="7">{{ ln.section }}</td></tr>{% endif %}{% endif %}
+  <tr class="act-{{ ln.action }}">
+    <td class="qi-td-pic">{% if ln.thumb %}<a href="/media/{{ ln.photo_key }}" target="_blank" data-caption="Line {{ ln.no }} · {{ ln.name }}"><img src="/media/{{ ln.thumb }}" alt=""></a>{% endif %}</td>
+    <td class="small muted nowrap">L{{ ln.no }}{% if ln.ref %}<div><b>{{ ln.ref }}</b></div>{% endif %}</td>
+    <td><div>{{ ln.name }}</div>{% if ln.size %}<div class="small muted">{{ ln.size }}</div>{% endif %}{% if ln.detail %}<details class="qi-detail"><summary class="small">Description</summary><div class="small">{{ ln.detail }}</div></details>{% endif %}</td>
+    <td class="num nowrap">{{ ln.qty|num(2) }} {{ ln.unit }}</td>
+    <td class="num nowrap">{{ ln.unit_price|num(2) }}</td>
+    <td class="num nowrap">{{ ln.amount|money(2) }}</td>
+    <td class="qi-became">
+      {% if ln.action in ('quote', 'new') and ln.product %}
+        <a href="/p/{{ p.id }}/buying/{{ ln.product.id }}#quote-{{ ln.quote_id }}" class="pill green">{{ 'New item · ' if ln.action == 'new' }}{{ ln.product.title|truncate(60) }}</a>
+        {% if ln.quote %}<div class="small muted">¥{{ ln.quote.unit_price|money(2) }} per unit{% if by_quote[ln.quote_id]|length > 1 %} · combined with {{ by_quote[ln.quote_id]|length - 1 }} other line{{ 's' if by_quote[ln.quote_id]|length > 2 }}{% endif %}</div>{% endif %}
+      {% elif ln.action == 'merge' %}<span class="pill gold">Part of L{{ (q.lines|selectattr('id', 'equalto', ln.into_id)|map(attribute='no')|list or ['?'])[0] }}</span>
+      {% elif ln.action == 'extra' %}<span class="pill">Extra charge</span>
+      {% else %}<span class="pill">Skipped</span>{% endif %}
+      {% if ln.notes %}<div class="small"><span class="pill gold">{{ ln.notes }}</span></div>{% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+  <tfoot><tr><td colspan="5" class="num">Lines</td><td class="num"><b>{{ lines_total|money(2) }}</b></td><td></td></tr></tfoot>
+</table></div>
+
+<div class="grid g2 mt">
+  <div class="card">
+    <h2 class="mb-0">Not quoted</h2>
+    <p class="small muted">Products in the same categories that got no price from {{ q.supplier.name if q.supplier else 'this shop' }}: ask for them, or they stay to be sourced elsewhere.</p>
+    {% if gaps %}<ul class="qi-gaps mt">{% for c in gaps %}<li><a href="/p/{{ p.id }}/buying/{{ c.id }}">{{ c.title }}</a> <span class="small muted">· {{ c.qty|num(2) }} {{ c.unit }} · {{ c.rooms_text }}</span></li>{% endfor %}</ul>
+    {% else %}<p class="small mt">Every product of these categories has a quote from this shop.</p>{% endif %}
+  </div>
+  <div class="card">
+    <h2 class="mb-0">Terms as written</h2>
+    {% if q.terms %}<pre class="qi-terms">{{ q.terms }}</pre>{% else %}<p class="small muted">The sheet carried no terms.</p>{% endif %}
+    {% if q.notes %}<div class="eyebrow mt">Your notes</div><p class="small">{{ q.notes }}</p>{% endif %}
+    <form method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/delete" class="mt" data-confirm="Delete this quotation? Its quotes that nothing was bought from go with it; rooms already bought from them keep their prices."><button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete the quotation</button></form>
+  </div>
+</div>
+{% endblock %}
