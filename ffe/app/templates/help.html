@@ -28,6 +28,7 @@
   <a href="#plan">The interactive plan</a>
   <a href="#items">Items</a>
   <a href="#buying">Buying: quotes &amp; shops</a>
+  <a href="#quotations">Supplier quotations</a>
   <a href="#prices">Prices &amp; currency</a>
   <a href="#capture">Quick capture &amp; drafts</a>
   <a href="#web">Saving from the web</a>
@@ -478,6 +479,29 @@
   <p>Every product by category, in the look of the client schedule: photo, codes, product and must-haves, rooms, what to order, the shop and the brand bought, the unit price, the total and the stage. Filter by category, floor or stage, show the prices in CNY or USD, and press <b>Print / PDF</b> to save it.</p>
   <p>An item renamed with <b>Apply to the other rooms</b> keeps its quotes and purchases; a line renamed on its own becomes another product and leaves its shop. Deleting a supplier removes its quotes and purchases, and the rooms it supplied have no shop again.</p>
   {{ shot('buying-quote', 'Adding a quote: the shop, or a new one with its market and WeChat; the brand; the price in CNY or USD with its conversion; the box size, minimum order, lead time and a photo.', 'narrow') }}
+</section>
+
+<section class="card" id="quotations">
+  <h2>Supplier quotations</h2>
+  <p><b>What it is for:</b> a supplier's quotation sheet, with thirty lines and their pictures, recorded as that shop's quotes without typing them one by one, and kept with the project as it was sent. <b>Buying › Quotations</b>.</p>
+  <h3>Uploading a sheet</h3>
+  <ul>
+    <li><b>Upload a quotation</b>: the supplier's own Excel file. Any layout works as long as it has a header row with the product, quantity and unit price columns; the header block (date, valid until, sales, lead time), the sections between the lines ("First floor"), the item numbers, sizes, packs, pictures, the total, a discount and the terms are all read. An old <b>.xls</b> is read without its pictures: ask for .xlsx when the pictures matter.</li>
+    <li>Pick the shop on the upload when you know it: the matches you confirmed on its earlier sheets apply at once.</li>
+  </ul>
+  <h3>The preview</h3>
+  <ul>
+    <li><b>The document</b> card: shop, what it quotes, date, validity, currency, lead time, the total on the sheet, a discount (spread over the line prices) and extra charges (pallet, packing). Correct what the sheet left out.</li>
+    <li>Every line, with its picture, words, size, quantity and price, has a choice: <b>Quotes a product</b> with the product picked (the chips under the box are the best guesses, press one to take it), <b>New item in the design</b> (name, category and the rooms: the item is created and the quote put on it), <b>Part of another line</b> (the hardware of a handrail, the parts of a set: its amount joins that line), <b>Extra charge</b>, or <b>Skip</b> for what is out of scope (a staff or servant quarters, another building).</li>
+    <li>The percentage is the confidence: green is sure, gold needs a look, grey had little to go on. A gold flag names what differs from the design: the size offered against the size asked, the unit, or a quantity far from what the rooms need. With <code>ANTHROPIC_API_KEY</code> set, Claude makes the suggestions from the words, sizes, rooms and pictures; without it the words and sizes alone do.</li>
+    <li><b>Save the quotation</b>: nothing is saved before, and the items of the design are never changed by a sheet (the flags show where the offer differs). A shop that already quoted a product has that quote corrected, with the rooms bought from it following, never a second quote; the note under each product pick says whether the line adds or updates one. Lines matched to the same product become one quote (the total amount over the total quantity, so four windows of one size at four prices give one price per window); a line merged into another adds its amount; the discount is applied pro rata; the supplier's picture and item number go on the quote; the lead time comes from the sheet. The matches are remembered for this shop's next sheet.</li>
+  </ul>
+  <h3>The document and the inquiry sheet</h3>
+  <ul>
+    <li>Each quotation keeps every line as written and what it became, the terms, the original file, and a <b>Not quoted</b> list: the products of the same categories the shop did not price. The quote on the Buying page names the quotation it came from.</li>
+    <li><b>Inquiry sheet for a supplier</b>: one row per product of a category or a floor, with our code, the photo, the spec, the rooms and the quantity, and yellow cells for their item number, price, pack and lead time. Send it instead of a free-form list: a reply that keeps the code column matches every line by itself.</li>
+    <li>Deleting a quotation deletes the quotes it made that nothing was bought from; rooms already bought from one keep their price.</li>
+  </ul>
 </section>
 
 <section class="card" id="prices">

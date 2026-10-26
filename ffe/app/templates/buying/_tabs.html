@@ -1,7 +1,8 @@
-{# The Buying hub: the same row of tabs on its four pages (active: products | orders | tracker | schedule). #}
+{# The Buying hub: the same row of tabs on its four pages (active: products | quotations | orders | tracker | schedule). #}
 {% macro tabs(p, active) %}
 <nav class="bu-tabs noprint" aria-label="Buying">
   <a href="/p/{{ p.id }}/buying" class="{{ 'on' if active == 'products' }}"{% if active == 'products' %} aria-current="page"{% endif %}><svg class="ic"><use href="#i-bag"/></svg>Products</a>
+  <a href="/p/{{ p.id }}/quotations" class="{{ 'on' if active == 'quotations' }}"{% if active == 'quotations' %} aria-current="page"{% endif %}><svg class="ic"><use href="#i-upload"/></svg>Quotations</a>
   <a href="/p/{{ p.id }}/orders" class="{{ 'on' if active == 'orders' }}"{% if active == 'orders' %} aria-current="page"{% endif %}><svg class="ic"><use href="#i-receipt"/></svg>Orders{% set n = p.orders|length %}{% if n %} <b>{{ n }}</b>{% endif %}</a>
   <a href="/p/{{ p.id }}/buying/tracker" class="{{ 'on' if active == 'tracker' }}"{% if active == 'tracker' %} aria-current="page"{% endif %}><svg class="ic"><use href="#i-chart"/></svg>Tracker</a>
   <a href="/p/{{ p.id }}/buying/schedule" class="{{ 'on' if active == 'schedule' }}"{% if active == 'schedule' %} aria-current="page"{% endif %}><svg class="ic"><use href="#i-file"/></svg>Purchase schedule</a>

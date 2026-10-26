@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% from "buying/_tabs.html" import tabs %}
+{% block title %}Quotations · {{ p.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/buying">Buying</a></div>
+    <h1>Quotations <span class="h-note">{{ rows|length }} received</span></h1>
+    <p class="sub">Upload a supplier's quotation sheet as they sent it. Each line is matched to a product of the design for you to confirm; the confirmed lines become that shop's quotes, and the sheet is kept with the project.</p>
+  </div>
+  <div class="actions">
+    <a class="btn sec" href="#inquiry"><svg class="ic"><use href="#i-download"/></svg>Inquiry sheet</a>
+  </div>
+</div>
+{{ tabs(p, 'quotations') }}
+
+{% if ok %}<div class="alert">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert err">{{ err }}</div>{% endif %}
+
+<div class="grid g2 qi-top">
+  <form method="post" action="/p/{{ p.id }}/quotations" enctype="multipart/form-data" class="card" id="upload">
+    <h2 class="mb-0">Upload a quotation</h2>
+    <p class="small muted">The supplier's own Excel file (.xlsx, or .xls without its pictures). Nothing is saved until you have checked the preview.</p>
+    <div class="grid g2 mt">
+      <div><label>File</label><input class="in" type="file" name="file" accept=".xlsx,.xls,.xlsm" required></div>
+      <div><label>Shop <span class="muted small">(optional here; chosen on the preview)</span></label>
+        <select class="in" name="supplier_id"><option value="">Not sure yet</option>{% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}{% if s.city %} · {{ s.city }}{% endif %}</option>{% endfor %}</select>
+        <div class="help">Naming the shop lets earlier confirmed matches from it apply at once.</div></div>
+    </div>
+    <div class="row mt"><button class="btn accent"><svg class="ic"><use href="#i-upload"/></svg>Read the sheet</button>
+      <span class="small muted">{% if claude %}Claude suggests the matches; you confirm every line.{% else %}Matched by words and sizes; set ANTHROPIC_API_KEY for Claude's suggestions.{% endif %}</span></div>
+  </form>
+
+  <form method="get" action="/p/{{ p.id }}/quotations/inquiry.xlsx" class="card" id="inquiry">
+    <h2 class="mb-0">Inquiry sheet for a supplier</h2>
+    <p class="small muted">One row per product with our code, the spec, the quantity needed and yellow cells for their item number, price, pack and lead time. A reply that keeps the code column matches on its own.</p>
+    <div class="grid g3 mt">
+      <div><label>Category</label><select name="category" class="in"><option value="">All categories</option>{% for c in categories %}<option>{{ c }}</option>{% endfor %}</select></div>
+      <div><label>Floor</label><select name="floor" class="in"><option value="">All floors</option>{% for grp in ['Floors', 'Separate areas', 'Other'] %}{% set opts = floors|selectattr('group', 'equalto', grp)|list %}{% if opts %}<optgroup label="{{ grp }}">{% for o in opts %}<option value="{{ o.value }}">{{ o.title }}</option>{% endfor %}</optgroup>{% endif %}{% endfor %}</select></div>
+      <div><label>Prices in</label><select name="currency" class="in"><option>USD</option><option>CNY</option></select></div>
+    </div>
+    <div class="row mt"><button class="btn"><svg class="ic"><use href="#i-download"/></svg>Download the inquiry sheet</button></div>
+  </form>
+</div>
+
+{% if rows %}
+<div class="tbl mt"><table>
+  <thead><tr><th>Quotation</th><th>Shop</th><th>Date</th><th class="num">Lines</th><th class="num">Quotes</th><th class="num">Total</th><th>Valid until</th><th></th></tr></thead>
+  <tbody>
+  {% for r in rows %}{% set q = r.q %}
+  <tr>
+    <td><a href="/p/{{ p.id }}/quotations/{{ q.id }}"><b>{{ q.title or q.filename or ('Quotation ' ~ q.id) }}</b></a>{% if q.sales %}<div class="small muted">{{ q.sales }}</div>{% endif %}</td>
+    <td>{{ q.supplier.name if q.supplier else '—' }}</td>
+    <td class="nowrap">{{ q.quote_date.isoformat() if q.quote_date else '—' }}</td>
+    <td class="num">{{ r.lines }}{% if r.skipped %} <span class="small muted">({{ r.skipped }} skipped)</span>{% endif %}</td>
+    <td class="num">{{ r.quotes }}{% if r.new %} <span class="pill accent">{{ r.new }} new</span>{% endif %}</td>
+    <td class="num nowrap">{{ q.currency }} {{ q.net|money(2) }}{% if q.discount %}<div class="small muted">after {{ q.discount|money(2) }} off</div>{% endif %}</td>
+    <td class="nowrap">{{ q.valid_until or '—' }}</td>
+    <td class="nowrap"><a class="btn sm sec" href="/p/{{ p.id }}/quotations/{{ q.id }}/file"><svg class="ic"><use href="#i-download"/></svg>File</a></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}
+<div class="card empty bu-empty mt">
+  <div class="ring"><svg class="ic"><use href="#i-file"/></svg></div>
+  <h3>No quotation yet</h3>
+  <p>When a supplier sends their quotation sheet, upload it here. Each line is matched to a product and you confirm before anything is saved.</p>
+</div>
+{% endif %}
+{% endblock %}

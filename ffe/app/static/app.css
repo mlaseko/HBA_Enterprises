@@ -1305,3 +1305,32 @@ table.ls .ls-num,.floors-add .ls-num{width:110px;text-align:right}
 .ls-copy .in{width:auto;min-width:190px}
 table.ls tr.muted td{color:var(--muted)}
 @media(max-width:640px){.ls-copy{width:100%}.ls-copy .in{flex:1;min-width:0}}
+
+/* ---- Buying › Quotations: the preview of a supplier's sheet and the document page ---- */
+.qi-top{align-items:start}
+.qi-summary{margin-bottom:12px}
+.qi-section{font-family:var(--serif);font-size:1.05rem;color:var(--ink-2);margin:14px 0 6px;padding-left:4px}
+.qi-line{display:grid;grid-template-columns:72px minmax(0,1.2fr) minmax(0,1.4fr);gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:8px;border-left:4px solid var(--line)}
+.qi-line.act-quote{border-left-color:var(--green)}.qi-line.act-new{border-left-color:var(--accent)}.qi-line.act-merge{border-left-color:var(--gold)}
+.qi-line.act-skip{opacity:.72}.qi-line.act-extra{border-left-color:var(--ink-2)}
+.qi-pic img,.qi-td-pic img{width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--line);display:block}
+.qi-td-pic img{width:48px;height:48px}
+.qi-pic .pic.empty{width:72px;height:72px;border-radius:8px;background:var(--surface-3);display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.qi-no{font-size:.75rem;color:var(--muted);letter-spacing:.02em}
+.qi-name{font-weight:600;margin:2px 0}
+.qi-nums{font-size:.85rem;color:var(--ink-2)}
+.qi-detail summary{cursor:pointer;color:var(--muted);font-size:.8rem;margin-top:4px}
+.qi-detail div{white-space:pre-wrap;margin-top:4px;color:var(--ink-2)}
+.qi-head{margin-bottom:6px}.qi-head .qi-act{max-width:240px}
+.qi-f{display:none}.act-quote .qi-f-quote,.act-merge .qi-f-merge,.act-new .qi-f-new{display:block}
+.qi-short{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.qi-chip{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:2px 9px;font-size:.74rem;cursor:pointer;color:var(--ink-2)}
+.qi-chip.on{border-color:var(--green);background:var(--green-soft);color:var(--green)}
+.qi-why{margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.qi-bar{position:sticky;bottom:calc(var(--tab-h, 0px) + 8px);z-index:3;margin-top:8px}
+.qi-doc tr.qi-sec td{background:var(--surface-3);font-weight:600;font-size:.85rem}
+.qi-doc tr.act-skip td{color:var(--muted)}
+.qi-became .pill{white-space:normal;text-align:left}
+.qi-gaps{padding-left:1.1rem;margin:0}.qi-gaps li{margin:4px 0}
+.qi-terms{white-space:pre-wrap;font:inherit;font-size:.85rem;background:var(--surface-2);padding:10px;border-radius:8px;margin:8px 0 0}
+@media (max-width:760px){.qi-line{grid-template-columns:56px minmax(0,1fr)}.qi-pick{grid-column:1/-1}.qi-pic img,.qi-pic .pic.empty{width:56px;height:56px}}

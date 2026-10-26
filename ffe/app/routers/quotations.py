@@ -1,0 +1,236 @@
+"""Buying › Quotations: upload a supplier's quotation sheet, confirm what each line is on the preview, apply it (the
+document, its lines and one quote per product), read the documents, and download the inquiry sheet suppliers fill in.
+The rules live in quotations.py. Between the preview and apply the file, its pictures and the preview's state wait in
+storage under quotations/p<id>/ (like the Excel importer); cancel drops them, apply keeps the file and pictures with
+the document."""
+import json
+import re
+import uuid
+
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi.responses import Response
+from sqlalchemy.orm import Session
+from urllib.parse import quote as urlquote
+
+from .. import buying as bz
+from .. import drawings, lists, storage
+from .. import quotations as qz
+from ..common import content_disposition, ffloat, fint, get_project, redirect, render, require_login
+from ..db import get_db
+from ..models import Project, Quotation, QuotationLine, Supplier
+from .items import floor_choices, on_floor
+
+router = APIRouter(dependencies=[Depends(require_login)])
+ACTIONS = ("quote", "merge", "new", "extra", "skip")
+
+
+def _suppliers(db: Session) -> list[Supplier]:
+    return db.query(Supplier).order_by(Supplier.name).all()
+
+
+def _state_key(p: Project, key: str) -> str:
+    """The storage key of a preview kept for this project, else ''."""
+    return key if key.startswith(f"quotations/p{p.id}/") and key.endswith(".json") and storage.safe_key(key) else ""
+
+
+def _load_state(key: str) -> dict | None:
+    raw = storage.read_image(key)
+    if not raw:
+        return None
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except ValueError:
+        return None
+
+
+def _drop_state(state: dict, key: str, keep_files: bool) -> None:
+    if not keep_files:
+        for pk, tk in (state.get("pictures") or {}).values():
+            for k in (pk, tk):
+                if k:
+                    storage.delete_image(k)
+        if state.get("file_key"):
+            storage.delete_image(state["file_key"])
+    storage.delete_image(key)
+
+
+def _quotation(db: Session, p: Project, qid: int) -> Quotation | None:
+    q = db.get(Quotation, qid)
+    return q if q is not None and q.project_id == p.id else None
+
+
+# ---- the list, the upload and the inquiry sheet ----------------------------------------------------------------------------
+@router.get("/p/{project_id}/quotations")
+def quotations_page(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), ok: str = "", err: str = ""):
+    docs = db.query(Quotation).filter(Quotation.project_id == p.id).order_by(Quotation.id.desc()).all()
+    rows = []
+    for q in docs:
+        lines = q.lines
+        rows.append(dict(q=q, lines=len(lines), quotes=len({ln.quote_id for ln in lines if ln.quote_id}),
+                         skipped=sum(1 for ln in lines if ln.action == "skip"), new=sum(1 for ln in lines if ln.action == "new")))
+    cats = sorted({c.category for c in qz.candidates(db, p)}, key=lambda c: lists.category_order(p).get(c, 999))
+    db.commit()  # product rows made by candidates()
+    return render(request, "buying/quotations.html", p=p, rows=rows, suppliers=_suppliers(db), categories=cats, floors=floor_choices(p),
+                  ok=ok[:200], err=err[:300], claude=qz.ai.enabled())
+
+
+@router.post("/p/{project_id}/quotations")
+async def upload_quotation(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), file: UploadFile | None = File(None),
+                           supplier_id: str = Form("")):
+    """Step one: read the sheet, keep the file and its pictures, work out the suggestions, show the preview."""
+    data = await file.read() if file is not None else b""
+    name = (file.filename or "quotation.xlsx") if file is not None else ""
+    ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    if not data or ext not in qz.EXTENSIONS:
+        return redirect(f"/p/{p.id}/quotations?err=" + urlquote("Choose the supplier's Excel file (.xlsx or .xls) first."))
+    try:
+        parsed = qz.parse(qz.read_sheets(data, name), name)
+    except qz.ReadError as e:
+        return redirect(f"/p/{p.id}/quotations?err=" + urlquote(str(e)))
+    supplier = db.get(Supplier, int(supplier_id)) if supplier_id.isdigit() else None
+    base = f"quotations/p{p.id}/{uuid.uuid4().hex}"
+    file_key = storage.save_blob(data, f"{base}.{ext}", qz.XLSX if ext != "xls" else "application/vnd.ms-excel")
+    pictures: dict[int, tuple[str, str]] = {}
+    for no, blob in parsed["pictures"].items():
+        try:
+            fk, tk, _ = storage.save_photo(blob, f"p{p.id}/quotations")
+        except Exception:
+            continue
+        pictures[int(no)] = (fk, tk)
+    raw_pictures = parsed.pop("pictures")
+    sug = qz.suggest(db, p, parsed, raw_pictures, supplier)
+    db.commit()  # product rows made on the way
+    state = dict(parsed=parsed, suggestions=sug["lines"], claude=sug["claude"], pictures={str(k): list(v) for k, v in pictures.items()},
+                 file_key=file_key, supplier_id=supplier.id if supplier else None)
+    key = f"{base}.json"
+    storage.save_blob(json.dumps(state, ensure_ascii=False).encode("utf-8"), key, "application/json")
+    return redirect(f"/p/{p.id}/quotations/preview?key={urlquote(key)}")
+
+
+def _preview_ctx(db: Session, p: Project, state: dict) -> dict:
+    parsed = state["parsed"]
+    cands = qz.candidates(db, p)
+    order = lists.category_order(p)
+    by_cat: dict[str, list] = {}
+    for c in sorted(cands, key=lambda c: (order.get(c.category, 999), c.name.lower(), c.size)):
+        by_cat.setdefault(c.category, []).append(c)
+    lines = []
+    for l in parsed["lines"]:
+        s = state["suggestions"].get(str(l["no"])) or state["suggestions"].get(l["no"]) or {}
+        pic = (state.get("pictures") or {}).get(str(l["no"]))
+        lines.append(dict(l, sug=s, pic=pic[1] if pic else "", full=pic[0] if pic else ""))
+    rooms = [(r.id, f"{r.code} {r.name}") for r in p.rooms]
+    sup = db.get(Supplier, state["supplier_id"]) if state.get("supplier_id") else None
+    head = parsed.get("head", {})
+    return dict(parsed=parsed, lines=lines, by_cat=by_cat, rooms=rooms, supplier=sup, head=head, claude=state.get("claude"),
+                counts={a: sum(1 for l in lines if l["sug"].get("action") == a) for a in ACTIONS},
+                categories=lists.categories(p), suppliers=_suppliers(db), terms="\n".join(parsed.get("terms") or []))
+
+
+@router.get("/p/{project_id}/quotations/preview")
+def preview_page(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), key: str = "", err: str = ""):
+    key = _state_key(p, key)
+    state = _load_state(key) if key else None
+    if state is None:
+        return redirect(f"/p/{p.id}/quotations?err=" + urlquote("That preview is no longer here. Upload the file again."))
+    ctx = _preview_ctx(db, p, state)
+    db.commit()
+    return render(request, "buying/quotation_preview.html", p=p, key=key, err=err[:300], **ctx)
+
+
+@router.post("/p/{project_id}/quotations/cancel")
+def cancel_preview(p: Project = Depends(get_project), key: str = Form("")):
+    key = _state_key(p, key)
+    state = _load_state(key) if key else None
+    if state is not None:
+        _drop_state(state, key, keep_files=False)
+    return redirect(f"/p/{p.id}/quotations")
+
+
+@router.post("/p/{project_id}/quotations/apply")
+async def apply_preview(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """Step two: the confirmed lines become the document, its quotes and new items."""
+    form = await request.form()
+    key = _state_key(p, form.get("key", ""))
+    state = _load_state(key) if key else None
+    if state is None:
+        return redirect(f"/p/{p.id}/quotations?err=" + urlquote("That preview is no longer here. Upload the file again."))
+    parsed = state["parsed"]
+    supplier = bz.find_supplier(db, fint(form.get("supplier_id")), form.get("supplier_name", ""), form.get("supplier_city", ""),
+                                form.get("supplier_wechat", ""), form.get("supplier_phone", ""))
+    if supplier is None:
+        return redirect(f"/p/{p.id}/quotations/preview?key={urlquote(key)}&err=" + urlquote("Pick the shop that sent the quotation, or type its name."))
+    choices: dict[int, dict] = {}
+    for l in parsed["lines"]:
+        n = l["no"]
+        act = form.get(f"act_{n}", "skip")
+        act = act if act in ACTIONS else "skip"
+        choices[n] = dict(action=act, product_id=fint(form.get(f"prod_{n}")), into=fint(form.get(f"into_{n}")) or 0,
+                          rooms=" ".join(form.getlist(f"rooms_{n}")), name=form.get(f"name_{n}", ""), category=form.get(f"cat_{n}", ""))
+        if act == "quote" and not choices[n]["product_id"]:
+            choices[n]["action"] = "skip"
+    head = {k: form.get(k, "") for k in ("title", "sales", "quote_date", "valid_until", "currency", "total", "discount", "charges", "lead_time", "terms", "notes")}
+    for k in ("total", "discount", "charges"):
+        head[k] = ffloat(head[k], 0)
+    pictures = {int(k): tuple(v) for k, v in (state.get("pictures") or {}).items()}
+    q = qz.apply(db, p, parsed, choices, head, supplier, pictures, state.get("file_key", ""))
+    if supplier.contact == "" and head.get("sales"):
+        supplier.contact = head["sales"][:120]
+    bz.settle(db, p)
+    db.commit()
+    _drop_state(state, key, keep_files=True)
+    st = getattr(q, "stats", {"added": 0, "updated": 0})
+    msg = f"Quotation saved: {st['added']} quote{'s' if st['added'] != 1 else ''} from {supplier.name} added"
+    msg += f", {st['updated']} updated." if st["updated"] else "."
+    return redirect(f"/p/{p.id}/quotations/{q.id}?ok=" + urlquote(msg))
+
+
+# ---- the inquiry sheet ---------------------------------------------------------------------------------------------------------
+@router.get("/p/{project_id}/quotations/inquiry.xlsx")
+def inquiry_sheet(p: Project = Depends(get_project), db: Session = Depends(get_db), category: str = "", floor: str = "", currency: str = "USD"):
+    cands = [c for c in qz.candidates(db, p) if (not category or c.category == category) and (not floor or any(on_floor(r, floor) for r in c.rooms))]
+    db.commit()
+    data = qz.inquiry_workbook(p, db, cands, currency if currency in ("USD", "CNY") else "USD")
+    what = "-".join(re.sub(r"[^A-Za-z0-9]+", "-", x).strip("-") for x in (category, drawings.floor_title(floor, p) if floor else "") if x) or "all"
+    return Response(content=data, media_type=qz.XLSX, headers=content_disposition(f"{p.name}-inquiry-{what}.xlsx"))
+
+
+# ---- one document --------------------------------------------------------------------------------------------------------------
+@router.get("/p/{project_id}/quotations/{quotation_id}")
+def quotation_page(request: Request, quotation_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), ok: str = "", err: str = ""):
+    q = _quotation(db, p, quotation_id)
+    if q is None:
+        return redirect(f"/p/{p.id}/quotations")
+    gaps = qz.gaps(db, p, q)
+    db.commit()
+    by_quote: dict[int, list] = {}
+    for ln in q.lines:
+        if ln.quote_id:
+            by_quote.setdefault(ln.quote_id, []).append(ln)
+    counts = {a: sum(1 for ln in q.lines if ln.action == a) for a in ACTIONS}
+    return render(request, "buying/quotation.html", p=p, q=q, gaps=gaps, counts=counts, ok=ok[:200], err=err[:300], by_quote=by_quote,
+                  lines_total=round(sum(ln.amount or 0 for ln in q.lines), 2))
+
+
+@router.get("/p/{project_id}/quotations/{quotation_id}/file")
+def quotation_file(quotation_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    q = _quotation(db, p, quotation_id)
+    data = storage.read_image(q.file_key) if q is not None and q.file_key else None
+    if data is None:
+        return Response(status_code=404)
+    name = q.filename or f"quotation-{q.id}.xlsx"
+    ctype = "application/vnd.ms-excel" if name.lower().endswith(".xls") else qz.XLSX
+    return Response(content=data, media_type=ctype, headers=content_disposition(name))
+
+
+@router.post("/p/{project_id}/quotations/{quotation_id}/delete")
+def delete_quotation(quotation_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    q = _quotation(db, p, quotation_id)
+    if q is None:
+        return redirect(f"/p/{p.id}/quotations")
+    gone = qz.delete(db, q)
+    bz.settle(db, p)
+    db.commit()
+    return redirect(f"/p/{p.id}/quotations?ok=" + urlquote(f"Quotation deleted, with {gone} quote{'s' if gone != 1 else ''} nothing was bought from."))
+
+
