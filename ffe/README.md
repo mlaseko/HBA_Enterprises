@@ -236,6 +236,10 @@ name** (or set the Kind by hand): every existing entry starts as a room.
   (`process_upload`: stages saved → reading → pictures → matching → done, or error); the form posts with
   `Accept: application/json` to show the bytes going up, `/quotations/working/<id>` shows the stages (polling
   `/working/<id>/status`) and opens the preview when done.
+- `POST /quotations/draft` keeps the preview's choices and document fields in the state (a new key each time, the
+  upload row pointing at it, `message = "draft"`); the preview reads them back over the suggestions; the Quotations
+  page lists the uploads not yet posted (drafts, ready, reading, failed) with Continue and Discard
+  (`/working/<id>/discard`). Apply and cancel delete the upload row.
 - Matching: a confirmed match from an earlier sheet of the same shop (`quote_matches`, by item number or wording) or our
   own code (a reply to the inquiry sheet) wins; otherwise `score()` shortlists products by words, size, unit, rooms and
   quantity, and Claude (`ai._call` with `SUGGEST_SYSTEM` / `SUGGEST_SCHEMA`, effort medium, up to 40 line pictures) picks

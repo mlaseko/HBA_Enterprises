@@ -70,7 +70,10 @@ def quotations_page(request: Request, p: Project = Depends(get_project), db: Ses
                          skipped=sum(1 for ln in lines if ln.action == "skip"), new=sum(1 for ln in lines if ln.action == "new")))
     cats = sorted({c.category for c in qz.candidates(db, p)}, key=lambda c: lists.category_order(p).get(c, 999))
     db.commit()  # product rows made by candidates()
-    return render(request, "buying/quotations.html", p=p, rows=rows, suppliers=_suppliers(db), categories=cats, floors=floor_choices(p),
+    ups = db.query(QuotationUpload).filter(QuotationUpload.project_id == p.id).order_by(QuotationUpload.id.desc()).all()
+    drafts = [dict(up=u, url=f"/p/{p.id}/quotations/preview?key={urlquote(u.state_key)}" if u.stage == "done" else f"/p/{p.id}/quotations/working/{u.id}",
+                   draft=u.stage == "done" and u.message == "draft") for u in ups]
+    return render(request, "buying/quotations.html", p=p, rows=rows, drafts=drafts, suppliers=_suppliers(db), categories=cats, floors=floor_choices(p),
                   ok=ok[:200], err=err[:300], claude=qz.ai.enabled())
 
 
@@ -121,6 +124,19 @@ def working_page(request: Request, upload_id: int, p: Project = Depends(get_proj
     return render(request, "buying/quotation_working.html", p=p, up=up, st=st)
 
 
+@router.post("/p/{project_id}/quotations/working/{upload_id}/discard")
+def discard_upload(upload_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """Drop an upload from the list: its draft state, file and pictures go (done or failed; one still working is left alone)."""
+    up = _upload(db, p, upload_id)
+    if up is not None and up.stage in ("done", "error"):
+        state = _load_state(up.state_key) if up.state_key else None
+        if state is not None:
+            _drop_state(state, up.state_key, keep_files=False)
+        db.delete(up)
+        db.commit()
+    return redirect(f"/p/{p.id}/quotations")
+
+
 @router.get("/p/{project_id}/quotations/working/{upload_id}/status")
 def working_status(upload_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
     up = _upload(db, p, upload_id)
@@ -137,17 +153,29 @@ def _preview_ctx(db: Session, p: Project, state: dict) -> dict:
     by_cat: dict[str, list] = {}
     for c in sorted(cands, key=lambda c: (order.get(c.category, 999), c.name.lower(), c.size)):
         by_cat.setdefault(c.category, []).append(c)
+    saved = state.get("choices") or {}
     lines = []
     for l in parsed["lines"]:
-        s = state["suggestions"].get(str(l["no"])) or state["suggestions"].get(l["no"]) or {}
+        s = dict(state["suggestions"].get(str(l["no"])) or state["suggestions"].get(l["no"]) or {})
+        ch = saved.get(str(l["no"]))
+        if ch:  # a draft: what the designer chose wins over the suggestion
+            s.update(action=ch.get("action", "skip"), product_id=ch.get("product_id"), merge_into=ch.get("into") or 0, name=ch.get("name", ""),
+                     category=ch.get("category", ""), room_ids=[int(x) for x in re.findall(r"\d+", str(ch.get("rooms") or ""))], room="")
         pic = (state.get("pictures") or {}).get(str(l["no"]))
         lines.append(dict(l, sug=s, pic=pic[1] if pic else "", full=pic[0] if pic else ""))
     rooms = [(r.id, f"{r.code} {r.name}") for r in p.rooms]
     sup = db.get(Supplier, state["supplier_id"]) if state.get("supplier_id") else None
-    head = parsed.get("head", {})
-    return dict(parsed=parsed, lines=lines, by_cat=by_cat, rooms=rooms, supplier=sup, head=head, claude=state.get("claude"),
-                counts={a: sum(1 for l in lines if l["sug"].get("action") == a) for a in ACTIONS},
-                categories=lists.categories(p), suppliers=_suppliers(db), terms="\n".join(parsed.get("terms") or []))
+    head = dict(parsed.get("head", {}))
+    doc = dict(title=parsed.get("title", ""), currency=parsed.get("currency", "USD"), total=parsed.get("total", 0), discount=parsed.get("discount", 0),
+               charges=sum(c["amount"] for c in parsed.get("charges") or []), terms="\n".join(parsed.get("terms") or []), notes="")
+    if state.get("head"):  # a draft's document fields
+        h = state["head"]
+        head.update(sales=h.get("sales", ""), quote_date=h.get("quote_date", ""), valid_until=h.get("valid_until", ""), lead_time=h.get("lead_time", ""))
+        doc.update({k: h.get(k, doc[k]) for k in doc})
+    new_sup = state.get("new_supplier") or {}
+    return dict(parsed=parsed, lines=lines, by_cat=by_cat, rooms=rooms, supplier=sup, head=head, doc=doc, new_sup=new_sup, claude=state.get("claude"),
+                draft_at=state.get("draft_at", ""), counts={a: sum(1 for l in lines if l["sug"].get("action") == a) for a in ACTIONS},
+                categories=lists.categories(p), suppliers=_suppliers(db), terms=doc["terms"])
 
 
 @router.get("/p/{project_id}/quotations/preview")
@@ -162,12 +190,64 @@ def preview_page(request: Request, p: Project = Depends(get_project), db: Sessio
 
 
 @router.post("/p/{project_id}/quotations/cancel")
-def cancel_preview(p: Project = Depends(get_project), key: str = Form("")):
+def cancel_preview(p: Project = Depends(get_project), db: Session = Depends(get_db), key: str = Form("")):
     key = _state_key(p, key)
     state = _load_state(key) if key else None
     if state is not None:
         _drop_state(state, key, keep_files=False)
+    up = _upload_of(db, p, key) if key else None
+    if up is not None:
+        db.delete(up)
+        db.commit()
     return redirect(f"/p/{p.id}/quotations")
+
+
+HEAD_FIELDS = ("title", "sales", "quote_date", "valid_until", "currency", "total", "discount", "charges", "lead_time", "terms", "notes")
+
+
+def _read_form(form, parsed: dict) -> tuple[dict[int, dict], dict]:
+    """The preview form as posted: {line no: choice} and the document fields."""
+    choices: dict[int, dict] = {}
+    for l in parsed["lines"]:
+        n = l["no"]
+        act = form.get(f"act_{n}", "skip")
+        choices[n] = dict(action=act if act in ACTIONS else "skip", product_id=fint(form.get(f"prod_{n}")), into=fint(form.get(f"into_{n}")) or 0,
+                          rooms=" ".join(form.getlist(f"rooms_{n}")), name=form.get(f"name_{n}", "")[:200], category=form.get(f"cat_{n}", "")[:60])
+    head = {k: form.get(k, "") for k in HEAD_FIELDS}
+    for k in ("total", "discount", "charges"):
+        head[k] = ffloat(head[k], 0)
+    return choices, head
+
+
+def _upload_of(db: Session, p: Project, key: str) -> QuotationUpload | None:
+    return db.query(QuotationUpload).filter(QuotationUpload.project_id == p.id, QuotationUpload.state_key == key).first()
+
+
+@router.post("/p/{project_id}/quotations/draft")
+async def save_draft(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """Keep the preview as it stands (every choice and the document fields) to come back to later; nothing is posted."""
+    form = await request.form()
+    key = _state_key(p, form.get("key", ""))
+    state = _load_state(key) if key else None
+    if state is None:
+        return redirect(f"/p/{p.id}/quotations?err=" + urlquote("That preview is no longer here. Upload the file again."))
+    choices, head = _read_form(form, state["parsed"])
+    state["choices"] = {str(n): ch for n, ch in choices.items()}
+    state["head"] = head
+    sid = fint(form.get("supplier_id"))
+    state["supplier_id"] = sid if sid and db.get(Supplier, sid) is not None else None
+    state["new_supplier"] = dict(name=form.get("supplier_name", "")[:160], city=form.get("supplier_city", "")[:120]) if form.get("supplier_id") == "__new__" else None
+    state["draft_at"] = __import__("datetime").datetime.now().isoformat(timespec="minutes")
+    # a new key each time: the served-file cache would otherwise hand back the old state
+    new_key = re.sub(r"(\.d[0-9a-f]+)?\.json$", "", key) + f".d{uuid.uuid4().hex[:8]}.json"
+    storage.save_blob(json.dumps(state, ensure_ascii=False).encode("utf-8"), new_key, "application/json")
+    up = _upload_of(db, p, key)
+    if up is not None:
+        up.state_key = new_key
+        up.message = "draft"
+        db.commit()
+    storage.delete_image(key)
+    return redirect(f"/p/{p.id}/quotations?ok=" + urlquote(f"Draft saved: {state['parsed'].get('title') or state['parsed'].get('filename', '')}. Open it from Drafts to carry on."))
 
 
 @router.post("/p/{project_id}/quotations/apply")
@@ -183,22 +263,17 @@ async def apply_preview(request: Request, p: Project = Depends(get_project), db:
                                 form.get("supplier_wechat", ""), form.get("supplier_phone", ""))
     if supplier is None:
         return redirect(f"/p/{p.id}/quotations/preview?key={urlquote(key)}&err=" + urlquote("Pick the shop that sent the quotation, or type its name."))
-    choices: dict[int, dict] = {}
-    for l in parsed["lines"]:
-        n = l["no"]
-        act = form.get(f"act_{n}", "skip")
-        act = act if act in ACTIONS else "skip"
-        choices[n] = dict(action=act, product_id=fint(form.get(f"prod_{n}")), into=fint(form.get(f"into_{n}")) or 0,
-                          rooms=" ".join(form.getlist(f"rooms_{n}")), name=form.get(f"name_{n}", ""), category=form.get(f"cat_{n}", ""))
-        if act == "quote" and not choices[n]["product_id"]:
-            choices[n]["action"] = "skip"
-    head = {k: form.get(k, "") for k in ("title", "sales", "quote_date", "valid_until", "currency", "total", "discount", "charges", "lead_time", "terms", "notes")}
-    for k in ("total", "discount", "charges"):
-        head[k] = ffloat(head[k], 0)
+    choices, head = _read_form(form, parsed)
+    for n, ch in choices.items():
+        if ch["action"] == "quote" and not ch["product_id"]:
+            ch["action"] = "skip"
     pictures = {int(k): tuple(v) for k, v in (state.get("pictures") or {}).items()}
     q = qz.apply(db, p, parsed, choices, head, supplier, pictures, state.get("file_key", ""))
     if supplier.contact == "" and head.get("sales"):
         supplier.contact = head["sales"][:120]
+    up = _upload_of(db, p, key)
+    if up is not None:
+        db.delete(up)
     bz.settle(db, p)
     db.commit()
     _drop_state(state, key, keep_files=True)

@@ -16,6 +16,7 @@
 {{ tabs(p, 'quotations') }}
 
 {% if err %}<div class="alert err">{{ err }}</div>{% endif %}
+{% if draft_at %}<div class="alert info">A draft saved {{ draft_at|replace('T', ' ') }}: your choices are as you left them. Nothing is posted until you press Save the quotation.</div>{% endif %}
 {% for w in parsed.warnings %}<div class="alert info">{{ w }}</div>{% endfor %}
 
 <form method="post" action="/p/{{ p.id }}/quotations/apply" id="qi-form">
@@ -33,19 +34,19 @@
         {% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if supplier and supplier.id == s.id }}>{{ s.name }}{% if s.city %} · {{ s.city }}{% endif %}</option>{% endfor %}
         <option value="__new__" {{ 'selected' if not supplier }}>+ New shop…</option>
       </select></div>
-    <div class="qi-newsup"><label>New shop's name</label><input class="in" type="text" name="supplier_name" value="" placeholder="e.g. Foshan Sanitary Co." maxlength="160" autocomplete="off"></div>
-    <div class="qi-newsup"><label>Market / city</label><input class="in" type="text" name="supplier_city" value="" placeholder="Foshan" maxlength="120"></div>
-    <div><label>What it quotes</label><input class="in" type="text" name="title" value="{{ parsed.title }}" maxlength="200"></div>
+    <div class="qi-newsup"><label>New shop's name</label><input class="in" type="text" name="supplier_name" value="{{ new_sup.name or '' }}" placeholder="e.g. Foshan Sanitary Co." maxlength="160" autocomplete="off"></div>
+    <div class="qi-newsup"><label>Market / city</label><input class="in" type="text" name="supplier_city" value="{{ new_sup.city or '' }}" placeholder="Foshan" maxlength="120"></div>
+    <div><label>What it quotes</label><input class="in" type="text" name="title" value="{{ doc.title }}" maxlength="200"></div>
     <div><label>Sales person</label><input class="in" type="text" name="sales" value="{{ head.sales or '' }}" maxlength="120"></div>
     <div><label>Quote date</label><input class="in" type="date" name="quote_date" value="{{ head.quote_date or '' }}"></div>
     <div><label>Valid until</label><input class="in" type="text" name="valid_until" value="{{ head.valid_until or '' }}" placeholder="2026-11-24 or 15 days" maxlength="60"></div>
-    <div><label>Currency</label><select class="in" name="currency"><option {{ 'selected' if cur == 'USD' }}>USD</option><option {{ 'selected' if cur == 'CNY' }}>CNY</option></select></div>
+    <div><label>Currency</label><select class="in" name="currency"><option {{ 'selected' if doc.currency == 'USD' }}>USD</option><option {{ 'selected' if doc.currency == 'CNY' }}>CNY</option></select></div>
     <div><label>Lead time</label><input class="in" type="text" name="lead_time" value="{{ head.lead_time or '' }}" maxlength="120" placeholder="25-30 days after deposit"></div>
-    <div><label>Total on the sheet</label><input class="in" type="number" step="0.01" min="0" name="total" value="{{ parsed.total|plain }}" inputmode="decimal"><div class="help">Before any discount; the lines add up to {{ cur }} {{ (lines|sum(attribute='amount'))|money(2) }}.</div></div>
-    <div><label>Discount</label><input class="in" type="number" step="0.01" min="0" name="discount" value="{{ parsed.discount|plain }}" inputmode="decimal"><div class="help">Taken off the total; spread over the line prices.</div></div>
-    <div><label>Extra charges</label><input class="in" type="number" step="0.01" min="0" name="charges" value="{{ (parsed.charges|sum(attribute='amount'))|plain }}" inputmode="decimal"><div class="help">{% if parsed.charges %}{% for c in parsed.charges %}{{ c.name }} {{ c.amount|money(2) }}{{ ' · ' if not loop.last }}{% endfor %}{% else %}Pallet, packing… that belong to no line.{% endif %}</div></div>
+    <div><label>Total on the sheet</label><input class="in" type="number" step="0.01" min="0" name="total" value="{{ doc.total|plain }}" inputmode="decimal"><div class="help">Before any discount; the lines add up to {{ cur }} {{ (lines|sum(attribute='amount'))|money(2) }}.</div></div>
+    <div><label>Discount</label><input class="in" type="number" step="0.01" min="0" name="discount" value="{{ doc.discount|plain }}" inputmode="decimal"><div class="help">Taken off the total; spread over the line prices.</div></div>
+    <div><label>Extra charges</label><input class="in" type="number" step="0.01" min="0" name="charges" value="{{ doc.charges|plain }}" inputmode="decimal"><div class="help">{% if parsed.charges %}{% for c in parsed.charges %}{{ c.name }} {{ c.amount|money(2) }}{{ ' · ' if not loop.last }}{% endfor %}{% else %}Pallet, packing… that belong to no line.{% endif %}</div></div>
     <div class="span3"><label>Terms as written</label><textarea class="in" name="terms" rows="3">{{ terms }}</textarea></div>
-    <div class="span3"><label>Your notes</label><input class="in" type="text" name="notes" value="" maxlength="500" placeholder="Anything to remember about this quotation"></div>
+    <div class="span3"><label>Your notes</label><input class="in" type="text" name="notes" value="{{ doc.notes }}" maxlength="500" placeholder="Anything to remember about this quotation"></div>
   </div>
 </div>
 
@@ -101,9 +102,9 @@
       </div>
       <div class="qi-f qi-f-new">
         <div class="grid g2">
-          <div><input class="in" type="text" name="name_{{ l.no }}" value="{{ l.name }}" placeholder="Name on the schedule" maxlength="200" aria-label="Name of the new item"></div>
+          <div><input class="in" type="text" name="name_{{ l.no }}" value="{{ s.name or l.name }}" placeholder="Name on the schedule" maxlength="200" aria-label="Name of the new item"></div>
           <div><select class="in" name="cat_{{ l.no }}" aria-label="Category"><option value="">Category…</option>{% for c in categories %}<option {{ 'selected' if s.category == c }}>{{ c }}</option>{% endfor %}</select></div>
-          <div class="span2"><select class="in" name="rooms_{{ l.no }}" multiple size="3" aria-label="Rooms">{% for rid, label in rooms %}<option value="{{ rid }}" {{ 'selected' if s.room and label.startswith(s.room ~ ' ') }}>{{ label }}</option>{% endfor %}</select>
+          <div class="span2"><select class="in" name="rooms_{{ l.no }}" multiple size="3" aria-label="Rooms">{% for rid, label in rooms %}<option value="{{ rid }}" {{ 'selected' if (s.room_ids and rid in s.room_ids) or (s.room and label.startswith(s.room ~ ' ')) }}>{{ label }}</option>{% endfor %}</select>
             <div class="help">One item per room ticked (Ctrl/⌘ for several); none = whole house. The quote goes on it.</div></div>
         </div>
       </div>
@@ -116,7 +117,10 @@
 <div class="card tight qi-bar">
   <div class="row between">
     <span class="small muted hide-m">Lines that quote the same product are combined into one quote (total amount over total quantity). Confirmed matches are remembered for this shop's next sheet.</span>
-    <button class="btn accent lg" id="qi-save"><svg class="ic"><use href="#i-check"/></svg>Save the quotation</button>
+    <div class="row">
+      <button class="btn sec lg" id="qi-draft" formaction="/p/{{ p.id }}/quotations/draft" formnovalidate><svg class="ic"><use href="#i-clock"/></svg>Save as draft</button>
+      <button class="btn accent lg" id="qi-save"><svg class="ic"><use href="#i-check"/></svg>Save the quotation</button>
+    </div>
   </div>
 </div>
 </form>
@@ -136,7 +140,8 @@
     out.textContent=!sel.value?'':(mine?'Updates this shop\u2019s quote of '+mine+' on this product; rooms bought from it follow.':'Adds a new quote on this product'+(others?' (already quoted by '+others+' other shop'+(others>1?'s':'')+')':'')+'.'); }
   function newsup(){ var on=sup.value==='__new__'; form.querySelectorAll('.qi-newsup').forEach(function(d){d.hidden=!on;}); form.querySelectorAll('.qi-line').forEach(upd); }
   sup.addEventListener('change',newsup); newsup();
-  form.addEventListener('submit',function(){ var b=document.getElementById('qi-save'); if(b){ b.disabled=true; b.innerHTML='<span class="qi-spin"></span>Saving the quotation…'; } });
+  form.addEventListener('submit',function(e){ var d=document.getElementById('qi-draft'), b=document.getElementById('qi-save'); var asDraft=e.submitter&&e.submitter.id==='qi-draft';
+    var hit=asDraft?d:b; if(hit){ hit.disabled=true; hit.innerHTML='<span class="qi-spin"></span>'+(asDraft?'Saving the draft…':'Saving the quotation…'); } if(d&&!asDraft) d.disabled=true; if(b&&asDraft) b.disabled=true; });
   form.addEventListener('change',function(e){ var line=e.target.closest('.qi-line'); if(line&&e.target.classList.contains('qi-prod')) upd(line); });
 })();
 </script>
