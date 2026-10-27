@@ -122,10 +122,10 @@
           <div><input class="in" type="text" name="name_{{ l.no }}" value="{{ s.name or l.name }}" placeholder="Name on the schedule" maxlength="200" aria-label="Name of the new item"></div>
           <div><select class="in" name="cat_{{ l.no }}" aria-label="Category"><option value="">Category…</option>{% for c in categories %}<option {{ 'selected' if s.category == c }}>{{ c }}</option>{% endfor %}</select></div>
           <div class="span2"><select class="in" name="rooms_{{ l.no }}" multiple size="3" aria-label="Rooms">{% for rid, label in rooms %}<option value="{{ rid }}" {{ 'selected' if (s.room_ids and rid in s.room_ids) or (s.room and label.startswith(s.room ~ ' ')) }}>{{ label }}</option>{% endfor %}</select>
-            <div class="help">One item per room ticked (Ctrl/⌘ for several); none = whole house. The quote goes on it.</div></div>
+            <div class="help">Ticked from the supplier's words; one item per room ticked (Ctrl/⌘ for several), the sheet's quantity shared between them; none = whole house. The quote goes on it.</div></div>
         </div>
       </div>
-      {% if s.reason or s.flags %}<div class="qi-why small">{% if s.reason %}<span class="muted">{{ s.reason }}</span>{% endif %}{% for f in s.flags %}<span class="pill gold">{{ f }}</span>{% endfor %}</div>{% endif %}
+      {% if s.reason or s.flags %}<div class="qi-why small">{% if s.reason %}<span class="muted">{{ s.reason }}</span>{% endif %}{% for f in s.flags %}<span class="pill {{ 'red' if f.startswith(('thickness', 'anti-slip', 'slip', 'finish', 'material')) else 'gold' }}" title="{{ 'The offer contradicts the specification' if f.startswith(('thickness', 'anti-slip', 'slip', 'finish', 'material')) else 'Differs from the design' }}">&#9888; {{ f }}</span>{% endfor %}</div>{% endif %}
     </div>
   </article>
   {% endfor %}
