@@ -186,9 +186,11 @@ def _preview_ctx(db: Session, p: Project, state: dict) -> dict:
         ch = saved.get(str(l["no"]))
         if ch:  # a draft: what the designer chose wins over the suggestion
             s.update(action=ch.get("action", "skip"), product_id=ch.get("product_id"), merge_into=ch.get("into") or 0, name=ch.get("name", ""),
-                     category=ch.get("category", ""), room_ids=[int(x) for x in re.findall(r"\d+", str(ch.get("rooms") or ""))], room="")
+                     category=ch.get("category", ""), room_ids=[int(x) for x in re.findall(r"\d+", str(ch.get("rooms") or ""))], room="",
+                     split=bool(ch.get("split")), variant=ch.get("variant", ""), vrooms=ch.get("vrooms", ""))
         pic = (state.get("pictures") or {}).get(str(l["no"]))
-        lines.append(dict(l, sug=s, pic=pic[1] if pic else "", full=pic[0] if pic else "", dims=qz.dims(l["size"]) or qz.dims(l["name"])))
+        lines.append(dict(l, sug=s, pic=pic[1] if pic else "", full=pic[0] if pic else "", dims=qz.dims(l["size"]) or qz.dims(l["name"]),
+                          hints=qz.room_hints(l, p), variant=qz.variant_label(l)))
     rooms = [(r.id, f"{r.code} {r.name}") for r in p.rooms]
     sup = db.get(Supplier, state["supplier_id"]) if state.get("supplier_id") else None
     head = dict(parsed.get("head", {}))
@@ -248,7 +250,8 @@ def _read_form(form, parsed: dict) -> tuple[dict[int, dict], dict]:
         n = l["no"]
         act = form.get(f"act_{n}", "skip")
         choices[n] = dict(action=act if act in ACTIONS else "skip", product_id=fint(form.get(f"prod_{n}")), into=fint(form.get(f"into_{n}")) or 0,
-                          rooms=" ".join(form.getlist(f"rooms_{n}")), name=form.get(f"name_{n}", "")[:200], category=form.get(f"cat_{n}", "")[:60])
+                          rooms=" ".join(form.getlist(f"rooms_{n}")), name=form.get(f"name_{n}", "")[:200], category=form.get(f"cat_{n}", "")[:60],
+                          split=bool(form.get(f"split_{form.get(f'prod_{n}') or 0}")), variant=form.get(f"vlabel_{n}", "")[:60], vrooms=form.get(f"vrooms_{n}", "")[:400])
     head = {k: form.get(k, "") for k in HEAD_FIELDS}
     for k in ("total", "discount", "charges"):
         head[k] = ffloat(head[k], 0)
@@ -368,8 +371,25 @@ def quotation_page(request: Request, quotation_id: int, p: Project = Depends(get
     revises = db.get(Quotation, q.replaces_id) if q.replaces_id else None
     revised_by = db.query(Quotation).filter(Quotation.replaces_id == q.id).order_by(Quotation.id.desc()).first()
     return render(request, "buying/quotation.html", p=p, q=q, gaps=gaps, counts=counts, ok=ok[:200], err=err[:300], by_quote=by_quote,
-                  revises=revises, revised_by=revised_by, cmp_cat=cmp_cat,
+                  revises=revises, revised_by=revised_by, cmp_cat=cmp_cat, families=qz.families(db, p, q),
                   lines_total=round(sum(ln.amount or 0 for ln in q.lines), 2))
+
+
+@router.post("/p/{project_id}/quotations/{quotation_id}/variants")
+async def edit_variants(request: Request, quotation_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """The products and variants card: rename a variant (label_<product>) and move room lines between the variants of a
+    family (var_<item> = product); the products, quotes and purchases follow."""
+    q = _quotation(db, p, quotation_id)
+    if q is None:
+        return redirect(f"/p/{p.id}/quotations")
+    form = await request.form()
+    mine = {pr.id for pr in p.products}
+    labels = {int(k[6:]): v for k, v in form.items() if k.startswith("label_") and k[6:].isdigit() and int(k[6:]) in mine and v.strip()}
+    moves = {int(k[4:]): fint(v) for k, v in form.items() if k.startswith("var_") and k[4:].isdigit() and fint(v) in mine}
+    n = qz.set_variants(db, p, labels, moves)
+    bz.settle(db, p)
+    db.commit()
+    return redirect(f"/p/{p.id}/quotations/{q.id}?ok=" + urlquote(f"Variants saved: {n} room line{'s' if n != 1 else ''} changed." if n else "Nothing changed.") + "#variants")
 
 
 @router.get("/p/{project_id}/quotations/{quotation_id}/file")

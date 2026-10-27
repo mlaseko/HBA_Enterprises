@@ -570,6 +570,8 @@ def follow_renames(db: Session, p: Project, before: dict[int, str]) -> None:
                     q.product = target
                 for pu in list(prod.purchases):
                     pu.product = target
+                from .models import QuotationLine  # the sheets' lines that became this product follow it too
+                db.query(QuotationLine).filter(QuotationLine.product_id == prod.id).update({"product_id": target.id})
                 db.flush()
                 db.delete(prod)
             prods.pop(old, None)

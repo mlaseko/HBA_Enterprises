@@ -277,6 +277,14 @@ name** (or set the Kind by hand): every existing entry starts as a room.
   added, the discount pro rata, the item numbers in `Quote.model`, the picture copied, the lead time from the sheet, the
   differences noted), new items with `next_code`, and the matches remembered. Deleting a quotation deletes the quotes it
   made that no purchase uses.
+- Variants (`quotations.split_products`, `families`, `set_variants`): on the preview, lines with different models or
+  prices on one product get a "Split … by model" card (`split_<product>`, `vlabel_<line>`, `vrooms_<line>`; the rooms
+  pre-ticked from `room_hints`, which reads the line's place first — a Remarks cell "For <room>" is the place when the
+  sheet has no place column); `apply` then gives each line's rooms the line's variant as their size before matching
+  (`variant_label`: "2.5 HP" from the words, else the item number), so every model becomes a product with its rooms and
+  quote (`buying.follow_renames`); the generic product left without rooms, quotes or purchases is removed. The document
+  page's "Products and variants" card (`POST /quotations/<q>/variants`: `label_<product>`, `var_<item>`) renames
+  variants and moves room lines between them; the preview's quantities table groups a family's variants under one row.
 - A sheet with a summary table and its breakdown: `_parse_sheet` numbers the tables (`line["table"]`) and `_mark_breakdowns`
   sets `summary_of` / `part_of` when one table's lines add up to a line of another; `suggest` merges the parts into the
   summary line and `apply` / the preview count their amounts once (`is_breakdown`). `Quotation.replaces_id` (column via
