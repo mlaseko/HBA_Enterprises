@@ -466,6 +466,8 @@ def _parse_sheet(sh: dict) -> dict:
             amount = round(qty * price, 2)
         counter += 1
         remarks = " ".join(t for _, t in vals.get("remarks", []) if t and not t.startswith("="))
+        if not place and re.match(r"^\s*for\s+\S", remarks, re.I):  # "For ground floor home office" in Remarks: the line's place
+            place = re.sub(r"^\s*for\s+", "", remarks, flags=re.I)[:120]
         detail_full = "\n".join(x for x in [detail, remarks and f"Remarks: {remarks}", *extras] if x)
         one = lambda x: " ".join(str(x).split())
         line = dict(no=counter, row=rno, section=one(section)[:200], place=one(place)[:200], ref=one(ref)[:120], name=one(name)[:300], detail=detail_full[:2000],
