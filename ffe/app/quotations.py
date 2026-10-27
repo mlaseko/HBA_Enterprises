@@ -685,7 +685,8 @@ def room_hints(line: dict, p: Project) -> list[int]:
     if line.get("place"):  # the line's own place is the room; the section above it is only the floor or the table's heading
         text = f"{line['place']} {line['name']}"
     words = tokens(text) - {"floor", "wall", "tiles", "porcelain", "main", "slab", "skirting"}
-    nums = set(re.findall(r"(?<![\w.])\d+(?![\w.])", text))  # "bedroom 1" is not "bedroom 2" (not the 2 and 6 of 2.6 kW, nor the 1 of 1hp)
+    no_floors = re.sub(r"\bfloor\s*\d+|\b\d+(?:st|nd|rd|th)?\s*floor\b", " ", text, flags=re.I)  # "Floor 1 Toilet" is not "Bathroom 1"
+    nums = set(re.findall(r"(?<![\w.])\d+(?![\w.])", no_floors))  # "bedroom 1" is not "bedroom 2" (not the 2 and 6 of 2.6 kW, nor the 1 of 1hp)
     if not words and not nums:
         return []
     scored = []
@@ -1058,15 +1059,21 @@ _CAP_RE = re.compile(r"(?<![\w.])(\d+(?:[.,]\d+)?)\s*(hp|kw|btu|tons?|litres?|li
 _CAP_UNITS = {"hp": "HP", "kw": "kW", "btu": "BTU", "w": "W", "ltr": "l", "litres": "l", "litre": "l", "liters": "l", "liter": "l", "tons": "ton"}
 
 
-def variant_label(line: dict) -> str:
-    """The short text that tells this model apart from the others of the same product: its capacity ("2.5 HP", "12 kW")
-    from the name, size or description, else the supplier's item number."""
+def capacity_label(line: dict) -> str:
+    """The capacity named on the line ("2.5 HP", "12 kW"), from the name, size or description; '' when none."""
     for text in (line["name"], line.get("size", ""), line.get("detail", "")[:300]):
         m = _CAP_RE.search(text or "")
         if m:
             u = m.group(2).lower()
             return f"{m.group(1).replace(',', '.')} {_CAP_UNITS.get(u, u)}"
-    return (line.get("ref") or "")[:60]
+    return ""
+
+
+def variant_label(line: dict) -> str:
+    """The short text that tells this model apart from the others of the same product, when the designer typed none:
+    its capacity, else the supplier's item number, else its size. The preview's cards choose better from the group of
+    lines (the place when the places differ, the size when the sizes do, the words of the name that differ)."""
+    return (capacity_label(line) or (line.get("ref") or "") or (line.get("size") or "").split("(")[0].strip())[:60]
 
 
 def split_products(db: Session, p: Project, parsed: dict, choices: dict[int, dict], cands: dict[int, "Candidate"], doc_name: str = "") -> dict[int, Item]:
@@ -1094,7 +1101,7 @@ def split_products(db: Session, p: Project, parsed: dict, choices: dict[int, dic
             rooms = [r for r in p.rooms if r.id in ids]
             if not label or not rooms:
                 continue
-            size = (f"{c.size} · {label}" if c.size else label)[:160]
+            size = (label if not c.size or (dims(label) and dims(c.size)) else f"{c.size} · {label}")[:160]  # a window's own size replaces the product's; a capacity is added to it
             first = None
             for room in rooms:
                 it = free.pop(room.id, None)
