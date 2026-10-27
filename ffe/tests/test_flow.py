@@ -30,7 +30,10 @@ def buy(c, pid, item_id, supplier, amount, currency="CNY", lead="", lines=None, 
         r=c.post(f"/p/{pid}/buying/{prod}/quotes/{qid}/buy", data={"rooms":"1","line":[str(x) for x in lines]}, follow_redirects=False); assert r.status_code==303 and "err=" not in r.headers["location"], r.headers
     return prod, qid
 
-with TestClient(app) as c:
+def flow(c):
+    """The walk through the app, in sections ending with print("<name> ok"). It is never called as a function: the runner
+    at the end of the file executes its statements section by section in one shared namespace, so a section can be
+    run on its own (python tests/test_flow.py quotations) with the setup and the sections it depends on."""
     r=c.get("/", follow_redirects=False); assert r.status_code==200 and "Enter the app password" in r.text
     r=c.post("/login", data={"password":"wrong","next":"/"}); assert "Wrong password" in r.text
     r=c.post("/login", data={"password":"test123","next":"/"}, follow_redirects=False); assert r.status_code==303
@@ -124,6 +127,7 @@ with TestClient(app) as c:
     for ph in d.photos: db.delete(ph)
     db.delete(d); db.commit(); db.close()  # keep the drafts count at zero for the capture test below
     r=c.post("/clip", data={"project_id":pid,"dest":"cover","link":"","page":"https://shop.example/product/sofa"}, follow_redirects=False); assert r.headers["location"]==f"/p/{pid}/images"
+    print("setup ok")
     # ---- Claude auto-fill (API replaced by a fake; off without the key) ----
     import app.ai as ai
     assert ai.suggest_item(img("red"), "text", "u", []) is None  # no key: feature off
@@ -2043,4 +2047,139 @@ with TestClient(app) as c:
     assert c.get(f"/p/{pid_q}/quotations/{qd4}").status_code==200 and "no shop" in c.get(f"/p/{pid_q}/quotations/{qd4}").text
     ai._call=lambda content, schema=None, **kw: (_ for _ in ()).throw(RuntimeError("down"))
     print("quotations ok")
-    print("ALL OK")
+
+
+# ---- the runner: sections, dependencies, selection ------------------------------------------------------------------------
+# A section is the statements of flow() up to and including a print("<name> ok"); what comes before the first one is the
+# setup (always run). A section depends on the sections that assigned the names it reads (worked out from the source) plus
+# EXTRA_DEPS for state that lives only in the database. Usage:
+#   python tests/test_flow.py                     every section (the gate before a merge; prints ALL OK)
+#   python tests/test_flow.py quotations buying   the setup, their dependencies and those sections
+#   python tests/test_flow.py --list              the sections, their dependencies, and the time each took last run
+# A name matches a section when it is the section's name or a word of it ("plan" = interactive plan). The imports and
+# helper functions of a skipped section are still defined, so a section does not depend on another for those alone.
+import ast as _ast, json as _json, time as _time0
+
+EXTRA_DEPS = {}  # section -> sections it needs beyond what the names say (filled where a run alone fails)
+TIMES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".section_times.json")
+
+
+def _marker(stmt):
+    """'name' when the statement is print("name ok"), else None."""
+    if isinstance(stmt, _ast.Expr) and isinstance(stmt.value, _ast.Call) and isinstance(stmt.value.func, _ast.Name) and stmt.value.func.id == "print":
+        a = stmt.value.args
+        if len(a) == 1 and isinstance(a[0], _ast.Constant) and isinstance(a[0].value, str) and a[0].value.endswith(" ok"):
+            return a[0].value[:-3]
+    return None
+
+
+def _sections():
+    src = open(os.path.abspath(__file__), encoding="utf-8").read()
+    tree = _ast.parse(src)
+    fn = next(n for n in tree.body if isinstance(n, _ast.FunctionDef) and n.name == "flow")
+    out, cur = [], []
+    for st in fn.body[1:]:  # past the docstring
+        cur.append(st)
+        m = _marker(st)
+        if m:
+            out.append((m, cur))
+            cur = []
+    if cur:
+        out.append(("(tail)", cur))
+    assert out and out[0][0] == "setup", "flow() must start with the setup, ending in print(\"setup ok\")"
+    return out
+
+
+def _free(st):
+    """A statement a skipped section can still run: an import or a helper definition (cheap, no effect on the app)."""
+    return isinstance(st, (_ast.Import, _ast.ImportFrom, _ast.FunctionDef))
+
+
+def _names(stmts):
+    """(assigned, read) names of a list of statements, leaving out what _free statements define."""
+    assigned, read = set(), set()
+    for st in stmts:
+        if _free(st):
+            continue
+        for n in _ast.walk(st):
+            if isinstance(n, _ast.Name):
+                (assigned if isinstance(n.ctx, _ast.Store) else read).add(n.id)
+            elif isinstance(n, (_ast.FunctionDef, _ast.ClassDef)):
+                assigned.add(n.name)
+            elif isinstance(n, _ast.Import) or isinstance(n, _ast.ImportFrom):
+                for a in n.names:
+                    assigned.add((a.asname or a.name).split(".")[0])
+            elif isinstance(n, _ast.arg):
+                assigned.add(n.arg)
+    return assigned, read
+
+
+def _plan(secs, wanted):
+    """The sections to run, in order: the setup, the wanted ones and, transitively, the ones they depend on."""
+    names = [n for n, _ in secs]
+    info = {n: _names(st) for n, st in secs}
+    first = names[0]
+    deps = {}
+    for i, n in enumerate(names):
+        d = set(EXTRA_DEPS.get(n, ()))
+        for name in info[n][1]:
+            if name in info[n][0] or name in info[first][0]:
+                continue
+            for m in reversed(names[:i]):
+                if name in info[m][0]:
+                    if m != first:
+                        d.add(m)
+                    break
+        deps[n] = d
+    chosen = set()
+    def add(n):
+        if n in chosen:
+            return
+        chosen.add(n)
+        for m in deps[n]:
+            add(m)
+    for w in wanted:
+        add(w)
+    return [n for n in names if n == first or n in chosen], deps
+
+
+def main(argv):
+    secs = _sections()
+    names = [n for n, _ in secs]
+    args = [a for a in argv if not a.startswith("--")]
+    try:
+        times = _json.load(open(TIMES_FILE))
+    except Exception:
+        times = {}
+    if "--list" in argv:
+        _, deps = _plan(secs, [])
+        for n in names:
+            print(f"{times.get(n, 0):6.1f}s  {n}" + (f"  (needs {', '.join(sorted(deps[n]))})" if deps[n] else ""))
+        return
+    wanted = []
+    for a in args:
+        hits = [n for n in names if n == a] or [n for n in names if a.lower() in n.lower().replace("&", "").split()] or [n for n in names if a.lower() in n.lower()]
+        if len(hits) != 1:
+            sys.exit(f"'{a}' names {len(hits)} sections{': ' + ', '.join(hits) if hits else ''}. Sections: {', '.join(names)}")
+        wanted.append(hits[0])
+    run, _ = _plan(secs, wanted) if wanted else (names, None)
+    ns = dict(globals())
+    t_all = _time0.time()
+    with TestClient(app) as c:
+        ns["c"] = c
+        for name, stmts in secs:
+            if name not in run:
+                stmts = [st for st in stmts if _free(st)]
+            t = _time0.time()
+            exec(compile(_ast.Module(body=stmts, type_ignores=[]), os.path.abspath(__file__), "exec"), ns)
+            if name in run:
+                times[name] = round(_time0.time() - t, 1)
+    try:
+        _json.dump(times, open(TIMES_FILE, "w"), indent=0)
+    except OSError:
+        pass
+    print(f"ALL OK ({len(run)} of {len(names)} sections, {_time0.time() - t_all:.0f} s)")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
