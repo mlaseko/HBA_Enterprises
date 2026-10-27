@@ -114,6 +114,7 @@
       if (kind === 'group') return b.dataset.group === val;
       if (kind === 'floor') return b.dataset.floor === val;
       if (kind === 'kind') return b.dataset.kind === val;
+      if (kind === 'ids') return val.split(',').indexOf(b.value) >= 0;  // a chip naming rooms (the quotation preview's "Rooms with a basin")
       return true;
     });
   }

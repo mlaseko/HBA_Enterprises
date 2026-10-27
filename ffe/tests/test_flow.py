@@ -1791,6 +1791,7 @@ with TestClient(app) as c:
     # the parser on the sample supplier files (when they are in the repo), and its units and sizes
     assert _qz.dims("600*1200")==[1200.0,600.0] and _qz.dims("main cabinet:1470*420*350")==[1470.0,420.0,350.0] and _qz.dims("1200 x 2400 mm, satin")==[2400.0,1200.0] and _qz.dims("90 cm")==[900.0] and _qz.dims("T=12")==[]
     assert _qz._unit("SQM")=="m²" and _qz._unit("PCS")=="pcs" and _qz._unit("set")=="set" and _qz._unit("M")=="m"
+    assert _qz._same_unit("set")=="pcs"==_qz._same_unit("each") and _qz._same_unit("lm")=="m" and _qz._same_unit("m²")=="m²"  # a supplier's set of a mirror is the design's pcs
     _sdir=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "samples", "quotes", "kinondoni")
     _tile=os.path.join(_sdir, "KINO-tile quotation.xlsx")
     if os.path.exists(_tile):
@@ -1874,6 +1875,12 @@ with TestClient(app) as c:
     assert qcalls and kw_ok(qcalls[-1][1]) if (kw_ok:=lambda kw: kw.get("system") and kw.get("effort")=="medium" and kw.get("max_tokens")>=8000) else False
     assert any(b.get("type")=="image" for b in qcalls[-1][0]) and "Picture of line L1" in [b["text"] for b in qcalls[-1][0] if b.get("type")=="text"][0]
     r=c.get(loc); assert r.status_code==200 and "Check the quotation" in r.text and "Tile quotation" in r.text
+    assert "qi-legend" in r.text and 'id="qi-rooms-tpl"' in r.text and 'name="rooms_X"' in r.text and 'id="qi-todo"' in r.text and "Before you save" in r.text
+    _sg=__import__("json").loads(_st.read_image(qkey).decode())["suggestions"]
+    assert _sg["4"]["action"]=="new" and _sg["4"]["options"] and _sg["4"]["options"][0]["kind"] in ("quote", "new") and any(o["kind"]=="new" for o in _sg["4"]["options"]), _sg["4"]["options"]
+    assert _sg["4"]["related"] and _sg["4"]["related"]["word"] in ("handrail", "stair", "stairs") and _sg["4"]["related"]["ids"], _sg["4"]["related"]  # the rooms with a handrail / stair product
+    assert _sg["1"]["options"]==[] and _sg["4"]["category"]  # a confident match offers nothing; a new item gets the nearest category
+    assert re.search(r'class="span2 qi-rooms" data-ids="[^"]*"', r.text) and 'class="qi-chip opt" data-kind=' in r.text
     h=r.text
     assert 'name="act_1"' in h and h.count('<article class="qi-line')==5 and "First floor (Including 10% of wastage)" in h
     assert re.search(r'name="act_1"[^>]*>\s*<option value="quote" selected', h) and re.search(r'name="act_3"[^>]*>(?:(?!</select>).)*value="skip" selected', h, re.S) and re.search(r'name="act_4"[^>]*>(?:(?!</select>).)*value="new" selected', h, re.S)
@@ -1961,7 +1968,7 @@ with TestClient(app) as c:
     h=c.get(f"/p/{pid_q}/quotations/preview?key={key5b}").text
     assert "A draft saved" in h and 'value="draft note"' in h and 'value="Draft title"' in h and 'value="Draft Shop"' in h and 'value="__new__" selected' in h
     assert re.search(r'name="act_1"[^>]*>(?:(?!</select>).)*value="skip" selected', h, re.S) and re.search(r'name="act_4"[^>]*>(?:(?!</select>).)*value="new" selected', h, re.S) and 'value="Handrail v5"' in h
-    assert re.search(r'name="rooms_4"[^>]*>(?:(?!</select>).)*value="%d" selected' % _sta, h, re.S) and re.search(r'name="into_5"[^>]*>(?:(?!</select>).)*value="4" selected', h, re.S)
+    assert ('name="rooms_4" value="%d"' % _sta) in h and re.search(r'class="span2 qi-rooms" data-ids="[^"]*\b%d\b' % _sta, h) and re.search(r'name="into_5"[^>]*>(?:(?!</select>).)*value="4" selected', h, re.S)
     assert "Save as draft" in h and "/quotations/draft" in h
     # the draft saved again (a second key), then posted from it
     r=c.post(f"/p/{pid_q}/quotations/draft", data=dict(dform, key=key5b, notes="draft note 2"), follow_redirects=False); assert "Draft%20saved" in r.headers["location"]

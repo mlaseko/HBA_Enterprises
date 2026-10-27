@@ -705,6 +705,13 @@ ALTER TABLE projects ADD COLUMN deposit_pct / soon_days / balance_days / lcl_up_
   picture keys, file) under a `.w…json` key and sets the row to `WAITING`; the working page shows Try Claude again / Continue
   without Claude (`POST /working/<u>/retry`, `retry_matching`), the Quotations page "Waiting for Claude"; the preview carries
   `claude_note` when the designer went on without it. Never fall back to words silently when the key is set.
+  `_same_unit`: lm ≡ m and the countable units (`COUNT_UNITS`) ≡ pcs, in `flags` and the preview's table. New items: the rooms
+  are the `room_picks` checklist cloned from `<template id="qi-rooms-tpl">` by the page script when a line becomes new (not
+  rendered per line), the suggested ids ticked (`data-ids`; hidden inputs as the no-script fallback), plus a "Rooms with a basin"
+  chip (`related_rooms()` → `sug["related"]`, `data-pick="ids:…"` handled by app.js) and the quantity split; Claude's answer may
+  carry `rooms` (codes) for a new item. `options()` → `sug["options"]` (quote / new with ids and category / merge) are the
+  "Suggested" chips on lines under 0.75 confidence; `.qi-next` ("When you save") and `#qi-todo` ("Before you save") are written
+  by the page script from the form's state.
   Finding a product on a line: `.qi-find` search box (words, room code, our code: `data-s` on the options = codes, rooms, spec),
   chips of the hits; `data-same` (item number + unit, else name + size + unit) drives the "Also for L…" chip. Memory: `remember()`
   writes the shop's row and a supplier-less row by wording (`memory()` returns both, the shop's first; shortlist 0.9 / 0.85).

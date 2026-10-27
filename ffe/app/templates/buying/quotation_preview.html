@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "buying/_tabs.html" import tabs %}
+{% from "_macros.html" import room_picks %}
 {% block title %}Check the quotation · {{ p.name }}{% endblock %}
 {% block content %}
 {% set cur = parsed.currency %}
@@ -80,6 +81,13 @@
     <span class="pill">{{ counts.skip }} skipped</span>
     <span class="small muted">{% if claude %}Suggested by Claude from the words, sizes, rooms and pictures.{% else %}Suggested from the words and sizes only.{% if claude_note %} {{ claude_note }}{% endif %}{% endif %} High confidence is green, check the gold and grey ones.</span>
   </div>
+  <div class="qi-legend small mt">
+    <div><b class="g">Matched</b> quotes a product of the design: on save it becomes that shop's quote on it.</div>
+    <div><b class="a">New</b> the design has no item for it: on save an item is created in the rooms ticked (one per room, the sheet's quantity shared) and the quote put on it. If it is really an existing product, pick it instead; if it belongs with another line, make it a part of it.</div>
+    <div><b class="y">Merged</b> a part of another line (hardware, a trap, the glass of a set): its amount joins that line's quote, no item of its own.</div>
+    <div><b>Extra</b> a charge on the document (pallet, packing). <b>Skipped</b> nothing is saved from the line.</div>
+  </div>
+  <div class="qi-todo mt" id="qi-todo" hidden><b>Before you save</b><ul id="qi-todo-list"></ul></div>
 </div>
 
 <div class="qi-lines" id="lines">
@@ -127,16 +135,21 @@
         <div class="grid g2">
           <div><input class="in" type="text" name="name_{{ l.no }}" value="{{ s.name or l.name }}" placeholder="Name on the schedule" maxlength="200" aria-label="Name of the new item"></div>
           <div><select class="in" name="cat_{{ l.no }}" aria-label="Category"><option value="">Category…</option>{% for c in categories %}<option {{ 'selected' if s.category == c }}>{{ c }}</option>{% endfor %}</select></div>
-          <div class="span2"><select class="in" name="rooms_{{ l.no }}" multiple size="3" aria-label="Rooms">{% for rid, label in rooms %}<option value="{{ rid }}" {{ 'selected' if (s.room_ids and rid in s.room_ids) or (s.room and label.startswith(s.room ~ ' ')) }}>{{ label }}</option>{% endfor %}</select>
-            <div class="help">Ticked from the supplier's words; one item per room ticked (Ctrl/⌘ for several), the sheet's quantity shared between them; none = whole house. The quote goes on it.</div></div>
+          <div class="span2 qi-rooms" data-ids="{{ (s.room_ids or [])|join(' ') }}"{% if s.related %} data-related="{{ s.related.ids|join(',') }}" data-word="{{ s.related.word }}"{% endif %}>
+            {% for rid in (s.room_ids or []) %}<input type="hidden" name="rooms_{{ l.no }}" value="{{ rid }}">{% endfor %}
+            <div class="help">Tick the rooms the item is for: one item per room, the sheet's quantity shared between them; none = whole house. The quote goes on it.</div>
+            <div class="qi-split small"></div></div>
         </div>
       </div>
+      {% if s.options %}<div class="qi-options small"><span class="muted">Suggested:</span>{% for o in s.options %}<button type="button" class="qi-chip opt" data-kind="{{ o.kind }}" data-id="{{ o.id or '' }}" data-into="{{ o.into or '' }}" data-ids="{{ (o.ids or [])|join(' ') }}" data-cat="{{ o.category or '' }}" title="{{ o.why }}">{{ o.label }}</button>{% endfor %}</div>{% endif %}
+      <div class="qi-next small"></div>
       {% if s.reason or s.flags %}<div class="qi-why small">{% if s.reason %}<span class="muted">{{ s.reason }}</span>{% endif %}{% for f in s.flags %}<span class="pill {{ 'red' if f.startswith(('thickness', 'anti-slip', 'slip', 'finish', 'material')) else 'gold' }}" title="{{ 'The offer contradicts the specification' if f.startswith(('thickness', 'anti-slip', 'slip', 'finish', 'material')) else 'Differs from the design' }}">&#9888; {{ f }}</span>{% endfor %}</div>{% endif %}
     </div>
   </article>
   {% endfor %}
 </div>
 
+<template id="qi-rooms-tpl">{{ room_picks(p.rooms, 'rooms_X') }}</template>
 <div class="card tight qi-bar">
   <div class="row between">
     <span class="small muted hide-m">Lines that quote the same product are combined into one quote (total amount over total quantity). Confirmed matches are remembered for this shop's next sheet.</span>
@@ -152,7 +165,45 @@
 <script>
 (function(){
   var form=document.getElementById('qi-form'); if(!form) return;
-  function show(line){ var a=line.querySelector('.qi-act').value; line.className=line.className.replace(/\bact-\w+/,'')+' act-'+a; }
+  function show(line){ var a=line.querySelector('.qi-act').value; line.className=line.className.replace(/\bact-\w+/,'')+' act-'+a; if(a==='new') rooms(line); }
+  var cur=(document.getElementById('qi-sim')||{dataset:{}}).dataset.cur||'';
+  function no(line){ return line.id.replace('line-',''); }
+  function fmtq(x){ return (Math.round(x*100)/100).toLocaleString(); }
+  // the room checklist of a new item: built from the template the first time the line is a new item (one copy for 30 lines
+  // and 60 rooms would be heavy), the suggested rooms ticked, a chip for the rooms with something like it
+  function rooms(line){ var box=line.querySelector('.qi-rooms'); if(!box||box.querySelector('.room-picks-wrap')) return; var tpl=document.getElementById('qi-rooms-tpl'); if(!tpl) return;
+    var n=no(line), ids=(box.dataset.ids||'').split(' ').filter(Boolean); var wrap=tpl.content.firstElementChild.cloneNode(true);
+    wrap.querySelectorAll('input[name="rooms_X"]').forEach(function(i){ i.name='rooms_'+n; i.checked=ids.indexOf(i.value)>=0; });
+    box.querySelectorAll('input[type=hidden]').forEach(function(h){ h.remove(); });
+    if(box.dataset.related){ var chips=wrap.querySelector('.pick-chips'); if(!chips){ chips=document.createElement('div'); chips.className='pick-chips'; chips.innerHTML='<span class="small muted">Tick:</span>'; wrap.insertBefore(chips, wrap.firstChild); }
+      var b=document.createElement('button'); b.type='button'; b.className='pick-chip rel'; b.dataset.pick='ids:'+box.dataset.related; b.innerHTML='Rooms with '+(/^[aeiou]/.test(box.dataset.word)?'an ':'a ')+box.dataset.word.replace(/</g,'&lt;')+' <b>'+box.dataset.related.split(',').length+'</b>'; chips.insertBefore(b, chips.querySelector('[data-pick=none]')||null); }
+    box.insertBefore(wrap, box.firstChild); wrap.dispatchEvent(new Event('change',{bubbles:true})); split(line); }
+  function tick(line, ids){ rooms(line); var set={}; ids.forEach(function(i){ set[i]=1; }); line.querySelectorAll('.qi-rooms input[type=checkbox]').forEach(function(b){ b.checked=!!set[b.value]; }); var w=line.querySelector('.room-picks-wrap'); if(w) w.dispatchEvent(new Event('change',{bubbles:true})); split(line); }
+  function ticked(line){ return line.querySelectorAll('.qi-rooms input[type=checkbox]:checked, .qi-rooms input[type=hidden]').length; }
+  function split(line){ var out=line.querySelector('.qi-split'); if(!out) return; var n=ticked(line), q=parseFloat(line.dataset.qty)||0, u=line.dataset.unit||'';
+    if(!n){ out.textContent=q?'No room ticked: one item for the whole house with '+fmtq(q)+' '+u+'.':''; return; }
+    var each=Math.floor(q/n), rest=q-each*n; out.textContent=fmtq(q)+' '+u+' across '+n+' room'+(n===1?'':'s')+' = '+(n===1?fmtq(q):(rest?each+' each + '+fmtq(rest)+' spare':each+' each'))+(each===0?' — fewer than one per room: tick fewer rooms, or is it one set shared?':''); }
+  // when you save: what the line becomes, in words
+  function next(line){ var out=line.querySelector('.qi-next'); if(!out) return; var a=line.querySelector('.qi-act').value, amt=parseFloat(line.dataset.amount)||0, pr=parseFloat(line.dataset.price)||0, q=parseFloat(line.dataset.qty)||0, u=line.dataset.unit||''; var t='', cls='';
+    if(a==='new'){ var nm=(line.querySelector('[name^=name_]')||{}).value||'', ct=(line.querySelector('[name^=cat_]')||{}).value||'', n=ticked(line);
+      t='<b>When you save:</b> a new item <b>'+nm.replace(/</g,'&lt;')+'</b>'+(ct?' ('+ct.replace(/</g,'&lt;')+')':' — <b>choose a category</b>')+' is created in '+(n?n+' room'+(n===1?'':'s'):'the whole house')+' with this quote, '+cur+' '+fmtq(pr)+' per '+u+'. Not in the design on purpose? Choose Skip.'; cls=ct?'':'warn'; }
+    else if(a==='merge'){ var sel=line.querySelector('[name^=into_]'), into=sel.value, o=into?form.querySelector('#line-'+into):null; var oa=o?o.querySelector('.qi-act').value:'';
+      t=!into?'<b>Choose the line it is part of.</b>':(!o||oa==='skip'||oa==='extra'||oa==='merge'?'<b>Line L'+into+' is '+(o?oa==='merge'?'itself merged':'skipped':'missing')+':</b> its amount would be lost. Pick another line, or make this a new item.':'<b>When you save:</b> its '+cur+' '+fmtq(amt)+' joins line L'+into+'\u2019s quote ('+o.querySelector('.qi-name').textContent.split('·')[0].trim().replace(/</g,'&lt;')+'); no item of its own.'); cls=(!into||!o||oa==='skip'||oa==='extra'||oa==='merge')?'warn':''; }
+    else if(a==='skip'){ t='Nothing is saved from this line.'; }
+    else if(a==='extra'){ t='<b>When you save:</b> '+cur+' '+fmtq(amt)+' is added to the document\u2019s extra charges; no quote.'; }
+    else if(a==='quote'){ var ps=line.querySelector('.qi-prod'); if(!ps.value){ t='<b>Pick the product this line quotes</b>, or choose another action.'; cls='warn'; } }
+    out.innerHTML=t; out.className='qi-next small'+(cls?' '+cls:''); }
+  function todo(){ var items=[]; form.querySelectorAll('.qi-line').forEach(function(line){ var a=line.querySelector('.qi-act').value, n='L'+no(line);
+      if(a==='quote'&&!line.querySelector('.qi-prod').value) items.push(n+': no product picked (it will be skipped)');
+      if(a==='new'&&!((line.querySelector('[name^=cat_]')||{}).value)) items.push(n+': the new item has no category');
+      if(a==='new'&&!((line.querySelector('[name^=name_]')||{}).value||'').trim()) items.push(n+': the new item has no name');
+      if(a==='merge'){ var into=line.querySelector('[name^=into_]').value, o=into?form.querySelector('#line-'+into):null, oa=o?o.querySelector('.qi-act').value:''; if(!into||!o||oa==='skip'||oa==='extra'||oa==='merge') items.push(n+': merged into '+(into?'L'+into+', which is '+(oa||'missing'):'no line')); } });
+    var box=document.getElementById('qi-todo'); box.hidden=!items.length; document.getElementById('qi-todo-list').innerHTML=items.map(function(t){ return '<li>'+t.replace(/</g,'&lt;')+'</li>'; }).join(''); }
+  form.addEventListener('click',function(e){ var chip=e.target.closest('.qi-chip.opt'); if(!chip) return; var line=chip.closest('.qi-line'), act=line.querySelector('.qi-act');
+    if(chip.dataset.kind==='quote'){ pick(line, chip.dataset.id); }
+    else if(chip.dataset.kind==='new'){ act.value='new'; show(line); tick(line, chip.dataset.ids.split(' ').filter(Boolean)); var cs=line.querySelector('[name^=cat_]'); if(cs&&!cs.value&&chip.dataset.cat) cs.value=chip.dataset.cat; }
+    else if(chip.dataset.kind==='merge'){ act.value='merge'; show(line); line.querySelector('[name^=into_]').value=chip.dataset.into; }
+    line.querySelectorAll('.qi-chip.opt').forEach(function(c){ c.classList.toggle('on', c===chip); }); next(line); todo(); simulate(); });
   form.querySelectorAll('.qi-line').forEach(show);
   form.addEventListener('change',function(e){ var line=e.target.closest('.qi-line'); if(line&&e.target.classList.contains('qi-act')) show(line); });
   form.addEventListener('click',function(e){ var chip=e.target.closest('.qi-short .qi-chip'); if(!chip) return; pick(chip.closest('.qi-line'), chip.dataset.id); });
@@ -194,7 +245,7 @@
     // per product: the sheet's quantity against the design's, the supplier codes combined, the price spread
     var per={}; form.querySelectorAll('.qi-line').forEach(function(line){ if(line.querySelector('.qi-act').value!=='quote') return; var sel=line.querySelector('.qi-prod'); if(!sel.value) return; var o=sel.options[sel.selectedIndex];
       var r=per[sel.value]||(per[sel.value]={title:o.textContent.split(' · ').slice(0,2).join(' · '),need:parseFloat(o.dataset.qty)||0,unit:o.dataset.unit||'',allow:parseFloat(o.dataset.allow)||0,qty:0,other:0,refs:{},prices:[],labels:[]});
-      var lu=(line.dataset.unit||'').replace(/^lm$/,'m'), pu=(r.unit||'').replace(/^lm$/,'m'); var q=parseFloat(line.dataset.qty)||0;
+      var cu=function(u){ u=(u||'').toLowerCase(); return u==='lm'?'m':(/^(pcs|pc|set|sets|each|nos|no|unit|piece)$/.test(u)?'pcs':u); }; var lu=cu(line.dataset.unit), pu=cu(r.unit); var q=parseFloat(line.dataset.qty)||0;
       if(!lu||!pu||lu===pu) r.qty+=q; else r.other+=q; if(line.dataset.ref) r.refs[line.dataset.ref]=1; var pr=parseFloat(line.dataset.price)||0; if(pr) r.prices.push(pr); r.labels.push(line.dataset.label); });
     var rows='', nIssues=0; Object.keys(per).forEach(function(id){ var r=per[id]; var target=r.need*(1+r.allow); var gap=r.qty-target; var pc=target?Math.round(100*gap/target):0; var checks=[], cls='';
       if(r.other) checks.push('<span class="pill gold">&#9888; '+fmt(r.other)+' quoted in another unit than '+(r.unit||'?')+'</span>');
@@ -218,8 +269,10 @@
   form.addEventListener('change',simulate); form.addEventListener('input',function(e){ if(e.target.name==='discount'||e.target.name==='total') simulate(); }); simulate();
   form.addEventListener('submit',function(e){ var d=document.getElementById('qi-draft'), b=document.getElementById('qi-save'); var asDraft=e.submitter&&e.submitter.id==='qi-draft';
     var hit=asDraft?d:b; if(hit){ hit.disabled=true; hit.innerHTML='<span class="qi-spin"></span>'+(asDraft?'Saving the draft…':'Saving the quotation…'); } if(d&&!asDraft) d.disabled=true; if(b&&asDraft) b.disabled=true; });
-  form.addEventListener('change',function(e){ var line=e.target.closest('.qi-line'); if(line&&(e.target.classList.contains('qi-prod')||e.target.classList.contains('qi-act'))){ upd(line); same(line); } });
-  form.querySelectorAll('.qi-line').forEach(same);
+  form.addEventListener('change',function(e){ var line=e.target.closest('.qi-line'); if(!line) return; if(e.target.classList.contains('qi-prod')||e.target.classList.contains('qi-act')){ upd(line); same(line); } if(e.target.closest('.qi-rooms')) split(line); next(line); todo(); });
+  form.addEventListener('input',function(e){ var line=e.target.closest('.qi-line'); if(line&&/^(name|cat)_/.test(e.target.name||'')){ next(line); todo(); } });
+  form.addEventListener('click',function(e){ var chip=e.target.closest('.pick-chip'); var line=chip&&chip.closest('.qi-line'); if(line) setTimeout(function(){ split(line); next(line); },0); });
+  form.querySelectorAll('.qi-line').forEach(function(line){ same(line); next(line); }); todo();
 })();
 </script>
 {% endblock %}
