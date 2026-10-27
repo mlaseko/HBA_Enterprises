@@ -86,6 +86,7 @@
     <div><b class="a">New</b> the design has no item for it: on save an item is created in the rooms ticked (one per room, the sheet's quantity shared) and the quote put on it. If it is really an existing product, pick it instead; if it belongs with another line, make it a part of it.</div>
     <div><b class="y">Merged</b> a part of another line (hardware, a trap, the glass of a set): its amount joins that line's quote, no item of its own.</div>
     <div><b>Extra</b> a charge on the document (pallet, packing). <b>Skipped</b> nothing is saved from the line.</div>
+    <div><b>% sure</b> how sure the suggestion on the line is (the product and the place): green 75 % and above, gold 45–74 % — look at it, grey below — a guess, decide yourself. The percentage on a chip under the product is how alike the words, size and rooms are. Neither says anything about the price or the quantity: the flags and the table above do.</div>
   </div>
   <div class="qi-todo mt" id="qi-todo" hidden><b>Before you save</b><ul id="qi-todo-list"></ul></div>
 </div>
@@ -112,7 +113,8 @@
           <option value="extra" {{ 'selected' if s.action == 'extra' }}>Extra charge</option>
           <option value="skip" {{ 'selected' if s.action not in ('quote', 'new', 'merge', 'extra') }}>Skip (out of scope)</option>
         </select>
-        {% if s.action in ('quote', 'new', 'merge') or conf %}<span class="pill {{ 'green' if conf >= 0.75 else ('gold' if conf >= 0.45 else '') }}" title="Confidence">{{ (conf * 100)|round|int }}%</span>{% endif %}
+        {% if s.action in ('quote', 'new', 'merge') or conf %}<span class="pill qi-conf {{ 'green' if conf >= 0.75 else ('gold' if conf >= 0.45 else '') }}" title="How sure the suggestion is: 75% and above is a confident match, 45–74% needs a look, below 45% is a guess. It says nothing about the price or the quantity.">{{ (conf * 100)|round|int }}% sure</span>{% endif %}
+        <span class="qi-tag"></span>
       </div>
       <div class="qi-f qi-f-quote">
         <select class="in qi-prod" name="prod_{{ l.no }}" aria-label="Product for line {{ l.no }}">
@@ -122,7 +124,7 @@
         <div class="qi-find"><input class="in" type="search" placeholder="Find the product: a word or two, a room code, our item code…" aria-label="Find a product for line {{ l.no }}" autocomplete="off"><div class="qi-found small"></div></div>
         <div class="qi-upd small muted"></div>
         <div class="qi-same small"></div>
-        {% if s.shortlist %}<div class="qi-short small">{% for o in s.shortlist[:4] %}<button type="button" class="qi-chip{{ ' on' if o.id == s.product_id }}" data-id="{{ o.id }}" title="{{ o.rooms }}">{{ o.title }} <span class="muted">{{ (o.score * 100)|round|int }}%</span></button>{% endfor %}</div>{% endif %}
+        {% if s.shortlist %}<div class="qi-short small">{% for o in s.shortlist[:4] %}<button type="button" class="qi-chip{{ ' on' if o.id == s.product_id }}" data-id="{{ o.id }}" title="{{ o.rooms }} · {{ (o.score * 100)|round|int }}% alike in words, size and rooms">{{ o.title }} <span class="muted">{{ (o.score * 100)|round|int }}%</span></button>{% endfor %}</div>{% endif %}
       </div>
       <div class="qi-f qi-f-merge">
         <select class="in" name="into_{{ l.no }}" aria-label="Line to merge into">
