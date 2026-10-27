@@ -922,11 +922,14 @@ def _key_refused(e: Exception) -> bool:
 RETRY_WAITS = (2, 5)  # seconds between the attempts: an outage or a rate limit usually passes in seconds
 
 
-def ask_claude(p: Project, parsed: dict, cands: list[Candidate], lists_: dict, pictures: dict[int, bytes] | None = None) -> dict[int, dict]:
+def ask_claude(p: Project, parsed: dict, cands: list[Candidate], lists_: dict, pictures: dict[int, bytes] | None = None,
+               progress=None) -> dict[int, dict]:
     """Claude's pick per line number; {} when the feature is off. The request is tried len(RETRY_WAITS) + 1 times;
-    when every attempt fails, ClaudeUnavailable is raised rather than silently matching by words alone."""
+    when every attempt fails, ClaudeUnavailable is raised rather than silently matching by words alone. `progress(text)`
+    is told each step (the working page shows it)."""
     if not ai.enabled() or not parsed["lines"]:
         return {}
+    say = progress or (lambda text: None)
     products = "\n".join(f"P{c.id} | {c.category} | {c.name} | {c.size} | {c.finish} | {c.qty:g} {c.unit} | rooms: {c.rooms_text}" for c in cands)
     rooms = "; ".join(f"{r.code} {r.name} ({drawings.floor_title(r.floor, p) if r.floor else 'no floor'})" for r in p.rooms)
     lines = []
@@ -952,6 +955,8 @@ def ask_claude(p: Project, parsed: dict, cands: list[Candidate], lists_: dict, p
     data, last = None, None
     for i in range(len(RETRY_WAITS) + 1):
         try:
+            say(f"Waiting for Claude: {len(parsed['lines'])} lines and {n} picture{'s' if n != 1 else ''} sent, one answer for the whole sheet"
+                + (f" (attempt {i + 1} of {len(RETRY_WAITS) + 1})" if i else ""))
             data = ai._call(content, SUGGEST_SCHEMA, system=SUGGEST_SYSTEM, effort="medium", max_tokens=16000)
             break
         except Exception as e:  # network, rate limit, overloaded: wait and try again
@@ -960,9 +965,11 @@ def ask_claude(p: Project, parsed: dict, cands: list[Candidate], lists_: dict, p
                 raise ClaudeUnavailable("The Claude key is not accepted (401 invalid x-api-key): check ANTHROPIC_API_KEY under Secrets on Replit "
                                         "(a Console key, nothing pasted around it) and redeploy. Trying again will not help before that.", fatal=True)
             if i < len(RETRY_WAITS):
+                say(f"Claude did not answer ({type(e).__name__}): trying again in {RETRY_WAITS[i]} s")
                 time.sleep(RETRY_WAITS[i])
     if last is not None and data is None:
         raise ClaudeUnavailable(f"{type(last).__name__}: {str(last)[:160]}")
+    say("Claude answered: building the preview")
     out = {}
     for row in (data or {}).get("lines", []) if isinstance(data, dict) else []:
         try:
@@ -973,15 +980,18 @@ def ask_claude(p: Project, parsed: dict, cands: list[Candidate], lists_: dict, p
 
 
 def suggest(db: Session, p: Project, parsed: dict, pictures: dict[int, bytes] | None = None, supplier: Supplier | None = None,
-            use_claude: bool = True) -> dict:
+            use_claude: bool = True, progress=None) -> dict:
     """The preview's suggestions: for every line its shortlist, the chosen action, product, confidence, reason and flags.
     Returns {"lines": {no: {...}}, "claude": bool}. With use_claude False the words and sizes alone decide (the designer
     chose to carry on without Claude); ClaudeUnavailable propagates when it was wanted and could not be reached."""
+    say = progress or (lambda text: None)
+    say("Shortlisting by words, sizes, rooms and what this shop was matched to before")
     cands = candidates(db, p)
     by_id = {c.id: c for c in cands}
     memo = memory(db, supplier)
     lists_ = {l["no"]: shortlist(l, cands, memo) for l in parsed["lines"]}
-    picks = ask_claude(p, parsed, cands, lists_, pictures) if use_claude else {}
+    picks = ask_claude(p, parsed, cands, lists_, pictures, progress=progress) if use_claude else {}
+    say("Writing the suggestions")
     out = {}
     for l in parsed["lines"]:
         sl = lists_[l["no"]]
@@ -1398,6 +1408,12 @@ def inquiry_workbook(p: Project, db: Session, cands: list[Candidate], currency: 
 # ---- reading an upload on a thread, so the page can show the stages ----------------------------------------------------------
 STAGES = [("saved", "File received"), ("reading", "Reading the sheet"), ("pictures", "Saving the pictures"), ("matching", "Matching the lines to products"),
           ("done", "Ready to check")]
+
+
+def expected_seconds(lines: int, pictures: int, claude: bool) -> int:
+    """About how long the matching takes, for the working page's clock: one Claude answer for the whole sheet grows with
+    the lines and the pictures it reads."""
+    return int(8 + 1.2 * lines + 1.0 * pictures) if claude else 3
 WAITING = "waiting"  # stopped before the matching: Claude could not be reached; the page offers to try again or to go on without
 
 
@@ -1470,7 +1486,8 @@ def match_upload(upload_id: int, project_id: int, state: dict, raw_pictures: dic
         with SessionLocal() as db:
             p = db.get(Project, project_id)
             supplier = db.get(Supplier, state.get("supplier_id")) if state.get("supplier_id") else None
-            sug = suggest(db, p, state["parsed"], raw_pictures, supplier, use_claude=use_claude)
+            sug = suggest(db, p, state["parsed"], raw_pictures, supplier, use_claude=use_claude,
+                          progress=lambda text: _set_stage(upload_id, "matching", claude=with_claude, message=text[:300]))
             db.commit()  # product rows made on the way
     except ClaudeUnavailable as e:
         key = f"{base}.w{uuid.uuid4().hex[:8]}.json"

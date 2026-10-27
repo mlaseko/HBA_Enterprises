@@ -701,7 +701,9 @@ ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                          
   from `_preview_ctx`, product options carry `data-n` = room lines, lines `data-amount`) is computed in the page's script,
   as is its "Quantities against the design" table (`#sim-recon`: per product the sheet's quantity from the lines on it,
   `data-qty` / `data-unit` / `data-ref` / `data-price` on the lines, against the design's `data-qty` × (1 + `data-allow`) on the
-  option; red short by > 10 %, gold > 25 % over, red when the lines carry several supplier codes, gold when their prices differ).
+  option; red short by > 10 %, gold > 25 % over, red when the lines carry several supplier codes, gold when their prices differ,
+  gold when another product's lines carry the same supplier code — the skirting cut from the floor slab, with its m² from the
+  lines' `data-dims` smallest dimension; the header reads "Design needs" and the allowance is named only where it applies).
   `flags()` = `spec_diffs()` (thickness via `_thickness`, slip rating, finish and material words: red pills) + size / unit
   (m and lm equal, `_same_unit`) / quantity (gold). `out_of_scope(line, p)` skips staff / servant quarters only when
   `_scope_rooms(p)` is empty; a line matching nothing defaults to `new` with `room_hints()` (rooms sharing the most words
@@ -737,6 +739,10 @@ ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                          
   ("Also L3–L11 as parts of L2", `parts()`, refreshed by `todo()`) merges the rest of a section. `Quotation.replaces_id` is set
   in `apply` when `stats["updated"]` (the latest earlier document sharing a quote); the list route splits `rows` / `earlier`,
   the document page gets `revises` / `revised_by`; `/quotations?supplier=` pre-selects the shop on the upload form.
+  Live progress: `suggest(..., progress=)` / `ask_claude(..., progress=)` report sub-steps (shortlisting, waiting for Claude with the
+  counts and the attempt, answered, writing) through `match_upload`'s `_set_stage` lambda; the status JSON carries `expected`
+  (`expected_seconds(lines, pictures, claude)`) and `since`; the working page runs its own clock from the first poll that sees
+  `matching`, shows "· 23 s (usually about 45 s for a sheet like this)" and creeps the bar towards the step's end.
   Compare shops: `quotations.compare(db, p, category)` → `templates/buying/quotation_compare.html` (`GET /quotations/compare`,
   `form.filters`, cells `.cmp-cell.best/.bought`, Buy posts to the buying route with `next`, which `buy_from_quote` honours via
   `safe_next`). Stuck uploads: `WORKING` stages, `mark_stale()` at startup (main.py), `stale` rows on the Quotations page allow

@@ -117,6 +117,8 @@ def _upload_status(p: Project, up: QuotationUpload) -> dict:
     waiting = up.stage == qz.WAITING
     at = stages.index(up.stage) if up.stage in stages else (stages.index("matching") if waiting else -1)
     return dict(stage=up.stage, message=up.message, lines=up.lines, pictures=up.pictures, claude=up.claude, done=up.stage == "done", waiting=waiting,
+                expected=qz.expected_seconds(up.lines or 0, up.pictures or 0, bool(up.claude)),
+                since=(up.updated_at or up.created_at).isoformat(timespec="seconds") if (up.updated_at or up.created_at) else "",
                 error=up.message if up.stage == "error" else "", at=at,
                 next=f"/p/{p.id}/quotations/preview?key={urlquote(up.state_key)}" if up.stage == "done" else "",
                 steps=[dict(key=k, title=t, state="done" if (up.stage == "done" or i < at) else (("stuck" if waiting else "now") if i == at else ""))

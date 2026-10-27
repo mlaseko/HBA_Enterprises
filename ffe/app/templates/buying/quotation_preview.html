@@ -128,8 +128,8 @@
     <div class="kpi ink"><div class="v" id="sim-amount">{{ cur }} 0</div><div class="l">Amount quoted</div><div class="d" id="sim-amount-d"></div></div>
   </div>
   <div class="qi-recon mt">
-    <div class="row between"><div><b>Quantities against the design</b> <span class="small muted">per product: what the sheet quotes, what the rooms need plus the allowance for cuts, and the gap</span></div><span class="pill" id="sim-recon-n"></span></div>
-    <div class="tbl mt"><table class="qi-recon-t"><thead><tr><th>Product</th><th class="num">Sheet</th><th class="num">Design + allowance</th><th class="num">Gap</th><th>Checks</th></tr></thead><tbody id="sim-recon"></tbody></table></div>
+    <div class="row between"><div><b>Quantities against the design</b> <span class="small muted">per product: what the sheet quotes, what the rooms need (plus the allowance for cuts where the category has one), and the gap</span></div><span class="pill" id="sim-recon-n"></span></div>
+    <div class="tbl mt"><table class="qi-recon-t"><thead><tr><th>Product</th><th class="num">Sheet</th><th class="num">Design needs</th><th class="num">Gap</th><th>Checks</th></tr></thead><tbody id="sim-recon"></tbody></table></div>
   </div>
   <div class="qi-left mt">
     <div class="row between"><div><b>After posting, across all shops</b> <span class="small muted" id="sim-all-d"></span></div><span class="pill" id="sim-left-n"></span></div>
@@ -310,14 +310,19 @@
     var per={}; form.querySelectorAll('.qi-line').forEach(function(line){ if(line.querySelector('.qi-act').value!=='quote') return; var sel=line.querySelector('.qi-prod'); if(!sel.value) return; var o=sel.options[sel.selectedIndex];
       var r=per[sel.value]||(per[sel.value]={title:o.textContent.split(' · ').slice(0,2).join(' · '),need:parseFloat(o.dataset.qty)||0,unit:o.dataset.unit||'',allow:parseFloat(o.dataset.allow)||0,qty:0,other:0,refs:{},prices:[],labels:[]});
       var cu=function(u){ u=(u||'').toLowerCase(); return u==='lm'?'m':(/^(pcs|pc|set|sets|each|nos|no|unit|piece)$/.test(u)?'pcs':u); }; var lu=cu(line.dataset.unit), pu=cu(r.unit); var q=parseFloat(line.dataset.qty)||0;
-      if(!lu||!pu||lu===pu) r.qty+=q; else r.other+=q; if(line.dataset.ref) r.refs[line.dataset.ref]=1; var pr=parseFloat(line.dataset.price)||0; if(pr) r.prices.push(pr); r.labels.push(line.dataset.label); });
+      if(!lu||!pu||lu===pu) r.qty+=q; else r.other+=q; if(line.dataset.ref) r.refs[line.dataset.ref]=1; var pr=parseFloat(line.dataset.price)||0; if(pr) r.prices.push(pr); r.labels.push(line.dataset.label);
+      var dd=(line.dataset.dims||'').split('x').filter(Boolean).map(Number); if(dd.length>=2&&!r.thick) r.thick=Math.min.apply(null,dd); });
+    // the same supplier item number on two products (a floor slab and the skirting cut from it): the material may be counted twice
+    var byRef={}; Object.keys(per).forEach(function(id){ Object.keys(per[id].refs).forEach(function(ref){ (byRef[ref]=byRef[ref]||[]).push(id); }); });
     var rows='', nIssues=0; Object.keys(per).forEach(function(id){ var r=per[id]; var target=r.need*(1+r.allow); var gap=r.qty-target; var pc=target?Math.round(100*gap/target):0; var checks=[], cls='';
       if(r.other) checks.push('<span class="pill gold">&#9888; '+fmt(r.other)+' quoted in another unit than '+(r.unit||'?')+'</span>');
       if(target&&r.qty){ if(pc<-10){ checks.push('<span class="pill red">&#9888; short by '+fmt(-gap)+' '+r.unit+' ('+(-pc)+'%)</span>'); cls='bad'; } else if(pc>25){ checks.push('<span class="pill gold">&#9888; '+pc+'% more than the rooms need: another room, or spare</span>'); } else checks.push('<span class="pill green">quantity fits</span>'); }
       var refs=Object.keys(r.refs); if(refs.length>1) checks.push('<span class="pill red">&#9888; combines '+refs.length+' supplier codes: '+refs.join(', ').replace(/</g,'&lt;')+'</span>');
+      refs.forEach(function(ref){ (byRef[ref]||[]).forEach(function(oid){ if(oid===id) return; var o=per[oid]; var m2=(cu(r.unit)==='m'&&cu(o.unit)==='m²'&&r.thick)?' (\u2248 '+fmt(r.qty*r.thick/1000)+' m\u00b2 of it)':'';
+        checks.push('<span class="pill gold" title="Cut from the same material as the other product: check that its quantity does not already include this one">&#9888; same item number '+ref.replace(/</g,'&lt;')+' as '+o.title.replace(/</g,'&lt;')+' ('+o.labels.join(', ').replace(/</g,'&lt;')+'): make sure that line\u2019s quantity does not already include this'+m2+'</span>'); }); });
       if(r.prices.length>1){ var mn=Math.min.apply(null,r.prices), mx=Math.max.apply(null,r.prices); if(mx>mn*1.02) checks.push('<span class="pill gold">&#9888; prices from '+fmt(mn)+' to '+fmt(mx)+' per '+r.unit+': averaged</span>'); }
       if(checks.some(function(c){return c.indexOf('pill red')>=0||c.indexOf('pill gold')>=0;})) nIssues++;
-      rows+='<tr class="'+cls+'"><td>'+r.title.replace(/</g,'&lt;')+'<div class="small muted">'+r.labels.join(', ').replace(/</g,'&lt;')+'</div></td><td class="num" data-l="Sheet">'+fmt(r.qty)+' '+r.unit+'</td><td class="num" data-l="Design + allowance">'+fmt(target)+' '+r.unit+'<div class="small muted">'+fmt(r.need)+(r.allow?' + '+Math.round(100*r.allow)+'%':'')+'</div></td><td class="num" data-l="Gap">'+(gap>=0?'+':'')+fmt(gap)+'</td><td data-l="Checks">'+checks.join(' ')+'</td></tr>'; });
+      rows+='<tr class="'+cls+'"><td>'+r.title.replace(/</g,'&lt;')+'<div class="small muted">'+r.labels.join(', ').replace(/</g,'&lt;')+'</div></td><td class="num" data-l="Sheet">'+fmt(r.qty)+' '+r.unit+'</td><td class="num" data-l="Design needs">'+fmt(target)+' '+r.unit+(r.allow?'<div class="small muted">'+fmt(r.need)+' + '+Math.round(100*r.allow)+'% for cuts</div>':'')+'</td><td class="num" data-l="Gap">'+(gap>=0?'+':'')+fmt(gap)+'</td><td data-l="Checks">'+checks.join(' ')+'</td></tr>'; });
     document.getElementById('sim-recon').innerHTML=rows||'<tr><td colspan="5" class="small muted">No line is matched to a product yet.</td></tr>';
     document.getElementById('sim-recon-n').textContent=nIssues?nIssues+' to check':(rows?'all fit':'');
     // every product of the design: quoted by any shop already, by this sheet, or still to source
