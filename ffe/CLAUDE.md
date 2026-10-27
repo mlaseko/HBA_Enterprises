@@ -759,7 +759,8 @@ ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                          
   (name + finish → its variants, lines, refs, price, every room line with its variant) feeds the document page's
   "Products and variants" card; `set_variants(db, p, labels, moves)` behind `POST /quotations/<q>/variants` renames and
   moves (`follow_renames` repoints `QuotationLine.product_id` when products merge). `room_hints` reads the place before the
-  section, counts "bedroom 1" digits and the floor at half weight; the parser takes a Remarks "For <room>" as the place.
+  section, returns the room whose whole name the place is (or is off by one letter: `_typo`, never on digits), counts
+  "bedroom 1" digits and the floor at half weight; the parser takes a Remarks "For <room>" as the place.
   Preview script: `splits(per)` builds the `#qi-splits` cards (`vget` / `vrow` / `vsum`, `isSplit`), the quantities table
   groups a family (`data-fam` on the options) as one row with its variants under it.
   Finding a product on a line: `.qi-find` search box (words, room code, our code: `data-s` on the options = codes, rooms, spec),

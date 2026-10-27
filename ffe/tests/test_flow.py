@@ -2102,6 +2102,7 @@ def flow(c):
     # preview, one product per model with its rooms and price; review and edit the variants on the document page
     ai._call=lambda content, schema=None, **kw: {"lines": []}
     assert _qz.variant_label({"name":"Gree inverter 2.5hp 7kw cooling only","size":"","detail":""})=="2.5 HP" and _qz.variant_label({"name":"Heater","size":"12 kW","detail":"","ref":"X"})=="12 kW" and _qz.variant_label({"name":"Fan","size":"","detail":"220-240V","ref":"F-9"})=="F-9"
+    assert _qz._typo("dinning", "dining") and _qz._typo("louge", "lounge") and not _qz._typo("bedroom 2", "bedroom 1") and not _qz._typo("bath", "bats")
     db=SessionLocal(); _ac_rooms=db.query(Room).filter(Room.project_id==pid_q).order_by(Room.id).all()[:3]; _acr=[(r_.id, r_.name) for r_ in _ac_rooms]; db.close(); assert len(_acr)==3
     r=c.post(f"/p/{pid_q}/items/new", data={"name":"Air conditioner","category":"Lighting","qty":"1","unit":"pcs","room_ids":[str(i) for i,_ in _acr]}, follow_redirects=False); assert r.status_code==303
     db=SessionLocal(); _acp=_bz.product_of(db, db.get(_P, pid_q), db.query(Item).filter(Item.project_id==pid_q, Item.name=="Air conditioner").first()); _acp_id=_acp.id; db.commit(); db.close()
