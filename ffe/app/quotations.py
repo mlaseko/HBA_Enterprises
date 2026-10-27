@@ -859,8 +859,10 @@ SUGGEST_SYSTEM = (
     "rooms it is for (every bathroom with a basin for basin wastes, every room of the matching products for an accessory). A line may quote a "
     "different size or thickness than the product asks for: still match it when it is clearly the same product for the "
     "same place, and lower the confidence. Several lines may quote the same product for different floors or rooms: match "
-    "each to that product. Prefer the shortlist but choose any product when the shortlist is wrong. Be strict about "
-    "confidence: 0.9 and above only when the product and place are certain."
+    "each to that product. The same supplier item number can also serve two products of the design (a room's own dedicated "
+    "unit and the general one used in the other rooms; a slab cut into floor, skirting and steps): match each line by its "
+    "place, not by the number, and say so in the reason. Prefer the shortlist but choose any product when the shortlist is "
+    "wrong. Be strict about confidence: 0.9 and above only when the product and place are certain."
 )
 SUGGEST_SCHEMA = {
     "type": "object",
