@@ -278,6 +278,8 @@ def parse(sheets: list[dict], filename: str = "") -> dict:
         raise ReadError("No quotation lines found: the sheet needs a header row with the product, quantity and unit price columns.")
     best["filename"] = filename
     best["title"] = title_from(filename)
+    if filename.lower().endswith(".xls"):
+        best["warnings"].append("An old .xls file: its pictures cannot be read, so the lines come without them. Ask the shop for the .xlsx when the pictures matter.")
     return best
 
 
@@ -1281,6 +1283,43 @@ def delete(db: Session, q: Quotation) -> int:
     return gone
 
 
+# ---- shops compared --------------------------------------------------------------------------------------------------------------
+def compare(db: Session, p: Project, category: str) -> dict:
+    """The products of a category against the shops that quoted them: for the page, {category, categories (those with
+    quotes), suppliers [(supplier, n quoted, total CNY of what it priced)], rows [{c, cells {supplier id: {quote, price,
+    best, bought}}, best (lowest CNY per unit), open (rooms without a shop)}], best_total (every product at its lowest)}."""
+    cands = candidates(db, p)
+    with_quotes = [c for c in cands if any(q.unit_price for q in c.product.quotes)]
+    cats = []
+    for c in sorted(with_quotes, key=lambda c: lists.category_order(p).get(c.category, 999)):
+        if c.category not in cats:
+            cats.append(c.category)
+    if category not in cats:
+        category = cats[0] if cats else category
+    rows = []
+    sup_n: dict[int, list] = {}
+    for c in cands:
+        if c.category != category:
+            continue
+        cells = {}
+        bought = {pu.supplier_id for pu in c.g.purchases if pu.supplier_id}
+        for q in sorted(c.product.quotes, key=lambda q: q.id):  # the latest priced quote per shop
+            if q.unit_price and q.supplier_id:
+                cells[q.supplier_id] = dict(quote=q, price=q.unit_price, best=False, bought=q.supplier_id in bought)
+        if not cells:
+            continue
+        low = min(x["price"] for x in cells.values())
+        for sid, x in cells.items():
+            x["best"] = x["price"] <= low * 1.0001
+            sup_n.setdefault(sid, [x["quote"].supplier, 0, 0.0])
+            sup_n[sid][1] += 1
+            sup_n[sid][2] += x["price"] * c.qty
+        rows.append(dict(c=c, cells=cells, best=low, open=sum(1 for i in c.g.lines if not i.purchase_id), bought=bought))
+    suppliers = sorted(sup_n.values(), key=lambda s: (-s[1], s[0].name.lower()))
+    return dict(category=category, categories=cats, suppliers=suppliers, rows=rows,
+                best_total=sum(r["best"] * r["c"].qty for r in rows))
+
+
 # ---- the gap list and the inquiry sheet ----------------------------------------------------------------------------------------
 def gaps(db: Session, p: Project, q: Quotation) -> list[Candidate]:
     """The products in the categories this quotation touched that got no quote from its shop."""
@@ -1438,11 +1477,29 @@ def match_upload(upload_id: int, project_id: int, state: dict, raw_pictures: dic
         storage.save_blob(json.dumps(state, ensure_ascii=False).encode("utf-8"), key, "application/json")
         _set_stage(upload_id, WAITING, state_key=key, claude=False, message=str(e)[:300] if getattr(e, "fatal", False) else f"Claude could not be reached ({str(e)[:120]})")
         return
+    except Exception as e:  # anything else: say so rather than leave the row at matching for ever
+        _set_stage(upload_id, "error", message=f"Could not match the lines: {type(e).__name__}: {str(e)[:200]}")
+        return
     state = dict(state, suggestions=sug["lines"], claude=sug["claude"],
                  claude_note="" if sug["claude"] else ("Claude was not used: you chose to carry on without it." if ai.enabled() and not use_claude else ""))
     key = f"{base}.json" if use_claude else f"{base}.n{uuid.uuid4().hex[:8]}.json"
     storage.save_blob(json.dumps(state, ensure_ascii=False).encode("utf-8"), key, "application/json")
     _set_stage(upload_id, "done", state_key=key, claude=sug["claude"], message="")
+
+
+WORKING = ("saved", "reading", "pictures", "matching")
+
+
+def mark_stale(db: Session) -> int:
+    """At startup: an upload still at a working stage was being read by a thread that died with the old server (a
+    restart, a redeploy). It becomes an error the designer can discard. Returns how many."""
+    n = 0
+    for up in db.query(QuotationUpload).filter(QuotationUpload.stage.in_(WORKING)).all():
+        up.stage, up.message = "error", "The server restarted while the sheet was being read: upload it again."
+        n += 1
+    if n:
+        db.commit()
+    return n
 
 
 def retry_matching(db: Session, up: QuotationUpload, use_claude: bool) -> bool:

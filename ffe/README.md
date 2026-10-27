@@ -283,6 +283,13 @@ name** (or set the Kind by hand): every existing entry starts as a room.
   `COLUMN_MIGRATIONS`) is set by `apply` when the sheet corrected an earlier document's quotes; the list marks the revision
   and folds the earlier one under "Earlier revisions", the document pages link both ways, "Upload a revised sheet" opens
   `/quotations?supplier=<id>` with the shop pre-selected.
+- `GET /p/<id>/quotations/compare?category=&currency=` (`quotations.compare`): the category's products against the shops
+  that priced them (the latest priced quote per shop, CNY per unit shown in USD or CNY), the lowest marked, who is bought
+  from, and a Buy form per cell posting to the existing `/buying/<product>/quotes/<q>/buy` with `next` back to the grid.
+  Uploads: `quotations.mark_stale()` at startup marks rows still at a working stage as failed (the thread died with the old
+  server); the Quotations page shows "Stuck" and allows Discard on a working row silent for 10 minutes; `match_upload`
+  turns any other exception into an error row. An .xls upload warns on the preview that its pictures could not be read.
+  The preview has "Skip the lines without a product" and "Skip this section" buttons.
 - `GET /p/<id>/quotations/inquiry.xlsx?category=&floor=&currency=` is the inquiry sheet for a supplier: one row per
   product with our code, photo, spec, rooms, quantity and yellow cells for their price; a reply keeps the code column and
   matches on import. New tables: `quotations`, `quotation_lines`, `quote_matches`, `quotation_uploads` (create_all). New dependency: `xlrd`.

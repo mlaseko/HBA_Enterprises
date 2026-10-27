@@ -95,7 +95,8 @@ app/quotations.py      supplier quotation sheets (Buying › Quotations): read_s
 app/routers/quotations.py /p/<id>/quotations (list, upload form, inquiry form; POST upload → working page, JSON {next} for the form's
                        uploader), /quotations/working/<u> (+ /status JSON polled by the page), /quotations/preview?key=,
                        /quotations/draft (save the preview to come back to), /quotations/apply, /quotations/cancel, /working/<u>/discard, /working/<u>/retry
-                       (claude=1|0 for an upload waiting on Claude), /quotations/inquiry.xlsx, /quotations/<q> (document page), /<q>/file, /<q>/delete
+                       (claude=1|0 for an upload waiting on Claude), /quotations/compare (shops × products of a category), /quotations/inquiry.xlsx,
+                       /quotations/<q> (document page), /<q>/file, /<q>/delete
 app/routers/orders.py  /p/<id>/orders (ready to order + orders by stage), /orders/new, /orders/<o> (page; POST details),
                        /orders/<o>/add|remove/<pu>|confirm|unconfirm|delete|payments|claim, /orders/<o>/po.pdf
 app/routers/cartons.py Shipping › Boxes: /p/<id>/cartons (?supplier= &room= &where= &shipment=; POST adds a box), /cartons/bulk
@@ -736,6 +737,11 @@ ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                          
   ("Also L3–L11 as parts of L2", `parts()`, refreshed by `todo()`) merges the rest of a section. `Quotation.replaces_id` is set
   in `apply` when `stats["updated"]` (the latest earlier document sharing a quote); the list route splits `rows` / `earlier`,
   the document page gets `revises` / `revised_by`; `/quotations?supplier=` pre-selects the shop on the upload form.
+  Compare shops: `quotations.compare(db, p, category)` → `templates/buying/quotation_compare.html` (`GET /quotations/compare`,
+  `form.filters`, cells `.cmp-cell.best/.bought`, Buy posts to the buying route with `next`, which `buy_from_quote` honours via
+  `safe_next`). Stuck uploads: `WORKING` stages, `mark_stale()` at startup (main.py), `stale` rows on the Quotations page allow
+  Discard after 10 min; `match_upload` catches everything into an error row. `parse()` warns for .xls. Preview bulk: `#qi-skip-none`,
+  `.sec-skip` on `.qi-section` (lines carry `data-section`).
   Finding a product on a line: `.qi-find` search box (words, room code, our code: `data-s` on the options = codes, rooms, spec),
   chips of the hits; `data-same` (item number + unit, else name + size + unit) drives the "Also for L…" chip. Memory: `remember()`
   writes the shop's row and a supplier-less row by wording (`memory()` returns both, the shop's first; shortlist 0.9 / 0.85).

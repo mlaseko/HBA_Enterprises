@@ -12,7 +12,7 @@ from .. import buying as bz
 from .. import ordering as od
 from .. import shipping as sh
 from .. import drawings, lists
-from ..common import content_disposition, ffloat, fint, get_project, get_settings, redirect, render, require_login
+from ..common import safe_next, content_disposition, ffloat, fint, get_project, get_settings, redirect, render, require_login
 from ..db import get_db
 from ..models import Item, Product, Project, Purchase, Quotation, QuotationLine, Quote, Supplier
 from .items import NO_FLOOR, floor_choices, on_floor
@@ -340,6 +340,9 @@ async def buy_from_quote(request: Request, product_id: int, quote_id: int, p: Pr
     bz.buy(db, p, prod, q, lines)
     bz.settle(db, p)
     db.commit()
+    nxt = safe_next(form.get("next", ""), "")
+    if nxt:  # from the compare grid: back to it
+        return redirect(f"{nxt}{'&' if '?' in nxt else '?'}ok=" + urlquote(f"Buying {g.name} from {who} for {len(lines)} room{'s' if len(lines) != 1 else ''}."))
     return _back(p, prod, "#buying-from", ok=f"Buying from {who} for {len(lines)} room{'s' if len(lines) != 1 else ''}.")
 
 

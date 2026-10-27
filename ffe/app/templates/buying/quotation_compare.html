@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% from "buying/_tabs.html" import tabs %}
+{% block title %}Compare shops · {{ p.name }}{% endblock %}
+{% block content %}
+{% set rate = p.rate or 1 %}
+{% macro money(cny) %}{% if cur == 'USD' %}${{ (cny / rate)|money(2) }}{% else %}¥{{ cny|money(2) }}{% endif %}{% endmacro %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/quotations">Quotations</a></div>
+    <h1>Compare shops <span class="h-note">{{ category or 'no quotes yet' }}</span></h1>
+    <p class="sub">Every product of the category against the shops that priced it: the price per unit from each, the lowest in green, who the rooms are bought from. Buy from a shop in one press; the rooms without a shop take it.</p>
+  </div>
+  <div class="actions">
+    <a class="btn sec" href="/p/{{ p.id }}/quotations"><svg class="ic"><use href="#i-arrow-left"/></svg>Quotations</a>
+  </div>
+</div>
+{{ tabs(p, 'quotations') }}
+
+{% if ok %}<div class="alert">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert err">{{ err }}</div>{% endif %}
+
+{% if categories %}
+<form method="get" class="filters card tight cmp-filters">
+  <div class="row">
+    <label class="small muted">Category</label>
+    <select class="in" name="category">{% for c in categories %}<option {{ 'selected' if c == category }}>{{ c }}</option>{% endfor %}</select>
+    <label class="small muted">Prices in</label>
+    <select class="in" name="currency"><option {{ 'selected' if cur == 'USD' }}>USD</option><option {{ 'selected' if cur == 'CNY' }}>CNY</option></select>
+    <noscript><button class="btn sm">Show</button></noscript>
+  </div>
+</form>
+
+<div class="grid g3 kpis bu-kpis">
+  <div class="kpi sage"><div class="v">{{ rows|length }}</div><div class="l">Products with a price</div><div class="d">in {{ category }}, from {{ suppliers|length }} shop{{ 's' if suppliers|length != 1 }}</div></div>
+  <div class="kpi gold"><div class="v">{{ money(best_total) }}</div><div class="l">Every product at its lowest price</div><div class="d">for the rooms' quantities, the allowance left out</div></div>
+  <div class="kpi ink"><div class="v">{{ rows|selectattr('bought')|list|length }}</div><div class="l">Bought from a shop</div><div class="d">{{ rows|rejectattr('bought')|list|length }} still to decide</div></div>
+</div>
+
+<div class="tbl cmp-wrap"><table class="cmp">
+  <thead><tr><th>Product</th>{% for s, n, total in suppliers %}<th class="num"><a href="/suppliers/{{ s.id }}">{{ s.name }}</a><div class="small muted">{{ n }} priced · {{ money(total) }}</div></th>{% endfor %}</tr></thead>
+  <tbody>
+  {% for r in rows %}{% set c = r.c %}
+  <tr>
+    <td class="cmp-prod"><a href="/p/{{ p.id }}/buying/{{ c.id }}"><b>{{ c.name }}</b></a>{% if c.size or c.finish %}<div class="small muted">{{ [c.size, c.finish]|select|join(' · ') }}</div>{% endif %}<div class="small muted">{{ c.qty|num(2) }} {{ c.unit }} · {{ c.g.lines|length }} room{{ 's' if c.g.lines|length != 1 }}{% if r.open and r.open != c.g.lines|length %} · {{ r.open }} without a shop{% endif %}</div></td>
+    {% for s, n, total in suppliers %}{% set x = r.cells.get(s.id) %}
+    <td class="num cmp-cell{{ ' best' if x and x.best }}{{ ' bought' if x and x.bought }}">
+      {% if x %}<b>{{ money(x.price) }}</b><div class="small muted">per {{ c.unit }}{% if x.price > r.best * 1.0001 %} · +{{ ((x.price / r.best - 1) * 100)|round|int }}%{% endif %}</div>
+        {% if x.bought %}<span class="pill green">bought here</span>{% elif r.open %}<form method="post" action="/p/{{ p.id }}/buying/{{ c.id }}/quotes/{{ x.quote.id }}/buy" data-confirm="Buy {{ c.name }} from {{ s.name }}? The {{ r.open }} room{{ 's' if r.open != 1 }} without a shop take this price; the shop can be changed on the product page."><input type="hidden" name="next" value="/p/{{ p.id }}/quotations/compare?category={{ category|urlencode }}&currency={{ cur }}"><button class="btn sm {{ 'accent' if x.best else 'sec' }}">Buy</button></form>{% endif %}
+      {% else %}<span class="muted">—</span>{% endif %}
+    </td>
+    {% endfor %}
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+<p class="small muted mt">A price is the shop's latest quote on the product, per unit, converted at this project's rate ({{ p.rate|num(2) }}). A quote without a price is not shown. Products of {{ category }} no shop priced are on the <a href="/p/{{ p.id }}/quotations/inquiry.xlsx?category={{ category|urlencode }}">inquiry sheet</a>.</p>
+{% else %}
+<div class="card empty bu-empty mt">
+  <div class="ring"><svg class="ic"><use href="#i-chart"/></svg></div>
+  <h3>Nothing to compare yet</h3>
+  <p>When two shops have quoted the same products, this page sets their prices side by side. Upload their quotation sheets, or add quotes on the Buying page.</p>
+</div>
+{% endif %}
+{% endblock %}
