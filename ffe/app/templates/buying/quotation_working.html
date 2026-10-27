@@ -14,7 +14,7 @@
 <div class="card qi-working" id="qi-working" data-status="/p/{{ p.id }}/quotations/working/{{ up.id }}/status">
   <ol class="qi-steps">
     {% for s in st.steps %}
-    <li class="{{ s.state }}" data-key="{{ s.key }}"><span class="dot"><svg class="ic"><use href="#i-check"/></svg></span><span class="t">{{ s.title }}</span><span class="m"></span></li>
+    <li class="{{ s.state }}" data-key="{{ s.key }}"><span class="dot"><svg class="ic"><use href="#i-check"/></svg></span><span class="t">{{ s.title }}</span><span class="m">{% if s.key == 'matching' and st.waiting %}waiting for Claude{% endif %}</span></li>
     {% endfor %}
   </ol>
   <div class="bar"><i style="width:{{ (100 * st.at / 4)|int if st.at >= 0 else 0 }}%"></i></div>
@@ -27,8 +27,8 @@
   </div>
   <div class="alert err mt" id="qi-error" hidden></div>
   <div class="card soft mt qi-wait" id="qi-wait" {{ '' if st.waiting else 'hidden' }}>
-    <b>Claude could not be reached</b>
-    <p class="small muted mb-0">The sheet and its pictures are read and kept; only the matching is left. Try Claude again in a moment (an outage or a busy minute usually passes), or carry on by words and sizes and decide more lines yourself. The sheet also waits under Drafts on the Quotations page.</p>
+    <b>{{ 'The Claude key is not accepted' if 'not accepted' in (st.message or '') else 'Claude could not be reached' }}</b>
+    <p class="small muted mb-0">The sheet and its pictures are read and kept; only the matching is left. {% if 'not accepted' in (st.message or '') %}Fix ANTHROPIC_API_KEY under Secrets on Replit and redeploy, then Try Claude again; or carry on by words and sizes now.{% else %}Try Claude again in a moment (an outage or a busy minute usually passes), or carry on by words and sizes and decide more lines yourself.{% endif %} The sheet also waits under Drafts on the Quotations page.</p>
     <div class="row mt">
       <form method="post" action="/p/{{ p.id }}/quotations/working/{{ up.id }}/retry"><input type="hidden" name="claude" value="1"><button class="btn accent"><svg class="ic"><use href="#i-clock"/></svg>Try Claude again</button></form>
       <form method="post" action="/p/{{ p.id }}/quotations/working/{{ up.id }}/retry"><input type="hidden" name="claude" value="0"><button class="btn sec">Continue without Claude</button></form>
@@ -45,7 +45,7 @@
   function paint(st){
     box.querySelectorAll('.qi-steps li').forEach(function(li){ var s=(st.steps||[]).filter(function(x){return x.key===li.dataset.key;})[0]; li.className=s?s.state:''; var m=li.querySelector('.m'); m.textContent='';
       if(li.dataset.key==='pictures'&&st.lines) m.textContent=st.lines+' lines · '+st.pictures+' picture'+(st.pictures===1?'':'s');
-      if(li.dataset.key==='matching'&&s&&s.state!=='') m.textContent=st.claude?'with Claude':'by words and sizes'; });
+      if(li.dataset.key==='matching'&&s&&s.state!=='') m.textContent=st.waiting?'waiting for Claude':(st.claude?'with Claude':'by words and sizes'); });
     bar.style.width=(st.done?100:Math.max(5,Math.round(100*Math.max(0,st.at)/4)))+'%';
     note.textContent=st.done?'Ready: opening the preview…':(st.message||'Working…');
   }
