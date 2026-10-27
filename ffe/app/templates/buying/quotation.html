@@ -46,7 +46,7 @@
       {% elif ln.action == 'merge' %}<span class="pill gold">Part of L{{ (q.lines|selectattr('id', 'equalto', ln.into_id)|map(attribute='no')|list or ['?'])[0] }}</span>
       {% elif ln.action == 'extra' %}<span class="pill">Extra charge</span>
       {% else %}<span class="pill">Skipped</span>{% endif %}
-      {% if ln.notes %}<div class="small"><span class="pill gold">{{ ln.notes }}</span></div>{% endif %}
+      {% if ln.notes %}<div class="small qi-notes">{% for f in ln.notes.split('; ') %}<span class="pill {{ 'red' if f.startswith(('thickness', 'anti-slip', 'slip', 'finish', 'material')) else 'gold' }}">&#9888; {{ f }}</span> {% endfor %}</div>{% endif %}
     </td>
   </tr>
   {% endfor %}

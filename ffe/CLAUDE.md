@@ -689,6 +689,11 @@ ALTER TABLE projects ADD COLUMN deposit_pct / soon_days / balance_days / lcl_up_
   suggestions (`doc`, `new_sup`, `draft_at`); the Quotations page lists the uploads not posted yet (Continue / Discard);
   apply, cancel and `/working/<u>/discard` delete the row. The preview's "If you posted it now" card (`#qi-sim`, `totals`
   from `_preview_ctx`, product options carry `data-n` = room lines, lines `data-amount`) is computed in the page's script.
+  `flags()` = `spec_diffs()` (thickness via `_thickness`, slip rating, finish and material words: red pills) + size / unit
+  (m and lm equal, `_same_unit`) / quantity (gold). `out_of_scope(line, p)` skips staff / servant quarters only when
+  `_scope_rooms(p)` is empty; a line matching nothing defaults to `new` with `room_hints()` (rooms sharing the most words
+  with the supplier's place / name / section) pre-ticked, and a new item in several rooms shares the line's quantity. In
+  `apply`, lines in other units than the product's (steps by the piece for a product in m²) price it from the design's quantity.
 
 ## Backlog (in priority order)
 

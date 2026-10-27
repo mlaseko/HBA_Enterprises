@@ -495,6 +495,11 @@ OUT_OF_SCOPE = ("staff quarter", "servant quarter", "servants quarter", "sq-", "
 UNIT_FAMILY = {"m²": "area", "m": "length", "lm": "length", "pcs": "count", "set": "count", "pair": "count", "box": "count", "roll": "count"}
 
 
+def _same_unit(u: str) -> str:
+    """Units that mean the same thing compare equal: m and lm are both running metres."""
+    return {"lm": "m"}.get(u, u)
+
+
 def tokens(text: str) -> set[str]:
     out = set()
     for w in re.findall(r"[a-z一-鿿]+|\d+(?:\.\d+)?", (text or "").lower()):
@@ -592,7 +597,7 @@ def score(line: dict, c: Candidate) -> float:
     s -= 0.25 * len((name_words & QUALIFIERS) - words - c.room_words.intersection(words))
     d = _dims_match(dims(line["size"]) or dims(line["name"]) or dims(line["detail"][:200]), c.dims)
     s += {1.0: 0.2, 0.8: 0.15, 0.4: 0.05, 0.0: 0.0, -1.0: -0.1}[d]
-    lu, cu = _unit(line["unit"]), c.unit
+    lu, cu = _same_unit(_unit(line["unit"])), _same_unit(c.unit)
     if lu and cu:
         if lu == cu:
             s += 0.05
@@ -605,9 +610,45 @@ def score(line: dict, c: Candidate) -> float:
     return max(0.0, min(MAX_SCORE, round(s, 3)))
 
 
-def out_of_scope(line: dict) -> bool:
+def _scope_rooms(p: Project | None) -> list:
+    """The project's staff / servant / boys' quarters rooms, if the design has any (BQ, SQ codes or the words)."""
+    if p is None:
+        return []
+    out = []
+    for r in p.rooms:
+        t = _norm(f"{r.code} {r.name} {r.floor or ''}")
+        code = (r.code or "").upper()
+        if any(w in t for w in ("staff", "servant", "quarter", "boys")) or code.startswith(("BQ", "SQ")) or code.split("-")[0] in ("BQ", "SQ"):
+            out.append(r)
+    return out
+
+
+def out_of_scope(line: dict, p: Project | None = None) -> bool:
+    """A staff / servant quarters line is out of scope unless the design has such rooms (then it is theirs to match)."""
     t = _norm(f"{line['section']} {line.get('place', '')} {line['name']} {line['ref']}")
-    return any(w in t for w in OUT_OF_SCOPE)
+    return any(w in t for w in OUT_OF_SCOPE) and not _scope_rooms(p)
+
+
+def room_hints(line: dict, p: Project) -> list[int]:
+    """The rooms a line seems to be for, from the supplier's words ("kitchen wall" → the kitchen, "all bath floor" → every
+    bathroom, "Master bath" → the master bathroom, "staff quarters" → the BQ rooms): the rooms sharing the most words with
+    the line, ids in the project's order; [] when nothing points at a room."""
+    text = f"{line.get('place', '')} {line['name']} {line['section']}"
+    if any(w in _norm(text) for w in OUT_OF_SCOPE):
+        return [r.id for r in _scope_rooms(p)] or []
+    words = tokens(text) - {"floor", "wall", "tiles", "porcelain", "main", "slab", "skirting"}
+    if not words:
+        return []
+    scored = []
+    for r in p.rooms:
+        rw = tokens(f"{r.name} {r.code}")
+        hit = len(words & rw)
+        if hit:
+            scored.append((hit, r.id))
+    if not scored:
+        return []
+    best = max(h for h, _ in scored)
+    return [rid for h, rid in scored if h == best]
 
 
 def memory(db: Session, supplier: Supplier | None) -> list[QuoteMatch]:
@@ -649,16 +690,59 @@ def shortlist(line: dict, cands: list[Candidate], memo: list[QuoteMatch], n: int
     return out[:n]
 
 
+_THICK_RE = re.compile(r"(?:thickness\s*[:：]?\s*|\bx\s*|\b)(\d+(?:\.\d+)?)\s*(?:±\s*\d+(?:\.\d+)?\s*)?mm\b(?!\s*[x×*])", re.I)
+_SLIP_RE = re.compile(r"\bR\s?(9|10|11|12|13)\b", re.I)
+FINISH_WORDS = {"matt": "matt", "matte": "matt", "satin": "satin", "gloss": "gloss", "glossy": "gloss", "polished": "polished", "lappato": "lappato",
+                "honed": "honed", "textured": "textured", "rough": "textured", "anti-slip": "anti-slip"}
+MATERIAL_WORDS = {"porcelain": "porcelain", "ceramic": "ceramic", "sintered": "sintered stone", "marble": "marble", "granite": "granite",
+                  "quartz": "quartz", "vitrified": "porcelain"}
+
+
+def _thickness(text: str) -> float | None:
+    """A thickness in mm named in a text ('Thickness:9±1mm', '600 x 1200 x 20 mm', '20 mm porcelain'): the last number that
+    is not one of a size's first dimensions."""
+    found = [float(m.group(1)) for m in _THICK_RE.finditer(text or "")]
+    found = [f for f in found if f <= 60]  # a tile is never thicker than that; anything bigger was a width
+    return found[-1] if found else None
+
+
+def spec_diffs(line: dict, c: Candidate) -> list[str]:
+    """Where the offer's words contradict the requirement: thickness, slip rating, finish, material. Only what both sides
+    state is compared, except the slip rating, which is flagged when asked for and not stated."""
+    offer = f"{line['name']} {line['size']} {line['detail']}"
+    asked = f"{c.name} {c.size} {c.finish} {c.spec}"
+    out = []
+    to, ta = _thickness(offer), _thickness(asked)
+    if to and ta and abs(to - ta) > 0.5:
+        out.append(f"thickness {to:g} mm offered vs {ta:g} mm asked")
+    so, sa = _SLIP_RE.search(offer), _SLIP_RE.search(asked)
+    if sa and not so:
+        out.append(f"anti-slip R{sa.group(1)} asked, not stated in the offer")
+    elif sa and so and so.group(1) != sa.group(1):
+        out.append(f"slip rating R{so.group(1)} offered vs R{sa.group(1)} asked")
+    lo, la = tokens(offer.lower()), tokens(asked.lower())
+    fo = {FINISH_WORDS[w] for w in FINISH_WORDS if w in lo}
+    fa = {FINISH_WORDS[w] for w in FINISH_WORDS if w in la}
+    if fo and fa and not (fo & fa):
+        out.append(f"finish {'/'.join(sorted(fo))} offered vs {'/'.join(sorted(fa))} asked")
+    mo = {MATERIAL_WORDS[w] for w in MATERIAL_WORDS if w in lo}
+    ma = {MATERIAL_WORDS[w] for w in MATERIAL_WORDS if w in la}
+    if mo and ma and not (mo & ma):
+        out.append(f"material {'/'.join(sorted(mo))} offered vs {'/'.join(sorted(ma))} asked")
+    return out
+
+
 def flags(line: dict, c: Candidate | None) -> list[str]:
-    """What differs between a line and the product it is matched to: the size, the unit, the quantity."""
+    """What differs between a line and the product it is matched to: the size, the unit, the quantity, and the
+    specification (spec_diffs)."""
     if c is None:
         return []
-    out = []
+    out = spec_diffs(line, c)
     ld, cd = dims(line["size"]) or dims(line["name"]), c.dims
     if ld and cd and _dims_match(ld, cd) < 0:
         out.append(f"size offered {line['size'] or line['name']} vs {c.size if dims(c.size) else c.name} asked")
     lu, cu = _unit(line["unit"]), c.unit
-    if lu and cu and lu != cu:
+    if lu and cu and _same_unit(lu) != _same_unit(cu):
         out.append(f"unit {lu} vs {cu}")
     if c.qty and line["qty"]:
         ratio = line["qty"] / c.qty
@@ -772,9 +856,9 @@ def suggest(db: Session, p: Project, parsed: dict, pictures: dict[int, bytes] | 
     out = {}
     for l in parsed["lines"]:
         sl = lists_[l["no"]]
-        sug = dict(action="skip", product_id=None, confidence=0.0, reason="", merge_into=0, room="", category="",
+        sug = dict(action="skip", product_id=None, confidence=0.0, reason="", merge_into=0, room="", category="", room_ids=[],
                    shortlist=[dict(id=c.id, title=c.title, score=s, why=w, rooms=c.rooms_text) for c, s, w in sl])
-        if out_of_scope(l):
+        if out_of_scope(l, p):
             sug.update(action="skip", confidence=0.8, reason="out of scope (staff or servant quarters)")
         elif sl and sl[0][2].startswith(("our code", "matched before")):
             c, s, w = sl[0]
@@ -795,12 +879,14 @@ def suggest(db: Session, p: Project, parsed: dict, pictures: dict[int, bytes] | 
             sug.update(action=act, product_id=pid if act == "quote" else None, confidence=conf, reason=str(pick.get("reason") or "")[:200],
                        merge_into=int(pick.get("merge_into") or 0) if act == "merge" else 0,
                        room=str(pick.get("room") or "")[:20] if act == "new" else "", category=str(pick.get("category") or "")[:60] if act == "new" else "")
-        elif not pick and sug["action"] == "skip" and not out_of_scope(l):
+        elif not pick and sug["action"] == "skip" and not out_of_scope(l, p):
             if sl and sl[0][1] >= 0.3:
                 c, s, w = sl[0]
                 sug.update(action="quote", product_id=c.id, confidence=round(s, 2), reason=w)
-            else:
-                sug.update(reason="no product looks like this: skip it, or make it a new item")
+            else:  # nothing in the design looks like it: offer it as a new item, in the rooms the supplier's words point at
+                sug.update(action="new", confidence=0.0, reason="no product looks like this: a new item, or skip it")
+        if sug["action"] == "new" and not sug.get("room_ids"):
+            sug["room_ids"] = room_hints(l, p)
         c = by_id.get(sug["product_id"]) if sug["product_id"] else None
         sug["flags"] = flags(l, c)
         out[l["no"]] = sug
@@ -858,7 +944,8 @@ def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head:
         first = None
         for room in rooms:
             it = Item(project_id=p.id, room_id=room.id if room else None, category=cat, name=name, spec=l["detail"][:2000], size=l["size"][:160],
-                      qty=l["qty"] if len(rooms) == 1 else 1.0, unit=unit, notes=f"Added from quotation {q.title or q.filename}")
+                      qty=round(l["qty"] / len(rooms), 2) if l["qty"] else 1.0, unit=unit,
+                      notes=f"Added from quotation {q.title or q.filename}" + (f"; the sheet's {l['qty']:g} {unit} shared over {len(rooms)} rooms" if len(rooms) > 1 else ""))
             it.code = next_code(db, p, room)
             db.add(it)
             db.flush()
@@ -914,7 +1001,12 @@ def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head:
         parts = [by_no[m] for n in nos for m in merged_into.get(n, [])]
         qty = sum(l["qty"] for l in main)
         amount = sum(l["amount"] for l in main) + sum(l["amount"] for l in parts)
-        if qty > 0:
+        mixed = any(_same_unit(_unit(l["unit"])) != _same_unit(c.unit) for l in main if _unit(l["unit"]) and c.unit)
+        by_design = ""
+        if mixed and c.qty > 0:  # steps by the piece and landings by the m² for a product in m²: a sum of pieces means nothing
+            unit_price = amount / c.qty
+            by_design = f"Priced from the design's {c.qty:g} {c.unit}: the sheet's lines are in other units ({', '.join(sorted({l['unit'] or '?' for l in main}))})."
+        elif qty > 0:
             unit_price = amount / qty
         else:
             unit_price = sum(l["unit_price"] for l in main) / max(1, len(main))
@@ -928,6 +1020,8 @@ def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head:
             note.append("Lines combined: " + "; ".join(f"{(l['section'] or l.get('place', '')) + ': ' if (l['section'] or l.get('place')) else ''}{l['name']} {l['qty']:g} {l['unit']} @ {l['unit_price']:g}" for l in main) + ".")
         if parts:
             note.append("Includes: " + "; ".join(f"{l['name']} {l['qty']:g} {l['unit']} = {l['amount']:g}" for l in parts) + ".")
+        if by_design:
+            note.append(by_design)
         if factor < 1:
             note.append(f"Sheet discount of {100 * (1 - factor):.1f}% applied.")
         fl = [f for l in main for f in flags(l, c)]
