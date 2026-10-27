@@ -2098,6 +2098,43 @@ def flow(c):
     db=SessionLocal(); assert db.get(Supplier, shop.id) is None and db.query(_QM).filter(_QM.supplier_id==shop.id).count()==0
     q4d=db.get(_QD, qd4); assert q4d is not None and q4d.supplier_id is None and all(ln.quote_id is None for ln in q4d.lines) and db.query(_Qt).filter(_Qt.project_id==pid_q).count()==0; db.close()
     assert c.get(f"/p/{pid_q}/quotations/{qd4}").status_code==200 and "no shop" in c.get(f"/p/{pid_q}/quotations/{qd4}").text
+    # one product, several models (a generic air conditioner quoted as two models at two prices): split it into variants on the
+    # preview, one product per model with its rooms and price; review and edit the variants on the document page
+    ai._call=lambda content, schema=None, **kw: {"lines": []}
+    assert _qz.variant_label({"name":"Gree inverter 2.5hp 7kw cooling only","size":"","detail":""})=="2.5 HP" and _qz.variant_label({"name":"Heater","size":"12 kW","detail":"","ref":"X"})=="12 kW" and _qz.variant_label({"name":"Fan","size":"","detail":"220-240V","ref":"F-9"})=="F-9"
+    db=SessionLocal(); _ac_rooms=db.query(Room).filter(Room.project_id==pid_q).order_by(Room.id).all()[:3]; _acr=[(r_.id, r_.name) for r_ in _ac_rooms]; db.close(); assert len(_acr)==3
+    r=c.post(f"/p/{pid_q}/items/new", data={"name":"Air conditioner","category":"Lighting","qty":"1","unit":"pcs","room_ids":[str(i) for i,_ in _acr]}, follow_redirects=False); assert r.status_code==303
+    db=SessionLocal(); _acp=_bz.product_of(db, db.get(_P, pid_q), db.query(Item).filter(Item.project_id==pid_q, Item.name=="Air conditioner").first()); _acp_id=_acp.id; db.commit(); db.close()
+    def ac_sheet():
+        wb=openpyxl.Workbook(); ws=wb.active; ws.title="PI"; ws.append(["Proforma invoice"])
+        ws.append(["NO.","Product Type","model","Unit","Quantity","Unit Price(USD)","Amount(USD)","Remarks"]); ws.append(["Ground floor"])
+        ws.append([1,"Gree Inverter wall mounted air conditioner 2.5hp 7kw","GWC24","PCS",1,890,890,f"For {_acr[0][1]}"])
+        ws.append([2,"Gree Inverter wall mounted air conditioner 1hp 2.6kw","GWC09","PCS",1,508,508,f"For {_acr[1][1]}"])
+        ws.append([3,"Gree Inverter wall mounted air conditioner 1hp 2.6kw","GWC09","PCS",1,508,508,f"For {_acr[2][1]}"])
+        ws.append(["Total amount:",None,None,None,None,None,1906]); buf=io.BytesIO(); wb.save(buf); return buf.getvalue()
+    loc8,st8=upload_quote("Split AC quotation.xlsx", ac_sheet()); key8=_unq(loc8.split("key=")[1]); h=c.get(loc8).text
+    assert 'data-variant="2.5 HP"' in h and f'data-hints="{_acr[0][0]}"' in h and 'id="qi-splits"' in h and 'id="qi-roomnames"' in h and 'data-rids="' in h and "vlabel_" in h and "Split by model" in h
+    _pt8=__import__("json").loads(_st.read_image(key8).decode())["parsed"]; assert _pt8["lines"][0]["place"]==_acr[0][1] and _pt8["lines"][2]["place"]==_acr[2][1]  # "For <room>" in Remarks is the line's place
+    form8=dict(key=key8, supplier_id="__new__", supplier_name="George Appliances", title="AC", currency="USD", total="1906", discount="0", charges="0", terms="", notes="", sales="", quote_date="", valid_until="", lead_time="",
+               act_1="quote", prod_1=str(_acp_id), act_2="quote", prod_2=str(_acp_id), act_3="quote", prod_3=str(_acp_id), vlabel_1="2.5 HP", vrooms_1=str(_acr[0][0]), vlabel_2="1 HP", vrooms_2=str(_acr[1][0]), vlabel_3="1 HP", vrooms_3=str(_acr[2][0]))
+    r=c.post(f"/p/{pid_q}/quotations/draft", data=dict(form8, **{f"split_{_acp_id}":"1"}), follow_redirects=False); assert r.status_code==303 and "Draft%20saved" in r.headers["location"]
+    db=SessionLocal(); key8b=db.query(_QU).filter(_QU.project_id==pid_q, _QU.message=="draft").order_by(_QU.id.desc()).first().state_key; db.close()  # a draft keeps the split
+    h=c.get(f"/p/{pid_q}/quotations/preview?key={key8b}").text; assert 'data-split="1"' in h and 'data-vlabel="2.5 HP"' in h and f'data-vrooms="{_acr[1][0]}"' in h
+    r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(form8, key=key8b, **{f"split_{_acp_id}":"1"}), follow_redirects=False); assert r.status_code==303 and "2%20quotes%20from%20George%20Appliances%20added" in r.headers["location"], r.headers["location"]
+    qd8=int(r.headers["location"].split("/quotations/")[1].split("?")[0])
+    db=SessionLocal(); _its={i.room_id: i for i in db.query(Item).filter(Item.project_id==pid_q, Item.name=="Air conditioner")}; assert {k: v.size for k, v in _its.items()}=={_acr[0][0]:"2.5 HP", _acr[1][0]:"1 HP", _acr[2][0]:"1 HP"}, {k: v.size for k, v in _its.items()}
+    assert db.query(_Pr).filter(_Pr.project_id==pid_q, _Pr.key=="air conditioner||").count()==0  # the generic product, left with no room and no quote, is gone (SQLite may reuse its id)
+    _q8=db.get(_QD, qd8); _v={ln.no: ln.product for ln in _q8.lines}; assert _v[1].title=="Air conditioner · 2.5 HP" and _v[2].title=="Air conditioner · 1 HP" and _v[2].id==_v[3].id and _v[1].id!=_v[2].id
+    assert len(_v[1].quotes)==1 and _v[1].quotes[0].model=="GWC24" and round(_v[1].quotes[0].amount)==890 and _v[2].quotes[0].model=="GWC09" and round(_v[2].quotes[0].amount)==508
+    _p1, _p2 = _v[1].id, _v[2].id; _it0=_its[_acr[0][0]].id; db.close()
+    h=c.get(f"/p/{pid_q}/quotations/{qd8}").text; assert 'id="variants"' in h and f'name="label_{_p1}"' in h and 'value="2.5 HP"' in h and f'name="var_{_it0}"' in h and "L2, L3" in h and "GWC09" in h
+    # rename a variant and move a room to it: the lines' sizes change, the products follow, the quotes stay with them
+    r=c.post(f"/p/{pid_q}/quotations/{qd8}/variants", data={f"label_{_p2}":"1 HP Gree", f"label_{_p1}":"2.5 HP", f"var_{_it0}":str(_p2)}, follow_redirects=False); assert r.status_code==303 and "3%20room%20lines%20changed" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); assert {i.size for i in db.query(Item).filter(Item.project_id==pid_q, Item.name=="Air conditioner")}=={"1 HP Gree"} and db.get(_Pr, _p2).title=="Air conditioner · 1 HP Gree" and len(db.get(_Pr, _p2).quotes)==1
+    assert all(ln.product_id==_p2 for ln in db.get(_QD, qd8).lines if ln.no in (2, 3)) and db.get(_Pr, _p1) is not None and len(db.get(_Pr, _p1).quotes)==1  # the 2.5 HP variant keeps its quote with no room left
+    db.close()
+    h=c.get(r.headers["location"].split("#")[0]).text; assert 'value="1 HP Gree"' in h and "Variants saved" in h and "its quote stays" in h, h.split('id="variants"')[1][:3000] if 'id="variants"' in h else h[:500]
+    r=c.post(f"/p/{pid_q}/quotations/{qd8}/variants", data={f"label_{_p1}":"1 HP Gree"}, follow_redirects=False); assert "Nothing%20changed" in r.headers["location"]  # a variant without lines cannot be renamed into another
     ai._call=lambda content, schema=None, **kw: (_ for _ in ()).throw(RuntimeError("down"))
     print("quotations ok")
 

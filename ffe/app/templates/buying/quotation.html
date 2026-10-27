@@ -58,6 +58,25 @@
   <tfoot><tr><td colspan="5" class="num">Lines</td><td class="num"><b>{{ lines_total|money(2) }}</b></td><td></td></tr></tfoot>
 </table></div>
 
+{% if families %}
+<div class="card mt" id="variants">
+  <h2 class="mb-0">Products and variants</h2>
+  <p class="small muted">What this sheet priced, product by product. A product split by model has a variant per model (its size): rename a variant, or move a room line to another variant, and the products, quotes and anything bought follow. These names are what the next sheet is matched against, so keep them the way the shops write them (1.5 HP, 600 × 600).</p>
+  <form method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/variants">
+  {% for f in families %}
+  <div class="qi-fam mt">
+    <div><b>{{ f.name }}</b>{% if f.finish %} · {{ f.finish }}{% endif %} <span class="small muted">· {{ f.category }} · {{ f.variants|length }} variant{{ 's' if f.variants|length != 1 }} · {{ f.rows|length }} room line{{ 's' if f.rows|length != 1 }}</span></div>
+    <div class="tbl mt"><table class="qi-var"><thead><tr><th>Variant (the size)</th><th>Shop's model</th><th class="num">Price on this sheet</th><th>Lines</th><th>Rooms</th></tr></thead><tbody>
+    {% for v in f.variants %}<tr><td data-l="Variant"><input class="in sm" name="label_{{ v.id }}" value="{{ v.label }}" placeholder="no size: the generic product" maxlength="160" aria-label="Variant"> <a class="small" href="/p/{{ p.id }}/buying/{{ v.id }}">Buying</a></td><td class="small" data-l="Shop's model">{{ v.refs|join(', ') or '—' }}</td><td class="num nowrap" data-l="Price on this sheet">{% if v.lines %}{{ cur }} {{ v.price|num(2) }}{% else %}<span class="muted">not on this sheet</span>{% endif %}</td><td class="small" data-l="Lines">{% for ln in v.lines %}L{{ ln.no }}{{ ', ' if not loop.last }}{% endfor %}</td><td class="small" data-l="Rooms">{{ v.rooms or 'no room: its quote stays until the product is deleted on the Buying page' }}</td></tr>{% endfor %}
+    </tbody></table></div>
+    {% if f.split %}<div class="small muted mt">Which variant each room has:</div><div class="qi-var-rooms">{% for it, pid in f.rows %}<label class="qi-var-room"><span>{{ it.code }} {{ it.room.name if it.room else 'whole house' }} <span class="muted">· {{ it.qty|num(2) }} {{ it.unit }}</span></span><select class="in sm" name="var_{{ it.id }}">{% for v in f.variants %}<option value="{{ v.id }}" {{ 'selected' if v.id == pid }}>{{ v.label or 'generic' }}</option>{% endfor %}</select></label>{% endfor %}</div>{% endif %}
+  </div>
+  {% endfor %}
+  <div class="row mt"><button class="btn sm accent"><svg class="ic"><use href="#i-check"/></svg>Save the variants</button><span class="small muted">Renaming a variant renames the size on its room lines; a room moved to another variant takes that variant's size. Two variants given the same name become one product.</span></div>
+  </form>
+</div>
+{% endif %}
+
 <div class="grid g2 mt">
   <div class="card">
     <h2 class="mb-0">Not quoted</h2>

@@ -751,6 +751,17 @@ ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                          
   `safe_next`). Stuck uploads: `WORKING` stages, `mark_stale()` at startup (main.py), `stale` rows on the Quotations page allow
   Discard after 10 min; `match_upload` catches everything into an error row. `parse()` warns for .xls. Preview bulk: `#qi-skip-none`,
   `.sec-skip` on `.qi-section` (lines carry `data-section`).
+  Variants: `variant_label(line)` ("2.5 HP" from the words, else the item number); `split_products(db, p, parsed, choices, cands)`
+  runs first in `apply` for lines whose choice carries `split` (`_read_form`: `split_<product>` box, `vlabel_<line>`,
+  `vrooms_<line>`; a draft keeps them): each line's rooms get the variant as their `Item.size` (a second line in a room
+  on two models, whole units for countable units), `buying.follow_renames` makes the products, the generic one goes when
+  nothing is left on it, and `choices[no]["product_id"]` is repointed so one quote per variant follows. `families(db, p, q)`
+  (name + finish → its variants, lines, refs, price, every room line with its variant) feeds the document page's
+  "Products and variants" card; `set_variants(db, p, labels, moves)` behind `POST /quotations/<q>/variants` renames and
+  moves (`follow_renames` repoints `QuotationLine.product_id` when products merge). `room_hints` reads the place before the
+  section, counts "bedroom 1" digits and the floor at half weight; the parser takes a Remarks "For <room>" as the place.
+  Preview script: `splits(per)` builds the `#qi-splits` cards (`vget` / `vrow` / `vsum`, `isSplit`), the quantities table
+  groups a family (`data-fam` on the options) as one row with its variants under it.
   Finding a product on a line: `.qi-find` search box (words, room code, our code: `data-s` on the options = codes, rooms, spec),
   chips of the hits; `data-same` (item number + unit, else name + size + unit) drives the "Also for L…" chip. Memory: `remember()`
   writes the shop's row and a supplier-less row by wording (`memory()` returns both, the shop's first; shortlist 0.9 / 0.85).

@@ -682,13 +682,16 @@ def room_hints(line: dict, p: Project) -> list[int]:
     text = f"{line.get('place', '')} {line['name']} {line['section']}"
     if any(w in _norm(text) for w in OUT_OF_SCOPE):
         return [r.id for r in _scope_rooms(p)] or []
+    if line.get("place"):  # the line's own place is the room; the section above it is only the floor or the table's heading
+        text = f"{line['place']} {line['name']}"
     words = tokens(text) - {"floor", "wall", "tiles", "porcelain", "main", "slab", "skirting"}
-    if not words:
+    nums = set(re.findall(r"(?<![\w.])\d+(?![\w.])", text))  # "bedroom 1" is not "bedroom 2" (not the 2 and 6 of 2.6 kW, nor the 1 of 1hp)
+    if not words and not nums:
         return []
     scored = []
     for r in p.rooms:
         rw = tokens(f"{r.name} {r.code}")
-        hit = len(words & rw)
+        hit = len(words & rw) + len(nums & set(re.findall(r"\b\d+\b", r.name or ""))) + 0.5 * len(words & tokens(r.floor or "") - rw)
         if hit:
             scored.append((hit, r.id))
     if not scored:
@@ -1050,6 +1053,166 @@ def suggest(db: Session, p: Project, parsed: dict, pictures: dict[int, bytes] | 
     return {"lines": out, "claude": bool(picks)}
 
 
+# ---- one product, several models: variants ----------------------------------------------------------------------------------
+_CAP_RE = re.compile(r"(?<![\w.])(\d+(?:[.,]\d+)?)\s*(hp|kw|btu|tons?|litres?|liters?|ltr|w)(?![\w])", re.I)
+_CAP_UNITS = {"hp": "HP", "kw": "kW", "btu": "BTU", "w": "W", "ltr": "l", "litres": "l", "litre": "l", "liters": "l", "liter": "l", "tons": "ton"}
+
+
+def variant_label(line: dict) -> str:
+    """The short text that tells this model apart from the others of the same product: its capacity ("2.5 HP", "12 kW")
+    from the name, size or description, else the supplier's item number."""
+    for text in (line["name"], line.get("size", ""), line.get("detail", "")[:300]):
+        m = _CAP_RE.search(text or "")
+        if m:
+            u = m.group(2).lower()
+            return f"{m.group(1).replace(',', '.')} {_CAP_UNITS.get(u, u)}"
+    return (line.get("ref") or "")[:60]
+
+
+def split_products(db: Session, p: Project, parsed: dict, choices: dict[int, dict], cands: dict[int, "Candidate"], doc_name: str = "") -> dict[int, Item]:
+    """A product the designer chose to split by model (a generic "Air conditioner" in ten rooms quoted as four models at
+    four prices): each line's rooms take the line's variant as their size, so every model becomes a product of its own
+    with its rooms, quantity and price; the rooms no line names stay on the product as it was. A room on two lines (two
+    units in one lounge) gets a second room line. Returns {line no: a room line of its variant} for the lines moved."""
+    by_pid: dict[int, list[dict]] = {}
+    for l in parsed["lines"]:
+        ch = choices.get(l["no"], {})
+        if ch.get("split") and ch.get("action") == "quote" and ch.get("product_id") in cands:
+            by_pid.setdefault(int(ch["product_id"]), []).append(l)
+    if not by_pid:
+        return {}
+    from .routers.items import SHARED_FIELDS
+    before = buying.keys(p)
+    moved: dict[int, Item] = {}
+    for pid, ls in by_pid.items():
+        c = cands[pid]
+        free = {i.room_id: i for i in c.g.lines if i.room_id}  # the product's line in each room, taken by the first model that names the room
+        for l in ls:
+            ch = choices[l["no"]]
+            label = " ".join((ch.get("variant") or variant_label(l)).split())[:60]
+            ids = [int(x) for x in re.findall(r"\d+", str(ch.get("vrooms") or ""))]
+            rooms = [r for r in p.rooms if r.id in ids]
+            if not label or not rooms:
+                continue
+            size = (f"{c.size} · {label}" if c.size else label)[:160]
+            first = None
+            for room in rooms:
+                it = free.pop(room.id, None)
+                if it is None:  # a second model in the same room, or a room the product was not in yet
+                    share = l["qty"] / len(rooms)
+                    if _same_unit(_unit(l["unit"])) == "pcs":  # a quarter of a unit is no unit: one each
+                        share = max(1.0, float(int(share)))
+                    it = Item(project_id=p.id, room_id=room.id, qty=round(share, 2) or 1.0, status="To buy",
+                              notes=f"Added from quotation {doc_name}".strip(), **{f: getattr(c.g.item, f) for f in SHARED_FIELDS})
+                    it.code = next_code(db, p, room)
+                    db.add(it)
+                    db.flush()
+                    p.items.append(it)
+                it.size = size
+                first = first or it
+            if first is not None:
+                moved[l["no"]] = first
+    buying.follow_renames(db, p, before)
+    db.flush()
+    for pid in by_pid:  # the generic product left with no room, no quote and no purchase goes; one with quotes stays for them
+        pr = db.get(Product, pid)
+        if pr is not None and pr in p.products and not pr.quotes and not pr.purchases and not any(product_key(i) == pr.key for i in p.live_items):
+            p.products.remove(pr)
+            db.delete(pr)
+    db.flush()
+    return moved
+
+
+def _fam_key(name: str, finish: str) -> str:
+    return f"{_norm(name)}|{_norm(finish)}"
+
+
+def families(db: Session, p: Project, q: Quotation) -> list[dict]:
+    """The products this document priced, for review: grouped by name and finish, each with its variants (the products
+    differing only by size: one per model), the lines of the sheet behind each, its price, and every room line of the
+    family with the variant it is on, so the designer can rename a variant or move a room to another one. A variant
+    left without rooms but with a quote still shows (its quote stays until the product is deleted on the Buying page)."""
+    cands = candidates(db, p)
+    members: dict[str, list[dict]] = {}
+    seen_ids = set()
+    for c in cands:
+        members.setdefault(_fam_key(c.name, c.finish), []).append(dict(id=c.id, label=c.size, rooms=c.rooms_text, items=list(c.g.lines)))
+        seen_ids.add(c.id)
+    lines_of: dict[int, list[QuotationLine]] = {}
+    for ln in q.lines:
+        if ln.product_id and ln.action in ("quote", "new"):
+            lines_of.setdefault(ln.product_id, []).append(ln)
+    for pr in p.products:  # a variant with no room left: still this document's, with its quote
+        if pr.id in seen_ids or (pr.id not in lines_of and not pr.quotes):
+            continue
+        parts = (pr.title or "").split(" · ")
+        name, size, finish = (parts + ["", ""])[:3] if len(parts) >= 3 else (parts[0] if parts else "", parts[1] if len(parts) > 1 else "", "")
+        members.setdefault(_fam_key(name, finish), []).append(dict(id=pr.id, label=size, rooms="", items=[]))
+    by_id = {m["id"]: (fk, m) for fk, ms in members.items() for m in ms}
+    out, seen = [], set()
+    for ln in q.lines:
+        hit = by_id.get(ln.product_id) if ln.product_id in lines_of else None
+        if hit is None or hit[0] in seen:
+            continue
+        fk, m0 = hit
+        seen.add(fk)
+        ms = sorted(members[fk], key=lambda x: (x["id"] not in lines_of, x["label"]))
+        variants = []
+        for m in ms:
+            ls = lines_of.get(m["id"], [])
+            refs = list(dict.fromkeys(x.ref for x in ls if x.ref))
+            quote = next((x.quote for x in ls if x.quote is not None), None)
+            variants.append(dict(id=m["id"], label=m["label"], rooms=m["rooms"], lines=ls, refs=refs, quote=quote,
+                                 price=sum(x.amount or 0 for x in ls) / (sum(x.qty or 0 for x in ls) or 1) if ls else 0))
+        rows = sorted(((i, m["id"]) for m in ms for i in m["items"]),
+                      key=lambda t: ((t[0].room.sort if t[0].room is not None and t[0].room.sort is not None else 0), t[0].code))
+        first = next((c for c in cands if c.id == m0["id"]), None)
+        name = first.name if first else (m0.get("label") and "" or "")
+        out.append(dict(name=first.name if first else (p.products and next((pr.title.split(" · ")[0] for pr in p.products if pr.id == m0["id"]), "")),
+                        finish=first.finish if first else "", category=first.category if first else "", variants=variants, rows=rows, split=len(ms) > 1))
+    return out
+
+
+def set_variants(db: Session, p: Project, labels: dict[int, str], moves: dict[int, int]) -> int:
+    """Rename variants (`labels` = {product id: new size text}) and move room lines between them (`moves` = {item id:
+    product id}). A rename changes the size on every line of the variant and the product follows (buying.follow_renames:
+    two variants given one name become one product). A move only changes that line: it takes the target's size, and a
+    purchase of the product it left no longer covers it; the product it left keeps its quotes even with no room.
+    Returns the lines changed."""
+    prods = {pr.id: pr for pr in p.products}
+    items = {i.id: i for i in p.live_items}
+    lines_of = {pid: [i for i in items.values() if product_key(i) == pr.key] for pid, pr in prods.items()}
+    size_of = {pid: (ls[0].size if ls else (pr.title or "").split(" · ")[1] if len((pr.title or "").split(" · ")) > 1 else "") for pid, (ls, pr) in ((pid, (lines_of[pid], pr)) for pid, pr in prods.items())}
+    changed = 0
+    before = buying.keys(p)
+    for pid, label in labels.items():  # renames first: the variant's lines all take the new size, the product follows
+        label = " ".join(label.split())[:160]
+        if pid not in size_of or label == size_of[pid]:
+            continue
+        size_of[pid] = label
+        for it in lines_of.get(pid, []):
+            it.size = label
+            changed += 1
+    buying.follow_renames(db, p, before)
+    db.flush()
+    on = {i.id: pid for pid, ls in lines_of.items() for i in ls}
+    for iid, pid in moves.items():  # then the moves, one line each
+        it = items.get(iid)
+        if it is None or pid not in size_of or pid == on.get(iid):
+            continue
+        src = lines_of.get(pid) or []
+        if src:  # the family's name and finish as the target spells them
+            it.name, it.finish = src[0].name, src[0].finish
+        if it.purchase is not None and it.purchase.product_id != pid:
+            buying.uncover(it)
+        it.size = size_of[pid]
+        changed += 1
+    db.flush()
+    buying.sync_products(db, p)
+    buying.prune(db, p)
+    return changed
+
+
 # ---- applying the confirmed preview ----------------------------------------------------------------------------------------
 def _d(v: str):
     try:
@@ -1100,8 +1263,13 @@ def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head:
         db.add(row)
         rows[l["no"]] = row
     db.flush()
-    # new items first, so their products exist
     cands = {c.id: c for c in candidates(db, p)}
+    moved = split_products(db, p, parsed, choices, cands, q.title or q.filename)  # a product split by model: its rooms take their variants first
+    if moved:
+        cands = {c.id: c for c in candidates(db, p)}
+        for n, it in moved.items():
+            choices[n]["product_id"] = buying.product_of(db, p, it).id
+    # new items first, so their products exist
     made_items = 0
     for l in parsed["lines"]:
         ch = choices.get(l["no"], {})
