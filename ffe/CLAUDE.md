@@ -739,6 +739,9 @@ ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                          
   ("Also L3–L11 as parts of L2", `parts()`, refreshed by `todo()`) merges the rest of a section. `Quotation.replaces_id` is set
   in `apply` when `stats["updated"]` (the latest earlier document sharing a quote); the list route splits `rows` / `earlier`,
   the document page gets `revises` / `revised_by`; `/quotations?supplier=` pre-selects the shop on the upload form.
+  The wait for Claude is minutes: `suggest()` commits before `ask_claude()` so no transaction idles on Neon
+  (IdleInTransactionSessionTimeout killed the thread's connection), and `ai._call` builds the client with
+  `timeout=CLAUDE_TIMEOUT` (240 s) and one SDK retry so a hung request fails into our own retry loop instead of waiting 30 min.
   Live progress: `suggest(..., progress=)` / `ask_claude(..., progress=)` report sub-steps (shortlisting, waiting for Claude with the
   counts and the attempt, answered, writing) through `match_upload`'s `_set_stage` lambda; the status JSON carries `expected`
   (`expected_seconds(lines, pictures, claude)`) and `since`; the working page runs its own clock from the first poll that sees
