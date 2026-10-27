@@ -106,11 +106,13 @@ def _upload(db: Session, p: Project, upload_id: int) -> QuotationUpload | None:
 
 def _upload_status(p: Project, up: QuotationUpload) -> dict:
     stages = [k for k, _ in qz.STAGES]
-    at = stages.index(up.stage) if up.stage in stages else (len(stages) if up.stage == "done" else -1)
-    return dict(stage=up.stage, message=up.message, lines=up.lines, pictures=up.pictures, claude=up.claude, done=up.stage == "done",
+    waiting = up.stage == qz.WAITING
+    at = stages.index(up.stage) if up.stage in stages else (stages.index("matching") if waiting else -1)
+    return dict(stage=up.stage, message=up.message, lines=up.lines, pictures=up.pictures, claude=up.claude, done=up.stage == "done", waiting=waiting,
                 error=up.message if up.stage == "error" else "", at=at,
                 next=f"/p/{p.id}/quotations/preview?key={urlquote(up.state_key)}" if up.stage == "done" else "",
-                steps=[dict(key=k, title=t, state="done" if (up.stage == "done" or i < at) else ("now" if i == at else "")) for i, (k, t) in enumerate(qz.STAGES)])
+                steps=[dict(key=k, title=t, state="done" if (up.stage == "done" or i < at) else (("stuck" if waiting else "now") if i == at else ""))
+                       for i, (k, t) in enumerate(qz.STAGES)])
 
 
 @router.get("/p/{project_id}/quotations/working/{upload_id}")
@@ -128,13 +130,25 @@ def working_page(request: Request, upload_id: int, p: Project = Depends(get_proj
 def discard_upload(upload_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
     """Drop an upload from the list: its draft state, file and pictures go (done or failed; one still working is left alone)."""
     up = _upload(db, p, upload_id)
-    if up is not None and up.stage in ("done", "error"):
+    if up is not None and up.stage in ("done", "error", qz.WAITING):
         state = _load_state(up.state_key) if up.state_key else None
         if state is not None:
             _drop_state(state, up.state_key, keep_files=False)
         db.delete(up)
         db.commit()
     return redirect(f"/p/{p.id}/quotations")
+
+
+@router.post("/p/{project_id}/quotations/working/{upload_id}/retry")
+def retry_upload(upload_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), claude: str = Form("1")):
+    """An upload waiting because Claude could not be reached: match again with Claude (claude=1) or go on by words and
+    sizes (claude=0). The working page follows the matching as before."""
+    up = _upload(db, p, upload_id)
+    if up is None:
+        return redirect(f"/p/{p.id}/quotations?err=" + urlquote("That upload is no longer here."))
+    if up.stage == qz.WAITING and not qz.retry_matching(db, up, use_claude=claude != "0"):
+        return redirect(f"/p/{p.id}/quotations?err=" + urlquote("The sheet read earlier is no longer here: upload it again."))
+    return redirect(f"/p/{p.id}/quotations/working/{up.id}")
 
 
 @router.get("/p/{project_id}/quotations/working/{upload_id}/status")
@@ -175,6 +189,7 @@ def _preview_ctx(db: Session, p: Project, state: dict) -> dict:
     new_sup = state.get("new_supplier") or {}
     totals = dict(products=len(cands), lines=sum(len(c.g.lines) for c in cands), quoted=sum(1 for c in cands if c.product.quotes))
     return dict(parsed=parsed, lines=lines, by_cat=by_cat, rooms=rooms, supplier=sup, head=head, doc=doc, new_sup=new_sup, claude=state.get("claude"), totals=totals,
+                claude_note=state.get("claude_note", ""),
                 draft_at=state.get("draft_at", ""), counts={a: sum(1 for l in lines if l["sug"].get("action") == a) for a in ACTIONS},
                 categories=lists.categories(p), suppliers=_suppliers(db), terms=doc["terms"])
 

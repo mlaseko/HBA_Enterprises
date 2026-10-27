@@ -26,6 +26,14 @@
     </div>
   </div>
   <div class="alert err mt" id="qi-error" hidden></div>
+  <div class="card soft mt qi-wait" id="qi-wait" {{ '' if st.waiting else 'hidden' }}>
+    <b>Claude could not be reached</b>
+    <p class="small muted mb-0">The sheet and its pictures are read and kept; only the matching is left. Try Claude again in a moment (an outage or a busy minute usually passes), or carry on by words and sizes and decide more lines yourself. The sheet also waits under Drafts on the Quotations page.</p>
+    <div class="row mt">
+      <form method="post" action="/p/{{ p.id }}/quotations/working/{{ up.id }}/retry"><input type="hidden" name="claude" value="1"><button class="btn accent"><svg class="ic"><use href="#i-clock"/></svg>Try Claude again</button></form>
+      <form method="post" action="/p/{{ p.id }}/quotations/working/{{ up.id }}/retry"><input type="hidden" name="claude" value="0"><button class="btn sec">Continue without Claude</button></form>
+    </div>
+  </div>
 </div>
 {% endblock %}
 {% block scripts %}
@@ -33,7 +41,7 @@
 (function(){
   var box=document.getElementById('qi-working'); if(!box) return;
   var url=box.dataset.status, note=document.getElementById('qi-note'), err=document.getElementById('qi-error'), bar=box.querySelector('.bar i'), reload=document.getElementById('qi-reload');
-  var started=Date.now(), timer=null, failures=0;
+  var started=Date.now(), timer=null, failures=0, wait=document.getElementById('qi-wait');
   function paint(st){
     box.querySelectorAll('.qi-steps li').forEach(function(li){ var s=(st.steps||[]).filter(function(x){return x.key===li.dataset.key;})[0]; li.className=s?s.state:''; var m=li.querySelector('.m'); m.textContent='';
       if(li.dataset.key==='pictures'&&st.lines) m.textContent=st.lines+' lines · '+st.pictures+' picture'+(st.pictures===1?'':'s');
@@ -46,6 +54,7 @@
       failures=0; paint(st);
       if(st.done){ location.replace(st.next); return; }
       if(st.stage==='error'){ err.textContent=st.error||'Could not read the sheet.'; err.hidden=false; note.textContent='Stopped.'; return; }
+      if(st.waiting){ wait.hidden=false; return; } wait.hidden=true;
       var waited=(Date.now()-started)/1000;
       if(waited>240){ note.textContent='This is taking longer than usual. It may still finish: press Check again in a moment, or go back and upload the file once more.'; reload.hidden=false; return; }
       timer=setTimeout(tick, waited<20?1200:2500);

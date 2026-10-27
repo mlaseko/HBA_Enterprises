@@ -1324,6 +1324,8 @@ table.ls tr.muted td{color:var(--muted)}
 .qi-head{display:flex;gap:8px;align-items:center;flex-wrap:nowrap;margin-bottom:6px}.qi-head .qi-act{max-width:240px;flex:1 1 auto;min-width:0}
 .qi-f{display:none}.act-quote .qi-f-quote,.act-merge .qi-f-merge,.act-new .qi-f-new{display:block}
 .qi-short{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.qi-find{margin-top:6px}.qi-find input{font-size:.85rem;padding:6px 9px}.qi-found{display:flex;flex-wrap:wrap;gap:4px}.qi-found:not(:empty){margin-top:6px}
+.qi-chip.find{border-color:var(--accent);color:var(--accent-ink,var(--ink))}.qi-same:not(:empty){margin-top:6px}.qi-chip.also{border-color:var(--gold);background:var(--gold-soft);color:var(--gold-ink)}
 .qi-chip{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:2px 9px;font-size:.74rem;cursor:pointer;color:var(--ink-2)}
 .qi-chip.on{border-color:var(--green);background:var(--green-soft);color:var(--green)}
 .qi-why{margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
@@ -1341,6 +1343,7 @@ table.ls tr.muted td{color:var(--muted)}
 .qi-steps li .dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none;background:var(--surface)}
 .qi-steps li .dot .ic{width:14px;height:14px;opacity:0}
 .qi-steps li.done{color:var(--ink)}.qi-steps li.done .dot{background:var(--green);border-color:var(--green);color:#fff}.qi-steps li.done .dot .ic{opacity:1}
+.qi-steps li.stuck{color:var(--ink);font-weight:600}.qi-steps li.stuck .dot{border-color:var(--gold);background:var(--gold-soft)}
 .qi-steps li.now{color:var(--ink);font-weight:600}.qi-steps li.now .dot{border-color:var(--accent);border-top-color:transparent;animation:lbspin .9s linear infinite}
 .qi-steps li .m{font-size:.8rem;color:var(--muted);font-weight:400}
 .qi-spin{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:lbspin .9s linear infinite;margin-right:6px;vertical-align:-2px}
