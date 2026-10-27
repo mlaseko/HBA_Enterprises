@@ -251,7 +251,11 @@ name** (or set the Kind by hand): every existing entry starts as a room.
   from the shortlists with a confidence and a reason when `ANTHROPIC_API_KEY` is set. The designer confirms every line on
   the preview: quote (with the product, found through the chips or the line's search box: words, a room code or our
   item code; an "Also for …" chip puts the product on the lines with the same item number and unit), new (an item is
-  created in the chosen rooms), merge (into another line), extra, skip. Servant / staff quarters lines are skipped by
+  created in the rooms ticked on a checklist with the quick picks plus "Rooms with a basin" = `related_rooms`, the rooms of
+  the products sharing a word with the line; Claude may name the room codes), merge (into another line), extra, skip. Lines
+  not surely matched carry `options()` (the likeliest product, a new item in the rooms that fit, a line it may be part of)
+  as one-press chips; the page writes "When you save" under each line and a "Before you save" checklist. Countable units
+  (pcs, set, each…) compare as one (`_same_unit`). Servant / staff quarters lines are skipped by
   default.
 - Apply (`quotations.apply`): a `Quotation` row (supplier, title, date, validity, currency, total, discount, charges,
   terms, lead time, the file) with a `QuotationLine` per line (as written, picture, action, product, quote, merged-into),

@@ -496,9 +496,14 @@ OUT_OF_SCOPE = ("staff quarter", "servant quarter", "servants quarter", "sq-", "
 UNIT_FAMILY = {"m²": "area", "m": "length", "lm": "length", "pcs": "count", "set": "count", "pair": "count", "box": "count", "roll": "count"}
 
 
+COUNT_UNITS = ("pcs", "set", "each", "nos", "no", "unit", "pc", "piece")
+
+
 def _same_unit(u: str) -> str:
-    """Units that mean the same thing compare equal: m and lm are both running metres."""
-    return {"lm": "m"}.get(u, u)
+    """Units that mean the same thing compare equal: m and lm are both running metres; pcs, set, each and nos all count
+    whole things (a supplier's "set" of a mirror is the design's "pcs")."""
+    u = (u or "").strip().lower()
+    return "m" if u == "lm" else ("pcs" if u in COUNT_UNITS else u)
 
 
 def tokens(text: str) -> set[str]:
@@ -652,6 +657,47 @@ def room_hints(line: dict, p: Project) -> list[int]:
     return [rid for h, rid in scored if h == best]
 
 
+def related_rooms(line: dict, cands: list[Candidate]) -> dict | None:
+    """The rooms of the design that have something like this line (basin drainer → the rooms with a basin or vanity):
+    the rooms of the products sharing a word with the line's name, as {"word": "basin", "ids": [...]}; None when no word
+    of the line names a product."""
+    words = tokens(line["name"]) - {"set", "kit", "new", "type", "size", "colour", "color", "white", "black", "gold"}
+    best, best_ids = "", set()
+    for w in sorted(words, key=lambda w: -len(w)):
+        ids = {r.id for c in cands if w in c.words for r in c.rooms}
+        if ids and (not best or len(ids) > len(best_ids) * 2):
+            best, best_ids = w, ids
+    return {"word": best, "ids": sorted(best_ids)} if best else None
+
+
+def options(line: dict, sug: dict, sl: list, lines: list[dict], p: Project) -> list[dict]:
+    """The choices to offer on a line the matcher is not sure about, best first: the likeliest product, a new item in
+    the rooms that fit, a line of the sheet it may be part of. Each is {kind, label, why, ...} for the preview's chips."""
+    out = []
+    if sl:
+        c, s, w = sl[0]
+        if s >= 0.25:
+            out.append(dict(kind="quote", id=c.id, label=f"Probably {c.title}", why=f"{w}, {round(100 * s)}%"))
+    rel = sug.get("related") or {}
+    ids = sug.get("room_ids") or rel.get("ids") or []
+    art = "an" if rel and rel["word"][:1] in "aeiou" else "a"
+    where = (f"the {len(ids)} rooms with {art} {rel['word']}" if rel and ids == rel.get("ids") else (f"{len(ids)} room{'s' if len(ids) != 1 else ''}" if ids else "the whole house"))
+    out.append(dict(kind="new", ids=ids, label=f"New item in {where}", why="the design lists nothing like it; the quote goes on the new item",
+                    category=sug.get("category") or (sl[0][0].category if sl else "")))
+    into = sug.get("merge_into") or 0
+    if not into:  # the nearest earlier line of the section sharing a word, when this one reads like a part
+        mine = tokens(line["name"])
+        for o in reversed([x for x in lines if x["no"] < line["no"] and x["section"] == line["section"]]):
+            if mine & tokens(o["name"]) and o["unit_price"] > line["unit_price"]:
+                into = o["no"]
+                break
+    if into:
+        o = next((x for x in lines if x["no"] == into), None)
+        if o is not None:
+            out.append(dict(kind="merge", into=into, label=f"Part of L{into} {o['name'][:40]}", why="its amount joins that line's quote; no item of its own"))
+    return out[:3]
+
+
 def memory(db: Session, supplier: Supplier | None) -> list[QuoteMatch]:
     """The shop's remembered matches first, then the wording remembered across shops (rows with no supplier: a line
     that read the same from any shop and was confirmed on a product)."""
@@ -761,7 +807,8 @@ SUGGEST_SYSTEM = (
     "the design does not list, a component to merge into another line of the same sheet (hardware of a handrail, the parts "
     "of a set), an extra charge (pallet, packing), or out of scope (basement, staff or servant quarters, another building). "
     "Suppliers describe rooms their own way: 'Floor 1' or '1F' is the Ground floor, 'Floor 2' the First floor, 'Floor 3' "
-    "the Roof; 'bathroom 2' is one of the numbered bathrooms; 'public bathroom' is a guest or public WC. A line may quote a "
+    "the Roof; 'bathroom 2' is one of the numbered bathrooms; 'public bathroom' is a guest or public WC. For a new product name the "
+    "rooms it is for (every bathroom with a basin for basin wastes, every room of the matching products for an accessory). A line may quote a "
     "different size or thickness than the product asks for: still match it when it is clearly the same product for the "
     "same place, and lower the confidence. Several lines may quote the same product for different floors or rooms: match "
     "each to that product. Prefer the shortlist but choose any product when the shortlist is wrong. Be strict about "
@@ -781,11 +828,13 @@ SUGGEST_SCHEMA = {
                     "product": {"type": "string", "description": "The product id (P12) for quote, else empty."},
                     "merge_into": {"type": "integer", "description": "For merge: the line number it belongs to, else 0."},
                     "room": {"type": "string", "description": "For new: the room code it belongs to, else empty."},
+                    "rooms": {"type": "array", "items": {"type": "string"},
+                              "description": "For new: every room code the item is for (one item per room), e.g. every bathroom with a basin for basin wastes; empty when unsure."},
                     "category": {"type": "string", "description": "For new: the category from the list, else empty."},
                     "confidence": {"type": "number", "description": "0 to 1."},
                     "reason": {"type": "string", "description": "One short sentence."},
                 },
-                "required": ["line", "action", "product", "merge_into", "room", "category", "confidence", "reason"],
+                "required": ["line", "action", "product", "merge_into", "room", "rooms", "category", "confidence", "reason"],
                 "additionalProperties": False,
             },
         }
@@ -911,16 +960,23 @@ def suggest(db: Session, p: Project, parsed: dict, pictures: dict[int, bytes] | 
             sug.update(action=act, product_id=pid if act == "quote" else None, confidence=conf, reason=str(pick.get("reason") or "")[:200],
                        merge_into=int(pick.get("merge_into") or 0) if act == "merge" else 0,
                        room=str(pick.get("room") or "")[:20] if act == "new" else "", category=str(pick.get("category") or "")[:60] if act == "new" else "")
+            if act == "new" and isinstance(pick.get("rooms"), list):
+                codes = {str(x).strip().upper() for x in pick["rooms"] if isinstance(x, str)}
+                sug["room_ids"] = [r.id for r in p.rooms if r.code.upper() in codes]
         elif not pick and sug["action"] == "skip" and not out_of_scope(l, p):
             if sl and sl[0][1] >= 0.3:
                 c, s, w = sl[0]
                 sug.update(action="quote", product_id=c.id, confidence=round(s, 2), reason=w)
             else:  # nothing in the design looks like it: offer it as a new item, in the rooms the supplier's words point at
                 sug.update(action="new", confidence=0.0, reason="no product looks like this: a new item, or skip it")
+        sug["related"] = related_rooms(l, cands)
         if sug["action"] == "new" and not sug.get("room_ids"):
-            sug["room_ids"] = room_hints(l, p)
+            sug["room_ids"] = room_hints(l, p) or (sug["related"] or {}).get("ids") or []
+        if sug["action"] == "new" and not sug.get("category") and sl:  # the category of the nearest product, to be corrected
+            sug["category"] = sl[0][0].category
         c = by_id.get(sug["product_id"]) if sug["product_id"] else None
         sug["flags"] = flags(l, c)
+        sug["options"] = options(l, sug, sl, parsed["lines"], p) if (sug["action"] != "quote" or sug["confidence"] < 0.75) and not out_of_scope(l, p) else []
         out[l["no"]] = sug
     return {"lines": out, "claude": bool(picks)}
 

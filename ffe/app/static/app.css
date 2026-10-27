@@ -1329,6 +1329,11 @@ table.ls tr.muted td{color:var(--muted)}
 .qi-chip{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:2px 9px;font-size:.74rem;cursor:pointer;color:var(--ink-2)}
 .qi-chip.on{border-color:var(--green);background:var(--green-soft);color:var(--green)}
 .qi-why{margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.qi-legend{display:grid;gap:4px;color:var(--ink-2)}.qi-legend b.g{color:var(--green)}.qi-legend b.a{color:var(--accent-ink)}.qi-legend b.y{color:var(--gold-ink)}
+.qi-todo{background:var(--gold-soft);border:1px solid #EBDDAE;border-radius:var(--r-sm);padding:8px 12px;font-size:.85rem}.qi-todo ul{margin:4px 0 0;padding-left:18px}
+.qi-options{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}.qi-chip.opt{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink)}.qi-chip.opt.on{border-color:var(--green);background:var(--green-soft);color:var(--green)}
+.qi-next{margin-top:6px;color:var(--ink-2)}.qi-next:empty{display:none}.qi-next.warn{color:var(--gold-ink);background:var(--gold-soft);border-radius:var(--r-sm);padding:4px 8px}
+.qi-rooms .room-picks{max-height:200px}.qi-rooms .help{margin-top:6px}.qi-split{margin-top:4px;color:var(--ink-2)}.pick-chip.rel{border-color:var(--accent);color:var(--accent-ink)}
 .qi-bar{position:sticky;bottom:12px;z-index:3;margin-top:8px}
 .qi-doc tr.qi-sec td{background:var(--surface-3);font-weight:600;font-size:.85rem}
 .qi-doc tr.act-skip td{color:var(--muted)}
