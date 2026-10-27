@@ -226,6 +226,8 @@ name** (or set the Kind by hand): every existing entry starts as a room.
 
 ## Supplier quotations
 
+- Tests: `python tests/test_flow.py` runs the whole walk (prints ALL OK); `python tests/test_flow.py quotations` runs
+  the setup, the sections the named one depends on, and that section; `--list` shows the sections and last times.
 - **Buying › Quotations** (`app/quotations.py`, `routers/quotations.py`): a supplier's own Excel quotation (.xlsx with its
   pictures, .xls through `xlrd` without them) is read whatever its layout: the header block (date, valid until, sales,
   lead time, payment terms), the header row found by its words (`HEADER_WORDS`, merged headers filled to the right,

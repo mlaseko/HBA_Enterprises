@@ -315,10 +315,15 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
 pip install -r requirements.txt
 export APP_PASSWORD=test SECRET_KEY=dev STORAGE_BACKEND=local
 uvicorn app.main:app --reload --port 8080        # http://localhost:8080
-python tests/test_flow.py                         # must print ALL OK
+python tests/test_flow.py                         # must print ALL OK (~90 s)
+python tests/test_flow.py quotations buying       # the setup + those sections and what they depend on (~15 s)
+python tests/test_flow.py --list                  # the sections, their dependencies, last run's times
 ```
 
-Run `python tests/test_flow.py` before every commit. Extend it when you add a feature.
+Run the full `python tests/test_flow.py` before every commit; while working on one feature run its section(s). Extend
+the suite when you add a feature: the walk is `flow(c)`, split into sections by `print("<name> ok")`; a new section goes
+in order, reads what earlier sections assigned (the runner works the dependencies out from the names; imports and helper
+functions of skipped sections are still defined), and names in `EXTRA_DEPS` any section whose database state it needs.
 Deploy = push to GitHub, then in Replit pull the repo and redeploy. Secrets (Replit → Tools → Secrets):
 `APP_PASSWORD`, `SECRET_KEY`, `DATABASE_URL` (Neon), `ANTHROPIC_API_KEY` (optional), `STORAGE_BACKEND=replit` (+ Object Storage bucket) or
 `s3` with `S3_*`.

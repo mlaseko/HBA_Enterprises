@@ -5,6 +5,7 @@ os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _tmp=tempfile.mkdtemp()
 os.environ["DATABASE_URL"]=f"sqlite:///{_tmp}/test.db"; os.environ["LOCAL_UPLOAD_DIR"]=f"{_tmp}/uploads"; os.environ["STORAGE_BACKEND"]="local"
 os.environ["APP_PASSWORD"]="test123"; os.environ["SECRET_KEY"]="x"*32; os.environ["PHOTO_PREPARE_AT_START"]="0"  # the suite drives the backfill itself
+os.environ["PLAN_MAX_PX"]="2400"  # PDF pages rendered at 2400 px rather than 3200: the same rules, half the pixels
 from fastapi.testclient import TestClient
 from app.main import app
 from PIL import Image
@@ -341,9 +342,11 @@ def flow(c):
     finally:
         _dr.pdfium=_real
     # caps and junk: pages beyond MAX_PDF_PAGES are ignored, too many picks refused, unreadable files reported
-    r=c.post(f"/p/{pid}/images/plans", data={}, files=[("files",("big.pdf",pdf_pages(["P"]*14),"application/pdf"))], follow_redirects=False)
+    from app import config as _cfg
+    _oldpick=_cfg.PICK_MAX_PAGES; _cfg.PICK_MAX_PAGES=3  # a 5-page set against a cap of 3 proves the rule as a 14-page set against 12 did, in a third of the time
+    r=c.post(f"/p/{pid}/images/plans", data={}, files=[("files",("big.pdf",pdf_pages(["P"]*5),"application/pdf"))], follow_redirects=False)
     sid2=int(re.search(r"/sets/(\d+)", r.headers["location"]).group(1))
-    r=c.post(f"/p/{pid}/images/sets/{sid2}/pick", data={f"page_{k}":"on" for k in range(1,14)}, follow_redirects=False); assert "err=Add+at+most" in r.headers["location"] or "err=Add%20at%20most" in r.headers["location"], r.headers
+    r=c.post(f"/p/{pid}/images/sets/{sid2}/pick", data={f"page_{k}":"on" for k in range(1,5)}, follow_redirects=False); _cfg.PICK_MAX_PAGES=_oldpick; assert "err=Add+at+most" in r.headers["location"] or "err=Add%20at%20most" in r.headers["location"], r.headers
     r=c.post(f"/p/{pid}/images/plans", data={}, files=[("files",("junk.bin",b"hello","application/octet-stream"))], follow_redirects=False); assert "could" in r.headers["location"]
     from app import config as _cfg
     _old=_cfg.MAX_PDF_PAGES; _cfg.MAX_PDF_PAGES=3
@@ -1846,7 +1849,7 @@ def flow(c):
         for _ in range(300):
             st=c.get(wurl+"/status").json()
             if st["done"] or st["stage"]=="error": break
-            _time.sleep(0.1)
+            _time.sleep(0.03)
         assert st is not None and (st["done"] or st["stage"]=="error"), st
         if st["done"]:
             r=c.get(wurl, follow_redirects=False); assert r.status_code==303 and r.headers["location"]==st["next"]  # the page itself opens the preview once done
@@ -1879,7 +1882,7 @@ def flow(c):
     for _ in range(300):
         st=c.get(wurl+"/status").json()
         if st["done"] or st["stage"]=="error": break
-        _time.sleep(0.1)
+        _time.sleep(0.03)
     assert st["done"] and st["lines"]==5 and st["pictures"]==1 and st["claude"] and st["steps"][-1]["state"]=="done", st
     loc=st["next"]; assert "preview?key=" in loc
     from urllib.parse import unquote as _unq
@@ -2004,7 +2007,7 @@ def flow(c):
     for _ in range(300):
         st=c.get(wurl6+"/status").json()
         if st["done"] or st["stage"] in ("error", "waiting"): break
-        _time.sleep(0.1)
+        _time.sleep(0.03)
     assert st["waiting"] and st["stage"]=="waiting" and not st["done"] and "could not be reached" in st["message"] and st["steps"][3]["state"]=="stuck" and ncalls[0]==3, (st, ncalls)
     h=c.get(wurl6).text; assert "Try Claude again" in h and "Continue without Claude" in h and 'id="qi-wait"' in h and "qi-wait\" hidden" not in h
     h=c.get(f"/p/{pid_q}/quotations").text; assert "Waiting for Claude" in h and "Match it" in h and f"/quotations/working/{wurl6.rsplit('/',1)[1]}/discard" in h
@@ -2012,13 +2015,13 @@ def flow(c):
     for _ in range(300):
         st=c.get(wurl6+"/status").json()
         if st["done"] or st["stage"] in ("error", "waiting"): break
-        _time.sleep(0.1)
+        _time.sleep(0.03)
     assert st["waiting"] and ncalls[0]==6, (st, ncalls)  # still down: waits again
     r=c.post(wurl6+"/retry", data={"claude":"0"}, follow_redirects=False); assert r.headers["location"]==wurl6
     for _ in range(300):
         st=c.get(wurl6+"/status").json()
         if st["done"] or st["stage"] in ("error", "waiting"): break
-        _time.sleep(0.1)
+        _time.sleep(0.03)
     assert st["done"] and not st["claude"] and ncalls[0]==6, st
     h=c.get(st["next"]).text; assert "carry on without it" in h and 'class="qi-find"' in h and 'data-same="#gc-1|m²"' in h and "matched before by wording (another shop)" not in h
     ai._call=fake_quote_call; del os.environ["ANTHROPIC_API_KEY"]
@@ -2060,7 +2063,10 @@ def flow(c):
 # helper functions of a skipped section are still defined, so a section does not depend on another for those alone.
 import ast as _ast, json as _json, time as _time0
 
-EXTRA_DEPS = {}  # section -> sections it needs beyond what the names say (filled where a run alone fails)
+EXTRA_DEPS = {  # section -> sections it needs beyond what the names say: state that lives only in the database
+    "plan sheet types": ["legacy layers + main plan"],  # the Windows & doors sheet of the layered house
+    "room checklist": ["item list + sorting"],  # the Reading light item in the bedrooms
+}
 TIMES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".section_times.json")
 
 
