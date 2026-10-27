@@ -1972,6 +1972,38 @@ with TestClient(app) as c:
     assert db.get(_QU, up5_id) is None and db.query(Item).filter(Item.project_id==pid_q, Item.name=="Handrail v5").count()==1; db.close()
     assert _st.read_image(key5c) is None and "Tile quotation v5.xlsx" not in c.get(f"/p/{pid_q}/quotations").text
     c.post(f"/p/{pid_q}/quotations/{qd5}/delete", follow_redirects=False)
+    # Claude down: the request is retried, then the upload waits (not silently matched by words); try again, or go on without
+    _qz.RETRY_WAITS=(0.01, 0.01); ncalls=[0]
+    def down_call(content, schema=None, **kw): ncalls[0]+=1; raise ConnectionError("boom")
+    ai._call=down_call; os.environ["ANTHROPIC_API_KEY"]="test-key"
+    r=c.post(f"/p/{pid_q}/quotations", data={"supplier_id":str(shop.id)}, files={"file":("Tile quotation v6.xlsx", quote_sheet())}, follow_redirects=False); wurl6=r.headers["location"]
+    for _ in range(300):
+        st=c.get(wurl6+"/status").json()
+        if st["done"] or st["stage"] in ("error", "waiting"): break
+        _time.sleep(0.1)
+    assert st["waiting"] and st["stage"]=="waiting" and not st["done"] and "could not be reached" in st["message"] and st["steps"][3]["state"]=="stuck" and ncalls[0]==3, (st, ncalls)
+    h=c.get(wurl6).text; assert "Try Claude again" in h and "Continue without Claude" in h and 'id="qi-wait"' in h and "qi-wait\" hidden" not in h
+    h=c.get(f"/p/{pid_q}/quotations").text; assert "Waiting for Claude" in h and "Match it" in h and f"/quotations/working/{wurl6.rsplit('/',1)[1]}/discard" in h
+    r=c.post(wurl6+"/retry", data={"claude":"1"}, follow_redirects=False); assert r.headers["location"]==wurl6
+    for _ in range(300):
+        st=c.get(wurl6+"/status").json()
+        if st["done"] or st["stage"] in ("error", "waiting"): break
+        _time.sleep(0.1)
+    assert st["waiting"] and ncalls[0]==6, (st, ncalls)  # still down: waits again
+    r=c.post(wurl6+"/retry", data={"claude":"0"}, follow_redirects=False); assert r.headers["location"]==wurl6
+    for _ in range(300):
+        st=c.get(wurl6+"/status").json()
+        if st["done"] or st["stage"] in ("error", "waiting"): break
+        _time.sleep(0.1)
+    assert st["done"] and not st["claude"] and ncalls[0]==6, st
+    h=c.get(st["next"]).text; assert "carry on without it" in h and 'class="qi-find"' in h and 'data-same="#gc-1|m²"' in h and "matched before by wording (another shop)" not in h
+    ai._call=fake_quote_call; del os.environ["ANTHROPIC_API_KEY"]
+    key6=_unq(st["next"].split("key=")[1]); r=c.post(f"/p/{pid_q}/quotations/cancel", data={"key":key6}, follow_redirects=False); assert r.status_code==303
+    # the wording is remembered across shops: a sheet from no named shop matches by it
+    db=SessionLocal(); assert db.query(_QM).filter(_QM.supplier_id.is_(None), _QM.text.like("main floor porcelain tile%")).count()==1; db.close()
+    loc7,st7=upload_quote("Tile quotation v7.xlsx", quote_sheet()); key7=_unq(loc7.split("key=")[1])
+    st7s=__import__("json").loads(_st.read_image(key7).decode())["suggestions"]; assert st7s["1"]["shortlist"][0]["why"]=="matched before by wording (another shop)" and st7s["1"]["shortlist"][0]["id"]==big_id, st7s["1"]
+    c.post(f"/p/{pid_q}/quotations/cancel", data={"key":key7}, follow_redirects=False)
     # a failed upload sits in the list until discarded
     loc6,st6=upload_quote("broken.xlsx", b2.getvalue()); assert st6["stage"]=="error"
     h=c.get(f"/p/{pid_q}/quotations").text; assert "broken.xlsx" in h and ">Failed<" in h

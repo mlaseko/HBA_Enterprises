@@ -1324,6 +1324,8 @@ table.ls tr.muted td{color:var(--muted)}
 .qi-head{display:flex;gap:8px;align-items:center;flex-wrap:nowrap;margin-bottom:6px}.qi-head .qi-act{max-width:240px;flex:1 1 auto;min-width:0}
 .qi-f{display:none}.act-quote .qi-f-quote,.act-merge .qi-f-merge,.act-new .qi-f-new{display:block}
 .qi-short{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.qi-find{margin-top:6px}.qi-find input{font-size:.85rem;padding:6px 9px}.qi-found{display:flex;flex-wrap:wrap;gap:4px}.qi-found:not(:empty){margin-top:6px}
+.qi-chip.find{border-color:var(--accent);color:var(--accent-ink,var(--ink))}.qi-same:not(:empty){margin-top:6px}.qi-chip.also{border-color:var(--gold);background:var(--gold-soft);color:var(--gold-ink)}
 .qi-chip{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:2px 9px;font-size:.74rem;cursor:pointer;color:var(--ink-2)}
 .qi-chip.on{border-color:var(--green);background:var(--green-soft);color:var(--green)}
 .qi-why{margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
@@ -1341,9 +1343,12 @@ table.ls tr.muted td{color:var(--muted)}
 .qi-steps li .dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none;background:var(--surface)}
 .qi-steps li .dot .ic{width:14px;height:14px;opacity:0}
 .qi-steps li.done{color:var(--ink)}.qi-steps li.done .dot{background:var(--green);border-color:var(--green);color:#fff}.qi-steps li.done .dot .ic{opacity:1}
+.qi-steps li.stuck{color:var(--ink);font-weight:600}.qi-steps li.stuck .dot{border-color:var(--gold);background:var(--gold-soft)}
 .qi-steps li.now{color:var(--ink);font-weight:600}.qi-steps li.now .dot{border-color:var(--accent);border-top-color:transparent;animation:lbspin .9s linear infinite}
 .qi-steps li .m{font-size:.8rem;color:var(--muted);font-weight:400}
 .qi-spin{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:lbspin .9s linear infinite;margin-right:6px;vertical-align:-2px}
 @media (max-width:700px){.qi-top{grid-template-columns:1fr}.qi-top .g3{grid-template-columns:1fr 1fr}.qi-doc{min-width:860px}.qi-doc th:nth-child(2),.qi-doc td:nth-child(2){width:64px}.qi-head .qi-act{max-width:none}.qi-bar{position:static}.qi-bar .btn{width:100%;justify-content:center}.qi-doc td,.qi-doc th{font-size:.85rem}.qi-line{padding:10px}.qi-summary .row{gap:6px}}
 .qi-sim{margin-bottom:12px}.qi-sim .kpis{margin-bottom:0}
 .qi-left{border-top:1px solid var(--line);padding-top:12px}.qi-left .bar{height:8px}.qi-left-list{columns:2 260px;column-gap:24px;margin-top:8px}.qi-left-cat{break-inside:avoid;margin-bottom:10px}.qi-left-cat ul{margin:4px 0 0;padding-left:1.1rem}
+.qi-recon{border-top:1px solid var(--line);padding-top:12px}.qi-recon .tbl{margin-bottom:0}.qi-recon-t td,.qi-recon-t th{font-size:.85rem}.qi-recon-t tr.bad td{background:var(--red-soft)}.qi-recon-t td .pill{white-space:normal;margin:2px 0}
+@media(max-width:640px){.qi-recon .tbl{overflow:visible}.qi-recon-t,.qi-recon-t tbody,.qi-recon-t tr,.qi-recon-t td{display:block}.qi-recon-t thead{display:none}.qi-recon-t tr{padding:8px 0;border-bottom:1px solid var(--line)}.qi-recon-t td{border:0;padding:2px 0;text-align:left}.qi-recon-t td.num{display:inline-block;width:27%;text-align:left;vertical-align:top}.qi-recon-t td[data-l="Design + allowance"]{width:44%}.qi-recon-t td[data-l]::before{content:attr(data-l);display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}.qi-recon-t td[data-l=Checks]{display:block;width:auto}.qi-recon-t td[data-l=Checks]::before{display:none}.qi-recon-t tr.bad td{background:none}.qi-recon-t tr.bad{background:var(--red-soft);margin:0 -8px;padding:8px}}

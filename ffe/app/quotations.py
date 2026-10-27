@@ -22,6 +22,7 @@ import io
 import json
 import re
 import threading
+import time
 import uuid
 from collections import Counter
 
@@ -652,9 +653,10 @@ def room_hints(line: dict, p: Project) -> list[int]:
 
 
 def memory(db: Session, supplier: Supplier | None) -> list[QuoteMatch]:
-    if supplier is None:
-        return []
-    return db.query(QuoteMatch).filter(QuoteMatch.supplier_id == supplier.id).all()
+    """The shop's remembered matches first, then the wording remembered across shops (rows with no supplier: a line
+    that read the same from any shop and was confirmed on a product)."""
+    rows = db.query(QuoteMatch).filter(QuoteMatch.supplier_id == supplier.id).all() if supplier is not None else []
+    return rows + db.query(QuoteMatch).filter(QuoteMatch.supplier_id.is_(None)).all()
 
 
 def _memo_text(line: dict) -> str:
@@ -678,8 +680,8 @@ def shortlist(line: dict, cands: list[Candidate], memo: list[QuoteMatch], n: int
             continue
         if ref and m.ref == ref:
             return [(c, 0.97, "matched before by item number")]
-        if m.text and m.text == text:
-            out.append((c, 0.9, "matched before by wording"))
+        if m.text and m.text == text and not any(x[0].id == c.id for x in out):
+            out.append((c, 0.9 if m.supplier_id else 0.85, "matched before by wording" if m.supplier_id else "matched before by wording (another shop)"))
     scored = sorted(((c, score(line, c)) for c in cands), key=lambda cs: -cs[1])
     for c, s in scored:
         if s <= 0.05 or len(out) >= n:
@@ -806,8 +808,16 @@ def _thumb_jpeg(data: bytes, px: int = 256) -> bytes | None:
         return None
 
 
+class ClaudeUnavailable(Exception):
+    """Claude could not be reached (or answered nothing usable) after the retries: the upload waits for a decision."""
+
+
+RETRY_WAITS = (2, 5)  # seconds between the attempts: an outage or a rate limit usually passes in seconds
+
+
 def ask_claude(p: Project, parsed: dict, cands: list[Candidate], lists_: dict, pictures: dict[int, bytes] | None = None) -> dict[int, dict]:
-    """Claude's pick per line number, {} when the feature is off or anything fails."""
+    """Claude's pick per line number; {} when the feature is off. The request is tried len(RETRY_WAITS) + 1 times;
+    when every attempt fails, ClaudeUnavailable is raised rather than silently matching by words alone."""
     if not ai.enabled() or not parsed["lines"]:
         return {}
     products = "\n".join(f"P{c.id} | {c.category} | {c.name} | {c.size} | {c.finish} | {c.qty:g} {c.unit} | rooms: {c.rooms_text}" for c in cands)
@@ -832,10 +842,17 @@ def ask_claude(p: Project, parsed: dict, cands: list[Candidate], lists_: dict, p
               f"(L | section | item number | name | size | qty | unit price | description | shortlist with scores):\n" + "\n".join(lines) +
               "\n\nMatch every line.")
     content.append({"type": "text", "text": prompt})
-    try:
-        data = ai._call(content, SUGGEST_SCHEMA, system=SUGGEST_SYSTEM, effort="medium", max_tokens=16000)
-    except Exception:
-        return {}
+    data, last = None, None
+    for i in range(len(RETRY_WAITS) + 1):
+        try:
+            data = ai._call(content, SUGGEST_SCHEMA, system=SUGGEST_SYSTEM, effort="medium", max_tokens=16000)
+            break
+        except Exception as e:  # network, rate limit, overloaded: wait and try again
+            last = e
+            if i < len(RETRY_WAITS):
+                time.sleep(RETRY_WAITS[i])
+    if last is not None and data is None:
+        raise ClaudeUnavailable(f"{type(last).__name__}: {str(last)[:160]}")
     out = {}
     for row in (data or {}).get("lines", []) if isinstance(data, dict) else []:
         try:
@@ -845,14 +862,16 @@ def ask_claude(p: Project, parsed: dict, cands: list[Candidate], lists_: dict, p
     return out
 
 
-def suggest(db: Session, p: Project, parsed: dict, pictures: dict[int, bytes] | None = None, supplier: Supplier | None = None) -> dict:
+def suggest(db: Session, p: Project, parsed: dict, pictures: dict[int, bytes] | None = None, supplier: Supplier | None = None,
+            use_claude: bool = True) -> dict:
     """The preview's suggestions: for every line its shortlist, the chosen action, product, confidence, reason and flags.
-    Returns {"lines": {no: {...}}, "claude": bool}."""
+    Returns {"lines": {no: {...}}, "claude": bool}. With use_claude False the words and sizes alone decide (the designer
+    chose to carry on without Claude); ClaudeUnavailable propagates when it was wanted and could not be reached."""
     cands = candidates(db, p)
     by_id = {c.id: c for c in cands}
     memo = memory(db, supplier)
     lists_ = {l["no"]: shortlist(l, cands, memo) for l in parsed["lines"]}
-    picks = ask_claude(p, parsed, cands, lists_, pictures)
+    picks = ask_claude(p, parsed, cands, lists_, pictures) if use_claude else {}
     out = {}
     for l in parsed["lines"]:
         sl = lists_[l["no"]]
@@ -1078,7 +1097,7 @@ def remember(db: Session, supplier: Supplier, line: dict, key: str, known: list[
     ref, text = _norm(line["ref"]), _memo_text(line)
     if not ref and not text:
         return
-    m = next((x for x in known if (ref and x.ref == ref) or (not ref and x.text == text)), None)
+    m = next((x for x in known if x.supplier_id == supplier.id and ((ref and x.ref == ref) or (not ref and x.text == text))), None)
     if m is None:
         m = QuoteMatch(supplier_id=supplier.id, ref=ref, text=text, product_key=key)
         db.add(m)
@@ -1087,6 +1106,14 @@ def remember(db: Session, supplier: Supplier, line: dict, key: str, known: list[
         m.product_key, m.times = key, (m.times or 1) + 1
         if not m.text:
             m.text = text
+    if text:  # the wording, for every shop: the next supplier who writes it the same way matches at once
+        g = next((x for x in known if x.supplier_id is None and x.text == text), None)
+        if g is None:
+            g = QuoteMatch(supplier_id=None, ref="", text=text, product_key=key)
+            db.add(g)
+            known.append(g)
+        else:
+            g.product_key, g.times = key, (g.times or 1) + 1
 
 
 def delete(db: Session, q: Quotation) -> int:
@@ -1189,6 +1216,7 @@ def inquiry_workbook(p: Project, db: Session, cands: list[Candidate], currency: 
 # ---- reading an upload on a thread, so the page can show the stages ----------------------------------------------------------
 STAGES = [("saved", "File received"), ("reading", "Reading the sheet"), ("pictures", "Saving the pictures"), ("matching", "Matching the lines to products"),
           ("done", "Ready to check")]
+WAITING = "waiting"  # stopped before the matching: Claude could not be reached; the page offers to try again or to go on without
 
 
 def start_upload(db: Session, p: Project, data: bytes, filename: str, supplier_id: int | None) -> QuotationUpload:
@@ -1232,21 +1260,60 @@ def process_upload(upload_id: int, project_id: int, data: bytes, filename: str, 
                 continue
             pictures[int(no)] = (fk, tk)
         raw_pictures = parsed.pop("pictures")
-        _set_stage(upload_id, "matching", claude=ai.enabled(),
-                   message="Claude is reading the lines and pictures" if ai.enabled() else "Matching by words and sizes")
-        with SessionLocal() as db:
-            p = db.get(Project, project_id)
-            supplier = db.get(Supplier, supplier_id) if supplier_id else None
-            sug = suggest(db, p, parsed, raw_pictures, supplier)
-            db.commit()  # product rows made on the way
-        state = dict(parsed=parsed, suggestions=sug["lines"], claude=sug["claude"], pictures={str(k): list(v) for k, v in pictures.items()},
-                     file_key=file_key, supplier_id=supplier_id)
-        key = f"{base}.json"
-        storage.save_blob(json.dumps(state, ensure_ascii=False).encode("utf-8"), key, "application/json")
-        _set_stage(upload_id, "done", state_key=key, claude=sug["claude"], message="")
+        state = dict(parsed=parsed, pictures={str(k): list(v) for k, v in pictures.items()}, file_key=file_key, supplier_id=supplier_id, base=base)
+        match_upload(upload_id, project_id, state, raw_pictures, use_claude=True)
     except ReadError as e:
         storage.delete_image(file_key)
         _set_stage(upload_id, "error", message=str(e)[:300])
     except Exception as e:  # anything else: say so rather than hang the page
         storage.delete_image(file_key)
         _set_stage(upload_id, "error", message=f"Could not read the sheet: {type(e).__name__}: {str(e)[:200]}")
+
+
+def match_upload(upload_id: int, project_id: int, state: dict, raw_pictures: dict[int, bytes] | None, use_claude: bool) -> None:
+    """The matching step of an upload: the suggestions written into the state and the row set to done. When Claude was
+    wanted and could not be reached, the state without suggestions is kept and the row waits (stage WAITING) for the
+    designer to try again or to go on by words and sizes (retry_matching)."""
+    from .db import SessionLocal
+    with_claude = use_claude and ai.enabled()
+    _set_stage(upload_id, "matching", claude=with_claude, message="Claude is reading the lines and pictures" if with_claude else "Matching by words and sizes")
+    if raw_pictures is None:  # a re-run: the pictures saved by the first pass
+        raw_pictures = {}
+        for no, (fk, _tk) in (state.get("pictures") or {}).items():
+            blob = storage.read_image(fk) if fk else None
+            if blob:
+                raw_pictures[int(no)] = blob
+    base = state.get("base") or state["file_key"].rsplit(".", 1)[0]
+    try:
+        with SessionLocal() as db:
+            p = db.get(Project, project_id)
+            supplier = db.get(Supplier, state.get("supplier_id")) if state.get("supplier_id") else None
+            sug = suggest(db, p, state["parsed"], raw_pictures, supplier, use_claude=use_claude)
+            db.commit()  # product rows made on the way
+    except ClaudeUnavailable as e:
+        key = f"{base}.w{uuid.uuid4().hex[:8]}.json"
+        storage.save_blob(json.dumps(state, ensure_ascii=False).encode("utf-8"), key, "application/json")
+        _set_stage(upload_id, WAITING, state_key=key, claude=False, message=f"Claude could not be reached ({str(e)[:120]})")
+        return
+    state = dict(state, suggestions=sug["lines"], claude=sug["claude"],
+                 claude_note="" if sug["claude"] else ("Claude was not used: you chose to carry on without it." if ai.enabled() and not use_claude else ""))
+    key = f"{base}.json" if use_claude else f"{base}.n{uuid.uuid4().hex[:8]}.json"
+    storage.save_blob(json.dumps(state, ensure_ascii=False).encode("utf-8"), key, "application/json")
+    _set_stage(upload_id, "done", state_key=key, claude=sug["claude"], message="")
+
+
+def retry_matching(db: Session, up: QuotationUpload, use_claude: bool) -> bool:
+    """Run the matching of a waiting upload again, with Claude or by words and sizes, on a thread. False when the row
+    is not waiting or its state is gone."""
+    if up.stage != WAITING or not up.state_key:
+        return False
+    raw = storage.read_image(up.state_key)
+    if not raw:
+        return False
+    state = json.loads(raw.decode("utf-8"))
+    old_key = up.state_key
+    up.stage, up.message, up.state_key = "matching", "Starting the matching again", ""
+    db.commit()
+    storage.delete_image(old_key)
+    threading.Thread(target=match_upload, args=(up.id, up.project_id, state, None, use_claude), name=f"quotation-{up.id}-match", daemon=True).start()
+    return True

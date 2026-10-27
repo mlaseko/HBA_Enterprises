@@ -235,17 +235,24 @@ name** (or set the Kind by hand): every existing entry starts as a room.
 - The upload (`quotations.start_upload`) keeps the file, makes a `quotation_uploads` row and reads the sheet on a thread
   (`process_upload`: stages saved → reading → pictures → matching → done, or error); the form posts with
   `Accept: application/json` to show the bytes going up, `/quotations/working/<id>` shows the stages (polling
-  `/working/<id>/status`) and opens the preview when done.
+  `/working/<id>/status`) and opens the preview when done. When Claude is wanted and cannot be reached (the request is
+  tried three times, `RETRY_WAITS`), the upload stops at stage `waiting` with the sheet and pictures kept instead of
+  silently matching by words: the page offers **Try Claude again** and **Continue without Claude**
+  (`POST /working/<id>/retry`, `claude=1|0`, `quotations.retry_matching` → `match_upload` on a thread); the Quotations
+  page lists it as "Waiting for Claude".
 - `POST /quotations/draft` keeps the preview's choices and document fields in the state (a new key each time, the
   upload row pointing at it, `message = "draft"`); the preview reads them back over the suggestions; the Quotations
   page lists the uploads not yet posted (drafts, ready, reading, failed) with Continue and Discard
   (`/working/<id>/discard`). Apply and cancel delete the upload row.
-- Matching: a confirmed match from an earlier sheet of the same shop (`quote_matches`, by item number or wording) or our
-  own code (a reply to the inquiry sheet) wins; otherwise `score()` shortlists products by words, size, unit, rooms and
+- Matching: a confirmed match from an earlier sheet of the same shop (`quote_matches`, by item number or wording), the
+  same wording confirmed on any shop's sheet (`quote_matches` rows with no supplier) or our own code (a reply to the
+  inquiry sheet) wins; otherwise `score()` shortlists products by words, size, unit, rooms and
   quantity, and Claude (`ai._call` with `SUGGEST_SYSTEM` / `SUGGEST_SCHEMA`, effort medium, up to 40 line pictures) picks
   from the shortlists with a confidence and a reason when `ANTHROPIC_API_KEY` is set. The designer confirms every line on
-  the preview: quote (with the product), new (an item is created in the chosen rooms), merge (into another line), extra,
-  skip. Servant / staff quarters lines are skipped by default.
+  the preview: quote (with the product, found through the chips or the line's search box: words, a room code or our
+  item code; an "Also for …" chip puts the product on the lines with the same item number and unit), new (an item is
+  created in the chosen rooms), merge (into another line), extra, skip. Servant / staff quarters lines are skipped by
+  default.
 - Apply (`quotations.apply`): a `Quotation` row (supplier, title, date, validity, currency, total, discount, charges,
   terms, lead time, the file) with a `QuotationLine` per line (as written, picture, action, product, quote, merged-into),
   one `Quote` per product (a shop that already quoted the product has that quote corrected through `buying.follow_quote`,

@@ -89,10 +89,13 @@ app/quotations.py      supplier quotation sheets (Buying › Quotations): read_s
                        them), shortlist() (our code, QuoteMatch memory, then score()), ask_claude() (SUGGEST_SYSTEM / SUGGEST_SCHEMA through
                        ai._call), suggest() (the preview's suggestion per line with flags()), apply() (Quotation + lines, new items, one
                        Quote per product, remember()), delete(), gaps(), inquiry_workbook()
-                       start_upload()/process_upload() (the upload read on a thread: QuotationUpload stages, state written to storage when done)
+                       start_upload()/process_upload() (the upload read on a thread: QuotationUpload stages, state written to storage when done);
+                       match_upload() (the matching step; ClaudeUnavailable after RETRY_WAITS attempts → stage WAITING with the state kept),
+                       retry_matching() (with Claude or without, on a thread); memory() = the shop's QuoteMatch rows + the supplier-less ones
 app/routers/quotations.py /p/<id>/quotations (list, upload form, inquiry form; POST upload → working page, JSON {next} for the form's
                        uploader), /quotations/working/<u> (+ /status JSON polled by the page), /quotations/preview?key=,
-                       /quotations/draft (save the preview to come back to), /quotations/apply, /quotations/cancel, /working/<u>/discard, /quotations/inquiry.xlsx, /quotations/<q> (document page), /<q>/file, /<q>/delete
+                       /quotations/draft (save the preview to come back to), /quotations/apply, /quotations/cancel, /working/<u>/discard, /working/<u>/retry
+                       (claude=1|0 for an upload waiting on Claude), /quotations/inquiry.xlsx, /quotations/<q> (document page), /<q>/file, /<q>/delete
 app/routers/orders.py  /p/<id>/orders (ready to order + orders by stage), /orders/new, /orders/<o> (page; POST details),
                        /orders/<o>/add|remove/<pu>|confirm|unconfirm|delete|payments|claim, /orders/<o>/po.pdf
 app/routers/cartons.py Shipping › Boxes: /p/<id>/cartons (?supplier= &room= &where= &shipment=; POST adds a box), /cartons/bulk
@@ -688,12 +691,22 @@ ALTER TABLE projects ADD COLUMN deposit_pct / soon_days / balance_days / lcl_up_
   key and points the `QuotationUpload` at it (`message = "draft"`); `_preview_ctx` lays a draft's choices over the
   suggestions (`doc`, `new_sup`, `draft_at`); the Quotations page lists the uploads not posted yet (Continue / Discard);
   apply, cancel and `/working/<u>/discard` delete the row. The preview's "If you posted it now" card (`#qi-sim`, `totals`
-  from `_preview_ctx`, product options carry `data-n` = room lines, lines `data-amount`) is computed in the page's script.
+  from `_preview_ctx`, product options carry `data-n` = room lines, lines `data-amount`) is computed in the page's script,
+  as is its "Quantities against the design" table (`#sim-recon`: per product the sheet's quantity from the lines on it,
+  `data-qty` / `data-unit` / `data-ref` / `data-price` on the lines, against the design's `data-qty` × (1 + `data-allow`) on the
+  option; red short by > 10 %, gold > 25 % over, red when the lines carry several supplier codes, gold when their prices differ).
   `flags()` = `spec_diffs()` (thickness via `_thickness`, slip rating, finish and material words: red pills) + size / unit
   (m and lm equal, `_same_unit`) / quantity (gold). `out_of_scope(line, p)` skips staff / servant quarters only when
   `_scope_rooms(p)` is empty; a line matching nothing defaults to `new` with `room_hints()` (rooms sharing the most words
   with the supplier's place / name / section) pre-ticked, and a new item in several rooms shares the line's quantity. In
   `apply`, lines in other units than the product's (steps by the piece for a product in m²) price it from the design's quantity.
+  Claude down: `ask_claude` retries (`RETRY_WAITS`) and raises `ClaudeUnavailable`; `match_upload` then keeps the state (parsed,
+  picture keys, file) under a `.w…json` key and sets the row to `WAITING`; the working page shows Try Claude again / Continue
+  without Claude (`POST /working/<u>/retry`, `retry_matching`), the Quotations page "Waiting for Claude"; the preview carries
+  `claude_note` when the designer went on without it. Never fall back to words silently when the key is set.
+  Finding a product on a line: `.qi-find` search box (words, room code, our code: `data-s` on the options = codes, rooms, spec),
+  chips of the hits; `data-same` (item number + unit, else name + size + unit) drives the "Also for L…" chip. Memory: `remember()`
+  writes the shop's row and a supplier-less row by wording (`memory()` returns both, the shop's first; shortlist 0.9 / 0.85).
 
 ## Backlog (in priority order)
 
