@@ -1792,6 +1792,14 @@ with TestClient(app) as c:
     assert _qz.dims("600*1200")==[1200.0,600.0] and _qz.dims("main cabinet:1470*420*350")==[1470.0,420.0,350.0] and _qz.dims("1200 x 2400 mm, satin")==[2400.0,1200.0] and _qz.dims("90 cm")==[900.0] and _qz.dims("T=12")==[]
     assert _qz._unit("SQM")=="m²" and _qz._unit("PCS")=="pcs" and _qz._unit("set")=="set" and _qz._unit("M")=="m"
     assert _qz._same_unit("set")=="pcs"==_qz._same_unit("each") and _qz._same_unit("lm")=="m" and _qz._same_unit("m²")=="m²"  # a supplier's set of a mirror is the design's pcs
+    assert _qz.expiry("2026-11-24", None)==_dt.date(2026,11,24) and _qz.expiry("15 days", _dt.date(2026,10,26))==_dt.date(2026,11,10) and _qz.expiry("2 weeks", _dt.date(2026,10,26))==_dt.date(2026,11,9) and _qz.expiry("", _dt.date(2026,10,26)) is None
+    # memory by item number: one number on several products (a slab cut into floor, skirting, steps) is trusted alone only when the wording agrees
+    _dbm=SessionLocal(); _cd=_qz.candidates(_dbm, _dbm.get(__import__("app.models", fromlist=["Project"]).Project, pid_q)); _big=next(c_ for c_ in _cd if c_.name.startswith("Floor - big")); _sk=next(c_ for c_ in _cd if c_.name.startswith("Skirting"))
+    _ln=lambda place, name: dict(no=1, ref="GC-X", name=name, size="600*1200", place=place, section="", unit="m²", qty=10.0, unit_price=1.0, detail="", code="")
+    _memo=[_QM(supplier_id=1, ref="gc-x", text=_qz._memo_text(_ln("main floor", "Porcelain tile")), product_key=_big.key), _QM(supplier_id=1, ref="gc-x", text=_qz._memo_text(_ln("skirting", "Porcelain tile")), product_key=_sk.key)]
+    _sl=_qz.shortlist(_ln("skirting", "Porcelain tile"), _cd, _memo); assert _sl[0][0].id==_sk.id and _sl[0][1]==0.97 and "wording" in _sl[0][2], _sl[0]
+    _sl=_qz.shortlist(_ln("stairs", "Porcelain tile"), _cd, _memo); assert _sl[0][1]<0.97 and {x[0].id for x in _sl[:2]}=={_big.id, _sk.id} and "several products" in _sl[0][2], [(x[0].name, x[1], x[2]) for x in _sl[:3]]
+    _sl=_qz.shortlist(_ln("stairs", "Porcelain tile"), _cd, _memo[:1]); assert _sl[0][0].id==_big.id and _sl[0][1]==0.97  # one product behind the number: trusted
     _sdir=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "samples", "quotes", "kinondoni")
     _tile=os.path.join(_sdir, "KINO-tile quotation.xlsx")
     if os.path.exists(_tile):
@@ -1875,7 +1883,8 @@ with TestClient(app) as c:
     assert qcalls and kw_ok(qcalls[-1][1]) if (kw_ok:=lambda kw: kw.get("system") and kw.get("effort")=="medium" and kw.get("max_tokens")>=8000) else False
     assert any(b.get("type")=="image" for b in qcalls[-1][0]) and "Picture of line L1" in [b["text"] for b in qcalls[-1][0] if b.get("type")=="text"][0]
     r=c.get(loc); assert r.status_code==200 and "Check the quotation" in r.text and "Tile quotation" in r.text
-    assert "qi-legend" in r.text and 'id="qi-rooms-tpl"' in r.text and 'name="rooms_X"' in r.text and 'id="qi-todo"' in r.text and "Before you save" in r.text
+    from app import storage as _st
+    assert "qi-legend" in r.text and 'id="qi-rooms-tpl"' in r.text and 'id="qi-prod-tpl"' in r.text and 'class="row qi-filter' in r.text and 'id="qi-decide"' in r.text and 'name="rooms_X"' in r.text and 'id="qi-todo"' in r.text and "Before you save" in r.text
     _sg=__import__("json").loads(_st.read_image(qkey).decode())["suggestions"]
     assert _sg["4"]["action"]=="new" and _sg["4"]["options"] and _sg["4"]["options"][0]["kind"] in ("quote", "new") and any(o["kind"]=="new" for o in _sg["4"]["options"]), _sg["4"]["options"]
     assert _sg["4"]["related"] and _sg["4"]["related"]["word"] in ("handrail", "stair", "stairs") and _sg["4"]["related"]["ids"], _sg["4"]["related"]  # the rooms with a handrail / stair product
@@ -1893,16 +1902,19 @@ with TestClient(app) as c:
     # apply without a shop: refused; then with a new shop
     base={"key":qkey,"title":"Tiles from Cathy","sales":"Cathy","quote_date":"2026-10-26","valid_until":"15 days","currency":"USD","lead_time":"25-30 days after deposit","total":"4442","discount":"442","charges":"950","terms":"1.Delivery Term: EXW","notes":"first round",
           "act_1":"quote","prod_1":str(big_id),"act_2":"quote","prod_2":str(bath_id),"act_3":"skip","act_4":"new","name_4":"Stair handrail with glass","cat_4":"Hardware","rooms_4":str(_sta),"act_5":"merge","into_5":"4"}
-    r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(base, supplier_id=""), follow_redirects=False); assert "err=" in r.headers["location"] and "preview?key=" in r.headers["location"]
+    r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(base, supplier_id="", act_1="skip"), follow_redirects=False); assert "err=" in r.headers["location"] and "preview?key=" in r.headers["location"] and "choices%20are%20kept" in r.headers["location"]
+    qkey2=_unq(r.headers["location"].split("key=")[1].split("&")[0]); assert qkey2!=qkey and _st.read_image(qkey) is None  # the choices made so far wait under a new key
+    h=c.get(f"/p/{pid_q}/quotations/preview?key={qkey2}").text; assert re.search(r'name="act_1"[^>]*>(?:(?!</select>).)*value="skip" selected', h, re.S) and 'id="document" open' in h
+    qkey=qkey2; base["key"]=qkey
     r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(base, supplier_id="__new__", supplier_name="Foshan Ceramics", supplier_city="Foshan"), follow_redirects=False)
     assert r.status_code==303 and "/quotations/" in r.headers["location"] and "3%20quotes%20from%20Foshan%20Ceramics%20added." in r.headers["location"], r.headers["location"]
     qd_id=int(r.headers["location"].split("/quotations/")[1].split("?")[0])
     db=SessionLocal(); qd=db.get(_QD, qd_id); shop=qd.supplier
     assert shop.name=="Foshan Ceramics" and shop.contact=="Cathy" and qd.currency=="USD" and qd.total==4442 and qd.discount==442 and qd.charges==950 and qd.net==4000 and qd.valid_until=="15 days" and qd.lead_time=="25-30 days after deposit" and qd.quote_date==_dt.date(2026,10,26) and qd.title=="Tiles from Cathy" and qd.file_key.endswith(".xlsx") and qd.filename=="Tile quotation.xlsx" and "EXW" in qd.terms and qd.notes=="first round"
     ls={ln.no: ln for ln in qd.lines}; assert len(ls)==5 and ls[3].action=="skip" and ls[3].quote_id is None and ls[1].thumb_key and ls[1].section=="First floor (Including 10% of wastage) / main floor"
-    f=4000/4442
+    f=(4442-950-442)/(4442-950)  # the discount is on the lines: the pallet inside the total is not discounted
     q1=ls[1].quote; assert q1 is not None and q1.product_id==big_id and q1.supplier_id==shop.id and q1.currency=="USD" and abs(q1.amount-round(16*f,4))<0.01 and abs(q1.unit_price-16*f*7.1)<0.1 and q1.model=="GC-1" and q1.pack_size==1.44 and q1.lead_time=="25-30 days after deposit" and q1.photo_key and q1.photo_key!=ls[1].photo_key
-    assert "Sheet discount of 10.0% applied" in q1.notes and "size offered 600*1200" in q1.notes and "Surface:Matte" in q1.notes and "Tiles from Cathy of 2026-10-26" in q1.notes, q1.notes
+    assert "Sheet discount of 12.7% applied" in q1.notes and "size offered 600*1200" in q1.notes and "Surface:Matte" in q1.notes and "Tiles from Cathy of 2026-10-26" in q1.notes, q1.notes
     q2=ls[2].quote; assert q2.product_id==bath_id and abs(q2.amount-12*f)<0.01 and q2.model=="GC-2"
     # the new item: one line in the stairs room, the product made, the quote on it with the merged glass added
     new_item=db.query(Item).filter(Item.project_id==pid_q, Item.name=="Stair handrail with glass").first()
@@ -1911,7 +1923,7 @@ with TestClient(app) as c:
     q4=ls[4].quote; assert ls[4].action=="new" and ls[4].product_id and q4 is not None and abs(q4.amount-round((480+1012)/20*f,4))<0.01 and "Includes: Glass 23 m² = 1012" in q4.notes, (q4.amount, q4.notes)
     assert ls[5].action=="merge" and ls[5].into_id==ls[4].id and ls[5].quote_id==q4.id and ls[5].product_id is None
     ms=db.query(_QM).filter(_QM.supplier_id==shop.id).all(); assert {m.ref for m in ms}>={"gc-1","gc-2"} and any(m.product_key.startswith("floor - big porcelain slab") for m in ms if m.ref=="gc-1"), [(m.ref, m.text, m.product_key) for m in ms]
-    from app import storage as _st; assert _st.read_image(qkey) is None and _st.read_image(qd.file_key)  # the state is gone, the file stays
+    assert _st.read_image(qkey) is None and _st.read_image(qd.file_key)  # the state is gone, the file stays
     db.close()
     # the document page, the file, the product page's link, the list
     r=c.get(f"/p/{pid_q}/quotations/{qd_id}"); assert r.status_code==200, r.text[:500]
@@ -1926,15 +1938,15 @@ with TestClient(app) as c:
     assert not qcalls and not st["claude"]
     h=c.get(loc2).text; assert "matched before by item number" in h and "97%" in h and re.search(r'name="prod_1"[^>]*>(?:(?!</select>).)*value="%d"[^>]*selected'%big_id, h, re.S) and re.search(r'name="act_3"[^>]*>(?:(?!</select>).)*value="skip" selected', h, re.S)
     assert f'<option value="{shop.id}" selected' in h  # the shop named on the upload
-    assert re.search(r'data-q="[^"]*%d:USD 14\.41[^"]*"[^>]*selected' % shop.id, h), "the product option says the shop quoted it"
+    assert re.search(r'data-q="[^"]*%d:USD 13\.97[^"]*"[^>]*selected' % shop.id, h), "the product option says the shop quoted it"
     assert re.search(r'name="act_4"[^>]*>(?:(?!</select>).)*value="quote" selected', h, re.S) and "matched before by wording" in h  # the new item of the first round is a product now
     # buy a room from the first quote, then apply the second sheet (prices raised): the shop's quotes are corrected, not doubled, and the room follows
     r=c.post(f"/p/{pid_q}/buying/{big_id}/quotes/{q1.id}/buy", follow_redirects=False); assert r.status_code==303 and "err=" not in r.headers["location"]
-    db=SessionLocal(); pu=db.query(_Pu).filter(_Pu.quote_id==q1.id).first(); assert pu is not None and abs(pu.amount-14.41)<0.01; n_quotes=db.query(_Qt).filter(_Qt.project_id==pid_q).count(); hand_pid=ls[4].product_id; db.close()
+    db=SessionLocal(); pu=db.query(_Pu).filter(_Pu.quote_id==q1.id).first(); assert pu is not None and abs(pu.amount-13.97)<0.01; n_quotes=db.query(_Qt).filter(_Qt.project_id==pid_q).count(); hand_pid=ls[4].product_id; db.close()
     base2=dict(base, key=key2, supplier_id=str(shop.id), discount="0", notes="second round", act_4="quote", prod_4=str(hand_pid), act_5="merge", into_5="4")
     r=c.post(f"/p/{pid_q}/quotations/apply", data=base2, follow_redirects=False); assert "0%20quotes%20from%20Foshan%20Ceramics%20added%2C%203%20updated" in r.headers["location"], r.headers["location"]
     db=SessionLocal(); assert db.query(_Qt).filter(_Qt.project_id==pid_q).count()==n_quotes
-    q1b=db.get(_Qt, q1.id); assert q1b.amount==16 and abs(q1b.unit_price-16*7.1)<0.01 and "Replaces this shop" in q1b.notes and "earlier quote of USD 14.41" in q1b.notes and q1b.model=="GC-1", q1b.notes
+    q1b=db.get(_Qt, q1.id); assert q1b.amount==16 and abs(q1b.unit_price-16*7.1)<0.01 and "Replaces this shop" in q1b.notes and "earlier quote of USD 13.97" in q1b.notes and q1b.model=="GC-1", q1b.notes
     pu=db.query(_Pu).filter(_Pu.quote_id==q1.id).first(); assert abs(pu.amount-16)<0.01 and pu.lines and abs(pu.lines[0].unit_price-16*7.1)<0.01  # the room bought follows
     assert db.query(Item).filter(Item.project_id==pid_q, Item.name=="Stair handrail with glass").count()==1  # no second item
     qd2=db.query(_QD).filter(_QD.project_id==pid_q).order_by(_QD.id.desc()).first(); assert qd2.id!=qd_id and {ln.no: ln.quote_id for ln in qd2.lines}[4]==q4.id and {ln.no: ln.action for ln in qd2.lines}[5]=="merge"; qd2_id=qd2.id
@@ -1944,13 +1956,13 @@ with TestClient(app) as c:
     loc3,_=upload_quote("Tile quotation v3.xlsx", quote_sheet(), str(shop.id)); key3=_unq(loc3.split("key=")[1])
     r=c.post(f"/p/{pid_q}/quotations/cancel", data={"key":key3}, follow_redirects=False); assert r.headers["location"]==f"/p/{pid_q}/quotations"
     r=c.get(f"/p/{pid_q}/quotations/preview?key={key3}", follow_redirects=False); assert "no%20longer%20here" in r.headers["location"]
-    r=c.post(f"/p/{pid_q}/quotations/{qd2_id}/delete", follow_redirects=False); assert "2%20quotes%20nothing%20was%20bought%20from" in r.headers["location"], r.headers["location"]  # the second document: its quotes are the first's
-    db=SessionLocal(); assert db.get(_Qt, q1.id) is not None and db.get(_Qt, q2.id) is None; db.close()
-    # the first document's lines now point at quotes that are gone (q2, q4): its page still renders, and deleting it finds no more to delete
+    r=c.post(f"/p/{pid_q}/quotations/{qd2_id}/delete", follow_redirects=False); assert "0%20quotes%20nothing%20was%20bought%20from" in r.headers["location"], r.headers["location"]  # the second document corrected the first's quotes: they stay with it
+    db=SessionLocal(); assert db.get(_Qt, q1.id) is not None and db.get(_Qt, q2.id) is not None and db.get(_Qt, q4.id) is not None; db.close()
+    # the first document still holds q2 and q4: deleting it takes them (q1 is bought from)
     r=c.get(f"/p/{pid_q}/quotations/preview?key=quotations/p1/nope.json", follow_redirects=False); assert "err=" in r.headers["location"]
     r=c.get(f"/p/{pid_q}/quotations/{qd_id}"); assert r.status_code==200
     db=SessionLocal(); fk=db.get(_QD, qd_id).file_key; pk=ls[1].photo_key; db.close()
-    r=c.post(f"/p/{pid_q}/quotations/{qd_id}/delete", follow_redirects=False); assert "0%20quotes%20nothing%20was%20bought%20from" in r.headers["location"], r.headers["location"]
+    r=c.post(f"/p/{pid_q}/quotations/{qd_id}/delete", follow_redirects=False); assert "2%20quotes%20nothing%20was%20bought%20from" in r.headers["location"], r.headers["location"]
     db=SessionLocal(); assert db.get(_QD, qd_id) is None and db.query(_QL).filter(_QL.quotation_id==qd_id).count()==0 and db.get(_Qt, q1.id) is not None and db.get(_Qt, q2.id) is None and db.get(_Qt, q4.id) is None
     assert db.query(Item).filter(Item.project_id==pid_q, Item.name=="Stair handrail with glass").first() is not None  # the item stays
     db.close(); assert _st.read_image(fk) is None and _st.read_image(pk) is None
@@ -1960,7 +1972,8 @@ with TestClient(app) as c:
     db=SessionLocal(); up5=db.query(_QU).filter(_QU.state_key==key5).first(); assert up5 is not None and up5.stage=="done"; up5_id=up5.id; db.close()
     h=c.get(f"/p/{pid_q}/quotations").text; assert "Drafts and uploads under way" in h and "Tile quotation v5.xlsx" in h and "Ready to check" in h and f"/quotations/working/{up5_id}/discard" in h
     dform=dict(base, key=key5, supplier_id="__new__", supplier_name="Draft Shop", supplier_city="Foshan", notes="draft note", title="Draft title", act_1="skip", act_4="new", name_4="Handrail v5", act_5="merge", into_5="4", rooms_4=str(_sta))
-    r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(dform, supplier_id="", supplier_name=""), follow_redirects=False); assert "err=" in r.headers["location"]  # still refused without a shop when posting
+    r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(dform, supplier_id="", supplier_name=""), follow_redirects=False); assert "err=" in r.headers["location"]  # still refused without a shop when posting; the choices wait under a new key
+    key5=_unq(r.headers["location"].split("key=")[1].split("&")[0]); dform["key"]=key5
     r=c.post(f"/p/{pid_q}/quotations/draft", data=dform, follow_redirects=False); assert r.status_code==303 and "Draft%20saved" in r.headers["location"], r.headers["location"]
     assert _st.read_image(key5) is None  # the old state key is gone, a new one carries the draft
     db=SessionLocal(); up5=db.get(_QU, up5_id); key5b=up5.state_key; assert key5b!=key5 and key5b.endswith(".json") and up5.message=="draft"; db.close()

@@ -581,6 +581,7 @@ OPPOSITES = (("wall", "floor"), ("skirting", "floor"), ("skirting", "wall"), ("o
 QUALIFIERS = {"outdoor", "bathroom", "kitchen", "gym", "stairs", "tread", "riser", "landing", "skirting", "backsplash", "wall", "terrace",
               "balcony", "master", "guest", "dining", "heavy", "exterior", "pantry", "office", "bedroom", "living", "roof", "worktop"}
 MAX_SCORE = 0.75  # what words and sizes alone may reach: only our code or a remembered match goes higher
+SURE = 0.8  # from here a suggestion shows green: above what words and sizes alone can reach
 
 
 def score(line: dict, c: Candidate) -> float:
@@ -720,12 +721,22 @@ def shortlist(line: dict, cands: list[Candidate], memo: list[QuoteMatch], n: int
                 return [(c, 1.0, f"our code {code}")]
     ref = _norm(line["ref"])
     text = _memo_text(line)
+    by_ref = [m for m in memo if ref and m.ref == ref and m.product_key in by_key]
+    if by_ref:  # a shop's item number may cover several products (one slab cut into floor, skirting and steps): trust it alone only then
+        exact = [m for m in by_ref if m.text == text]
+        keys = []
+        for m in by_ref:
+            if m.product_key not in keys:
+                keys.append(m.product_key)
+        if exact:
+            return [(by_key[exact[0].product_key], 0.97, "matched before by item number and wording")]
+        if len(keys) == 1:
+            return [(by_key[keys[0]], 0.97, "matched before by item number")]
+        out.extend((by_key[k], 0.6, "this item number was matched to several products before: check the place") for k in keys)
     for m in memo:
         c = by_key.get(m.product_key)
-        if c is None:
+        if c is None or (ref and m.ref == ref):
             continue
-        if ref and m.ref == ref:
-            return [(c, 0.97, "matched before by item number")]
         if m.text and m.text == text and not any(x[0].id == c.id for x in out):
             out.append((c, 0.9 if m.supplier_id else 0.85, "matched before by wording" if m.supplier_id else "matched before by wording (another shop)"))
     scored = sorted(((c, score(line, c)) for c in cands), key=lambda cs: -cs[1])
@@ -964,9 +975,11 @@ def suggest(db: Session, p: Project, parsed: dict, pictures: dict[int, bytes] | 
                 codes = {str(x).strip().upper() for x in pick["rooms"] if isinstance(x, str)}
                 sug["room_ids"] = [r.id for r in p.rooms if r.code.upper() in codes]
         elif not pick and sug["action"] == "skip" and not out_of_scope(l, p):
-            if sl and sl[0][1] >= 0.3:
+            if sl and sl[0][1] >= 0.45:
                 c, s, w = sl[0]
                 sug.update(action="quote", product_id=c.id, confidence=round(s, 2), reason=w)
+            elif sl and sl[0][1] >= 0.2:  # a faint likeness only: the chips are offered, nothing is pre-selected
+                sug.update(action="quote", product_id=None, confidence=round(sl[0][1], 2), reason="no sure match: pick the product, make it a new item, or skip it")
             else:  # nothing in the design looks like it: offer it as a new item, in the rooms the supplier's words point at
                 sug.update(action="new", confidence=0.0, reason="no product looks like this: a new item, or skip it")
         sug["related"] = related_rooms(l, cands)
@@ -976,7 +989,7 @@ def suggest(db: Session, p: Project, parsed: dict, pictures: dict[int, bytes] | 
             sug["category"] = sl[0][0].category
         c = by_id.get(sug["product_id"]) if sug["product_id"] else None
         sug["flags"] = flags(l, c)
-        sug["options"] = options(l, sug, sl, parsed["lines"], p) if (sug["action"] != "quote" or sug["confidence"] < 0.75) and not out_of_scope(l, p) else []
+        sug["options"] = options(l, sug, sl, parsed["lines"], p) if (sug["action"] != "quote" or sug["confidence"] < SURE) and not out_of_scope(l, p) else []
         out[l["no"]] = sug
     return {"lines": out, "claude": bool(picks)}
 
@@ -987,6 +1000,19 @@ def _d(v: str):
         return dt.date.fromisoformat((v or "")[:10])
     except ValueError:
         return None
+
+
+def expiry(valid_until: str, quote_date: dt.date | None) -> dt.date | None:
+    """The day a quotation stops being valid: 'valid until' as a date, or 'N days' counted from the quote date."""
+    v = (valid_until or "").strip()
+    d = _d(v)
+    if d:
+        return d
+    m = re.search(r"(\d+)\s*(day|week|month)", v.lower())
+    if m and quote_date:
+        n = int(m.group(1)) * {"day": 1, "week": 7, "month": 30}[m.group(2)]
+        return quote_date + dt.timedelta(days=n)
+    return None
 
 
 def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head: dict, supplier: Supplier | None,
@@ -1004,8 +1030,9 @@ def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head:
     db.add(q)
     db.flush()
     factor = 1.0
-    if q.total and q.discount and 0 < q.discount < q.total:
-        factor = (q.total - q.discount) / q.total
+    base = q.total - (q.charges if q.charges and q.charges < q.total else 0)  # the sheet's total carries the pallet: the discount is on the lines
+    if base and q.discount and 0 < q.discount < base:
+        factor = (base - q.discount) / base
     rows: dict[int, QuotationLine] = {}
     for l in parsed["lines"]:
         ch = choices.get(l["no"], {})
@@ -1166,8 +1193,8 @@ def remember(db: Session, supplier: Supplier, line: dict, key: str, known: list[
     ref, text = _norm(line["ref"]), _memo_text(line)
     if not ref and not text:
         return
-    m = next((x for x in known if x.supplier_id == supplier.id and ((ref and x.ref == ref) or (not ref and x.text == text))), None)
-    if m is None:
+    m = next((x for x in known if x.supplier_id == supplier.id and x.ref == ref and (x.text == text or (ref and not x.text))), None)
+    if m is None:  # one row per item number and wording: the same number on several products keeps a row each
         m = QuoteMatch(supplier_id=supplier.id, ref=ref, text=text, product_key=key)
         db.add(m)
         known.append(m)
@@ -1194,8 +1221,10 @@ def delete(db: Session, q: Quotation) -> int:
         if line.quote is not None and line.quote_id and line.quote_id not in seen:  # a merged line shares its target's quote
             seen.add(line.quote_id)
             qu = line.quote
-            if not db.query(Purchase).filter(Purchase.quote_id == qu.id).first():
-                buying.delete_quote(db, qu)  # its photo goes; the lines of other sheets that made it forget it
+            used = db.query(Purchase).filter(Purchase.quote_id == qu.id).first() is not None or \
+                db.query(QuotationLine).filter(QuotationLine.quote_id == qu.id, QuotationLine.quotation_id != q.id).first() is not None
+            if not used:  # a revised sheet that corrected this quote keeps it
+                buying.delete_quote(db, qu)  # its photo goes
                 gone += 1
         for k in (line.photo_key, line.thumb_key):
             if k:

@@ -712,6 +712,18 @@ ALTER TABLE projects ADD COLUMN deposit_pct / soon_days / balance_days / lcl_up_
   carry `rooms` (codes) for a new item. `options()` → `sug["options"]` (quote / new with ids and category / merge) are the
   "Suggested" chips on lines under 0.75 confidence; `.qi-next` ("When you save") and `#qi-todo` ("Before you save") are written
   by the page script from the form's state.
+  Review round (PR 53): `SURE` = 0.8 is the green threshold (above `MAX_SCORE`); a word match under 0.45 leaves `product_id`
+  None with action quote (the chips are offered, "Before you save" names it). `shortlist` trusts a remembered item number alone
+  only when it maps to one product or the wording (`_memo_text`) agrees, else 0.6 chips; `remember` keeps one row per (ref, text).
+  `apply`: the discount factor is over the total less the charges. `delete`: a quote with a purchase or a line of another
+  quotation stays. `expiry()` / `Quotation.expires` / `.expired`. Router: `_stash()` (the posted form into the state under a new
+  key, the upload row made if gone) serves `/draft` and the apply-without-shop error (redirect to the new key, `#document`);
+  `_preview_ctx` adds `warnings` (lines vs total less charges), `by_id`, `dims` per line. Preview page order: summary (Show
+  filters `.qi-filter`, Next to check, legend folded) → lines → `#qi-sim` → `<details id="document">` (open when `err` or no
+  shop) → save bar with `.qi-decide` ("n to decide", a `.fab` twin on phones). One product list `<template id="qi-prod-tpl">`
+  (`prod_option` macro) is cloned into a `.qi-prod` on pointerdown / focus / `pick()` (`fill()`, `data-full`); a line's select
+  renders only its pick. `reflag()` recomputes size (`data-dims`, `dimsOk` mirrors `_dims_match`) / unit / quantity flags when
+  the pick differs from `data-orig` and hides the `% sure` pill. The submit handler refuses to post without a shop (`appAlert`).
   Finding a product on a line: `.qi-find` search box (words, room code, our code: `data-s` on the options = codes, rooms, spec),
   chips of the hits; `data-same` (item number + unit, else name + size + unit) drives the "Also for L…" chip. Memory: `remember()`
   writes the shop's row and a supplier-less row by wording (`memory()` returns both, the shop's first; shortlist 0.9 / 0.85).
