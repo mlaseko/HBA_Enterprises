@@ -274,7 +274,8 @@
     var lu=line.dataset.unit||'', pu=o.dataset.unit||''; if(lu&&pu&&cu(lu)!==cu(pu)) fl.push('unit '+lu+' vs '+pu);
     var q=parseFloat(line.dataset.qty)||0, pq=parseFloat(o.dataset.qty)||0; if(q&&pq){ var r=q/pq; if(r>1.5||r<0.6) fl.push('quantity '+fmtq(q)+' '+lu+' vs '+fmtq(pq)+' '+pu+' in the rooms'); }
     why.innerHTML='<span class="muted">your pick</span>'+fl.map(function(f){ return '<span class="pill gold" title="Differs from the design">&#9888; '+f.replace(/</g,'&lt;')+'</span>'; }).join(''); if(pill) pill.style.display='none'; }
-  function pick(line, id){ var sel=line.querySelector('.qi-prod'); fill(sel); sel.value=id; line.querySelector('.qi-act').value='quote'; show(line); upd(line); same(line); reflag(line); simulate();
+  function optChips(line){ var sel=line.querySelector('.qi-prod'), a=line.querySelector('.qi-act').value; line.querySelectorAll('.qi-chip.opt').forEach(function(c){ c.hidden=c.dataset.kind==='quote'&&a==='quote'&&sel.value===c.dataset.id; }); var row=line.querySelector('.qi-options'); if(row) row.hidden=!Array.prototype.some.call(row.querySelectorAll('.qi-chip.opt'),function(c){ return !c.hidden; }); }
+  function pick(line, id){ var sel=line.querySelector('.qi-prod'); fill(sel); sel.value=id; line.querySelector('.qi-act').value='quote'; show(line); upd(line); same(line); reflag(line); optChips(line); simulate();
     line.querySelectorAll('.qi-chip').forEach(function(c){ c.classList.toggle('on', c.dataset.id===id); }); }
   function find(line){ var box=line.querySelector('.qi-find input'), out=line.querySelector('.qi-found'); if(!box||!out) return; var words=box.value.toLowerCase().split(/\s+/).filter(Boolean);
     if(!words.length){ out.innerHTML=''; return; } var hits=index.filter(function(x){ return words.every(function(w){ return x.s.indexOf(w)>=0; }); });
@@ -282,7 +283,9 @@
   function same(line){ var out=line.querySelector('.qi-same'); if(!out) return; var sel=line.querySelector('.qi-prod'); var name=line.dataset.same||''; out.innerHTML='';
     if(!sel.value||!name||line.querySelector('.qi-act').value!=='quote') return; var others=[];
     form.querySelectorAll('.qi-line').forEach(function(o){ if(o===line||(o.dataset.same||'')!==name) return; var a=o.querySelector('.qi-act').value, ps=o.querySelector('.qi-prod'); if(a==='quote'&&ps.value===sel.value) return; if(a==='merge'||a==='extra') return; others.push(o); });
-    if(!others.length) return; out.innerHTML='<button type="button" class="qi-chip also" data-id="'+sel.value+'">Also for '+others.map(function(o){ return o.id.replace('line-','L'); }).join(', ')+' <span class="muted">'+(name.charAt(0)==='#'?'same item number '+name.slice(1).split('|')[0].toUpperCase().replace(/</g,'&lt;')+' and unit':'same name, size and unit on the sheet')+'</span></button>';
+    if(!others.length) return; var now=[]; others.forEach(function(o){ var ps=o.querySelector('.qi-prod'), a=o.querySelector('.qi-act').value; var t=a==='quote'&&ps.value?ps.options[ps.selectedIndex].textContent.split(' · ')[0]:(a==='new'?'a new item':'skipped'); if(now.indexOf(t)<0) now.push(t); });
+    var onOther=now.some(function(t){ return t!=='skipped'; }), mine=sel.options[sel.selectedIndex].textContent.split(' · ')[0];
+    out.innerHTML='<button type="button" class="qi-chip also'+(onOther?' moves':'')+'" data-id="'+sel.value+'" title="'+(onOther?'The same supplier item number can serve two products of the design (one room\u2019s dedicated unit and the general one): press only if they really are the same product':'Puts this product on the lines with the same item number')+'">Also for '+others.map(function(o){ return o.id.replace('line-','L'); }).join(', ')+(onOther?' \u2014 now on '+now.filter(function(t){ return t!=='skipped'; }).join(' / ').replace(/</g,'&lt;')+'; make them '+mine.replace(/</g,'&lt;')+' too?':'')+' <span class="muted">'+(name.charAt(0)==='#'?'same item number '+name.slice(1).split('|')[0].toUpperCase().replace(/</g,'&lt;')+' and unit':'same name, size and unit on the sheet')+'</span></button>';
     out.querySelector('.also').addEventListener('click',function(){ others.forEach(function(o){ pick(o, sel.value); }); out.innerHTML=''; }); }
   form.addEventListener('input',function(e){ var line=e.target.closest('.qi-line'); if(line&&e.target.closest('.qi-find')) find(line); });
   form.addEventListener('click',function(e){ var chip=e.target.closest('.qi-chip.find'); if(!chip) return; var line=chip.closest('.qi-line'); pick(line, chip.dataset.id); line.querySelector('.qi-found').innerHTML=''; line.querySelector('.qi-find input').value=''; });
@@ -343,7 +346,8 @@
     if(e.target.classList.contains('qi-prod')||e.target.classList.contains('qi-act')){ upd(line); same(line); reflag(line); } if(e.target.closest('.qi-rooms')) split(line); next(line); todo(); });
   form.addEventListener('input',function(e){ var line=e.target.closest('.qi-line'); if(line&&/^(name|cat)_/.test(e.target.name||'')){ next(line); todo(); } });
   form.addEventListener('click',function(e){ var chip=e.target.closest('.pick-chip'); var line=chip&&chip.closest('.qi-line'); if(line) setTimeout(function(){ split(line); next(line); },0); });
-  form.querySelectorAll('.qi-line').forEach(function(line){ same(line); next(line); }); todo();
+  form.querySelectorAll('.qi-line').forEach(function(line){ same(line); next(line); optChips(line); }); todo();
+  form.addEventListener('change',function(e){ var line=e.target.closest('.qi-line'); if(line&&(e.target.classList.contains('qi-prod')||e.target.classList.contains('qi-act'))) optChips(line); });
 })();
 </script>
 {% endblock %}
