@@ -1346,3 +1346,4 @@ table.ls tr.muted td{color:var(--muted)}
 .qi-spin{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:lbspin .9s linear infinite;margin-right:6px;vertical-align:-2px}
 @media (max-width:700px){.qi-top{grid-template-columns:1fr}.qi-top .g3{grid-template-columns:1fr 1fr}.qi-doc{min-width:860px}.qi-doc th:nth-child(2),.qi-doc td:nth-child(2){width:64px}.qi-head .qi-act{max-width:none}.qi-bar{position:static}.qi-bar .btn{width:100%;justify-content:center}.qi-doc td,.qi-doc th{font-size:.85rem}.qi-line{padding:10px}.qi-summary .row{gap:6px}}
 .qi-sim{margin-bottom:12px}.qi-sim .kpis{margin-bottom:0}
+.qi-left{border-top:1px solid var(--line);padding-top:12px}.qi-left .bar{height:8px}.qi-left-list{columns:2 260px;column-gap:24px;margin-top:8px}.qi-left-cat{break-inside:avoid;margin-bottom:10px}.qi-left-cat ul{margin:4px 0 0;padding-left:1.1rem}

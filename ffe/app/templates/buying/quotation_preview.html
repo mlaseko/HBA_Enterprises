@@ -60,6 +60,11 @@
     <div class="kpi accent"><div class="v" id="sim-new">0</div><div class="l">New items</div><div class="d" id="sim-new-d">added to the design on posting</div></div>
     <div class="kpi ink"><div class="v" id="sim-amount">{{ cur }} 0</div><div class="l">Amount quoted</div><div class="d" id="sim-amount-d"></div></div>
   </div>
+  <div class="qi-left mt">
+    <div class="row between"><div><b>After posting, across all shops</b> <span class="small muted" id="sim-all-d"></span></div><span class="pill" id="sim-left-n"></span></div>
+    <div class="bar mt"><i id="sim-all-bar" style="width:0%"></i></div>
+    <details class="mt" id="sim-left"><summary class="small">Still to source: products with no quote from any shop yet</summary><div class="qi-left-list small" id="sim-left-list"></div></details>
+  </div>
 </div>
 
 <div class="card tight qi-summary">
@@ -100,7 +105,7 @@
       <div class="qi-f qi-f-quote">
         <select class="in qi-prod" name="prod_{{ l.no }}" aria-label="Product for line {{ l.no }}">
           <option value="">— pick the product —</option>
-          {% for cat, cs in by_cat.items() %}<optgroup label="{{ cat }}">{% for c in cs %}<option value="{{ c.id }}" data-q="{{ c.quoted_by }}" data-n="{{ c.rooms|length }}" {{ 'selected' if s.product_id == c.id }}>{{ c.title }} · {{ c.qty|num(2) }} {{ c.unit }}{% if c.rooms|length == 1 %} · {{ c.rooms[0].code }}{% elif c.rooms|length %} · {{ c.rooms|length }} rooms{% endif %}</option>{% endfor %}</optgroup>{% endfor %}
+          {% for cat, cs in by_cat.items() %}<optgroup label="{{ cat }}">{% for c in cs %}<option value="{{ c.id }}" data-q="{{ c.quoted_by }}" data-n="{{ c.codes|length }}" {{ 'selected' if s.product_id == c.id }}>{{ c.title }} · {{ c.qty|num(2) }} {{ c.unit }}{% if c.rooms|length == 1 %} · {{ c.rooms[0].code }}{% elif c.rooms|length %} · {{ c.rooms|length }} rooms{% endif %}</option>{% endfor %}</optgroup>{% endfor %}
         </select>
         <div class="qi-upd small muted"></div>
         {% if s.shortlist %}<div class="qi-short small">{% for o in s.shortlist[:4] %}<button type="button" class="qi-chip{{ ' on' if o.id == s.product_id }}" data-id="{{ o.id }}" title="{{ o.rooms }}">{{ o.title }} <span class="muted">{{ (o.score * 100)|round|int }}%</span></button>{% endfor %}</div>{% endif %}
@@ -165,7 +170,17 @@
     document.getElementById('sim-lines-d').textContent=pc+'% of the design would have a price from this shop';
     document.getElementById('sim-new').textContent=newItems;
     var net=amount*f; document.getElementById('sim-amount').textContent=cur+' '+fmt(net); var alt=cur==='USD'?('¥'+fmt(net*rate)):('$'+fmt(net/rate));
-    document.getElementById('sim-amount-d').textContent=alt+(f<1?' · after the '+Math.round(100*(1-f))+'% discount':'')+(extra?' · extras '+cur+' '+fmt(extra)+' on the document':''); }
+    document.getElementById('sim-amount-d').textContent=alt+(f<1?' · after the '+Math.round(100*(1-f))+'% discount':'')+(extra?' · extras '+cur+' '+fmt(extra)+' on the document':'');
+    // every product of the design: quoted by any shop already, by this sheet, or still to source
+    var first=form.querySelector('.qi-prod'); if(!first) return; var left={}, nLeft=0, linesLeft=0, have=0, linesHave=0;
+    Array.prototype.forEach.call(first.options,function(o){ if(!o.value) return; var lines=parseInt(o.dataset.n||'0',10)||0;
+      if(prods[o.value]||o.dataset.q){ have++; linesHave+=lines; return; }
+      var cat=o.parentNode&&o.parentNode.label||'Other'; (left[cat]=left[cat]||[]).push(o.textContent.split(' · ').slice(0,2).join(' · ')+' ('+lines+' line'+(lines===1?'':'s')+')'); nLeft++; linesLeft+=lines; });
+    var allPc=P?Math.round(100*have/P):0; document.getElementById('sim-all-bar').style.width=allPc+'%';
+    document.getElementById('sim-all-d').textContent=have+' of '+P+' products would have at least one quote ('+allPc+'%), '+linesHave+' of '+L+' room lines';
+    document.getElementById('sim-left-n').textContent=nLeft+' still to source';
+    var html=''; Object.keys(left).forEach(function(cat){ html+='<div class="qi-left-cat"><b>'+cat+'</b> <span class="muted">'+left[cat].length+'</span><ul>'+left[cat].map(function(t){return '<li>'+t.replace(/</g,'&lt;')+'</li>';}).join('')+'</ul></div>'; });
+    document.getElementById('sim-left-list').innerHTML=html||'<p>Every product of the design would have a quote.</p>'; }
   form.addEventListener('change',simulate); form.addEventListener('input',function(e){ if(e.target.name==='discount'||e.target.name==='total') simulate(); }); simulate();
   form.addEventListener('submit',function(e){ var d=document.getElementById('qi-draft'), b=document.getElementById('qi-save'); var asDraft=e.submitter&&e.submitter.id==='qi-draft';
     var hit=asDraft?d:b; if(hit){ hit.disabled=true; hit.innerHTML='<span class="qi-spin"></span>'+(asDraft?'Saving the draft…':'Saving the quotation…'); } if(d&&!asDraft) d.disabled=true; if(b&&asDraft) b.disabled=true; });
