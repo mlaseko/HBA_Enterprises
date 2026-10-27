@@ -708,6 +708,16 @@ class Quotation(Base):
     sales: Mapped[str] = mapped_column(String(120), default="")  # the sales person named on the sheet
     quote_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     valid_until: Mapped[str] = mapped_column(String(60), default="")  # a date or "15 days", as written
+
+    @property
+    def expires(self):
+        from .quotations import expiry
+        return expiry(self.valid_until, self.quote_date)
+
+    @property
+    def expired(self) -> bool:
+        e = self.expires
+        return e is not None and e < date.today()
     currency: Mapped[str] = mapped_column(String(3), default="USD")
     total: Mapped[float] = mapped_column(Float, default=0.0)  # the lines' total as on the sheet (before discount)
     discount: Mapped[float] = mapped_column(Float, default=0.0)  # taken off the total (after-discount price on the sheet)

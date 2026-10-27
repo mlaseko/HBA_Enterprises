@@ -22,7 +22,7 @@
 <div class="grid g4 kpis bu-kpis">
   <div class="kpi"><svg class="ic"><use href="#i-file"/></svg><div class="v">{{ cur }} {{ q.net|money }}</div><div class="l">Quoted</div><div class="d">{% if q.discount %}{{ q.total|money(2) }} less {{ q.discount|money(2) }} discount{% else %}total on the sheet{% endif %}{% if q.charges %} · extras {{ q.charges|money(2) }}{% endif %}</div></div>
   <div class="kpi sage"><svg class="ic"><use href="#i-check"/></svg><div class="v">{{ by_quote|length }}</div><div class="l">Quotes made</div><div class="d">on the Buying page, from {{ counts.quote + counts.new }} line{{ 's' if counts.quote + counts.new != 1 }}</div></div>
-  <div class="kpi gold"><svg class="ic"><use href="#i-clock"/></svg><div class="v">{{ q.quote_date.isoformat() if q.quote_date else '—' }}</div><div class="l">Quote date</div><div class="d">{% if q.valid_until %}valid until {{ q.valid_until }}{% else %}no validity given{% endif %}</div></div>
+  <div class="kpi gold"><svg class="ic"><use href="#i-clock"/></svg><div class="v">{{ q.quote_date.isoformat() if q.quote_date else '—' }}</div><div class="l">Quote date</div><div class="d">{% if q.valid_until %}valid until {{ q.valid_until }}{% if q.expired %} · <b class="red">expired{% if q.expires %} {{ q.expires.isoformat() }}{% endif %}: ask the shop to confirm the prices</b>{% endif %}{% else %}no validity given{% endif %}</div></div>
   <div class="kpi ink"><svg class="ic"><use href="#i-truck"/></svg><div class="v">{{ q.lead_time or '—' }}</div><div class="l">Lead time</div><div class="d">{{ q.sales or (q.supplier.contact if q.supplier else '') or 'as written on the sheet' }}</div></div>
 </div>
 
@@ -65,7 +65,7 @@
     <h2 class="mb-0">Terms as written</h2>
     {% if q.terms %}<pre class="qi-terms">{{ q.terms }}</pre>{% else %}<p class="small muted">The sheet carried no terms.</p>{% endif %}
     {% if q.notes %}<div class="eyebrow mt">Your notes</div><p class="small">{{ q.notes }}</p>{% endif %}
-    <form method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/delete" class="mt" data-confirm="Delete this quotation? Its quotes that nothing was bought from go with it; rooms already bought from them keep their prices."><button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete the quotation</button></form>
+    <form method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/delete" class="mt" data-confirm="Delete this quotation? Its quotes go with it, except those a purchase uses or a later sheet from the shop corrected; rooms already bought keep their prices."><button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete the quotation</button></form>
   </div>
 </div>
 {% endblock %}

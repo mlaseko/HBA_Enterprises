@@ -255,7 +255,18 @@ name** (or set the Kind by hand): every existing entry starts as a room.
   the products sharing a word with the line; Claude may name the room codes), merge (into another line), extra, skip. Lines
   not surely matched carry `options()` (the likeliest product, a new item in the rooms that fit, a line it may be part of)
   as one-press chips; the page writes "When you save" under each line and a "Before you save" checklist. Countable units
-  (pcs, set, each…) compare as one (`_same_unit`). Servant / staff quarters lines are skipped by
+  (pcs, set, each…) compare as one (`_same_unit`). A word match under 0.45 is not pre-selected (the chips stay); green
+  starts at `SURE` = 0.8, above what words alone reach (`MAX_SCORE` 0.75). The page: counts with Show filters and Next to
+  check, the lines, the simulation, The document folded (`<details id="document">`), the save bar with "n to decide"; one
+  product list in `<template id="qi-prod-tpl">` cloned into a line's select when it is opened (`fill()`), so a 30-line
+  preview is ~300 KB instead of 1.3 MB; the size / unit / quantity flags are recomputed in the page when the pick changes.
+  Saving without a shop keeps the choices (`_stash`, shared with `/quotations/draft`, which also makes the upload row when it
+  is gone) and reopens the preview on The document. `_preview_ctx` warns when the lines do not add up to the total less the
+  charges. Memory by item number (`shortlist`): trusted alone only when the number means one product or the wording agrees,
+  else the products it meant are offered at 0.6. `apply` spreads the discount over the lines (the charges inside the total are
+  not discounted); `delete` keeps a quote a purchase uses or another quotation's line points at. `Quotation.expires` /
+  `.expired` (`quotations.expiry`: a date, or "N days / weeks / months" from the quote date) show "expired" on the list, the
+  document page and the product page. Servant / staff quarters lines are skipped by
   default.
 - Apply (`quotations.apply`): a `Quotation` row (supplier, title, date, validity, currency, total, discount, charges,
   terms, lead time, the file) with a `QuotationLine` per line (as written, picture, action, product, quote, merged-into),

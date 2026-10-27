@@ -101,7 +101,7 @@
     <td class="num">{{ r.lines }}{% if r.skipped %} <span class="small muted">({{ r.skipped }} skipped)</span>{% endif %}</td>
     <td class="num">{{ r.quotes }}{% if r.new %} <span class="pill accent">{{ r.new }} new</span>{% endif %}</td>
     <td class="num nowrap">{{ q.currency }} {{ q.net|money(2) }}{% if q.discount %}<div class="small muted">after {{ q.discount|money(2) }} off</div>{% endif %}</td>
-    <td class="nowrap">{{ q.valid_until or '—' }}</td>
+    <td class="nowrap">{{ q.valid_until or '—' }}{% if q.expired %} <span class="pill red" title="Past its validity: ask the shop to confirm the prices before ordering">expired</span>{% endif %}</td>
     <td class="nowrap"><a class="btn sm sec" href="/p/{{ p.id }}/quotations/{{ q.id }}/file"><svg class="ic"><use href="#i-download"/></svg>File</a></td>
   </tr>
   {% endfor %}

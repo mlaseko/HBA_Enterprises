@@ -99,7 +99,7 @@
         {% if q.pack_size %}<div><dt>Pack</dt><dd>{{ q.pack_size|num(3) }} {{ unit if unit not in ('pcs', 'mixed') else 'pcs' }} per {{ pack_word }}</dd></div>{% endif %}
         {% if q.moq %}<div><dt>Minimum</dt><dd>{{ q.moq }}</dd></div>{% endif %}
         {% if q.lead_time %}<div><dt>Lead time</dt><dd>{{ q.lead_time }}</dd></div>{% endif %}
-        {% if from_doc and from_doc.get(q.id) %}{% set qd = from_doc[q.id] %}<div><dt>From</dt><dd><a href="/p/{{ p.id }}/quotations/{{ qd.id }}">{{ qd.title or qd.filename or 'quotation' }}</a>{% if qd.quote_date %} · {{ qd.quote_date.isoformat() }}{% endif %}</dd></div>{% endif %}
+        {% if from_doc and from_doc.get(q.id) %}{% set qd = from_doc[q.id] %}<div><dt>From</dt><dd><a href="/p/{{ p.id }}/quotations/{{ qd.id }}">{{ qd.title or qd.filename or 'quotation' }}</a>{% if qd.quote_date %} · {{ qd.quote_date.isoformat() }}{% endif %}{% if qd.expired %} <span class="pill red" title="Past its validity: ask the shop to confirm the price">expired</span>{% endif %}</dd></div>{% endif %}
       </dl>
       {% if q.unit_price %}<div class="tot"><span>All rooms: {{ t.qty|num(2) }} {{ unit }}{% if t.packs %} · {{ packs(t.packs, pack_word) }}{% endif %}</span><b>¥{{ t.total|money }}</b></div>{% endif %}
       {% if q.notes %}<p class="notes">{{ q.notes }}</p>{% endif %}

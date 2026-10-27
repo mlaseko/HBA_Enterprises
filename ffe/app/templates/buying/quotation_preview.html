@@ -18,59 +18,10 @@
 
 {% if err %}<div class="alert err">{{ err }}</div>{% endif %}
 {% if draft_at %}<div class="alert info">A draft saved {{ draft_at|replace('T', ' ') }}: your choices are as you left them. Nothing is posted until you press Save the quotation.</div>{% endif %}
-{% for w in parsed.warnings %}<div class="alert info">{{ w }}</div>{% endfor %}
+{% for w in warnings %}<div class="alert {{ 'err' if 'add up' in w else 'info' }}">{{ w }}</div>{% endfor %}
 
 <form method="post" action="/p/{{ p.id }}/quotations/apply" id="qi-form">
 <input type="hidden" name="key" value="{{ key }}">
-
-<div class="card" id="document">
-  <div class="row between top">
-    <div><h2 class="mb-0">The document</h2><div class="small muted">Read from the sheet; correct what it got wrong. Prices below are in <b>{{ cur }}</b>; the quotes are stored in CNY at this project's rate ({{ p.rate|num(2) }}).</div></div>
-    <span class="pill">{{ parsed.sheet }}</span>
-  </div>
-  <div class="grid g3 mt">
-    <div><label>Shop</label>
-      <select class="in" name="supplier_id" id="qi-sup">
-        <option value="">— choose —</option>
-        {% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if supplier and supplier.id == s.id }}>{{ s.name }}{% if s.city %} · {{ s.city }}{% endif %}</option>{% endfor %}
-        <option value="__new__" {{ 'selected' if not supplier }}>+ New shop…</option>
-      </select></div>
-    <div class="qi-newsup"><label>New shop's name</label><input class="in" type="text" name="supplier_name" value="{{ new_sup.name or '' }}" placeholder="e.g. Foshan Sanitary Co." maxlength="160" autocomplete="off"></div>
-    <div class="qi-newsup"><label>Market / city</label><input class="in" type="text" name="supplier_city" value="{{ new_sup.city or '' }}" placeholder="Foshan" maxlength="120"></div>
-    <div><label>What it quotes</label><input class="in" type="text" name="title" value="{{ doc.title }}" maxlength="200"></div>
-    <div><label>Sales person</label><input class="in" type="text" name="sales" value="{{ head.sales or '' }}" maxlength="120"></div>
-    <div><label>Quote date</label><input class="in" type="date" name="quote_date" value="{{ head.quote_date or '' }}"></div>
-    <div><label>Valid until</label><input class="in" type="text" name="valid_until" value="{{ head.valid_until or '' }}" placeholder="2026-11-24 or 15 days" maxlength="60"></div>
-    <div><label>Currency</label><select class="in" name="currency"><option {{ 'selected' if doc.currency == 'USD' }}>USD</option><option {{ 'selected' if doc.currency == 'CNY' }}>CNY</option></select></div>
-    <div><label>Lead time</label><input class="in" type="text" name="lead_time" value="{{ head.lead_time or '' }}" maxlength="120" placeholder="25-30 days after deposit"></div>
-    <div><label>Total on the sheet</label><input class="in" type="number" step="0.01" min="0" name="total" value="{{ doc.total|plain }}" inputmode="decimal"><div class="help">Before any discount; the lines add up to {{ cur }} {{ (lines|sum(attribute='amount'))|money(2) }}.</div></div>
-    <div><label>Discount</label><input class="in" type="number" step="0.01" min="0" name="discount" value="{{ doc.discount|plain }}" inputmode="decimal"><div class="help">Taken off the total; spread over the line prices.</div></div>
-    <div><label>Extra charges</label><input class="in" type="number" step="0.01" min="0" name="charges" value="{{ doc.charges|plain }}" inputmode="decimal"><div class="help">{% if parsed.charges %}{% for c in parsed.charges %}{{ c.name }} {{ c.amount|money(2) }}{{ ' · ' if not loop.last }}{% endfor %}{% else %}Pallet, packing… that belong to no line.{% endif %}</div></div>
-    <div class="span3"><label>Terms as written</label><textarea class="in" name="terms" rows="3">{{ terms }}</textarea></div>
-    <div class="span3"><label>Your notes</label><input class="in" type="text" name="notes" value="{{ doc.notes }}" maxlength="500" placeholder="Anything to remember about this quotation"></div>
-  </div>
-</div>
-
-<div class="card qi-sim" id="qi-sim" data-products="{{ totals.products }}" data-lines="{{ totals.lines }}" data-quoted="{{ totals.quoted }}" data-rate="{{ p.rate or 1 }}" data-cur="{{ cur }}">
-  <div class="row between top">
-    <div><h2 class="mb-0">If you posted it now</h2><div class="small muted">A simulation from the choices below, updated as you change them. Nothing is posted until you press Save the quotation.</div></div>
-  </div>
-  <div class="grid g4 kpis bu-kpis mt">
-    <div class="kpi sage"><div class="v" id="sim-products">0<span class="of">/{{ totals.products }}</span></div><div class="l">Products priced by this sheet</div><div class="d" id="sim-products-d"></div></div>
-    <div class="kpi"><div class="v" id="sim-lines">0<span class="of">/{{ totals.lines }}</span></div><div class="l">Room lines covered</div><div class="bar"><i id="sim-bar" style="width:0%"></i></div><div class="d" id="sim-lines-d">0% of the design would have a price from this shop</div></div>
-    <div class="kpi accent"><div class="v" id="sim-new">0</div><div class="l">New items</div><div class="d" id="sim-new-d">added to the design on posting</div></div>
-    <div class="kpi ink"><div class="v" id="sim-amount">{{ cur }} 0</div><div class="l">Amount quoted</div><div class="d" id="sim-amount-d"></div></div>
-  </div>
-  <div class="qi-recon mt">
-    <div class="row between"><div><b>Quantities against the design</b> <span class="small muted">per product: what the sheet quotes, what the rooms need plus the allowance for cuts, and the gap</span></div><span class="pill" id="sim-recon-n"></span></div>
-    <div class="tbl mt"><table class="qi-recon-t"><thead><tr><th>Product</th><th class="num">Sheet</th><th class="num">Design + allowance</th><th class="num">Gap</th><th>Checks</th></tr></thead><tbody id="sim-recon"></tbody></table></div>
-  </div>
-  <div class="qi-left mt">
-    <div class="row between"><div><b>After posting, across all shops</b> <span class="small muted" id="sim-all-d"></span></div><span class="pill" id="sim-left-n"></span></div>
-    <div class="bar mt"><i id="sim-all-bar" style="width:0%"></i></div>
-    <details class="mt" id="sim-left"><summary class="small">Still to source: products with no quote from any shop yet</summary><div class="qi-left-list small" id="sim-left-list"></div></details>
-  </div>
-</div>
 
 <div class="card tight qi-summary">
   <div class="row">
@@ -79,24 +30,36 @@
     <span class="pill gold">{{ counts.merge }} merged</span>
     <span class="pill">{{ counts.extra }} extra</span>
     <span class="pill">{{ counts.skip }} skipped</span>
-    <span class="small muted">{% if claude %}Suggested by Claude from the words, sizes, rooms and pictures.{% else %}Suggested from the words and sizes only.{% if claude_note %} {{ claude_note }}{% endif %}{% endif %} High confidence is green, check the gold and grey ones.</span>
+    <span class="small muted">{% if claude %}Suggested by Claude from the words, sizes, rooms and pictures.{% else %}Suggested from the words and sizes only.{% if claude_note %} {{ claude_note }}{% endif %}{% endif %} Green is sure, check the gold and grey ones.</span>
   </div>
+  <div class="row qi-filter mt" role="group" aria-label="Show">
+    <span class="small muted">Show:</span>
+    <button type="button" class="pick-chip on" data-f="all">All <b>{{ lines|length }}</b></button>
+    <button type="button" class="pick-chip" data-f="check">To check <b id="qi-n-check">0</b></button>
+    <button type="button" class="pick-chip" data-f="new">New <b>{{ counts.new }}</b></button>
+    <button type="button" class="pick-chip" data-f="merge">Merged <b>{{ counts.merge }}</b></button>
+    <button type="button" class="pick-chip" data-f="skip">Skipped <b>{{ counts.skip }}</b></button>
+    <button type="button" class="btn sm sec" id="qi-nextcheck"><svg class="ic"><use href="#i-chevron-right"/></svg>Next to check</button>
+  </div>
+  <details class="qi-legend-wrap mt"><summary class="small">What Matched, New, Merged, Extra, Skipped and % sure mean</summary>
   <div class="qi-legend small mt">
     <div><b class="g">Matched</b> quotes a product of the design: on save it becomes that shop's quote on it.</div>
     <div><b class="a">New</b> the design has no item for it: on save an item is created in the rooms ticked (one per room, the sheet's quantity shared) and the quote put on it. If it is really an existing product, pick it instead; if it belongs with another line, make it a part of it.</div>
     <div><b class="y">Merged</b> a part of another line (hardware, a trap, the glass of a set): its amount joins that line's quote, no item of its own.</div>
     <div><b>Extra</b> a charge on the document (pallet, packing). <b>Skipped</b> nothing is saved from the line.</div>
-    <div><b>% sure</b> how sure the suggestion on the line is (the product and the place): green 75 % and above, gold 45–74 % — look at it, grey below — a guess, decide yourself. The percentage on a chip under the product is how alike the words, size and rooms are. Neither says anything about the price or the quantity: the flags and the table above do.</div>
-  </div>
+    <div><b>% sure</b> how sure the suggestion on the line is (the product and the place): green 80 % and above, gold 45–79 % — look at it, grey below — a guess, decide yourself. The percentage on a chip under the product is how alike the words, size and rooms are. Neither says anything about the price or the quantity: the flags and the table below do.</div>
+  </div></details>
   <div class="qi-todo mt" id="qi-todo" hidden><b>Before you save</b><ul id="qi-todo-list"></ul></div>
 </div>
 
+{% macro prod_option(c, sel) %}<option value="{{ c.id }}" data-q="{{ c.quoted_by }}" data-n="{{ c.codes|length }}" data-qty="{{ c.qty|plain }}" data-unit="{{ c.unit }}" data-allow="{{ (c.g.allowance or 0)|plain }}" data-dims="{{ c.dims|join('x') }}" data-cat="{{ c.category }}" data-s="{{ c.codes|join(' ') }} {{ c.rooms_text }} {{ c.spec|truncate(120, true, '') }}" {{ 'selected' if sel }}>{{ c.title }} · {{ c.qty|num(2) }} {{ c.unit }}{% if c.rooms|length == 1 %} · {{ c.rooms[0].code }}{% elif c.rooms|length %} · {{ c.rooms|length }} rooms{% endif %}</option>{% endmacro %}
+<template id="qi-prod-tpl"><select>{% for cat, cs in by_cat.items() %}<optgroup label="{{ cat }}">{% for c in cs %}{{ prod_option(c, false) }}{% endfor %}</optgroup>{% endfor %}</select></template>
 <div class="qi-lines" id="lines">
   {% set ns = namespace(section=none) %}
   {% for l in lines %}{% set s = l.sug %}
   {% if l.section != ns.section %}{% set ns.section = l.section %}{% if l.section %}<div class="qi-section">{{ l.section }}</div>{% endif %}{% endif %}
   {% set conf = s.confidence or 0 %}
-  <article class="qi-line act-{{ s.action or 'skip' }}" id="line-{{ l.no }}" data-amount="{{ l.amount|plain }}" data-qty="{{ l.qty|plain }}" data-unit="{{ l.unit }}" data-ref="{{ l.ref }}" data-price="{{ l.unit_price|plain }}" data-label="L{{ l.no }}{% if l.place %} {{ l.place }}{% endif %}" data-same="{% if l.ref %}#{{ l.ref|lower|trim }}{% else %}{{ l.name|lower|trim }} {{ l.size|lower|trim }}{% endif %}|{{ l.unit }}">
+  <article class="qi-line act-{{ s.action or 'skip' }}" id="line-{{ l.no }}" data-amount="{{ l.amount|plain }}" data-qty="{{ l.qty|plain }}" data-unit="{{ l.unit }}" data-ref="{{ l.ref }}" data-price="{{ l.unit_price|plain }}" data-label="L{{ l.no }}{% if l.place %} {{ l.place }}{% endif %}" data-conf="{{ conf|plain }}" data-orig="{{ s.product_id or '' }}" data-dims="{{ l.dims|join('x') }}" data-same="{% if l.ref %}#{{ l.ref|lower|trim }}{% else %}{{ l.name|lower|trim }} {{ l.size|lower|trim }}{% endif %}|{{ l.unit }}">
     <div class="qi-pic">{% if l.pic %}<a href="/media/{{ l.full }}" target="_blank" data-caption="Line {{ l.no }} · {{ l.name }}"><img src="/media/{{ l.pic }}" alt=""></a>{% else %}<span class="pic empty"><svg class="ic"><use href="#i-image"/></svg></span>{% endif %}</div>
     <div class="qi-what">
       <div class="qi-no">L{{ l.no }}{% if l.place %} · {{ l.place }}{% endif %}{% if l.ref %} · <b>{{ l.ref }}</b>{% endif %}</div>
@@ -113,13 +76,13 @@
           <option value="extra" {{ 'selected' if s.action == 'extra' }}>Extra charge</option>
           <option value="skip" {{ 'selected' if s.action not in ('quote', 'new', 'merge', 'extra') }}>Skip (out of scope)</option>
         </select>
-        {% if s.action in ('quote', 'new', 'merge') or conf %}<span class="pill qi-conf {{ 'green' if conf >= 0.75 else ('gold' if conf >= 0.45 else '') }}" title="How sure the suggestion is: 75% and above is a confident match, 45–74% needs a look, below 45% is a guess. It says nothing about the price or the quantity.">{{ (conf * 100)|round|int }}% sure</span>{% endif %}
+        {% if s.action in ('quote', 'new', 'merge') or conf %}<span class="pill qi-conf {{ 'green' if conf >= 0.8 else ('gold' if conf >= 0.45 else '') }}" title="How sure the suggestion is: 80% and above is a confident match, 45–79% needs a look, below 45% is a guess. It says nothing about the price or the quantity.">{{ (conf * 100)|round|int }}% sure</span>{% endif %}
         <span class="qi-tag"></span>
       </div>
       <div class="qi-f qi-f-quote">
-        <select class="in qi-prod" name="prod_{{ l.no }}" aria-label="Product for line {{ l.no }}">
+        <select class="in qi-prod" name="prod_{{ l.no }}" aria-label="Product for line {{ l.no }}" data-full="0">
           <option value="">— pick the product —</option>
-          {% for cat, cs in by_cat.items() %}<optgroup label="{{ cat }}">{% for c in cs %}<option value="{{ c.id }}" data-q="{{ c.quoted_by }}" data-n="{{ c.codes|length }}" data-qty="{{ c.qty|plain }}" data-unit="{{ c.unit }}" data-allow="{{ (c.g.allowance or 0)|plain }}" data-s="{{ c.codes|join(' ') }} {{ c.rooms_text }} {{ c.spec|truncate(120, true, '') }}" {{ 'selected' if s.product_id == c.id }}>{{ c.title }} · {{ c.qty|num(2) }} {{ c.unit }}{% if c.rooms|length == 1 %} · {{ c.rooms[0].code }}{% elif c.rooms|length %} · {{ c.rooms|length }} rooms{% endif %}</option>{% endfor %}</optgroup>{% endfor %}
+          {% if s.product_id and by_id.get(s.product_id) %}{{ prod_option(by_id[s.product_id], true) }}{% endif %}
         </select>
         <div class="qi-find"><input class="in" type="search" placeholder="Find the product: a word or two, a room code, our item code…" aria-label="Find a product for line {{ l.no }}" autocomplete="off"><div class="qi-found small"></div></div>
         <div class="qi-upd small muted"></div>
@@ -152,16 +115,68 @@
 </div>
 
 <template id="qi-rooms-tpl">{{ room_picks(p.rooms, 'rooms_X') }}</template>
+<div class="card qi-sim" id="qi-sim" data-products="{{ totals.products }}" data-lines="{{ totals.lines }}" data-quoted="{{ totals.quoted }}" data-rate="{{ p.rate or 1 }}" data-cur="{{ cur }}">
+  <div class="row between top">
+    <div><h2 class="mb-0">If you posted it now</h2><div class="small muted">A simulation from the choices below, updated as you change them. Nothing is posted until you press Save the quotation.</div></div>
+  </div>
+  <div class="grid g4 kpis bu-kpis mt">
+    <div class="kpi sage"><div class="v" id="sim-products">0<span class="of">/{{ totals.products }}</span></div><div class="l">Products priced by this sheet</div><div class="d" id="sim-products-d"></div></div>
+    <div class="kpi"><div class="v" id="sim-lines">0<span class="of">/{{ totals.lines }}</span></div><div class="l">Room lines covered</div><div class="bar"><i id="sim-bar" style="width:0%"></i></div><div class="d" id="sim-lines-d">0% of the design would have a price from this shop</div></div>
+    <div class="kpi accent"><div class="v" id="sim-new">0</div><div class="l">New items</div><div class="d" id="sim-new-d">added to the design on posting</div></div>
+    <div class="kpi ink"><div class="v" id="sim-amount">{{ cur }} 0</div><div class="l">Amount quoted</div><div class="d" id="sim-amount-d"></div></div>
+  </div>
+  <div class="qi-recon mt">
+    <div class="row between"><div><b>Quantities against the design</b> <span class="small muted">per product: what the sheet quotes, what the rooms need plus the allowance for cuts, and the gap</span></div><span class="pill" id="sim-recon-n"></span></div>
+    <div class="tbl mt"><table class="qi-recon-t"><thead><tr><th>Product</th><th class="num">Sheet</th><th class="num">Design + allowance</th><th class="num">Gap</th><th>Checks</th></tr></thead><tbody id="sim-recon"></tbody></table></div>
+  </div>
+  <div class="qi-left mt">
+    <div class="row between"><div><b>After posting, across all shops</b> <span class="small muted" id="sim-all-d"></span></div><span class="pill" id="sim-left-n"></span></div>
+    <div class="bar mt"><i id="sim-all-bar" style="width:0%"></i></div>
+    <details class="mt" id="sim-left"><summary class="small">Still to source: products with no quote from any shop yet</summary><div class="qi-left-list small" id="sim-left-list"></div></details>
+  </div>
+</div>
+
+<details class="card qi-doc-card" id="document" {{ 'open' if err or not supplier else '' }}>
+  <summary><span class="h2">The document</span> <span class="small muted" id="qi-doc-sum">{{ supplier.name if supplier else (new_sup.name or 'shop not chosen') }} · {{ cur }} {{ doc.total|money(2) }}</span><span class="small muted qi-doc-open">Open to check the shop, the date, the total and the terms</span></summary>
+  <div class="row between top mt">
+    <div><div class="small muted">Read from the sheet; correct what it got wrong. Prices below are in <b>{{ cur }}</b>; the quotes are stored in CNY at this project's rate ({{ p.rate|num(2) }}).</div></div>
+    <span class="pill">{{ parsed.sheet }}</span>
+  </div>
+  <div class="grid g3 mt">
+    <div><label>Shop</label>
+      <select class="in" name="supplier_id" id="qi-sup">
+        <option value="">— choose —</option>
+        {% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if supplier and supplier.id == s.id }}>{{ s.name }}{% if s.city %} · {{ s.city }}{% endif %}</option>{% endfor %}
+        <option value="__new__" {{ 'selected' if not supplier }}>+ New shop…</option>
+      </select></div>
+    <div class="qi-newsup"><label>New shop's name</label><input class="in" type="text" name="supplier_name" value="{{ new_sup.name or '' }}" placeholder="e.g. Foshan Sanitary Co." maxlength="160" autocomplete="off"></div>
+    <div class="qi-newsup"><label>Market / city</label><input class="in" type="text" name="supplier_city" value="{{ new_sup.city or '' }}" placeholder="Foshan" maxlength="120"></div>
+    <div><label>What it quotes</label><input class="in" type="text" name="title" value="{{ doc.title }}" maxlength="200"></div>
+    <div><label>Sales person</label><input class="in" type="text" name="sales" value="{{ head.sales or '' }}" maxlength="120"></div>
+    <div><label>Quote date</label><input class="in" type="date" name="quote_date" value="{{ head.quote_date or '' }}"></div>
+    <div><label>Valid until</label><input class="in" type="text" name="valid_until" value="{{ head.valid_until or '' }}" placeholder="2026-11-24 or 15 days" maxlength="60"></div>
+    <div><label>Currency</label><select class="in" name="currency"><option {{ 'selected' if doc.currency == 'USD' }}>USD</option><option {{ 'selected' if doc.currency == 'CNY' }}>CNY</option></select></div>
+    <div><label>Lead time</label><input class="in" type="text" name="lead_time" value="{{ head.lead_time or '' }}" maxlength="120" placeholder="25-30 days after deposit"></div>
+    <div><label>Total on the sheet</label><input class="in" type="number" step="0.01" min="0" name="total" value="{{ doc.total|plain }}" inputmode="decimal"><div class="help">Before any discount; the lines add up to {{ cur }} {{ (lines|sum(attribute='amount'))|money(2) }}.</div></div>
+    <div><label>Discount</label><input class="in" type="number" step="0.01" min="0" name="discount" value="{{ doc.discount|plain }}" inputmode="decimal"><div class="help">Taken off the total; spread over the line prices.</div></div>
+    <div><label>Extra charges</label><input class="in" type="number" step="0.01" min="0" name="charges" value="{{ doc.charges|plain }}" inputmode="decimal"><div class="help">{% if parsed.charges %}{% for c in parsed.charges %}{{ c.name }} {{ c.amount|money(2) }}{{ ' · ' if not loop.last }}{% endfor %}{% else %}Pallet, packing… that belong to no line.{% endif %}</div></div>
+    <div class="span3"><label>Terms as written</label><textarea class="in" name="terms" rows="3">{{ terms }}</textarea></div>
+    <div class="span3"><label>Your notes</label><input class="in" type="text" name="notes" value="{{ doc.notes }}" maxlength="500" placeholder="Anything to remember about this quotation"></div>
+  </div>
+</details>
+
 <div class="card tight qi-bar">
   <div class="row between">
     <span class="small muted hide-m">Lines that quote the same product are combined into one quote (total amount over total quantity). Confirmed matches are remembered for this shop's next sheet.</span>
     <div class="row">
+      <button type="button" class="btn sm gold qi-decide" id="qi-decide" hidden><svg class="ic"><use href="#i-chevron-right"/></svg><span>0 to decide</span></button>
       <button class="btn sec lg" id="qi-draft" formaction="/p/{{ p.id }}/quotations/draft" formnovalidate><svg class="ic"><use href="#i-clock"/></svg>Save as draft</button>
       <button class="btn accent lg" id="qi-save"><svg class="ic"><use href="#i-check"/></svg>Save the quotation</button>
     </div>
   </div>
 </div>
 </form>
+<button type="button" class="fab btn gold hide-d qi-decide" id="qi-decide-m" hidden><span>0 to decide</span> <svg class="ic"><use href="#i-chevron-right"/></svg></button>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -195,12 +210,28 @@
     else if(a==='extra'){ t='<b>When you save:</b> '+cur+' '+fmtq(amt)+' is added to the document\u2019s extra charges; no quote.'; }
     else if(a==='quote'){ var ps=line.querySelector('.qi-prod'); if(!ps.value){ t='<b>Pick the product this line quotes</b>, or choose another action.'; cls='warn'; } }
     out.innerHTML=t; out.className='qi-next small'+(cls?' '+cls:''); }
-  function todo(){ var items=[]; form.querySelectorAll('.qi-line').forEach(function(line){ var a=line.querySelector('.qi-act').value, n='L'+no(line);
-      if(a==='quote'&&!line.querySelector('.qi-prod').value) items.push(n+': no product picked (it will be skipped)');
-      if(a==='new'&&!((line.querySelector('[name^=cat_]')||{}).value)) items.push(n+': the new item has no category');
-      if(a==='new'&&!((line.querySelector('[name^=name_]')||{}).value||'').trim()) items.push(n+': the new item has no name');
-      if(a==='merge'){ var into=line.querySelector('[name^=into_]').value, o=into?form.querySelector('#line-'+into):null, oa=o?o.querySelector('.qi-act').value:''; if(!into||!o||oa==='skip'||oa==='extra'||oa==='merge') items.push(n+': merged into '+(into?'L'+into+', which is '+(oa||'missing'):'no line')); } });
-    var box=document.getElementById('qi-todo'); box.hidden=!items.length; document.getElementById('qi-todo-list').innerHTML=items.map(function(t){ return '<li>'+t.replace(/</g,'&lt;')+'</li>'; }).join(''); }
+  function problems(line){ var a=line.querySelector('.qi-act').value, out=[];
+    if(a==='quote'&&!line.querySelector('.qi-prod').value) out.push('no product picked (it will be skipped)');
+    if(a==='new'&&!((line.querySelector('[name^=cat_]')||{}).value)) out.push('the new item has no category');
+    if(a==='new'&&!((line.querySelector('[name^=name_]')||{}).value||'').trim()) out.push('the new item has no name');
+    if(a==='merge'){ var into=line.querySelector('[name^=into_]').value, o=into?form.querySelector('#line-'+into):null, oa=o?o.querySelector('.qi-act').value:''; if(!into||!o||oa==='skip'||oa==='extra'||oa==='merge') out.push('merged into '+(into?'L'+into+', which is '+(oa||'missing'):'no line')); }
+    return out; }
+  function toCheck(line){ var a=line.querySelector('.qi-act').value, sel=line.querySelector('.qi-prod'); if(problems(line).length) return true;
+    return a==='quote'&&sel.value===(line.dataset.orig||'')&&(parseFloat(line.dataset.conf)||0)<SURE; }
+  function todo(){ var items=[], nCheck=0; form.querySelectorAll('.qi-line').forEach(function(line){ var ps=problems(line); line.classList.toggle('needs', toCheck(line)); if(toCheck(line)) nCheck++;
+      ps.forEach(function(t){ items.push('<li><a href="#'+line.id+'">L'+no(line)+'</a>: '+t.replace(/</g,'&lt;')+'</li>'); }); });
+    var box=document.getElementById('qi-todo'); box.hidden=!items.length; document.getElementById('qi-todo-list').innerHTML=items.join('');
+    document.getElementById('qi-n-check').textContent=nCheck;
+    document.querySelectorAll('.qi-decide').forEach(function(b){ b.hidden=!items.length; b.querySelector('span').textContent=items.length+' to decide'; }); applyFilter(); }
+  var filter='all';
+  function applyFilter(){ form.querySelectorAll('.qi-line').forEach(function(line){ var a=line.querySelector('.qi-act').value; var show=filter==='all'||(filter==='check'&&line.classList.contains('needs'))||(filter!=='check'&&a===filter); line.classList.toggle('qi-hide', !show); });
+    form.querySelectorAll('.qi-section').forEach(function(h){ var n=h.nextElementSibling, any=false; while(n&&!n.classList.contains('qi-section')){ if(n.classList.contains('qi-line')&&!n.classList.contains('qi-hide')) any=true; n=n.nextElementSibling; } h.classList.toggle('qi-hide', !any); }); }
+  document.querySelectorAll('.qi-filter .pick-chip').forEach(function(c){ c.addEventListener('click',function(){ filter=c.dataset.f; document.querySelectorAll('.qi-filter .pick-chip').forEach(function(x){ x.classList.toggle('on', x===c); }); applyFilter(); }); });
+  function jump(sel){ var y=window.scrollY+80, all=Array.prototype.slice.call(form.querySelectorAll(sel)).filter(function(l){ return !l.classList.contains('qi-hide'); }); if(!all.length) return;
+    var nxt=all.filter(function(l){ return l.getBoundingClientRect().top+window.scrollY>y+10; })[0]||all[0]; nxt.scrollIntoView({behavior:'smooth',block:'center'}); nxt.classList.add('flash'); setTimeout(function(){ nxt.classList.remove('flash'); },1200); }
+  document.getElementById('qi-nextcheck').addEventListener('click',function(){ jump('.qi-line.needs'); });
+  document.querySelectorAll('.qi-decide').forEach(function(b){ b.addEventListener('click',function(){ var first=form.querySelector('.qi-line.needs'); if(first){ filter='all'; applyFilter(); } jump('.qi-line.needs'); }); });
+  var docCard=document.getElementById('document'); if(docCard&&location.hash==='#document') docCard.open=true;
   form.addEventListener('click',function(e){ var chip=e.target.closest('.qi-chip.opt'); if(!chip) return; var line=chip.closest('.qi-line'), act=line.querySelector('.qi-act');
     if(chip.dataset.kind==='quote'){ pick(line, chip.dataset.id); }
     else if(chip.dataset.kind==='new'){ act.value='new'; show(line); tick(line, chip.dataset.ids.split(' ').filter(Boolean)); var cs=line.querySelector('[name^=cat_]'); if(cs&&!cs.value&&chip.dataset.cat) cs.value=chip.dataset.cat; }
@@ -210,10 +241,28 @@
   form.addEventListener('change',function(e){ var line=e.target.closest('.qi-line'); if(line&&e.target.classList.contains('qi-act')) show(line); });
   form.addEventListener('click',function(e){ var chip=e.target.closest('.qi-short .qi-chip'); if(!chip) return; pick(chip.closest('.qi-line'), chip.dataset.id); });
   var sup=document.getElementById('qi-sup');
-  // the products once, from the first select: what the search box looks through
-  var index=[]; (function(){ var first=form.querySelector('.qi-prod'); if(!first) return; Array.prototype.forEach.call(first.options,function(o){ if(!o.value) return;
-    index.push({id:o.value, text:o.textContent, cat:(o.parentNode&&o.parentNode.label)||'', s:(o.textContent+' '+(o.parentNode&&o.parentNode.label||'')+' '+(o.dataset.s||'')).toLowerCase()}); }); })();
-  function pick(line, id){ var sel=line.querySelector('.qi-prod'); sel.value=id; line.querySelector('.qi-act').value='quote'; show(line); upd(line); same(line); simulate();
+  // the products once, in a template: a line's select holds only its own pick until it is opened (30 lines × 200 products
+  // would weigh a megabyte); the search box and the simulation read the template
+  var SURE=0.8, ptpl=document.getElementById('qi-prod-tpl'), plist=ptpl?ptpl.content.querySelector('select'):null;
+  function fill(sel){ if(!plist||sel.dataset.full==='1') return; var v=sel.value; var keep=sel.querySelector('option[value=""]'); sel.innerHTML=''; if(keep) sel.appendChild(keep);
+    Array.prototype.forEach.call(plist.children,function(g){ sel.appendChild(g.cloneNode(true)); }); sel.value=v; sel.dataset.full='1'; }
+  form.addEventListener('pointerdown',function(e){ var sel=e.target.closest&&e.target.closest('.qi-prod'); if(sel) fill(sel); });
+  form.addEventListener('focusin',function(e){ if(e.target.classList&&e.target.classList.contains('qi-prod')) fill(e.target); });
+  var index=[]; if(plist) Array.prototype.forEach.call(plist.querySelectorAll('option'),function(o){ if(!o.value) return;
+    index.push({id:o.value, text:o.textContent, cat:(o.parentNode&&o.parentNode.label)||'', s:(o.textContent+' '+(o.parentNode&&o.parentNode.label||'')+' '+(o.dataset.s||'')).toLowerCase()}); });
+  // the flags follow the pick: size, unit and quantity against the product chosen (the suggestion's own flags come back with it)
+  var cu=function(u){ u=(u||'').toLowerCase(); return u==='lm'?'m':(/^(pcs|pc|set|sets|each|nos|no|unit|piece)$/.test(u)?'pcs':u); };
+  function dimsOk(a,b){ if(!a.length||!b.length) return true; var n=Math.min(a.length,b.length), near=function(x,y){ return Math.abs(x-y)<=0.03*Math.max(x,y); }; var hits=0; for(var i=0;i<n;i++) if(near(a[i],b[i])) hits++; if(hits===n) return true;
+    var sw=a.slice(0,n).filter(function(x){ return b.some(function(y){ return near(x,y); }); }).length; if(sw===n) return true; return n>=3&&hits>=n-1; }
+  function reflag(line){ var why=line.querySelector('.qi-why'), sel=line.querySelector('.qi-prod'), pill=line.querySelector('.qi-conf'); if(!why){ why=document.createElement('div'); why.className='qi-why small'; line.querySelector('.qi-pick').appendChild(why); }
+    if(why.dataset.orig===undefined) why.dataset.orig=why.innerHTML; var pid=sel.value, orig=line.dataset.orig||'';
+    if(pid===orig||!pid){ why.innerHTML=why.dataset.orig; if(pill){ pill.style.display=''; } return; }
+    var o=sel.options[sel.selectedIndex]; var ld=(line.dataset.dims||'').split('x').filter(Boolean).map(Number), pd=(o.dataset.dims||'').split('x').filter(Boolean).map(Number); var fl=[];
+    var dtxt=function(d){ return d.map(fmtq).join(' × '); }; if(!dimsOk(ld,pd)) fl.push('size offered '+dtxt(ld)+' vs '+dtxt(pd)+' asked');
+    var lu=line.dataset.unit||'', pu=o.dataset.unit||''; if(lu&&pu&&cu(lu)!==cu(pu)) fl.push('unit '+lu+' vs '+pu);
+    var q=parseFloat(line.dataset.qty)||0, pq=parseFloat(o.dataset.qty)||0; if(q&&pq){ var r=q/pq; if(r>1.5||r<0.6) fl.push('quantity '+fmtq(q)+' '+lu+' vs '+fmtq(pq)+' '+pu+' in the rooms'); }
+    why.innerHTML='<span class="muted">your pick</span>'+fl.map(function(f){ return '<span class="pill gold" title="Differs from the design">&#9888; '+f.replace(/</g,'&lt;')+'</span>'; }).join(''); if(pill) pill.style.display='none'; }
+  function pick(line, id){ var sel=line.querySelector('.qi-prod'); fill(sel); sel.value=id; line.querySelector('.qi-act').value='quote'; show(line); upd(line); same(line); reflag(line); simulate();
     line.querySelectorAll('.qi-chip').forEach(function(c){ c.classList.toggle('on', c.dataset.id===id); }); }
   function find(line){ var box=line.querySelector('.qi-find input'), out=line.querySelector('.qi-found'); if(!box||!out) return; var words=box.value.toLowerCase().split(/\s+/).filter(Boolean);
     if(!words.length){ out.innerHTML=''; return; } var hits=index.filter(function(x){ return words.every(function(w){ return x.s.indexOf(w)>=0; }); });
@@ -259,8 +308,8 @@
     document.getElementById('sim-recon').innerHTML=rows||'<tr><td colspan="5" class="small muted">No line is matched to a product yet.</td></tr>';
     document.getElementById('sim-recon-n').textContent=nIssues?nIssues+' to check':(rows?'all fit':'');
     // every product of the design: quoted by any shop already, by this sheet, or still to source
-    var first=form.querySelector('.qi-prod'); if(!first) return; var left={}, nLeft=0, linesLeft=0, have=0, linesHave=0;
-    Array.prototype.forEach.call(first.options,function(o){ if(!o.value) return; var lines=parseInt(o.dataset.n||'0',10)||0;
+    if(!plist) return; var left={}, nLeft=0, linesLeft=0, have=0, linesHave=0;
+    Array.prototype.forEach.call(plist.querySelectorAll('option'),function(o){ if(!o.value) return; var lines=parseInt(o.dataset.n||'0',10)||0;
       if(prods[o.value]||o.dataset.q){ have++; linesHave+=lines; return; }
       var cat=o.parentNode&&o.parentNode.label||'Other'; (left[cat]=left[cat]||[]).push(o.textContent.split(' · ').slice(0,2).join(' · ')+' ('+lines+' line'+(lines===1?'':'s')+')'); nLeft++; linesLeft+=lines; });
     var allPc=P?Math.round(100*have/P):0; document.getElementById('sim-all-bar').style.width=allPc+'%';
@@ -270,8 +319,10 @@
     document.getElementById('sim-left-list').innerHTML=html||'<p>Every product of the design would have a quote.</p>'; }
   form.addEventListener('change',simulate); form.addEventListener('input',function(e){ if(e.target.name==='discount'||e.target.name==='total') simulate(); }); simulate();
   form.addEventListener('submit',function(e){ var d=document.getElementById('qi-draft'), b=document.getElementById('qi-save'); var asDraft=e.submitter&&e.submitter.id==='qi-draft';
+    if(!asDraft){ var nm=(form.querySelector('[name=supplier_name]')||{}).value||''; if(!sup.value||(sup.value==='__new__'&&!nm.trim())){ e.preventDefault(); if(docCard) docCard.open=true; (sup.value==='__new__'?form.querySelector('[name=supplier_name]'):sup).focus(); appAlert('Pick the shop that sent the quotation, or type the new shop\u2019s name, under The document. Nothing is lost.', {title:'Which shop?'}); return; } }
     var hit=asDraft?d:b; if(hit){ hit.disabled=true; hit.innerHTML='<span class="qi-spin"></span>'+(asDraft?'Saving the draft…':'Saving the quotation…'); } if(d&&!asDraft) d.disabled=true; if(b&&asDraft) b.disabled=true; });
-  form.addEventListener('change',function(e){ var line=e.target.closest('.qi-line'); if(!line) return; if(e.target.classList.contains('qi-prod')||e.target.classList.contains('qi-act')){ upd(line); same(line); } if(e.target.closest('.qi-rooms')) split(line); next(line); todo(); });
+  form.addEventListener('change',function(e){ var line=e.target.closest('.qi-line'); if(!line){ if(e.target.id==='qi-sup'||e.target.name==='supplier_name'||e.target.name==='total'){ var sm=document.getElementById('qi-doc-sum'); if(sm){ var nm=sup.value==='__new__'?((form.querySelector('[name=supplier_name]')||{}).value||'shop not chosen'):(sup.value?sup.options[sup.selectedIndex].textContent:'shop not chosen'); sm.textContent=nm+' · '+cur+' '+fmtq(parseFloat((form.querySelector('[name=total]')||{}).value)||0); } } return; }
+    if(e.target.classList.contains('qi-prod')||e.target.classList.contains('qi-act')){ upd(line); same(line); reflag(line); } if(e.target.closest('.qi-rooms')) split(line); next(line); todo(); });
   form.addEventListener('input',function(e){ var line=e.target.closest('.qi-line'); if(line&&/^(name|cat)_/.test(e.target.name||'')){ next(line); todo(); } });
   form.addEventListener('click',function(e){ var chip=e.target.closest('.pick-chip'); var line=chip&&chip.closest('.qi-line'); if(line) setTimeout(function(){ split(line); next(line); },0); });
   form.querySelectorAll('.qi-line').forEach(function(line){ same(line); next(line); }); todo();

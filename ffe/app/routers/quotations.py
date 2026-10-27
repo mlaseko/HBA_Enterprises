@@ -176,7 +176,7 @@ def _preview_ctx(db: Session, p: Project, state: dict) -> dict:
             s.update(action=ch.get("action", "skip"), product_id=ch.get("product_id"), merge_into=ch.get("into") or 0, name=ch.get("name", ""),
                      category=ch.get("category", ""), room_ids=[int(x) for x in re.findall(r"\d+", str(ch.get("rooms") or ""))], room="")
         pic = (state.get("pictures") or {}).get(str(l["no"]))
-        lines.append(dict(l, sug=s, pic=pic[1] if pic else "", full=pic[0] if pic else ""))
+        lines.append(dict(l, sug=s, pic=pic[1] if pic else "", full=pic[0] if pic else "", dims=qz.dims(l["size"]) or qz.dims(l["name"])))
     rooms = [(r.id, f"{r.code} {r.name}") for r in p.rooms]
     sup = db.get(Supplier, state["supplier_id"]) if state.get("supplier_id") else None
     head = dict(parsed.get("head", {}))
@@ -188,7 +188,15 @@ def _preview_ctx(db: Session, p: Project, state: dict) -> dict:
         doc.update({k: h.get(k, doc[k]) for k in doc})
     new_sup = state.get("new_supplier") or {}
     totals = dict(products=len(cands), lines=sum(len(c.g.lines) for c in cands), quoted=sum(1 for c in cands if c.product.quotes))
-    return dict(parsed=parsed, lines=lines, by_cat=by_cat, rooms=rooms, supplier=sup, head=head, doc=doc, new_sup=new_sup, claude=state.get("claude"), totals=totals,
+    warnings = list(parsed.get("warnings") or [])
+    lines_sum = round(sum(l["amount"] or 0 for l in parsed["lines"]), 2)
+    expect = round((doc["total"] or 0) - (doc["charges"] or 0), 2)
+    if doc["total"] and abs(lines_sum - expect) > max(1.0, 0.01 * doc["total"]):
+        warnings.append(f"The lines add up to {doc['currency']} {lines_sum:,.2f} but the sheet's total less its charges is {expect:,.2f}: a summary table "
+                        f"read as lines (make the parts of a set Part of its line), a line missed, or a wrong total. Check before saving.")
+    by_id = {c.id: c for c in cands}
+    return dict(parsed=parsed, lines=lines, by_cat=by_cat, by_id=by_id, rooms=rooms, supplier=sup, head=head, doc=doc, new_sup=new_sup, claude=state.get("claude"), totals=totals,
+                warnings=warnings,
                 claude_note=state.get("claude_note", ""),
                 draft_at=state.get("draft_at", ""), counts={a: sum(1 for l in lines if l["sug"].get("action") == a) for a in ACTIONS},
                 categories=lists.categories(p), suppliers=_suppliers(db), terms=doc["terms"])
@@ -239,14 +247,9 @@ def _upload_of(db: Session, p: Project, key: str) -> QuotationUpload | None:
     return db.query(QuotationUpload).filter(QuotationUpload.project_id == p.id, QuotationUpload.state_key == key).first()
 
 
-@router.post("/p/{project_id}/quotations/draft")
-async def save_draft(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db)):
-    """Keep the preview as it stands (every choice and the document fields) to come back to later; nothing is posted."""
-    form = await request.form()
-    key = _state_key(p, form.get("key", ""))
-    state = _load_state(key) if key else None
-    if state is None:
-        return redirect(f"/p/{p.id}/quotations?err=" + urlquote("That preview is no longer here. Upload the file again."))
+def _stash(db: Session, p: Project, form, state: dict, key: str) -> str:
+    """Write the preview as posted (every choice, the document fields, the shop) into the state under a new key and
+    point the upload row at it (made when the row is gone, so Drafts lists it). Returns the new key."""
     choices, head = _read_form(form, state["parsed"])
     state["choices"] = {str(n): ch for n, ch in choices.items()}
     state["head"] = head
@@ -258,11 +261,26 @@ async def save_draft(request: Request, p: Project = Depends(get_project), db: Se
     new_key = re.sub(r"(\.d[0-9a-f]+)?\.json$", "", key) + f".d{uuid.uuid4().hex[:8]}.json"
     storage.save_blob(json.dumps(state, ensure_ascii=False).encode("utf-8"), new_key, "application/json")
     up = _upload_of(db, p, key)
-    if up is not None:
-        up.state_key = new_key
-        up.message = "draft"
-        db.commit()
+    if up is None:
+        up = QuotationUpload(project_id=p.id, filename=(state["parsed"].get("filename") or "quotation.xlsx")[:255], stage="done",
+                             lines=len(state["parsed"]["lines"]), claude=bool(state.get("claude")))
+        db.add(up)
+    up.state_key = new_key
+    up.message = "draft"
+    db.commit()
     storage.delete_image(key)
+    return new_key
+
+
+@router.post("/p/{project_id}/quotations/draft")
+async def save_draft(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """Keep the preview as it stands (every choice and the document fields) to come back to later; nothing is posted."""
+    form = await request.form()
+    key = _state_key(p, form.get("key", ""))
+    state = _load_state(key) if key else None
+    if state is None:
+        return redirect(f"/p/{p.id}/quotations?err=" + urlquote("That preview is no longer here. Upload the file again."))
+    _stash(db, p, form, state, key)
     return redirect(f"/p/{p.id}/quotations?ok=" + urlquote(f"Draft saved: {state['parsed'].get('title') or state['parsed'].get('filename', '')}. Open it from Drafts to carry on."))
 
 
@@ -277,8 +295,9 @@ async def apply_preview(request: Request, p: Project = Depends(get_project), db:
     parsed = state["parsed"]
     supplier = bz.find_supplier(db, fint(form.get("supplier_id")), form.get("supplier_name", ""), form.get("supplier_city", ""),
                                 form.get("supplier_wechat", ""), form.get("supplier_phone", ""))
-    if supplier is None:
-        return redirect(f"/p/{p.id}/quotations/preview?key={urlquote(key)}&err=" + urlquote("Pick the shop that sent the quotation, or type its name."))
+    if supplier is None:  # the choices made so far are kept, not lost on the way back
+        new_key = _stash(db, p, form, state, key)
+        return redirect(f"/p/{p.id}/quotations/preview?key={urlquote(new_key)}&err=" + urlquote("Pick the shop that sent the quotation, or type its name. Your choices are kept.") + "#document")
     choices, head = _read_form(form, parsed)
     for n, ch in choices.items():
         if ch["action"] == "quote" and not ch["product_id"]:
