@@ -55,6 +55,7 @@ COLUMN_MIGRATIONS = [
     ("settings", "warehouse_name", "VARCHAR(160) NOT NULL DEFAULT ''"),  # the consolidation warehouse the shops deliver to
     ("settings", "warehouse_address", "TEXT NOT NULL DEFAULT ''"),
     ("settings", "warehouse_contact", "VARCHAR(160) NOT NULL DEFAULT ''"),
+    ("quotations", "replaces_id", "INTEGER"),                      # a revised sheet: the earlier document it corrected
 ]
 
 # Data fixes for rows written by an older version. Each must be idempotent (safe to run at every start, by several instances):

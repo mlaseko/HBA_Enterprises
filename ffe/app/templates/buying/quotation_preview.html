@@ -59,7 +59,7 @@
   {% for l in lines %}{% set s = l.sug %}
   {% if l.section != ns.section %}{% set ns.section = l.section %}{% if l.section %}<div class="qi-section">{{ l.section }}</div>{% endif %}{% endif %}
   {% set conf = s.confidence or 0 %}
-  <article class="qi-line act-{{ s.action or 'skip' }}" id="line-{{ l.no }}" data-amount="{{ l.amount|plain }}" data-qty="{{ l.qty|plain }}" data-unit="{{ l.unit }}" data-ref="{{ l.ref }}" data-price="{{ l.unit_price|plain }}" data-label="L{{ l.no }}{% if l.place %} {{ l.place }}{% endif %}" data-conf="{{ conf|plain }}" data-orig="{{ s.product_id or '' }}" data-dims="{{ l.dims|join('x') }}" data-same="{% if l.ref %}#{{ l.ref|lower|trim }}{% else %}{{ l.name|lower|trim }} {{ l.size|lower|trim }}{% endif %}|{{ l.unit }}">
+  <article class="qi-line act-{{ s.action or 'skip' }}" id="line-{{ l.no }}" data-amount="{{ l.amount|plain }}" data-qty="{{ l.qty|plain }}" data-unit="{{ l.unit }}" data-ref="{{ l.ref }}" data-price="{{ l.unit_price|plain }}" data-label="L{{ l.no }}{% if l.place %} {{ l.place }}{% endif %}" data-conf="{{ conf|plain }}" data-orig="{{ s.product_id or '' }}" data-dims="{{ l.dims|join('x') }}" data-section="{{ l.section }}" data-same="{% if l.ref %}#{{ l.ref|lower|trim }}{% else %}{{ l.name|lower|trim }} {{ l.size|lower|trim }}{% endif %}|{{ l.unit }}">
     <div class="qi-pic">{% if l.pic %}<a href="/media/{{ l.full }}" target="_blank" data-caption="Line {{ l.no }} · {{ l.name }}"><img src="/media/{{ l.pic }}" alt=""></a>{% else %}<span class="pic empty"><svg class="ic"><use href="#i-image"/></svg></span>{% endif %}</div>
     <div class="qi-what">
       <div class="qi-no">L{{ l.no }}{% if l.place %} · {{ l.place }}{% endif %}{% if l.ref %} · <b>{{ l.ref }}</b>{% endif %}</div>
@@ -94,7 +94,8 @@
           <option value="">— part of which line? —</option>
           {% for o in lines %}{% if o.no != l.no %}<option value="{{ o.no }}" {{ 'selected' if s.merge_into == o.no }}>L{{ o.no }} {{ o.name|truncate(50) }}</option>{% endif %}{% endfor %}
         </select>
-        <div class="help">Its amount is added to that line's quote (hardware of a handrail, the parts of a set).</div>
+        <div class="help">Its amount is added to that line's quote (hardware of a handrail, the parts of a set), unless the parts add up to that line's own price: then they are its breakdown and count once.</div>
+        <div class="qi-parts small"></div>
       </div>
       <div class="qi-f qi-f-new">
         <div class="grid g2">
@@ -205,11 +206,17 @@
     if(a==='new'){ var nm=(line.querySelector('[name^=name_]')||{}).value||'', ct=(line.querySelector('[name^=cat_]')||{}).value||'', n=ticked(line);
       t='<b>When you save:</b> a new item <b>'+nm.replace(/</g,'&lt;')+'</b>'+(ct?' ('+ct.replace(/</g,'&lt;')+')':' — <b>choose a category</b>')+' is created in '+(n?n+' room'+(n===1?'':'s'):'the whole house')+' with this quote, '+cur+' '+fmtq(pr)+' per '+u+'. Not in the design on purpose? Choose Skip.'; cls=ct?'':'warn'; }
     else if(a==='merge'){ var sel=line.querySelector('[name^=into_]'), into=sel.value, o=into?form.querySelector('#line-'+into):null; var oa=o?o.querySelector('.qi-act').value:'';
-      t=!into?'<b>Choose the line it is part of.</b>':(!o||oa==='skip'||oa==='extra'||oa==='merge'?'<b>Line L'+into+' is '+(o?oa==='merge'?'itself merged':'skipped':'missing')+':</b> its amount would be lost. Pick another line, or make this a new item.':'<b>When you save:</b> its '+cur+' '+fmtq(amt)+' joins line L'+into+'\u2019s quote ('+o.querySelector('.qi-name').textContent.split('·')[0].trim().replace(/</g,'&lt;')+'); no item of its own.'); cls=(!into||!o||oa==='skip'||oa==='extra'||oa==='merge')?'warn':''; }
+      t=!into?'<b>Choose the line it is part of.</b>':(!o||oa==='skip'||oa==='extra'||oa==='merge'?'<b>Line L'+into+' is '+(o?oa==='merge'?'itself merged':'skipped':'missing')+':</b> its amount would be lost. Pick another line, or make this a new item.':(breakdown(o)?'<b>When you save:</b> part of the breakdown of line L'+into+'\u2019s '+cur+' '+fmtq(parseFloat(o.dataset.amount)||0)+' ('+o.querySelector('.qi-name').textContent.split('·')[0].trim().replace(/</g,'&lt;')+'): named on its quote, its '+cur+' '+fmtq(amt)+' counted once.':'<b>When you save:</b> its '+cur+' '+fmtq(amt)+' joins line L'+into+'\u2019s quote ('+o.querySelector('.qi-name').textContent.split('·')[0].trim().replace(/</g,'&lt;')+'); no item of its own.')); cls=(!into||!o||oa==='skip'||oa==='extra'||oa==='merge')?'warn':''; parts(line); }
     else if(a==='skip'){ t='Nothing is saved from this line.'; }
     else if(a==='extra'){ t='<b>When you save:</b> '+cur+' '+fmtq(amt)+' is added to the document\u2019s extra charges; no quote.'; }
     else if(a==='quote'){ var ps=line.querySelector('.qi-prod'); if(!ps.value){ t='<b>Pick the product this line quotes</b>, or choose another action.'; cls='warn'; } }
     out.innerHTML=t; out.className='qi-next small'+(cls?' '+cls:''); }
+  // the rest of a section as parts of the same line: one press instead of a dropdown per line
+  function parts(line){ var out=line.querySelector('.qi-parts'); if(!out) return; out.innerHTML=''; var into=line.querySelector('[name^=into_]').value; if(!into||line.querySelector('.qi-act').value!=='merge') return;
+    var rest=[], on=false; form.querySelectorAll('.qi-line').forEach(function(o){ if(o===line){ on=true; return; } if(!on) return; if((o.dataset.section||'')!==(line.dataset.section||'')||o.id==='line-'+into){ on=false; return; }
+      var a=o.querySelector('.qi-act').value; if(a==='merge'&&o.querySelector('[name^=into_]').value===into) return; if(a==='extra') return; rest.push(o); });
+    if(!rest.length) return; out.innerHTML='<button type="button" class="qi-chip also">Also '+(rest.length>1?'L'+no(rest[0])+'\u2013L'+no(rest[rest.length-1]):'L'+no(rest[0]))+' as parts of L'+into+' <span class="muted">the rest of this section</span></button>';
+    out.querySelector('.also').addEventListener('click',function(){ rest.forEach(function(o){ o.querySelector('.qi-act').value='merge'; o.querySelector('[name^=into_]').value=into; show(o); next(o); }); next(line); todo(); simulate(); }); }
   function problems(line){ var a=line.querySelector('.qi-act').value, out=[];
     if(a==='quote'&&!line.querySelector('.qi-prod').value) out.push('no product picked (it will be skipped)');
     if(a==='new'&&!((line.querySelector('[name^=cat_]')||{}).value)) out.push('the new item has no category');
@@ -221,6 +228,7 @@
   function todo(){ var items=[], nCheck=0; form.querySelectorAll('.qi-line').forEach(function(line){ var ps=problems(line); line.classList.toggle('needs', toCheck(line)); if(toCheck(line)) nCheck++;
       ps.forEach(function(t){ items.push('<li><a href="#'+line.id+'">L'+no(line)+'</a>: '+t.replace(/</g,'&lt;')+'</li>'); }); });
     var box=document.getElementById('qi-todo'); box.hidden=!items.length; document.getElementById('qi-todo-list').innerHTML=items.join('');
+    form.querySelectorAll('.qi-line.act-merge').forEach(parts);  // the "also as parts" chips follow every change
     document.getElementById('qi-n-check').textContent=nCheck;
     document.querySelectorAll('.qi-decide').forEach(function(b){ b.hidden=!items.length; b.querySelector('span').textContent=items.length+' to decide'; }); applyFilter(); }
   var filter='all';
@@ -280,10 +288,11 @@
   function newsup(){ var on=sup.value==='__new__'; form.querySelectorAll('.qi-newsup').forEach(function(d){d.hidden=!on;}); form.querySelectorAll('.qi-line').forEach(upd); }
   sup.addEventListener('change',newsup); newsup();
   var sim=document.getElementById('qi-sim');
+  function breakdown(target){ var t=parseFloat(target.dataset.amount)||0, sum=0; form.querySelectorAll('.qi-line.act-merge').forEach(function(o){ if(o.querySelector('[name^=into_]').value===no(target)) sum+=parseFloat(o.dataset.amount)||0; }); return t>0&&sum>0&&Math.abs(sum-t)<=0.01*t; }
   function simulate(){ if(!sim) return; var prods={}, covered=0, newItems=0, skipped=0, amount=0, extra=0;
     form.querySelectorAll('.qi-line').forEach(function(line){ var a=line.querySelector('.qi-act').value; var amt=parseFloat(line.dataset.amount||'0')||0;
       if(a==='quote'){ var sel=line.querySelector('.qi-prod'); var o=sel.options[sel.selectedIndex]; if(sel.value){ if(!prods[sel.value]){ prods[sel.value]=1; covered+=parseInt(o.dataset.n||'0',10)||0; } amount+=amt; } else skipped++; }
-      else if(a==='new'){ newItems++; covered+=1; amount+=amt; } else if(a==='merge'){ amount+=amt; } else if(a==='extra'){ extra+=amt; } else skipped++; });
+      else if(a==='new'){ newItems++; covered+=1; amount+=amt; } else if(a==='merge'){ var into=line.querySelector('[name^=into_]').value, tg=into?form.querySelector('#line-'+into):null; if(!(tg&&breakdown(tg))) amount+=amt; } else if(a==='extra'){ extra+=amt; } else skipped++; });
     var n=Object.keys(prods).length, P=parseInt(sim.dataset.products,10)||0, L=parseInt(sim.dataset.lines,10)||0, cur=sim.dataset.cur, rate=parseFloat(sim.dataset.rate)||1;
     var disc=parseFloat((form.querySelector('[name=discount]')||{}).value||'0')||0, tot=parseFloat((form.querySelector('[name=total]')||{}).value||'0')||0; var f=(tot>0&&disc>0&&disc<tot)?(tot-disc)/tot:1;
     var fmt=function(x){return x.toLocaleString(undefined,{maximumFractionDigits:0});};

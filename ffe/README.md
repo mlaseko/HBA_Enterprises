@@ -277,6 +277,12 @@ name** (or set the Kind by hand): every existing entry starts as a room.
   added, the discount pro rata, the item numbers in `Quote.model`, the picture copied, the lead time from the sheet, the
   differences noted), new items with `next_code`, and the matches remembered. Deleting a quotation deletes the quotes it
   made that no purchase uses.
+- A sheet with a summary table and its breakdown: `_parse_sheet` numbers the tables (`line["table"]`) and `_mark_breakdowns`
+  sets `summary_of` / `part_of` when one table's lines add up to a line of another; `suggest` merges the parts into the
+  summary line and `apply` / the preview count their amounts once (`is_breakdown`). `Quotation.replaces_id` (column via
+  `COLUMN_MIGRATIONS`) is set by `apply` when the sheet corrected an earlier document's quotes; the list marks the revision
+  and folds the earlier one under "Earlier revisions", the document pages link both ways, "Upload a revised sheet" opens
+  `/quotations?supplier=<id>` with the shop pre-selected.
 - `GET /p/<id>/quotations/inquiry.xlsx?category=&floor=&currency=` is the inquiry sheet for a supplier: one row per
   product with our code, photo, spec, rooms, quantity and yellow cells for their price; a reply keeps the code column and
   matches on import. New tables: `quotations`, `quotation_lines`, `quote_matches`, `quotation_uploads` (create_all). New dependency: `xlrd`.

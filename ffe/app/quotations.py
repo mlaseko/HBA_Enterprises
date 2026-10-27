@@ -281,6 +281,38 @@ def parse(sheets: list[dict], filename: str = "") -> dict:
     return best
 
 
+def _mark_breakdowns(lines: list[dict]) -> None:
+    """A proforma may carry a summary table ("Kitchen 1 × 8,900") and a breakdown of it (cabinets, countertop… adding up
+    to 8,900). The summary line gets summary_of = the part lines' numbers and each part part_of = the summary line's
+    number, so the parts are offered as parts of it and their amounts are not counted twice."""
+    by_table: dict[int, list[dict]] = {}
+    for l in lines:
+        by_table.setdefault(l.get("table", 0), []).append(l)
+    sums = {t: round(sum(x["amount"] for x in ls), 2) for t, ls in by_table.items() if len(ls) >= 2}
+    for l in lines:
+        if not l["amount"] or l.get("part_of"):
+            continue
+        for t, total in sums.items():
+            if t == l.get("table", 0) or not total or abs(total - l["amount"]) > 0.01 * total:
+                continue
+            parts = [x for x in by_table[t] if not x.get("part_of") and not x.get("summary_of")]
+            if len(parts) < 2:
+                continue
+            l["summary_of"] = [x["no"] for x in parts]
+            for x in parts:
+                x["part_of"] = l["no"]
+            break
+
+
+def is_breakdown(target: dict, parts: list[dict]) -> bool:
+    """True when the parts merged into a line are the breakdown of its price (they add up to it): their amounts are
+    already inside it and must not be added again."""
+    if not parts or not target.get("amount"):
+        return False
+    total = sum(x["amount"] for x in parts)
+    return abs(total - target["amount"]) <= 0.01 * target["amount"]
+
+
 def title_from(filename: str) -> str:
     """'KINO-tile quotation.xlsx' -> 'KINO-tile quotation'."""
     stem = re.sub(r"\.[A-Za-z0-9]+$", "", (filename or "").replace("\\", "/").rsplit("/", 1)[-1])
@@ -314,6 +346,7 @@ def _parse_sheet(sh: dict) -> dict:
     section = ""
     in_terms = False
     counter = 0
+    table = 0  # the header rows seen: a sheet may carry a summary table and a breakdown
     for rno, row in enumerate(rows, start=1):
         if not any(v not in (None, "") for v in row):
             continue
@@ -328,6 +361,7 @@ def _parse_sheet(sh: dict) -> dict:
                 filled.append(r if t else last)
             roles = filled
             header_seen = True
+            table += 1
             in_terms = False
             section = ""
             if not out["currency"]:
@@ -435,7 +469,7 @@ def _parse_sheet(sh: dict) -> dict:
         line = dict(no=counter, row=rno, section=one(section)[:200], place=one(place)[:200], ref=one(ref)[:120], name=one(name)[:300], detail=detail_full[:2000],
                     size=one(size)[:200], qty=round(qty or 0, 4), unit=unit, unit_price=round(price or 0, 4), amount=round(amount or 0, 2),
                     pack_size=pack or 0, weight=_num(firsts.get("weight")) or 0, cbm=_num(firsts.get("cbm")) or 0,
-                    code=_cell_text(firsts.get("code"))[:30], picture="")
+                    code=_cell_text(firsts.get("code"))[:30], picture="", table=table)
         pics = sh["pictures"].get(rno) or []
         if pics:
             pic_cols = [i + 1 for i, r in enumerate(roles) if r == "picture"]
@@ -443,6 +477,7 @@ def _parse_sheet(sh: dict) -> dict:
             out["pictures"][counter] = chosen
             line["picture"] = "yes"
         out["lines"].append(line)
+    _mark_breakdowns(out["lines"])
     if out["after_discount"] and out["total"] and out["after_discount"] < out["total"]:
         out["discount"] = round(out["total"] - out["after_discount"], 2)
     if not out["total"] and out["lines"]:
@@ -982,6 +1017,9 @@ def suggest(db: Session, p: Project, parsed: dict, pictures: dict[int, bytes] | 
                 sug.update(action="quote", product_id=None, confidence=round(sl[0][1], 2), reason="no sure match: pick the product, make it a new item, or skip it")
             else:  # nothing in the design looks like it: offer it as a new item, in the rooms the supplier's words point at
                 sug.update(action="new", confidence=0.0, reason="no product looks like this: a new item, or skip it")
+        if l.get("part_of"):  # the breakdown of a summary line: a part of it, its price already inside
+            sug.update(action="merge", product_id=None, merge_into=l["part_of"], confidence=0.95,
+                       reason=f"the breakdown of L{l['part_of']}: its price is already inside that line's")
         sug["related"] = related_rooms(l, cands)
         if sug["action"] == "new" and not sug.get("room_ids"):
             sug["room_ids"] = room_hints(l, p) or (sug["related"] or {}).get("ids") or []
@@ -1115,7 +1153,8 @@ def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head:
         main = [by_no[n] for n in nos]
         parts = [by_no[m] for n in nos for m in merged_into.get(n, [])]
         qty = sum(l["qty"] for l in main)
-        amount = sum(l["amount"] for l in main) + sum(l["amount"] for l in parts)
+        added = [by_no[m] for n in nos if not is_breakdown(by_no[n], [by_no[m] for m in merged_into.get(n, [])]) for m in merged_into.get(n, [])]
+        amount = sum(l["amount"] for l in main) + sum(l["amount"] for l in added)  # a breakdown's parts are inside their line's price
         mixed = any(_same_unit(_unit(l["unit"])) != _same_unit(c.unit) for l in main if _unit(l["unit"]) and c.unit)
         by_design = ""
         if mixed and c.qty > 0:  # steps by the piece and landings by the m² for a product in m²: a sum of pieces means nothing
@@ -1134,7 +1173,7 @@ def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head:
         if len(main) > 1:
             note.append("Lines combined: " + "; ".join(f"{(l['section'] or l.get('place', '')) + ': ' if (l['section'] or l.get('place')) else ''}{l['name']} {l['qty']:g} {l['unit']} @ {l['unit_price']:g}" for l in main) + ".")
         if parts:
-            note.append("Includes: " + "; ".join(f"{l['name']} {l['qty']:g} {l['unit']} = {l['amount']:g}" for l in parts) + ".")
+            note.append(("Includes: " if added else "Made up of: ") + "; ".join(f"{l['name']} {l['qty']:g} {l['unit']} = {l['amount']:g}" for l in parts) + ".")
         if by_design:
             note.append(by_design)
         if factor < 1:
@@ -1177,6 +1216,12 @@ def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head:
         for l in parts:
             rows[l["no"]].quote_id = quote.id
     db.flush()
+    if stats["updated"]:  # a revised sheet from the shop: the latest earlier document whose quotes it corrected
+        mine = {r.quote_id for r in rows.values() if r.quote_id}
+        prev = (db.query(QuotationLine).filter(QuotationLine.quote_id.in_(mine), QuotationLine.quotation_id != q.id)
+                .order_by(QuotationLine.quotation_id.desc()).first()) if mine else None
+        if prev is not None:
+            q.replaces_id = prev.quotation_id
     q.stats = stats  # not stored: for the message after applying
     return q
 

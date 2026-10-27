@@ -44,7 +44,7 @@
     <div class="grid g2 mt">
       <div><label>File</label><input class="in" type="file" name="file" accept=".xlsx,.xls,.xlsm" required></div>
       <div><label>Shop <span class="muted small">(optional here; chosen on the preview)</span></label>
-        <select class="in" name="supplier_id"><option value="">Not sure yet</option>{% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}{% if s.city %} · {{ s.city }}{% endif %}</option>{% endfor %}</select>
+        <select class="in" name="supplier_id"><option value="">Not sure yet</option>{% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if s.id == pre_supplier }}>{{ s.name }}{% if s.city %} · {{ s.city }}{% endif %}</option>{% endfor %}</select>
         <div class="help">Naming the shop lets earlier confirmed matches from it apply at once.</div></div>
     </div>
     <div class="row mt"><button class="btn accent" id="qi-go"><svg class="ic"><use href="#i-upload"/></svg>Read the sheet</button>
@@ -95,7 +95,7 @@
   <tbody>
   {% for r in rows %}{% set q = r.q %}
   <tr>
-    <td><a href="/p/{{ p.id }}/quotations/{{ q.id }}"><b>{{ q.title or q.filename or ('Quotation ' ~ q.id) }}</b></a>{% if q.sales %}<div class="small muted">{{ q.sales }}</div>{% endif %}</td>
+    <td><a href="/p/{{ p.id }}/quotations/{{ q.id }}"><b>{{ q.title or q.filename or ('Quotation ' ~ q.id) }}</b></a>{% if r.revises %} <span class="pill gold" title="A revised sheet: it corrected the quotes of the earlier document">revision</span>{% endif %}{% if q.sales %}<div class="small muted">{{ q.sales }}</div>{% endif %}{% if r.revises %}<div class="small muted">revises <a href="/p/{{ p.id }}/quotations/{{ r.revises.id }}">{{ r.revises.title or r.revises.filename }}</a>{% if r.revises.quote_date %} of {{ r.revises.quote_date.isoformat() }}{% endif %}</div>{% endif %}</td>
     <td>{{ q.supplier.name if q.supplier else '—' }}</td>
     <td class="nowrap">{{ q.quote_date.isoformat() if q.quote_date else '—' }}</td>
     <td class="num">{{ r.lines }}{% if r.skipped %} <span class="small muted">({{ r.skipped }} skipped)</span>{% endif %}</td>
@@ -107,6 +107,11 @@
   {% endfor %}
   </tbody>
 </table></div>
+{% if earlier %}
+<details class="card mt"><summary class="small">Earlier revisions ({{ earlier|length }}): sheets a later one from the same shop corrected; their quotes are the later one's now</summary>
+  <ul class="qi-gaps mt">{% for r in earlier %}{% set q = r.q %}<li><a href="/p/{{ p.id }}/quotations/{{ q.id }}">{{ q.title or q.filename }}</a> <span class="small muted">· {{ q.quote_date.isoformat() if q.quote_date else '' }} · revised by <a href="/p/{{ p.id }}/quotations/{{ r.revised_by.id }}">{{ r.revised_by.title or r.revised_by.filename }}</a></span></li>{% endfor %}</ul>
+</details>
+{% endif %}
 {% else %}
 <div class="card empty bu-empty mt">
   <div class="ring"><svg class="ic"><use href="#i-file"/></svg></div>

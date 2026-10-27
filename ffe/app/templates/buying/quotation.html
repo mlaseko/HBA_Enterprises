@@ -11,13 +11,16 @@
   </div>
   <div class="actions">
     {% if q.file_key %}<a class="btn sec" href="/p/{{ p.id }}/quotations/{{ q.id }}/file"><svg class="ic"><use href="#i-download"/></svg>Original file</a>{% endif %}
-    {% if q.supplier %}<a class="btn sec" href="/suppliers/{{ q.supplier.id }}"><svg class="ic"><use href="#i-users"/></svg>{{ q.supplier.name }}</a>{% endif %}
+    {% if q.supplier %}<a class="btn sec" href="/suppliers/{{ q.supplier.id }}"><svg class="ic"><use href="#i-users"/></svg>{{ q.supplier.name }}</a>
+    <a class="btn accent" href="/p/{{ p.id }}/quotations?supplier={{ q.supplier.id }}#upload"><svg class="ic"><use href="#i-upload"/></svg>Upload a revised sheet</a>{% endif %}
   </div>
 </div>
 {{ tabs(p, 'quotations') }}
 
 {% if ok %}<div class="alert">{{ ok }}</div>{% endif %}
 {% if err %}<div class="alert err">{{ err }}</div>{% endif %}
+{% if revised_by %}<div class="alert info">Revised by <a href="/p/{{ p.id }}/quotations/{{ revised_by.id }}"><b>{{ revised_by.title or revised_by.filename }}</b></a>{% if revised_by.quote_date %} of {{ revised_by.quote_date.isoformat() }}{% endif %}: the quotes on the Buying page carry that sheet's prices now; this one is kept as it was sent.</div>{% endif %}
+{% if revises %}<div class="alert info">A revision of <a href="/p/{{ p.id }}/quotations/{{ revises.id }}"><b>{{ revises.title or revises.filename }}</b></a>{% if revises.quote_date %} of {{ revises.quote_date.isoformat() }}{% endif %}: its quotes were corrected to these prices.</div>{% endif %}
 
 <div class="grid g4 kpis bu-kpis">
   <div class="kpi"><svg class="ic"><use href="#i-file"/></svg><div class="v">{{ cur }} {{ q.net|money }}</div><div class="l">Quoted</div><div class="d">{% if q.discount %}{{ q.total|money(2) }} less {{ q.discount|money(2) }} discount{% else %}total on the sheet{% endif %}{% if q.charges %} · extras {{ q.charges|money(2) }}{% endif %}</div></div>

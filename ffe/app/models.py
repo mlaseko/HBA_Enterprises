@@ -725,6 +725,7 @@ class Quotation(Base):
     terms: Mapped[str] = mapped_column(Text, default="")  # delivery / payment / packing notes as written
     lead_time: Mapped[str] = mapped_column(String(120), default="")
     notes: Mapped[str] = mapped_column(Text, default="")
+    replaces_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # the earlier document of the shop this revised sheet corrected
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     project: Mapped["Project"] = relationship(back_populates="quotations")
     supplier: Mapped["Supplier | None"] = relationship(lazy="joined")
