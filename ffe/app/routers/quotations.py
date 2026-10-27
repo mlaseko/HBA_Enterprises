@@ -190,7 +190,7 @@ def _preview_ctx(db: Session, p: Project, state: dict) -> dict:
                      split=bool(ch.get("split")), variant=ch.get("variant", ""), vrooms=ch.get("vrooms", ""))
         pic = (state.get("pictures") or {}).get(str(l["no"]))
         lines.append(dict(l, sug=s, pic=pic[1] if pic else "", full=pic[0] if pic else "", dims=qz.dims(l["size"]) or qz.dims(l["name"]),
-                          hints=qz.room_hints(l, p), variant=qz.variant_label(l)))
+                          hints=qz.room_hints(l, p), variant=qz.variant_label(l), vcap=qz.capacity_label(l)))
     rooms = [(r.id, f"{r.code} {r.name}") for r in p.rooms]
     sup = db.get(Supplier, state["supplier_id"]) if state.get("supplier_id") else None
     head = dict(parsed.get("head", {}))
