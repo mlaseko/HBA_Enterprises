@@ -1884,7 +1884,8 @@ def flow(c):
         st=c.get(wurl+"/status").json()
         if st["done"] or st["stage"]=="error": break
         _time.sleep(0.03)
-    assert st["done"] and st["lines"]==5 and st["pictures"]==1 and st["claude"] and st["steps"][-1]["state"]=="done", st
+    assert st["done"] and st["lines"]==5 and st["pictures"]==1 and st["claude"] and st["steps"][-1]["state"]=="done" and st["expected"]==15 and st["since"], st
+    assert _qz.expected_seconds(29, 29, True)==71 and _qz.expected_seconds(29, 29, False)==3
     loc=st["next"]; assert "preview?key=" in loc
     from urllib.parse import unquote as _unq
     qkey=_unq(loc.split("key=")[1]); assert qkey.startswith(f"quotations/p{pid_q}/") and qkey.endswith(".json")
