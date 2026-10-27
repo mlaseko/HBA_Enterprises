@@ -60,6 +60,10 @@
     <div class="kpi accent"><div class="v" id="sim-new">0</div><div class="l">New items</div><div class="d" id="sim-new-d">added to the design on posting</div></div>
     <div class="kpi ink"><div class="v" id="sim-amount">{{ cur }} 0</div><div class="l">Amount quoted</div><div class="d" id="sim-amount-d"></div></div>
   </div>
+  <div class="qi-recon mt">
+    <div class="row between"><div><b>Quantities against the design</b> <span class="small muted">per product: what the sheet quotes, what the rooms need plus the allowance for cuts, and the gap</span></div><span class="pill" id="sim-recon-n"></span></div>
+    <div class="tbl mt"><table class="qi-recon-t"><thead><tr><th>Product</th><th class="num">Sheet</th><th class="num">Design + allowance</th><th class="num">Gap</th><th>Checks</th></tr></thead><tbody id="sim-recon"></tbody></table></div>
+  </div>
   <div class="qi-left mt">
     <div class="row between"><div><b>After posting, across all shops</b> <span class="small muted" id="sim-all-d"></span></div><span class="pill" id="sim-left-n"></span></div>
     <div class="bar mt"><i id="sim-all-bar" style="width:0%"></i></div>
@@ -83,7 +87,7 @@
   {% for l in lines %}{% set s = l.sug %}
   {% if l.section != ns.section %}{% set ns.section = l.section %}{% if l.section %}<div class="qi-section">{{ l.section }}</div>{% endif %}{% endif %}
   {% set conf = s.confidence or 0 %}
-  <article class="qi-line act-{{ s.action or 'skip' }}" id="line-{{ l.no }}" data-amount="{{ l.amount|plain }}">
+  <article class="qi-line act-{{ s.action or 'skip' }}" id="line-{{ l.no }}" data-amount="{{ l.amount|plain }}" data-qty="{{ l.qty|plain }}" data-unit="{{ l.unit }}" data-ref="{{ l.ref }}" data-price="{{ l.unit_price|plain }}" data-label="L{{ l.no }}{% if l.place %} {{ l.place }}{% endif %}">
     <div class="qi-pic">{% if l.pic %}<a href="/media/{{ l.full }}" target="_blank" data-caption="Line {{ l.no }} · {{ l.name }}"><img src="/media/{{ l.pic }}" alt=""></a>{% else %}<span class="pic empty"><svg class="ic"><use href="#i-image"/></svg></span>{% endif %}</div>
     <div class="qi-what">
       <div class="qi-no">L{{ l.no }}{% if l.place %} · {{ l.place }}{% endif %}{% if l.ref %} · <b>{{ l.ref }}</b>{% endif %}</div>
@@ -105,7 +109,7 @@
       <div class="qi-f qi-f-quote">
         <select class="in qi-prod" name="prod_{{ l.no }}" aria-label="Product for line {{ l.no }}">
           <option value="">— pick the product —</option>
-          {% for cat, cs in by_cat.items() %}<optgroup label="{{ cat }}">{% for c in cs %}<option value="{{ c.id }}" data-q="{{ c.quoted_by }}" data-n="{{ c.codes|length }}" {{ 'selected' if s.product_id == c.id }}>{{ c.title }} · {{ c.qty|num(2) }} {{ c.unit }}{% if c.rooms|length == 1 %} · {{ c.rooms[0].code }}{% elif c.rooms|length %} · {{ c.rooms|length }} rooms{% endif %}</option>{% endfor %}</optgroup>{% endfor %}
+          {% for cat, cs in by_cat.items() %}<optgroup label="{{ cat }}">{% for c in cs %}<option value="{{ c.id }}" data-q="{{ c.quoted_by }}" data-n="{{ c.codes|length }}" data-qty="{{ c.qty|plain }}" data-unit="{{ c.unit }}" data-allow="{{ (c.g.allowance or 0)|plain }}" {{ 'selected' if s.product_id == c.id }}>{{ c.title }} · {{ c.qty|num(2) }} {{ c.unit }}{% if c.rooms|length == 1 %} · {{ c.rooms[0].code }}{% elif c.rooms|length %} · {{ c.rooms|length }} rooms{% endif %}</option>{% endfor %}</optgroup>{% endfor %}
         </select>
         <div class="qi-upd small muted"></div>
         {% if s.shortlist %}<div class="qi-short small">{% for o in s.shortlist[:4] %}<button type="button" class="qi-chip{{ ' on' if o.id == s.product_id }}" data-id="{{ o.id }}" title="{{ o.rooms }}">{{ o.title }} <span class="muted">{{ (o.score * 100)|round|int }}%</span></button>{% endfor %}</div>{% endif %}
@@ -171,6 +175,20 @@
     document.getElementById('sim-new').textContent=newItems;
     var net=amount*f; document.getElementById('sim-amount').textContent=cur+' '+fmt(net); var alt=cur==='USD'?('¥'+fmt(net*rate)):('$'+fmt(net/rate));
     document.getElementById('sim-amount-d').textContent=alt+(f<1?' · after the '+Math.round(100*(1-f))+'% discount':'')+(extra?' · extras '+cur+' '+fmt(extra)+' on the document':'');
+    // per product: the sheet's quantity against the design's, the supplier codes combined, the price spread
+    var per={}; form.querySelectorAll('.qi-line').forEach(function(line){ if(line.querySelector('.qi-act').value!=='quote') return; var sel=line.querySelector('.qi-prod'); if(!sel.value) return; var o=sel.options[sel.selectedIndex];
+      var r=per[sel.value]||(per[sel.value]={title:o.textContent.split(' · ').slice(0,2).join(' · '),need:parseFloat(o.dataset.qty)||0,unit:o.dataset.unit||'',allow:parseFloat(o.dataset.allow)||0,qty:0,other:0,refs:{},prices:[],labels:[]});
+      var lu=(line.dataset.unit||'').replace(/^lm$/,'m'), pu=(r.unit||'').replace(/^lm$/,'m'); var q=parseFloat(line.dataset.qty)||0;
+      if(!lu||!pu||lu===pu) r.qty+=q; else r.other+=q; if(line.dataset.ref) r.refs[line.dataset.ref]=1; var pr=parseFloat(line.dataset.price)||0; if(pr) r.prices.push(pr); r.labels.push(line.dataset.label); });
+    var rows='', nIssues=0; Object.keys(per).forEach(function(id){ var r=per[id]; var target=r.need*(1+r.allow); var gap=r.qty-target; var pc=target?Math.round(100*gap/target):0; var checks=[], cls='';
+      if(r.other) checks.push('<span class="pill gold">&#9888; '+fmt(r.other)+' quoted in another unit than '+(r.unit||'?')+'</span>');
+      if(target&&r.qty){ if(pc<-10){ checks.push('<span class="pill red">&#9888; short by '+fmt(-gap)+' '+r.unit+' ('+(-pc)+'%)</span>'); cls='bad'; } else if(pc>25){ checks.push('<span class="pill gold">&#9888; '+pc+'% more than the rooms need: another room, or spare</span>'); } else checks.push('<span class="pill green">quantity fits</span>'); }
+      var refs=Object.keys(r.refs); if(refs.length>1) checks.push('<span class="pill red">&#9888; combines '+refs.length+' supplier codes: '+refs.join(', ').replace(/</g,'&lt;')+'</span>');
+      if(r.prices.length>1){ var mn=Math.min.apply(null,r.prices), mx=Math.max.apply(null,r.prices); if(mx>mn*1.02) checks.push('<span class="pill gold">&#9888; prices from '+fmt(mn)+' to '+fmt(mx)+' per '+r.unit+': averaged</span>'); }
+      if(checks.some(function(c){return c.indexOf('pill red')>=0||c.indexOf('pill gold')>=0;})) nIssues++;
+      rows+='<tr class="'+cls+'"><td>'+r.title.replace(/</g,'&lt;')+'<div class="small muted">'+r.labels.join(', ').replace(/</g,'&lt;')+'</div></td><td class="num" data-l="Sheet">'+fmt(r.qty)+' '+r.unit+'</td><td class="num" data-l="Design + allowance">'+fmt(target)+' '+r.unit+'<div class="small muted">'+fmt(r.need)+(r.allow?' + '+Math.round(100*r.allow)+'%':'')+'</div></td><td class="num" data-l="Gap">'+(gap>=0?'+':'')+fmt(gap)+'</td><td data-l="Checks">'+checks.join(' ')+'</td></tr>'; });
+    document.getElementById('sim-recon').innerHTML=rows||'<tr><td colspan="5" class="small muted">No line is matched to a product yet.</td></tr>';
+    document.getElementById('sim-recon-n').textContent=nIssues?nIssues+' to check':(rows?'all fit':'');
     // every product of the design: quoted by any shop already, by this sheet, or still to source
     var first=form.querySelector('.qi-prod'); if(!first) return; var left={}, nLeft=0, linesLeft=0, have=0, linesHave=0;
     Array.prototype.forEach.call(first.options,function(o){ if(!o.value) return; var lines=parseInt(o.dataset.n||'0',10)||0;

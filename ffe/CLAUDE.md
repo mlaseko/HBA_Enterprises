@@ -688,7 +688,10 @@ ALTER TABLE projects ADD COLUMN deposit_pct / soon_days / balance_days / lcl_up_
   key and points the `QuotationUpload` at it (`message = "draft"`); `_preview_ctx` lays a draft's choices over the
   suggestions (`doc`, `new_sup`, `draft_at`); the Quotations page lists the uploads not posted yet (Continue / Discard);
   apply, cancel and `/working/<u>/discard` delete the row. The preview's "If you posted it now" card (`#qi-sim`, `totals`
-  from `_preview_ctx`, product options carry `data-n` = room lines, lines `data-amount`) is computed in the page's script.
+  from `_preview_ctx`, product options carry `data-n` = room lines, lines `data-amount`) is computed in the page's script,
+  as is its "Quantities against the design" table (`#sim-recon`: per product the sheet's quantity from the lines on it,
+  `data-qty` / `data-unit` / `data-ref` / `data-price` on the lines, against the design's `data-qty` × (1 + `data-allow`) on the
+  option; red short by > 10 %, gold > 25 % over, red when the lines carry several supplier codes, gold when their prices differ).
   `flags()` = `spec_diffs()` (thickness via `_thickness`, slip rating, finish and material words: red pills) + size / unit
   (m and lm equal, `_same_unit`) / quantity (gold). `out_of_scope(line, p)` skips staff / servant quarters only when
   `_scope_rooms(p)` is empty; a line matching nothing defaults to `new` with `room_hints()` (rooms sharing the most words
