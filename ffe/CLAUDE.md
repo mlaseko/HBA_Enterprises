@@ -687,7 +687,8 @@ ALTER TABLE projects ADD COLUMN deposit_pct / soon_days / balance_days / lcl_up_
   Drafts: `POST /quotations/draft` writes the form (`_read_form`: choices + head + the shop) into the state under a new
   key and points the `QuotationUpload` at it (`message = "draft"`); `_preview_ctx` lays a draft's choices over the
   suggestions (`doc`, `new_sup`, `draft_at`); the Quotations page lists the uploads not posted yet (Continue / Discard);
-  apply, cancel and `/working/<u>/discard` delete the row.
+  apply, cancel and `/working/<u>/discard` delete the row. The preview's "If you posted it now" card (`#qi-sim`, `totals`
+  from `_preview_ctx`, product options carry `data-n` = room lines, lines `data-amount`) is computed in the page's script.
 
 ## Backlog (in priority order)
 

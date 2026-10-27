@@ -173,7 +173,8 @@ def _preview_ctx(db: Session, p: Project, state: dict) -> dict:
         head.update(sales=h.get("sales", ""), quote_date=h.get("quote_date", ""), valid_until=h.get("valid_until", ""), lead_time=h.get("lead_time", ""))
         doc.update({k: h.get(k, doc[k]) for k in doc})
     new_sup = state.get("new_supplier") or {}
-    return dict(parsed=parsed, lines=lines, by_cat=by_cat, rooms=rooms, supplier=sup, head=head, doc=doc, new_sup=new_sup, claude=state.get("claude"),
+    totals = dict(products=len(cands), lines=sum(len(c.g.lines) for c in cands), quoted=sum(1 for c in cands if c.product.quotes))
+    return dict(parsed=parsed, lines=lines, by_cat=by_cat, rooms=rooms, supplier=sup, head=head, doc=doc, new_sup=new_sup, claude=state.get("claude"), totals=totals,
                 draft_at=state.get("draft_at", ""), counts={a: sum(1 for l in lines if l["sug"].get("action") == a) for a in ACTIONS},
                 categories=lists.categories(p), suppliers=_suppliers(db), terms=doc["terms"])
 
