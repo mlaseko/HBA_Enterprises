@@ -40,6 +40,7 @@
     <button type="button" class="pick-chip" data-f="merge">Merged <b>{{ counts.merge }}</b></button>
     <button type="button" class="pick-chip" data-f="skip">Skipped <b>{{ counts.skip }}</b></button>
     <button type="button" class="btn sm sec" id="qi-nextcheck"><svg class="ic"><use href="#i-chevron-right"/></svg>Next to check</button>
+    <button type="button" class="btn sm sec" id="qi-skip-none" title="Every line set to Quotes a product with no product picked becomes Skip">Skip the lines without a product</button>
   </div>
   <details class="qi-legend-wrap mt"><summary class="small">What Matched, New, Merged, Extra, Skipped and % sure mean</summary>
   <div class="qi-legend small mt">
@@ -57,7 +58,7 @@
 <div class="qi-lines" id="lines">
   {% set ns = namespace(section=none) %}
   {% for l in lines %}{% set s = l.sug %}
-  {% if l.section != ns.section %}{% set ns.section = l.section %}{% if l.section %}<div class="qi-section">{{ l.section }}</div>{% endif %}{% endif %}
+  {% if l.section != ns.section %}{% set ns.section = l.section %}{% if l.section %}<div class="qi-section"><span>{{ l.section }}</span><button type="button" class="qi-chip sec-skip" data-section="{{ l.section }}" title="Every line of this section becomes Skip (out of scope)">Skip this section</button></div>{% endif %}{% endif %}
   {% set conf = s.confidence or 0 %}
   <article class="qi-line act-{{ s.action or 'skip' }}" id="line-{{ l.no }}" data-amount="{{ l.amount|plain }}" data-qty="{{ l.qty|plain }}" data-unit="{{ l.unit }}" data-ref="{{ l.ref }}" data-price="{{ l.unit_price|plain }}" data-label="L{{ l.no }}{% if l.place %} {{ l.place }}{% endif %}" data-conf="{{ conf|plain }}" data-orig="{{ s.product_id or '' }}" data-dims="{{ l.dims|join('x') }}" data-section="{{ l.section }}" data-same="{% if l.ref %}#{{ l.ref|lower|trim }}{% else %}{{ l.name|lower|trim }} {{ l.size|lower|trim }}{% endif %}|{{ l.unit }}">
     <div class="qi-pic">{% if l.pic %}<a href="/media/{{ l.full }}" target="_blank" data-caption="Line {{ l.no }} · {{ l.name }}"><img src="/media/{{ l.pic }}" alt=""></a>{% else %}<span class="pic empty"><svg class="ic"><use href="#i-image"/></svg></span>{% endif %}</div>
@@ -238,6 +239,9 @@
   function jump(sel){ var y=window.scrollY+80, all=Array.prototype.slice.call(form.querySelectorAll(sel)).filter(function(l){ return !l.classList.contains('qi-hide'); }); if(!all.length) return;
     var nxt=all.filter(function(l){ return l.getBoundingClientRect().top+window.scrollY>y+10; })[0]||all[0]; nxt.scrollIntoView({behavior:'smooth',block:'center'}); nxt.classList.add('flash'); setTimeout(function(){ nxt.classList.remove('flash'); },1200); }
   document.getElementById('qi-nextcheck').addEventListener('click',function(){ jump('.qi-line.needs'); });
+  function setAct(lines, a){ lines.forEach(function(o){ o.querySelector('.qi-act').value=a; show(o); next(o); }); todo(); simulate(); }
+  document.getElementById('qi-skip-none').addEventListener('click',function(){ var ls=Array.prototype.filter.call(form.querySelectorAll('.qi-line'),function(o){ return o.querySelector('.qi-act').value==='quote'&&!o.querySelector('.qi-prod').value; }); if(!ls.length){ appAlert('Every line that quotes a product has one picked.'); return; } setAct(ls,'skip'); });
+  form.addEventListener('click',function(e){ var b=e.target.closest('.sec-skip'); if(!b) return; var ls=Array.prototype.filter.call(form.querySelectorAll('.qi-line'),function(o){ return (o.dataset.section||'')===b.dataset.section; }); setAct(ls,'skip'); b.textContent='Skipped'; b.disabled=true; });
   document.querySelectorAll('.qi-decide').forEach(function(b){ b.addEventListener('click',function(){ var first=form.querySelector('.qi-line.needs'); if(first){ filter='all'; applyFilter(); } jump('.qi-line.needs'); }); });
   var docCard=document.getElementById('document'); if(docCard&&location.hash==='#document') docCard.open=true;
   form.addEventListener('click',function(e){ var chip=e.target.closest('.qi-chip.opt'); if(!chip) return; var line=chip.closest('.qi-line'), act=line.querySelector('.qi-act');

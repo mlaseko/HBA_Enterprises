@@ -163,6 +163,13 @@ TIPS = {
               "<b>Drafts and uploads under way</b> lists the sheets read but not posted: a draft you saved on the preview (Continue reopens it with your choices), a sheet ready to check, one still being read, or one that failed. Discard drops one with its pictures.",
               "Open a quotation to see each line as written, what it became, the terms, and the products of those categories the shop did not price.",
               "Deleting a quotation deletes the quotes it made that nothing was bought from; rooms already bought keep their prices."]),
+    "quotation_compare": dict(
+        title="Compare shops", anchor="quotations",
+        what="The products of one category against every shop that priced them: the price per unit from each, the lowest in green, who the rooms are bought from.",
+        steps=["Pick the category and the currency. A column per shop, a row per product; the shop's header counts what it priced and adds it up for the rooms' quantities.",
+               "<b>Buy</b> under a price buys that product from that shop for the rooms without a shop yet (the product page can split rooms between shops afterwards). <b>bought here</b> marks the shop the rooms are on."],
+        tips=["The tile with every product at its lowest price is a floor, not a plan: one shop for a whole category usually ships and packs better than the cheapest cell of each row.",
+              "A product no shop priced is not on the grid: it is on the inquiry sheet of the category."]),
     "quotation_working": dict(
         title="Reading a quotation", anchor="quotations",
         what="The sheet is being read on the server: the file received, the sheet read, its pictures saved, the lines matched. The preview opens by itself when it is ready.",
@@ -177,7 +184,7 @@ TIPS = {
                "Each line shows the supplier's picture, words, size, quantity and price, and a choice: <b>Quotes a product</b> (pick the product: the chips under it are the best guesses, or type a word, a room code or our item code in the line's search box; an Also for chip puts it on the lines with the same item number), <b>New item in the design</b> (name, category and the rooms ticked, with a Rooms with a basin chip for the rooms whose products match the line; the item is created in each and the quote put on it; the split of the quantity is shown), <b>Part of another line</b> (its amount joins that line's quote: the hardware of a handrail, the parts of a set; a breakdown whose parts add up to the line's own price counts once, and an Also … as parts of chip takes the rest of the section along), <b>Extra charge</b>, or <b>Skip</b> (out of scope, another building).",
                "Lines not surely matched carry a <b>Suggested</b> row: the likeliest product, a new item in the rooms that fit, or a line it is part of, one press each. <b>When you save</b> under a line says what will happen; <b>Before you save</b> at the top lists what still needs a decision. <b>% sure</b> is how sure the suggestion is of the product and the place (not the price or quantity): green is a confident match, gold needs a look, grey had little to go on. New items are tagged and tinted. A gold flag names what differs from the design: the size offered, the unit, or a quantity far from the rooms' needs; a red flag is a specification clash: thickness, slip rating, finish or material.",
                "<b>Save the quotation</b>: one quote per product (lines of the same product are combined: total amount over total quantity), the pictures and the supplier's item numbers on them, and the matches remembered for this shop's next sheet (the wording for every shop)."],
-        tips=["<b>Show</b> narrows the lines to those To check, New, Merged or Skipped; <b>Next to check</b> and <b>n to decide</b> jump to the next line that needs you. <b>The document</b> is folded under the lines: open it for the shop, date, validity, discount and terms. A line under 45 % sure is left without a product on purpose: pick it, make it new, or skip it.",
+        tips=["<b>Skip the lines without a product</b> and <b>Skip this section</b> (on a section heading) set many lines at once. <b>Show</b> narrows the lines to those To check, New, Merged or Skipped; <b>Next to check</b> and <b>n to decide</b> jump to the next line that needs you. <b>The document</b> is folded under the lines: open it for the shop, date, validity, discount and terms. A line under 45 % sure is left without a product on purpose: pick it, make it new, or skip it.",
               "<b>If you posted it now</b> is a simulation from the choices above, updated as you change them: the products this sheet would price, the room lines covered out of the whole design, the new items, and the amount after the discount. Nothing is posted by it.",
               "<b>Quantities against the design</b> adds up the sheet's lines per product and sets them against what the rooms need plus the allowance: red when short, gold when far more or when the prices differ, red when one product would combine several supplier item numbers.",
               "<b>Save as draft</b> keeps every choice and the document fields without posting anything; the sheet waits under Drafts on the Quotations page, where Continue reopens it as you left it.",
@@ -367,7 +374,7 @@ TEMPLATE_KEYS = {
     "import.html": "import", "settings.html": "settings", "clip.html": "clip", "share/supplier.html": "share_supplier", "plan/match.html": "plan_match",
     "share/client.html": "share_client", "buying/list.html": "buying", "buying/product.html": "buying_product", "buying/schedule.html": "buying_schedule",
     "buying/orders.html": "orders", "buying/order.html": "order", "buying/tracker.html": "tracker",
-    "buying/quotations.html": "quotations", "buying/quotation_preview.html": "quotation_preview", "buying/quotation_working.html": "quotation_working", "buying/quotation.html": "quotation",
+    "buying/quotations.html": "quotations", "buying/quotation_compare.html": "quotation_compare", "buying/quotation_preview.html": "quotation_preview", "buying/quotation_working.html": "quotation_working", "buying/quotation.html": "quotation",
     "carton.html": "carton", "shipping/list.html": "shipments", "shipping/shipment.html": "shipment", "lists.html": "lists",
 }
 

@@ -29,6 +29,7 @@
     <p class="sub">Upload a supplier's quotation sheet as they sent it. Each line is matched to a product of the design for you to confirm; the confirmed lines become that shop's quotes, and the sheet is kept with the project.</p>
   </div>
   <div class="actions">
+    <a class="btn" href="/p/{{ p.id }}/quotations/compare"><svg class="ic"><use href="#i-chart"/></svg>Compare shops</a>
     <a class="btn sec" href="#inquiry"><svg class="ic"><use href="#i-download"/></svg>Inquiry sheet</a>
   </div>
 </div>
@@ -75,12 +76,12 @@
     {% for d in drafts %}{% set u = d.up %}
     <tr>
       <td><a href="{{ d.url }}"><b>{{ u.filename }}</b></a></td>
-      <td>{% if d.draft %}<span class="pill gold">Draft</span>{% elif u.stage == 'done' %}<span class="pill green">Ready to check</span>{% elif u.stage == 'error' %}<span class="pill red">Failed</span><div class="small muted">{{ u.message }}</div>{% elif u.stage == 'waiting' %}<span class="pill gold">Waiting for Claude</span><div class="small muted">Read; the matching waits for you to try Claude again or go on without it.</div>{% else %}<span class="pill">Reading…</span>{% endif %}</td>
+      <td>{% if d.draft %}<span class="pill gold">Draft</span>{% elif u.stage == 'done' %}<span class="pill green">Ready to check</span>{% elif u.stage == 'error' %}<span class="pill red">Failed</span><div class="small muted">{{ u.message }}</div>{% elif u.stage == 'waiting' %}<span class="pill gold">Waiting for Claude</span><div class="small muted">Read; the matching waits for you to try Claude again or go on without it.</div>{% elif d.stale %}<span class="pill red">Stuck</span><div class="small muted">Nothing happened for over 10 minutes: discard it and upload the file again.</div>{% else %}<span class="pill">Reading…</span>{% endif %}</td>
       <td class="num">{{ u.lines or '—' }}</td>
       <td class="nowrap small muted">{{ u.updated_at.strftime('%Y-%m-%d %H:%M') if u.updated_at else '' }}</td>
       <td class="nowrap"><div class="row">
         {% if u.stage == 'done' %}<a class="btn sm" href="{{ d.url }}"><svg class="ic"><use href="#i-edit"/></svg>{{ 'Continue' if d.draft else 'Check' }}</a>{% elif u.stage == 'waiting' %}<a class="btn sm" href="{{ d.url }}"><svg class="ic"><use href="#i-clock"/></svg>Match it</a>{% endif %}
-        {% if u.stage in ('done', 'error', 'waiting') %}<form method="post" action="/p/{{ p.id }}/quotations/working/{{ u.id }}/discard" data-confirm="Discard this upload? The sheet, its pictures and your choices on it are dropped; the project is not changed."><button class="btn sm sec"><svg class="ic"><use href="#i-trash"/></svg>Discard</button></form>{% endif %}
+        {% if u.stage in ('done', 'error', 'waiting') or d.stale %}<form method="post" action="/p/{{ p.id }}/quotations/working/{{ u.id }}/discard" data-confirm="Discard this upload? The sheet, its pictures and your choices on it are dropped; the project is not changed."><button class="btn sm sec"><svg class="ic"><use href="#i-trash"/></svg>Discard</button></form>{% endif %}
       </div></td>
     </tr>
     {% endfor %}

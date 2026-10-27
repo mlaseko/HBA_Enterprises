@@ -13,6 +13,7 @@
     {% if q.file_key %}<a class="btn sec" href="/p/{{ p.id }}/quotations/{{ q.id }}/file"><svg class="ic"><use href="#i-download"/></svg>Original file</a>{% endif %}
     {% if q.supplier %}<a class="btn sec" href="/suppliers/{{ q.supplier.id }}"><svg class="ic"><use href="#i-users"/></svg>{{ q.supplier.name }}</a>
     <a class="btn accent" href="/p/{{ p.id }}/quotations?supplier={{ q.supplier.id }}#upload"><svg class="ic"><use href="#i-upload"/></svg>Upload a revised sheet</a>{% endif %}
+    <a class="btn sec" href="/p/{{ p.id }}/quotations/compare{% if cmp_cat %}?category={{ cmp_cat|urlencode }}{% endif %}"><svg class="ic"><use href="#i-chart"/></svg>Compare shops</a>
   </div>
 </div>
 {{ tabs(p, 'quotations') }}

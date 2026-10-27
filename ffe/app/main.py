@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text, inspect
 
 from . import config, storage, layers, buying, lists
+from . import quotations as quotations_mod
 from .db import engine, Base, get_db, migrate, SessionLocal
 from .models import Project, Settings, ItemPhoto
 from urllib.parse import quote
@@ -51,6 +52,8 @@ def startup():
         buying.upgrade(db)  # once: prices and suppliers typed on items become quotes and purchases (buying.py)
     with SessionLocal() as db:
         lists.upgrade(db)  # once: every project gets its own lists (categories, units, payment types, containers)
+    with SessionLocal() as db:
+        quotations_mod.mark_stale(db)  # a quotation upload the old server was reading becomes an error to discard
     if config.PHOTO_PREPARE_AT_START:
         prepare_photos_in_background()
 

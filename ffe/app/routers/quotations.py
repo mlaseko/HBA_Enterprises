@@ -76,8 +76,11 @@ def quotations_page(request: Request, p: Project = Depends(get_project), db: Ses
     cats = sorted({c.category for c in qz.candidates(db, p)}, key=lambda c: lists.category_order(p).get(c, 999))
     db.commit()  # product rows made by candidates()
     ups = db.query(QuotationUpload).filter(QuotationUpload.project_id == p.id).order_by(QuotationUpload.id.desc()).all()
+    import datetime as _dt
+    stale_before = _dt.datetime.now() - _dt.timedelta(minutes=10)
     drafts = [dict(up=u, url=f"/p/{p.id}/quotations/preview?key={urlquote(u.state_key)}" if u.stage == "done" else f"/p/{p.id}/quotations/working/{u.id}",
-                   draft=u.stage == "done" and u.message == "draft") for u in ups]
+                   draft=u.stage == "done" and u.message == "draft",
+                   stale=u.stage in qz.WORKING and (u.updated_at or u.created_at or _dt.datetime.now()) < stale_before) for u in ups]
     return render(request, "buying/quotations.html", p=p, rows=rows, earlier=earlier, drafts=drafts, suppliers=_suppliers(db), categories=cats, floors=floor_choices(p),
                   ok=ok[:200], err=err[:300], claude=qz.ai.enabled(), pre_supplier=supplier)
 
@@ -134,8 +137,10 @@ def working_page(request: Request, upload_id: int, p: Project = Depends(get_proj
 @router.post("/p/{project_id}/quotations/working/{upload_id}/discard")
 def discard_upload(upload_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
     """Drop an upload from the list: its draft state, file and pictures go (done or failed; one still working is left alone)."""
+    import datetime as _dt
     up = _upload(db, p, upload_id)
-    if up is not None and up.stage in ("done", "error", qz.WAITING):
+    stuck = up is not None and up.stage in qz.WORKING and (up.updated_at or up.created_at or _dt.datetime.now()) < _dt.datetime.now() - _dt.timedelta(minutes=10)
+    if up is not None and (up.stage in ("done", "error", qz.WAITING) or stuck):
         state = _load_state(up.state_key) if up.state_key else None
         if state is not None:
             _drop_state(state, up.state_key, keep_files=False)
@@ -323,6 +328,16 @@ async def apply_preview(request: Request, p: Project = Depends(get_project), db:
     return redirect(f"/p/{p.id}/quotations/{q.id}?ok=" + urlquote(msg))
 
 
+# ---- shops compared --------------------------------------------------------------------------------------------------------
+@router.get("/p/{project_id}/quotations/compare")
+def compare_page(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), category: str = "", currency: str = "USD", ok: str = "", err: str = ""):
+    """Products × shops for one category: every shop's price per unit, the lowest marked, who is bought from, and Buy
+    from a shop in one press (the existing buy route, which comes back here)."""
+    cmp = qz.compare(db, p, category)
+    db.commit()
+    return render(request, "buying/quotation_compare.html", p=p, cur=currency if currency in ("USD", "CNY") else "USD", ok=ok[:200], err=err[:300], **cmp)
+
+
 # ---- the inquiry sheet ---------------------------------------------------------------------------------------------------------
 @router.get("/p/{project_id}/quotations/inquiry.xlsx")
 def inquiry_sheet(p: Project = Depends(get_project), db: Session = Depends(get_db), category: str = "", floor: str = "", currency: str = "USD"):
@@ -346,10 +361,12 @@ def quotation_page(request: Request, quotation_id: int, p: Project = Depends(get
         if ln.quote_id:
             by_quote.setdefault(ln.quote_id, []).append(ln)
     counts = {a: sum(1 for ln in q.lines if ln.action == a) for a in ACTIONS}
+    by_cand = {c.id: c.category for c in qz.candidates(db, p)}
+    cmp_cat = next((by_cand[ln.product_id] for ln in q.lines if ln.product_id in by_cand), "")
     revises = db.get(Quotation, q.replaces_id) if q.replaces_id else None
     revised_by = db.query(Quotation).filter(Quotation.replaces_id == q.id).order_by(Quotation.id.desc()).first()
     return render(request, "buying/quotation.html", p=p, q=q, gaps=gaps, counts=counts, ok=ok[:200], err=err[:300], by_quote=by_quote,
-                  revises=revises, revised_by=revised_by,
+                  revises=revises, revised_by=revised_by, cmp_cat=cmp_cat,
                   lines_total=round(sum(ln.amount or 0 for ln in q.lines), 2))
 
 

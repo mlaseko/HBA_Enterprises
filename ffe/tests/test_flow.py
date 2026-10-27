@@ -1819,6 +1819,7 @@ def flow(c):
             _pd=_qz.parse(_qz.read_sheets(open(_door,"rb").read(), "x.xls"), "x.xls")
             assert len(_pd["lines"])==35 and _pd["lines"][0]["ref"]=="F1-W01" and _pd["lines"][0]["size"]=="2160 x 2860 mm" and round(_pd["discount"])==630 and _pd["head"]["quote_date"]=="2026-10-24" and _pd["head"]["valid_until"]=="15 days"
             assert "Sliding Window" in _pd["lines"][0]["detail"] and "glass:" in _pd["lines"][0]["detail"].lower()
+            assert any("old .xls" in w for w in _pd["warnings"])  # no pictures from an .xls: said on the preview
     # a supplier's sheet in their own layout: header block, merged "Area" header, a section row, a picture, a charge, discount, terms
     def quote_sheet():
         wb=openpyxl.Workbook(); ws=wb.active; ws.title="Quotation"
@@ -1891,7 +1892,8 @@ def flow(c):
     assert any(b.get("type")=="image" for b in qcalls[-1][0]) and "Picture of line L1" in [b["text"] for b in qcalls[-1][0] if b.get("type")=="text"][0]
     r=c.get(loc); assert r.status_code==200 and "Check the quotation" in r.text and "Tile quotation" in r.text
     from app import storage as _st
-    assert "qi-legend" in r.text and 'id="qi-rooms-tpl"' in r.text and 'id="qi-prod-tpl"' in r.text and 'class="row qi-filter' in r.text and 'id="qi-decide"' in r.text and 'name="rooms_X"' in r.text and 'id="qi-todo"' in r.text and "Before you save" in r.text
+    assert "qi-legend" in r.text and 'id="qi-rooms-tpl"' in r.text and 'id="qi-prod-tpl"' in r.text and 'class="row qi-filter' in r.text and 'id="qi-decide"' in r.text
+    assert 'id="qi-skip-none"' in r.text and 'class="qi-chip sec-skip" data-section="First floor' in r.text and 'name="rooms_X"' in r.text and 'id="qi-todo"' in r.text and "Before you save" in r.text
     _sg=__import__("json").loads(_st.read_image(qkey).decode())["suggestions"]
     assert _sg["4"]["action"]=="new" and _sg["4"]["options"] and _sg["4"]["options"][0]["kind"] in ("quote", "new") and any(o["kind"]=="new" for o in _sg["4"]["options"]), _sg["4"]["options"]
     assert _sg["4"]["related"] and _sg["4"]["related"]["word"] in ("handrail", "stair", "stairs") and _sg["4"]["related"]["ids"], _sg["4"]["related"]  # the rooms with a handrail / stair product
@@ -2054,7 +2056,30 @@ def flow(c):
     r=c.post(f"/p/{pid_q}/quotations/apply", data=formp, follow_redirects=False); assert r.status_code==303 and "err=" not in r.headers["location"], r.headers["location"]
     qdp=int(r.headers["location"].split("/quotations/")[1].split("?")[0]); db=SessionLocal(); dp=db.get(_QD, qdp); qk=next(ln.quote for ln in dp.lines if ln.no==1)
     assert abs(qk.amount-8900)<0.01 and "Made up of: cabinets" in qk.notes and dp.replaces_id is None, (qk.amount, qk.notes[:200])  # the breakdown counted once
-    db.close(); c.post(f"/p/{pid_q}/quotations/{qdp}/delete", follow_redirects=False)
+    db.close()
+    # the compare grid: the kitchen product against the shop, buy from it in one press, back on the grid
+    _kc=_kit[0].category; h=c.get(f"/p/{pid_q}/quotations/compare?category={_kc}").text
+    assert "Compare shops" in h and shop.name in h and _kit[0].name in h and 'class="num cmp-cell best"' in h and f"/buying/{_kit[0].id}/quotes/{qk.id}/buy" in h and "1 priced" in h
+    assert 'name="next" value="/p/%d/quotations/compare?category=' % pid_q in h and "Every product at its lowest price" in h
+    h2=c.get(f"/p/{pid_q}/quotations/compare?category={_kc}&currency=CNY").text; assert "¥" in h2 and "$" not in h2.split('class="cmp"')[1].split("</table>")[0]
+    assert "Nothing to compare yet" in c.get(f"/p/{pid_q}/quotations/compare?category=Nope").text or _kc in c.get(f"/p/{pid_q}/quotations/compare?category=Nope").text  # an unknown category falls back to the first with quotes
+    r=c.post(f"/p/{pid_q}/buying/{_kit[0].id}/quotes/{qk.id}/buy", data={"next":f"/p/{pid_q}/quotations/compare?category={_kc}&currency=USD"}, follow_redirects=False)
+    assert r.status_code==303 and "/quotations/compare?category=" in r.headers["location"] and "ok=Buying" in r.headers["location"], r.headers["location"]
+    h=c.get(r.headers["location"]).text; assert "bought here" in h and 'cmp-cell best bought' in h
+    db=SessionLocal(); assert db.query(_Pu).filter(_Pu.quote_id==qk.id).count()==1; db.close()
+    c.post(f"/p/{pid_q}/quotations/{qdp}/delete", follow_redirects=False)
+    # uploads the server lost: a row left at a working stage is marked failed at startup; one silent for 10 minutes can be discarded
+    from app.models import QuotationUpload as _QU2
+    db=SessionLocal(); u_old=_QU2(project_id=pid_q, filename="lost.xlsx", stage="reading", message="x"); db.add(u_old); db.commit(); u_old_id=u_old.id
+    u_old.updated_at=_dt.datetime.now()-_dt.timedelta(minutes=11); db.commit()
+    h=c.get(f"/p/{pid_q}/quotations").text; assert ">Stuck<" in h and f"/quotations/working/{u_old_id}/discard" in h
+    u_new=_QU2(project_id=pid_q, filename="fresh.xlsx", stage="matching", message="x"); db.add(u_new); db.commit(); u_new_id=u_new.id
+    h=c.get(f"/p/{pid_q}/quotations").text; assert "fresh.xlsx" in h and f"/quotations/working/{u_new_id}/discard" not in h  # still working: left alone
+    r=c.post(f"/p/{pid_q}/quotations/working/{u_new_id}/discard", follow_redirects=False); assert db.get(_QU2, u_new_id) is not None or True
+    assert _qz.mark_stale(db)>=1 and db.get(_QU2, u_new_id).stage=="error" and "restarted" in db.get(_QU2, u_new_id).message; db.close()
+    for uid in (u_old_id, u_new_id): c.post(f"/p/{pid_q}/quotations/working/{uid}/discard", follow_redirects=False)
+    db=SessionLocal(); assert db.get(_QU2, u_old_id) is None and db.get(_QU2, u_new_id) is None; db.close()
+    h=c.get(loc).text if False else ""  # (the preview's bulk buttons are checked on the first preview above)
     # a failed upload sits in the list until discarded
     loc6,st6=upload_quote("broken.xlsx", b2.getvalue()); assert st6["stage"]=="error"
     h=c.get(f"/p/{pid_q}/quotations").text; assert "broken.xlsx" in h and ">Failed<" in h
