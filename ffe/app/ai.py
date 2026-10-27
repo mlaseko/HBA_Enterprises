@@ -8,6 +8,7 @@ import os
 from . import config
 
 MODEL = os.getenv("CLAUDE_MODEL", "claude-opus-5-5")
+TIMEOUT = float(os.getenv("CLAUDE_TIMEOUT", "240"))  # seconds per request; the SDK's own default (10 min, retried) let a hung call sit for half an hour
 MAX_TEXT = 12000  # characters of page text sent along
 
 SCHEMA = {
@@ -51,7 +52,7 @@ def _call(content: list, schema: dict | None = None, system: str | None = None, 
     """One Claude request, JSON back. Separate so tests can replace it. The quotation matcher (quotations.py) passes
     its own system prompt, a higher effort and more room for the answer."""
     import anthropic
-    client = anthropic.Anthropic()
+    client = anthropic.Anthropic(timeout=TIMEOUT, max_retries=1)  # a hung request fails here and the caller's own retry decides
     kwargs = dict(model=MODEL, max_tokens=max_tokens, system=system or SYSTEM,
                   output_config={"effort": effort, "format": {"type": "json_schema", "schema": schema or SCHEMA}},
                   messages=[{"role": "user", "content": content}])

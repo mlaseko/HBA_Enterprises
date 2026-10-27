@@ -990,6 +990,8 @@ def suggest(db: Session, p: Project, parsed: dict, pictures: dict[int, bytes] | 
     by_id = {c.id: c for c in cands}
     memo = memory(db, supplier)
     lists_ = {l["no"]: shortlist(l, cands, memo) for l in parsed["lines"]}
+    if use_claude:  # the wait for Claude can be minutes: end the transaction first, or Neon kills the idle connection
+        db.commit()  # (the product rows candidates() made are kept; the session stays usable, expire_on_commit is off)
     picks = ask_claude(p, parsed, cands, lists_, pictures, progress=progress) if use_claude else {}
     say("Writing the suggestions")
     out = {}
