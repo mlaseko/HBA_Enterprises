@@ -370,6 +370,7 @@ ALTER TABLE projects ADD COLUMN shipments_made INTEGER NOT NULL DEFAULT 0;      
 ALTER TABLE cartons ADD COLUMN warehouse_on DATE;                                         -- the day a box reached the warehouse
 ALTER TABLE cartons ADD COLUMN shipment_id INTEGER;                                       -- the shipment a box is on
 ALTER TABLE projects ADD COLUMN deposit_pct / soon_days / balance_days / lcl_up_to;       -- the project's defaults (lists.py)
+ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                                    -- a revised sheet: the earlier document it corrected
 -- new tables (create_all): products, quotes, purchases, orders, shipments, project_lists, quotations, quotation_lines, quote_matches, quotation_uploads
 ```
 
@@ -729,6 +730,12 @@ ALTER TABLE projects ADD COLUMN deposit_pct / soon_days / balance_days / lcl_up_
   (`prod_option` macro) is cloned into a `.qi-prod` on pointerdown / focus / `pick()` (`fill()`, `data-full`); a line's select
   renders only its pick. `reflag()` recomputes size (`data-dims`, `dimsOk` mirrors `_dims_match`) / unit / quantity flags when
   the pick differs from `data-orig` and hides the `% sure` pill. The submit handler refuses to post without a shop (`appAlert`).
+  Summary + breakdown sheets: `line["table"]` (one per header row), `_mark_breakdowns()` → `summary_of` / `part_of`; `suggest`
+  pre-sets the parts as merge into the summary line (0.95); `is_breakdown(target, parts)` keeps `apply` and the page's
+  `simulate()` from adding a breakdown twice; `_preview_ctx`'s line-sum warning leaves `part_of` lines out. `.qi-parts` chip
+  ("Also L3–L11 as parts of L2", `parts()`, refreshed by `todo()`) merges the rest of a section. `Quotation.replaces_id` is set
+  in `apply` when `stats["updated"]` (the latest earlier document sharing a quote); the list route splits `rows` / `earlier`,
+  the document page gets `revises` / `revised_by`; `/quotations?supplier=` pre-selects the shop on the upload form.
   Finding a product on a line: `.qi-find` search box (words, room code, our code: `data-s` on the options = codes, rooms, spec),
   chips of the hits; `data-same` (item number + unit, else name + size + unit) drives the "Also for L…" chip. Memory: `remember()`
   writes the shop's row and a supplier-less row by wording (`memory()` returns both, the shop's first; shortlist 0.9 / 0.85).

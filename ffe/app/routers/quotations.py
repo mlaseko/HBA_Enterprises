@@ -61,20 +61,25 @@ def _quotation(db: Session, p: Project, qid: int) -> Quotation | None:
 
 # ---- the list, the upload and the inquiry sheet ----------------------------------------------------------------------------
 @router.get("/p/{project_id}/quotations")
-def quotations_page(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), ok: str = "", err: str = ""):
+def quotations_page(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), ok: str = "", err: str = "", supplier: int = 0):
     docs = db.query(Quotation).filter(Quotation.project_id == p.id).order_by(Quotation.id.desc()).all()
+    by_id = {q.id: q for q in docs}
+    replaced = {q.replaces_id: q for q in docs if q.replaces_id in by_id}  # earlier document -> the revision that corrected it
     rows = []
     for q in docs:
         lines = q.lines
         rows.append(dict(q=q, lines=len(lines), quotes=len({ln.quote_id for ln in lines if ln.quote_id}),
-                         skipped=sum(1 for ln in lines if ln.action == "skip"), new=sum(1 for ln in lines if ln.action == "new")))
+                         skipped=sum(1 for ln in lines if ln.action == "skip"), new=sum(1 for ln in lines if ln.action == "new"),
+                         revises=by_id.get(q.replaces_id), revised_by=replaced.get(q.id)))
+    earlier = [r for r in rows if r["revised_by"] is not None]
+    rows = [r for r in rows if r["revised_by"] is None]
     cats = sorted({c.category for c in qz.candidates(db, p)}, key=lambda c: lists.category_order(p).get(c, 999))
     db.commit()  # product rows made by candidates()
     ups = db.query(QuotationUpload).filter(QuotationUpload.project_id == p.id).order_by(QuotationUpload.id.desc()).all()
     drafts = [dict(up=u, url=f"/p/{p.id}/quotations/preview?key={urlquote(u.state_key)}" if u.stage == "done" else f"/p/{p.id}/quotations/working/{u.id}",
                    draft=u.stage == "done" and u.message == "draft") for u in ups]
-    return render(request, "buying/quotations.html", p=p, rows=rows, drafts=drafts, suppliers=_suppliers(db), categories=cats, floors=floor_choices(p),
-                  ok=ok[:200], err=err[:300], claude=qz.ai.enabled())
+    return render(request, "buying/quotations.html", p=p, rows=rows, earlier=earlier, drafts=drafts, suppliers=_suppliers(db), categories=cats, floors=floor_choices(p),
+                  ok=ok[:200], err=err[:300], claude=qz.ai.enabled(), pre_supplier=supplier)
 
 
 @router.post("/p/{project_id}/quotations")
@@ -189,7 +194,7 @@ def _preview_ctx(db: Session, p: Project, state: dict) -> dict:
     new_sup = state.get("new_supplier") or {}
     totals = dict(products=len(cands), lines=sum(len(c.g.lines) for c in cands), quoted=sum(1 for c in cands if c.product.quotes))
     warnings = list(parsed.get("warnings") or [])
-    lines_sum = round(sum(l["amount"] or 0 for l in parsed["lines"]), 2)
+    lines_sum = round(sum(l["amount"] or 0 for l in parsed["lines"] if not l.get("part_of")), 2)  # a breakdown's parts are inside their line
     expect = round((doc["total"] or 0) - (doc["charges"] or 0), 2)
     if doc["total"] and abs(lines_sum - expect) > max(1.0, 0.01 * doc["total"]):
         warnings.append(f"The lines add up to {doc['currency']} {lines_sum:,.2f} but the sheet's total less its charges is {expect:,.2f}: a summary table "
@@ -341,7 +346,10 @@ def quotation_page(request: Request, quotation_id: int, p: Project = Depends(get
         if ln.quote_id:
             by_quote.setdefault(ln.quote_id, []).append(ln)
     counts = {a: sum(1 for ln in q.lines if ln.action == a) for a in ACTIONS}
+    revises = db.get(Quotation, q.replaces_id) if q.replaces_id else None
+    revised_by = db.query(Quotation).filter(Quotation.replaces_id == q.id).order_by(Quotation.id.desc()).first()
     return render(request, "buying/quotation.html", p=p, q=q, gaps=gaps, counts=counts, ok=ok[:200], err=err[:300], by_quote=by_quote,
+                  revises=revises, revised_by=revised_by,
                   lines_total=round(sum(ln.amount or 0 for ln in q.lines), 2))
 
 

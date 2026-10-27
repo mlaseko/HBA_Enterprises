@@ -1959,6 +1959,10 @@ def flow(c):
     qd2=db.query(_QD).filter(_QD.project_id==pid_q).order_by(_QD.id.desc()).first(); assert qd2.id!=qd_id and {ln.no: ln.quote_id for ln in qd2.lines}[4]==q4.id and {ln.no: ln.action for ln in qd2.lines}[5]=="merge"; qd2_id=qd2.id
     db.close()
     r=c.get(f"/p/{pid_q}/quotations/{qd2_id}"); assert r.status_code==200 and "second round" in r.text
+    db=SessionLocal(); assert db.get(_QD, qd2_id).replaces_id==qd_id; db.close()  # the revised sheet names the document it corrected
+    assert "A revision of" in r.text and f"/quotations/{qd_id}" in r.text and f"quotations?supplier={shop.id}#upload" in r.text
+    r=c.get(f"/p/{pid_q}/quotations/{qd_id}"); assert "Revised by" in r.text and f"/quotations/{qd2_id}" in r.text
+    h=c.get(f"/p/{pid_q}/quotations?supplier={shop.id}").text; assert ">revision<" in h and "Earlier revisions (1)" in h and re.search(r'value="%d" selected' % shop.id, h)
     # a third upload, discarded
     loc3,_=upload_quote("Tile quotation v3.xlsx", quote_sheet(), str(shop.id)); key3=_unq(loc3.split("key=")[1])
     r=c.post(f"/p/{pid_q}/quotations/cancel", data={"key":key3}, follow_redirects=False); assert r.headers["location"]==f"/p/{pid_q}/quotations"
@@ -2031,6 +2035,26 @@ def flow(c):
     loc7,st7=upload_quote("Tile quotation v7.xlsx", quote_sheet()); key7=_unq(loc7.split("key=")[1])
     st7s=__import__("json").loads(_st.read_image(key7).decode())["suggestions"]; assert st7s["1"]["shortlist"][0]["why"]=="matched before by wording (another shop)" and st7s["1"]["shortlist"][0]["id"]==big_id, st7s["1"]
     c.post(f"/p/{pid_q}/quotations/cancel", data={"key":key7}, follow_redirects=False)
+    # a proforma with a summary table and its breakdown: the parts are merged into the summary line and counted once
+    def pi_sheet():
+        wb=openpyxl.Workbook(); ws=wb.active; ws.title="PI"
+        ws.append(["Summary"]); ws.append(["No","Item","Description","Qty","Unit price (USD)","Amount (USD)"]); ws.append([1,"Kitchen","as below",1,8900,8900])
+        ws.append([]); ws.append(["Breakdown"]); ws.append(["No","Item","Description","Qty","Unit price (USD)","Amount (USD)"])
+        ws.append([1,"cabinets","melamine",1,5000,5000]); ws.append([2,"countertop","quartz",1,3000,3000]); ws.append([3,"sink and tap","",1,900,900])
+        ws.append(["WOODEN PACKAGE IN USD:",None,None,None,None,200]); ws.append(["TOTAL IN USD:",None,None,None,None,9100])
+        buf=io.BytesIO(); wb.save(buf); return buf.getvalue()
+    _pp=_qz.parse(_qz.read_sheets(pi_sheet(), "pi.xlsx"), "pi.xlsx"); assert len(_pp["lines"])==4 and _pp["lines"][0]["summary_of"]==[2,3,4] and all(l.get("part_of")==1 for l in _pp["lines"][1:]) and _pp["total"]==9100 and _pp["charges"][0]["amount"]==200, _pp["lines"]
+    assert _qz.is_breakdown(_pp["lines"][0], _pp["lines"][1:]) and not _qz.is_breakdown(_pp["lines"][0], _pp["lines"][1:2])
+    locp,stp=upload_quote("Kitchen PI.xlsx", pi_sheet(), str(shop.id)); keyp=_unq(locp.split("key=")[1]); hp=c.get(locp).text
+    assert "but the sheet's total" not in hp  # the parts are inside L1: no line-sum warning
+    assert all(re.search(r'name="act_%d"[^>]*>(?:(?!</select>).)*value="merge" selected' % n, hp, re.S) and re.search(r'name="into_%d"[^>]*>(?:(?!</select>).)*value="1" selected' % n, hp, re.S) for n in (2,3,4)) and "breakdown of L1" in hp and 'class="qi-parts' in hp
+    _spp=__import__("json").loads(_st.read_image(keyp).decode())["suggestions"]; assert _spp["2"]["action"]=="merge" and _spp["2"]["merge_into"]==1 and _spp["2"]["confidence"]==0.95
+    _kit=[c_ for c_ in _qz.candidates(SessionLocal(), SessionLocal().get(__import__("app.models", fromlist=["Project"]).Project, pid_q)) if "kitchen" in c_.name.lower() and c_.unit in ("set", "pcs")]
+    formp={"key":keyp,"supplier_id":str(shop.id),"title":"Kitchen PI","currency":"USD","total":"9100","discount":"0","charges":"200","terms":"","act_1":"quote","prod_1":str(_kit[0].id),"act_2":"merge","into_2":"1","act_3":"merge","into_3":"1","act_4":"merge","into_4":"1"}
+    r=c.post(f"/p/{pid_q}/quotations/apply", data=formp, follow_redirects=False); assert r.status_code==303 and "err=" not in r.headers["location"], r.headers["location"]
+    qdp=int(r.headers["location"].split("/quotations/")[1].split("?")[0]); db=SessionLocal(); dp=db.get(_QD, qdp); qk=next(ln.quote for ln in dp.lines if ln.no==1)
+    assert abs(qk.amount-8900)<0.01 and "Made up of: cabinets" in qk.notes and dp.replaces_id is None, (qk.amount, qk.notes[:200])  # the breakdown counted once
+    db.close(); c.post(f"/p/{pid_q}/quotations/{qdp}/delete", follow_redirects=False)
     # a failed upload sits in the list until discarded
     loc6,st6=upload_quote("broken.xlsx", b2.getvalue()); assert st6["stage"]=="error"
     h=c.get(f"/p/{pid_q}/quotations").text; assert "broken.xlsx" in h and ">Failed<" in h
