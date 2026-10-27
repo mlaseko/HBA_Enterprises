@@ -700,7 +700,8 @@ ALTER TABLE projects ADD COLUMN deposit_pct / soon_days / balance_days / lcl_up_
   `_scope_rooms(p)` is empty; a line matching nothing defaults to `new` with `room_hints()` (rooms sharing the most words
   with the supplier's place / name / section) pre-ticked, and a new item in several rooms shares the line's quantity. In
   `apply`, lines in other units than the product's (steps by the piece for a product in m²) price it from the design's quantity.
-  Claude down: `ask_claude` retries (`RETRY_WAITS`) and raises `ClaudeUnavailable`; `match_upload` then keeps the state (parsed,
+  Claude down: `ask_claude` retries (`RETRY_WAITS`; a 401 / `AuthenticationError` is not retried: `ClaudeUnavailable(fatal=True)` with
+  the message naming the secret) and raises `ClaudeUnavailable`; `match_upload` then keeps the state (parsed,
   picture keys, file) under a `.w…json` key and sets the row to `WAITING`; the working page shows Try Claude again / Continue
   without Claude (`POST /working/<u>/retry`, `retry_matching`), the Quotations page "Waiting for Claude"; the preview carries
   `claude_note` when the designer went on without it. Never fall back to words silently when the key is set.

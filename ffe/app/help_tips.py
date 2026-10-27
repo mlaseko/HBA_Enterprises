@@ -167,7 +167,7 @@ TIPS = {
         what="The sheet is being read on the server: the file received, the sheet read, its pictures saved, the lines matched. The preview opens by itself when it is ready.",
         steps=["Wait: a big sheet with many pictures takes up to a minute, longer with Claude matching. Each step ticks as it finishes.",
                "If it stops with an error, the message says why (an unreadable file, no header row); go back and upload the right file.",
-               "<b>Claude could not be reached</b>: the sheet is read and kept, only the matching is left. Try Claude again in a moment, or Continue without Claude (words and sizes only). The sheet waits under Drafts as Waiting for Claude meanwhile."],
+               "<b>Claude could not be reached</b>: the sheet is read and kept, only the matching is left. Try Claude again in a moment, or Continue without Claude (words and sizes only). The sheet waits under Drafts as Waiting for Claude meanwhile. <b>The Claude key is not accepted</b> means the ANTHROPIC_API_KEY secret is wrong: paste a Console key (sk-ant-api…) under Secrets on Replit and redeploy; trying again before that cannot help."],
         tips=["Leaving the page does not stop the work: Back to quotations and open the preview later from the same link, or upload again."]),
     "quotation_preview": dict(
         title="Checking a quotation", anchor="quotations",

@@ -809,7 +809,17 @@ def _thumb_jpeg(data: bytes, px: int = 256) -> bytes | None:
 
 
 class ClaudeUnavailable(Exception):
-    """Claude could not be reached (or answered nothing usable) after the retries: the upload waits for a decision."""
+    """Claude could not be reached (or answered nothing usable) after the retries: the upload waits for a decision.
+    `fatal` means trying again cannot help (the key is refused) and the message says what to fix."""
+
+    def __init__(self, msg: str, fatal: bool = False):
+        super().__init__(msg)
+        self.fatal = fatal
+
+
+def _key_refused(e: Exception) -> bool:
+    """A 401 / authentication error: the key in ANTHROPIC_API_KEY is wrong, revoked or not yet deployed."""
+    return type(e).__name__ == "AuthenticationError" or getattr(e, "status_code", None) == 401 or "authentication_error" in str(e)
 
 
 RETRY_WAITS = (2, 5)  # seconds between the attempts: an outage or a rate limit usually passes in seconds
@@ -849,6 +859,9 @@ def ask_claude(p: Project, parsed: dict, cands: list[Candidate], lists_: dict, p
             break
         except Exception as e:  # network, rate limit, overloaded: wait and try again
             last = e
+            if _key_refused(e):  # no point trying again until the secret is fixed
+                raise ClaudeUnavailable("The Claude key is not accepted (401 invalid x-api-key): check ANTHROPIC_API_KEY under Secrets on Replit "
+                                        "(a Console key, nothing pasted around it) and redeploy. Trying again will not help before that.", fatal=True)
             if i < len(RETRY_WAITS):
                 time.sleep(RETRY_WAITS[i])
     if last is not None and data is None:
@@ -1293,7 +1306,7 @@ def match_upload(upload_id: int, project_id: int, state: dict, raw_pictures: dic
     except ClaudeUnavailable as e:
         key = f"{base}.w{uuid.uuid4().hex[:8]}.json"
         storage.save_blob(json.dumps(state, ensure_ascii=False).encode("utf-8"), key, "application/json")
-        _set_stage(upload_id, WAITING, state_key=key, claude=False, message=f"Claude could not be reached ({str(e)[:120]})")
+        _set_stage(upload_id, WAITING, state_key=key, claude=False, message=str(e)[:300] if getattr(e, "fatal", False) else f"Claude could not be reached ({str(e)[:120]})")
         return
     state = dict(state, suggestions=sug["lines"], claude=sug["claude"],
                  claude_note="" if sug["claude"] else ("Claude was not used: you chose to carry on without it." if ai.enabled() and not use_claude else ""))
