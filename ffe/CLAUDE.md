@@ -701,7 +701,9 @@ ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                          
   from `_preview_ctx`, product options carry `data-n` = room lines, lines `data-amount`) is computed in the page's script,
   as is its "Quantities against the design" table (`#sim-recon`: per product the sheet's quantity from the lines on it,
   `data-qty` / `data-unit` / `data-ref` / `data-price` on the lines, against the design's `data-qty` × (1 + `data-allow`) on the
-  option; red short by > 10 %, gold > 25 % over, red when the lines carry several supplier codes, gold when their prices differ).
+  option; red short by > 10 %, gold > 25 % over, red when the lines carry several supplier codes, gold when their prices differ,
+  gold when another product's lines carry the same supplier code — the skirting cut from the floor slab, with its m² from the
+  lines' `data-dims` smallest dimension; the header reads "Design needs" and the allowance is named only where it applies).
   `flags()` = `spec_diffs()` (thickness via `_thickness`, slip rating, finish and material words: red pills) + size / unit
   (m and lm equal, `_same_unit`) / quantity (gold). `out_of_scope(line, p)` skips staff / servant quarters only when
   `_scope_rooms(p)` is empty; a line matching nothing defaults to `new` with `room_hints()` (rooms sharing the most words

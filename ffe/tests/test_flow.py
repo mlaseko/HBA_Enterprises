@@ -1893,7 +1893,7 @@ def flow(c):
     r=c.get(loc); assert r.status_code==200 and "Check the quotation" in r.text and "Tile quotation" in r.text
     from app import storage as _st
     assert "qi-legend" in r.text and 'id="qi-rooms-tpl"' in r.text and 'id="qi-prod-tpl"' in r.text and 'class="row qi-filter' in r.text and 'id="qi-decide"' in r.text
-    assert 'id="qi-skip-none"' in r.text and 'class="qi-chip sec-skip" data-section="First floor' in r.text and 'name="rooms_X"' in r.text and 'id="qi-todo"' in r.text and "Before you save" in r.text
+    assert "Design needs" in r.text and "Design + allowance" not in r.text and 'id="qi-skip-none"' in r.text and 'class="qi-chip sec-skip" data-section="First floor' in r.text and 'name="rooms_X"' in r.text and 'id="qi-todo"' in r.text and "Before you save" in r.text
     _sg=__import__("json").loads(_st.read_image(qkey).decode())["suggestions"]
     assert _sg["4"]["action"]=="new" and _sg["4"]["options"] and _sg["4"]["options"][0]["kind"] in ("quote", "new") and any(o["kind"]=="new" for o in _sg["4"]["options"]), _sg["4"]["options"]
     assert _sg["4"]["related"] and _sg["4"]["related"]["word"] in ("handrail", "stair", "stairs") and _sg["4"]["related"]["ids"], _sg["4"]["related"]  # the rooms with a handrail / stair product
