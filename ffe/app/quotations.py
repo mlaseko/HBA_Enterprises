@@ -689,16 +689,33 @@ def room_hints(line: dict, p: Project) -> list[int]:
     nums = set(re.findall(r"(?<![\w.])\d+(?![\w.])", no_floors))  # "bedroom 1" is not "bedroom 2" (not the 2 and 6 of 2.6 kW, nor the 1 of 1hp)
     if not words and not nums:
         return []
+    place = _norm(re.sub(r"\b(ground|first|second|third|\d+(?:st|nd|rd|th)?)\s+floor\b|\bfloor\s*\d+\b", " ", line.get("place") or "", flags=re.I))
     scored = []
     for r in p.rooms:
         rw = tokens(f"{r.name} {r.code}")
+        rn = _norm(r.name or "")
+        if place and rn and (place == rn or _typo(place, rn)):  # the room's whole name ("kitchen", not "kitchen verandah"; "dinning" is dining)
+            return [r.id]
         hit = len(words & rw) + len(nums & set(re.findall(r"\b\d+\b", r.name or ""))) + 0.5 * len(words & tokens(r.floor or "") - rw)
+        for w in words - rw:  # a word misspelt by one letter still counts
+            if any(len(w) >= 5 and _typo(w, x) for x in rw):
+                hit += 1
         if hit:
             scored.append((hit, r.id))
     if not scored:
         return []
     best = max(h for h, _ in scored)
     return [rid for h, rid in scored if h == best]
+
+
+def _typo(a: str, b: str) -> bool:
+    """One letter added, dropped or changed between two words of 5 letters or more ("dinning" / "dining")."""
+    if a == b or min(len(a), len(b)) < 5 or abs(len(a) - len(b)) > 1 or re.search(r"\d", a + b):  # "bedroom 2" is not a typo of "bedroom 1"
+        return False
+    i = 0
+    while i < min(len(a), len(b)) and a[i] == b[i]:
+        i += 1
+    return a[i + 1:] == b[i + 1:] or a[i + 1:] == b[i:] or a[i:] == b[i + 1:]
 
 
 def related_rooms(line: dict, cands: list[Candidate]) -> dict | None:
