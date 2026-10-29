@@ -777,6 +777,9 @@ ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                          
   by `byProduct()` from `lastPer` / `lastFams` (kept by `simulate()`): `pcard()` per product (lines via `lineRow()`, merged parts,
   the Together row, quantity / codes / split pills), families in `.qi-pfam`, then Not placed yet / New items / Charges /
   Skipped sections; `.qi-goto` switches back to the line and opens its More.
+  Walk me through: `#qi-walk` → `walkStart()` (the `.needs` lines in order, `body.qi-walking`, `#qi-walkbar` with counter and
+  bar), `walkShow()` hides every other line and moves past lines no longer `.needs` (called after each `todo()`), Skip for now /
+  Exit, `walkEnd(finished)` with an `appAlert`; `applyFilter()` is a no-op while walking.
   Finding a product on a line: `.qi-find` search box (words, room code, our code: `data-s` on the options = codes, rooms, spec),
   chips of the hits; `data-same` (item number + unit, else name + size + unit) drives the "Also for L…" chip. Memory: `remember()`
   writes the shop's row and a supplier-less row by wording (`memory()` returns both, the shop's first; shortlist 0.9 / 0.85).

@@ -40,6 +40,7 @@
     <button type="button" class="pick-chip" data-f="merge">Merged <b>{{ counts.merge }}</b></button>
     <button type="button" class="pick-chip" data-f="skip">Skipped <b>{{ counts.skip }}</b></button>
     <button type="button" class="btn sm sec" id="qi-nextcheck"><svg class="ic"><use href="#i-chevron-right"/></svg>Next to check</button>
+    <button type="button" class="btn sm gold" id="qi-walk" title="One line at a time: the lines to check, each with its three buttons; the rest of the page waits">Walk me through</button>
     <button type="button" class="btn sm sec" id="qi-skip-none" title="Every line set to Quotes a product with no product picked becomes Skip">Skip the lines without a product</button>
   </div>
   <details class="qi-legend-wrap mt"><summary class="small">What Matched, New, Merged, Extra, Skipped and % sure mean</summary>
@@ -57,6 +58,7 @@
 <template id="qi-prod-tpl"><select>{% for cat, cs in by_cat.items() %}<optgroup label="{{ cat }}">{% for c in cs %}{{ prod_option(c, false) }}{% endfor %}</optgroup>{% endfor %}</select></template>
 <div class="row qi-views" role="group" aria-label="View"><span class="small muted">View:</span><button type="button" class="pick-chip on" data-view="lines">By line</button><button type="button" class="pick-chip" data-view="products">By product</button><span class="small muted qi-views-note">By product: what each product of yours gets from this sheet, with its lines under it.</span></div>
 <div class="qi-byprod" id="qi-byprod" hidden></div>
+<div class="qi-walkbar" id="qi-walkbar" hidden><div class="row between"><b id="qi-walk-n">Line 1 of 7 to check</b><div class="row"><button type="button" class="btn sm sec" id="qi-walk-skip">Skip for now ›</button><button type="button" class="btn sm ghost" id="qi-walk-exit">Exit</button></div></div><div class="bar"><i id="qi-walk-bar" style="width:0%"></i></div></div>
 <div class="qi-lines" id="lines">
   {% set ns = namespace(section=none) %}
   {% for l in lines %}{% set s = l.sug %}
@@ -272,9 +274,9 @@
     form.querySelectorAll('.qi-line').forEach(same);  // and the "Also for" chips: a pick on L1 changes what L7's chip says
     form.querySelectorAll('.qi-line').forEach(say);  // and the plain sentences: "132 of the 326 m²; the rest is on L9, L17"
     document.getElementById('qi-n-check').textContent=nCheck;
-    document.querySelectorAll('.qi-decide').forEach(function(b){ b.hidden=!items.length; b.querySelector('span').textContent=items.length+' to decide'; }); applyFilter(); }
+    document.querySelectorAll('.qi-decide').forEach(function(b){ b.hidden=!items.length; b.querySelector('span').textContent=items.length+' to decide'; }); applyFilter(); if(walk) setTimeout(walkShow, 250); }
   var filter='all';
-  function applyFilter(){ form.querySelectorAll('.qi-line').forEach(function(line){ var a=line.querySelector('.qi-act').value; var show=filter==='all'||(filter==='check'&&line.classList.contains('needs'))||(filter!=='check'&&a===filter); line.classList.toggle('qi-hide', !show); });
+  function applyFilter(){ if(walk) return; form.querySelectorAll('.qi-line').forEach(function(line){ var a=line.querySelector('.qi-act').value; var show=filter==='all'||(filter==='check'&&line.classList.contains('needs'))||(filter!=='check'&&a===filter); line.classList.toggle('qi-hide', !show); });
     form.querySelectorAll('.qi-section').forEach(function(h){ var n=h.nextElementSibling, any=false; while(n&&!n.classList.contains('qi-section')){ if(n.classList.contains('qi-line')&&!n.classList.contains('qi-hide')) any=true; n=n.nextElementSibling; } h.classList.toggle('qi-hide', !any); }); }
   document.querySelectorAll('.qi-filter .pick-chip').forEach(function(c){ c.addEventListener('click',function(){ filter=c.dataset.f; document.querySelectorAll('.qi-filter .pick-chip').forEach(function(x){ x.classList.toggle('on', x===c); }); applyFilter(); }); });
   function jump(sel){ var y=window.scrollY+80, all=Array.prototype.slice.call(form.querySelectorAll(sel)).filter(function(l){ return !l.classList.contains('qi-hide'); }); if(!all.length) return;
@@ -420,6 +422,20 @@
     html+=sec('Skipped', 'Nothing is saved from these lines.', groups.skip);
     bp.innerHTML=html||'<div class="card empty"><p>No line is matched to a product yet.</p></div>'; }
   form.addEventListener('click',function(e){ var b=e.target.closest('.qi-goto'); if(!b) return; setView('lines'); var line=form.querySelector('#line-'+b.dataset.n); if(!line) return; filter='all'; applyFilter(); line.scrollIntoView({behavior:'smooth',block:'center'}); line.classList.add('flash'); setTimeout(function(){ line.classList.remove('flash'); },1200); var d=line.querySelector('.qi-more'); if(d) d.open=true; });
+  // Walk me through: the lines to check, one at a time (the phone, one thumb). A line that stops needing a check moves on.
+  var walk=null, walkbar=document.getElementById('qi-walkbar');
+  function walkShow(){ if(!walk) return; while(walk.i<walk.lines.length&&!walk.lines[walk.i].classList.contains('needs')) walk.i++;
+    if(walk.i>=walk.lines.length){ walkEnd(true); return; } var cur=walk.lines[walk.i];
+    form.querySelectorAll('.qi-line').forEach(function(l){ l.classList.toggle('qi-hide', l!==cur); }); form.querySelectorAll('.qi-section').forEach(function(h){ h.classList.add('qi-hide'); });
+    var left=walk.lines.filter(function(l,i){ return i>=walk.i&&l.classList.contains('needs'); }).length, done=walk.lines.length-left;
+    document.getElementById('qi-walk-n').textContent='Line '+cur.id.replace('line-','L')+' · '+(done+1)+' of '+walk.lines.length+' to check'; document.getElementById('qi-walk-bar').style.width=Math.round(100*done/walk.lines.length)+'%';
+    var d=cur.querySelector('.qi-more'); if(d&&cur.querySelector('.qi-act').value==='quote') d.open=false; cur.scrollIntoView({block:'start'}); window.scrollBy(0,-70); }
+  function walkStart(){ var ls=Array.prototype.filter.call(form.querySelectorAll('.qi-line'),function(l){ return l.classList.contains('needs'); }); if(!ls.length){ appAlert('Nothing is left to check: every line has a decision.', {title:'All checked'}); return; }
+    walk={lines:ls, i:0}; filter='all'; setView('lines'); document.body.classList.add('qi-walking'); walkbar.hidden=false; walkShow(); }
+  function walkEnd(finished){ walk=null; document.body.classList.remove('qi-walking'); walkbar.hidden=true; applyFilter(); if(finished){ var box=document.getElementById('qi-todo'); (box.hidden?document.querySelector('.qi-bar'):box).scrollIntoView({behavior:'smooth',block:'center'}); appAlert(box.hidden?'Every line is decided. Check the document and press Save the quotation.':'The lines are checked; "Before you save" still lists what needs a decision.', {title:'Done'}); } }
+  document.getElementById('qi-walk').addEventListener('click', walkStart);
+  document.getElementById('qi-walk-skip').addEventListener('click',function(){ if(!walk) return; walk.i++; if(walk.i>=walk.lines.length){ walkEnd(true); return; } walkShow(); });
+  document.getElementById('qi-walk-exit').addEventListener('click',function(){ walkEnd(false); });
   function breakdown(target){ var t=parseFloat(target.dataset.amount)||0, sum=0; form.querySelectorAll('.qi-line.act-merge').forEach(function(o){ if(o.querySelector('[name^=into_]').value===no(target)) sum+=parseFloat(o.dataset.amount)||0; }); return t>0&&sum>0&&Math.abs(sum-t)<=0.01*t; }
   function simulate(){ if(!sim) return; var prods={}, covered=0, newItems=0, skipped=0, amount=0, extra=0;
     form.querySelectorAll('.qi-line').forEach(function(line){ var a=line.querySelector('.qi-act').value; var amt=parseFloat(line.dataset.amount||'0')||0;

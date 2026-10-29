@@ -1895,6 +1895,7 @@ def flow(c):
     from app import storage as _st
     assert "qi-legend" in r.text and 'id="qi-rooms-tpl"' in r.text and 'id="qi-prod-tpl"' in r.text and 'class="row qi-filter' in r.text and 'id="qi-decide"' in r.text
     assert "Design needs" in r.text and "Design + allowance" not in r.text and 'id="qi-skip-none"' in r.text and 'class="qi-chip sec-skip" data-section="First floor' in r.text and 'name="rooms_X"' in r.text and 'id="qi-todo"' in r.text and "Before you save" in r.text
+    assert 'id="qi-walk"' in r.text and 'id="qi-walkbar"' in r.text and 'id="qi-walk-skip"' in r.text  # the walk-through
     assert 'class="row qi-views"' in r.text and 'data-view="products"' in r.text and 'id="qi-byprod"' in r.text  # the By product view
     assert 'class="qi-say"' in r.text and 'class="qi-acts row"' in r.text and '<details class="qi-more">' in r.text and 'name="ok_1"' in r.text  # the plain-language card, the controls folded under More
     _sg=__import__("json").loads(_st.read_image(qkey).decode())["suggestions"]
