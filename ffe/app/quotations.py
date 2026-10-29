@@ -1524,7 +1524,11 @@ def compare(db: Session, p: Project, category: str) -> dict:
             sup_n[sid][2] += x["price"] * c.qty
         rows.append(dict(c=c, cells=cells, best=low, open=sum(1 for i in c.g.lines if not i.purchase_id), bought=bought))
     suppliers = sorted(sup_n.values(), key=lambda s: (-s[1], s[0].name.lower()))
-    return dict(category=category, categories=cats, suppliers=suppliers, rows=rows,
+    from .services import families as _families
+    fams = _families(rows, lambda r: (r["c"].name, r["c"].finish))
+    for f in fams:  # how many of a family's variants each shop priced
+        f["priced"] = {sid: sum(1 for r in f["members"] if sid in r["cells"]) for sid in sup_n}
+    return dict(category=category, categories=cats, suppliers=suppliers, rows=rows, fams=fams,
                 best_total=sum(r["best"] * r["c"].qty for r in rows))
 
 

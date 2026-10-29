@@ -192,13 +192,16 @@
     table.querySelectorAll('th[aria-sort]').forEach(function (x) { x.removeAttribute('aria-sort'); });
     th.setAttribute('aria-sort', dir === 1 ? 'ascending' : 'descending');
     var rows = [].slice.call(tbody.rows).map(function (r, i) { return { r: r, i: i, k: cellKey(r.cells[idx], kind) }; });
+    // a product family (a header row data-fam-head + its variants data-fam) moves as one block, sorted by the header
+    var heads = {}; rows.forEach(function (x) { if (x.r.dataset.famHead) heads[x.r.dataset.famHead] = x; });
+    var members = {}; rows = rows.filter(function (x) { var f = x.r.dataset.fam; if (f && heads[f]) { (members[f] = members[f] || []).push(x); return false; } return true; });
     rows.sort(function (a, b) {
       var x = a.k, y = b.k, c;
       if (kind === 'num') { var xn = isNaN(x), yn = isNaN(y); c = xn && yn ? 0 : xn ? 1 : yn ? -1 : (x - y) * dir; }
       else { c = x === '' && y === '' ? 0 : x === '' ? 1 : y === '' ? -1 : x.localeCompare(y, undefined, { numeric: true, sensitivity: 'base' }) * dir; }
       return c || a.i - b.i;
     });
-    rows.forEach(function (x) { tbody.appendChild(x.r); });
+    rows.forEach(function (x) { tbody.appendChild(x.r); var f = x.r.dataset.famHead; if (f && members[f]) { var ms = members[f].slice().sort(function (a, b) { var c = kind === 'num' ? ((isNaN(a.k) ? 1 : 0) - (isNaN(b.k) ? 1 : 0)) || (a.k - b.k) * dir : (a.k < b.k ? -1 : a.k > b.k ? 1 : 0) * dir; return c || a.i - b.i; }); ms.forEach(function (y) { tbody.appendChild(y.r); }); } });
   });
   document.querySelectorAll('table.sortable th[data-sort]').forEach(function (th) {
     th.tabIndex = 0; th.setAttribute('role', 'button'); th.title = 'Sort by ' + th.textContent.trim() + ' (press again for the other way)';

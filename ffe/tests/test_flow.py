@@ -2128,6 +2128,10 @@ def flow(c):
     _q8=db.get(_QD, qd8); _v={ln.no: ln.product for ln in _q8.lines}; assert _v[1].title=="Air conditioner · 2.5 HP" and _v[2].title=="Air conditioner · 1 HP" and _v[2].id==_v[3].id and _v[1].id!=_v[2].id
     assert len(_v[1].quotes)==1 and _v[1].quotes[0].model=="GWC24" and round(_v[1].quotes[0].amount)==890 and _v[2].quotes[0].model=="GWC09" and round(_v[2].quotes[0].amount)==508
     _p1, _p2 = _v[1].id, _v[2].id; _it0=_its[_acr[0][0]].id; db.close()
+    # the family (a product and its variants) grouped on the Items list, the Buying list and Compare shops
+    h=c.get(f"/p/{pid_q}/items?view=list").text; assert 'class="fam-row"' in h and "2 variants" in h and 'class="fam-var" data-fam="air conditioner|"' in h and h.count('data-fam="air conditioner|"')==2, h.count("fam-")
+    h=c.get(f"/p/{pid_q}/buying").text; assert 'class="bu-fam"' in h and "2 variants" in h and 'class="bu-card variant"' in h
+    h=c.get(f"/p/{pid_q}/quotations/compare?category=Lighting").text; assert 'class="fam-row"' in h and "all 2 priced" in h and 'class="fam-var"' in h
     h=c.get(f"/p/{pid_q}/quotations/{qd8}").text; assert 'id="variants"' in h and f'name="label_{_p1}"' in h and 'value="2.5 HP"' in h and f'name="var_{_it0}"' in h and "L2, L3" in h and "GWC09" in h
     # rename a variant and move a room to it: the lines' sizes change, the products follow, the quotes stay with them
     r=c.post(f"/p/{pid_q}/quotations/{qd8}/variants", data={f"label_{_p2}":"1 HP Gree", f"label_{_p1}":"2.5 HP", f"var_{_it0}":str(_p2)}, follow_redirects=False); assert r.status_code==303 and "3%20room%20lines%20changed" in r.headers["location"], r.headers["location"]

@@ -59,16 +59,12 @@
 </div>
 {% endif %}
 
-{% for cat, gs in sections %}
-{% set cat_total = gs|sum(attribute='committed') %}
-<div class="group-title"><h2>{{ cat }}</h2><span class="n">{{ gs|length }} product{{ 's' if gs|length != 1 }}{% if cat_total %} · ¥{{ cat_total|money }}{% endif %}</span></div>
-<div class="cards bu-grid">
-  {% for g in gs %}{% set o = g.order %}{% set n = g.lines|length %}{% set pus = g.purchases %}{% set best = g.best_quote %}
-  <a class="bu-card" href="/p/{{ p.id }}/buying/{{ g.product.id }}" data-search="{{ g.search }}" style="--c:{{ STAGE_COLORS[g.stage] }}">
+{% macro bu_card(g, variant=false) %}{% set o = g.order %}{% set n = g.lines|length %}{% set pus = g.purchases %}{% set best = g.best_quote %}
+  <a class="bu-card{{ ' variant' if variant }}" href="/p/{{ p.id }}/buying/{{ g.product.id }}" data-search="{{ g.search }}" style="--c:{{ STAGE_COLORS[g.stage] }}">
     <span class="pic">{% if g.cover %}<img src="/media/{{ g.cover.thumb }}" alt="{{ g.name }}" loading="lazy" data-full="/media/{{ g.cover.file_key }}" data-caption="{{ g.name }}">{% else %}<svg class="ic"><use href="#i-image"/></svg>{% endif %}</span>
     <span class="body">
-      <span class="t">{{ g.name }}</span>
-      <span class="m">{% for v in [g.item.size, g.item.finish]|select %}{{ v }}{% if not loop.last %} · {% endif %}{% endfor %}{% if g.item.brand %}{% if g.item.size or g.item.finish %} · {% endif %}<span class="pref" title="Preferred brand">pref. {{ g.item.brand }}</span>{% endif %}</span>
+      <span class="t">{% if variant %}<span class="muted">↳</span> {{ g.item.size or 'generic' }}{% else %}{{ g.name }}{% endif %}</span>
+      <span class="m">{% if variant %}{{ g.name }}{% if g.item.finish %} · {{ g.item.finish }}{% endif %}{% else %}{% for v in [g.item.size, g.item.finish]|select %}{{ v }}{% if not loop.last %} · {% endif %}{% endfor %}{% endif %}{% if g.item.brand %}{% if g.item.size or g.item.finish %} · {% endif %}<span class="pref" title="Preferred brand">pref. {{ g.item.brand }}</span>{% endif %}</span>
       <span class="m where"><svg class="ic sm"><use href="#i-layout"/></svg>{{ n }} room{{ 's' if n != 1 }}{% if g.floors %} · {{ g.floors|join(', ') }}{% endif %}</span>
       <span class="facts">
         <span><span class="v">{{ o.qty|num(2) }}<small>{{ g.unit }}</small></span><span class="l">to order{% if o.packs %} · {{ o.packs }} {{ g.pack_name or 'pack' }}{{ ('es' if (g.pack_name or 'pack')[-1:] in 'xs' else 's') if o.packs != 1 }}{% endif %}</span></span>
@@ -81,8 +77,17 @@
         {% else %}<svg class="ic sm"><use href="#i-search"/></svg><span class="muted">No quote yet</span>{% endif %}</span>
       <span class="foot"><span class="badge" style="--c:{{ STAGE_COLORS[g.stage] }}">{{ g.stage }}</span><span class="bar" title="{{ g.covered }} of {{ n }} rooms have a shop"><i style="width:{{ (100 * g.covered / n)|round|int if n else 0 }}%"></i></span><span class="frac">{{ g.covered }}/{{ n }}</span></span>
     </span>
-  </a>
-  {% endfor %}
+  </a>{% endmacro %}
+{% for cat, gs, fams in sections %}
+{% set cat_total = gs|sum(attribute='committed') %}
+<div class="group-title"><h2>{{ cat }}</h2><span class="n">{{ gs|length }} product{{ 's' if gs|length != 1 }}{% if cat_total %} · ¥{{ cat_total|money }}{% endif %}</span></div>
+<div class="cards bu-grid">
+  {% for fam in fams %}{% if fam.one %}{{ bu_card(fam.members[0]) }}{% else %}
+  {% set fl = fam.members|map(attribute='lines')|map('length')|sum %}{% set fc = fam.members|sum(attribute='committed') %}
+  <div class="bu-fam" data-search="{{ fam.name }} {{ fam.finish }} variants">
+    <div class="bu-fam-h"><span class="t">{{ fam.name }}</span>{% if fam.finish %}<span class="m">· {{ fam.finish }}</span>{% endif %}<span class="pill">{{ fam.members|length }} variants</span><span class="m">{{ fl }} room{{ 's' if fl != 1 }}{% if fc %} · ¥{{ fc|money }} committed{% endif %}</span></div>
+    <div class="cards bu-grid">{% for g in fam.members %}{{ bu_card(g, true) }}{% endfor %}</div>
+  </div>{% endif %}{% endfor %}
 </div>
 {% endfor %}
 {% endblock %}

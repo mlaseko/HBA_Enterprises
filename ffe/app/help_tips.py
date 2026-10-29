@@ -112,7 +112,8 @@ TIPS = {
                "To tick many lines by their codes, press <b>Tick by codes</b> in the bar, paste the codes (from Excel, a message or a duplicate check, in any order) and press <b>Tick these</b>: the bar says how many it found and which are not on the page. Best in the Table view, where every room line has its own box."],
         tips=["Tap a photo to see it full screen (‹ › for the next ones); tap the name to open the item.",
               "The status follows the purchase: To buy → Quoted (a shop chosen on the Buying page) → Ordered → Paid → Shipped → Received.",
-              "The category decides which page of the client schedule the item prints on."]),
+              "The category decides which page of the client schedule the item prints on.",
+              "A product in several sizes (variants) shows as a family: a grey row with the name and the count, its variants indented under it; sorting keeps them together."]),
     "item_new": dict(
         title="New item", anchor="items",
         what="One product. Tick several rooms and each room gets its own line with its own code.",
@@ -140,7 +141,8 @@ TIPS = {
                "Open a product to record the shops' <b>quotes</b> and choose which shop supplies which rooms.",
                "The tabs: <b>Orders</b> turns what you bought into orders per shop, the <b>Tracker</b> shows the money and what needs you, and the <b>Purchase schedule</b> shows every product in the look of the client schedule, with the shops and prices."],
         tips=["<b>Committed</b> is what the chosen shops cost: the rooms' quantities plus the allowance, rounded up to whole boxes, at each shop's price.",
-              "The client sees no price for a room until a shop is chosen for it."]),
+              "The client sees no price for a room until a shop is chosen for it.",
+              "A product split into variants (Air conditioner · 1 HP, · 1.5 HP…) shows as one family box with a card per variant inside it."]),
     "buying_product": dict(
         title="Buying a product", anchor="buying",
         what="One product across all its rooms: what the design asks for, how much to order, the shops' quotes, and who supplies which rooms.",
@@ -169,7 +171,8 @@ TIPS = {
         steps=["Pick the category and the currency. A column per shop, a row per product; the shop's header counts what it priced and adds it up for the rooms' quantities.",
                "<b>Buy</b> under a price buys that product from that shop for the rooms without a shop yet (the product page can split rooms between shops afterwards). <b>bought here</b> marks the shop the rooms are on."],
         tips=["The tile with every product at its lowest price is a floor, not a plan: one shop for a whole category usually ships and packs better than the cheapest cell of each row.",
-              "A product no shop priced is not on the grid: it is on the inquiry sheet of the category."]),
+              "A product no shop priced is not on the grid: it is on the inquiry sheet of the category.",
+              "A product with variants is a family row (how many of its variants each shop priced) with a row per variant under it."]),
     "quotation_working": dict(
         title="Reading a quotation", anchor="quotations",
         what="The sheet is being read on the server: the file received, the sheet read, its pictures saved, the lines matched. The preview opens by itself when it is ready.",

@@ -8,7 +8,7 @@ from ..db import get_db
 from ..models import Project, Item, ItemPhoto, Supplier, Room, Product
 from ..common import render, redirect, require_login, get_project, ffloat, fint, safe_next
 from ..services import next_code, sort_items, moods_for, product_key, _key, _SIZE_SEP_RE, photos_of, forget_pools, release_photos, same_picture  # noqa: F401  (sort_items, product_key are imported from here by share.py, plan.py, importer.py)
-from .. import storage, config, webimage, ai, drawings, buying, lists
+from .. import services, storage, config, webimage, ai, drawings, buying, lists
 
 router = APIRouter(dependencies=[Depends(require_login)])
 
@@ -125,11 +125,12 @@ def list_items(request: Request, p: Project = Depends(get_project), db: Session 
     f = dict(floor=floor, room=room, category=category, status=status, supplier=supplier, q=q, view=view)
     qs = urlencode({k: v for k, v in f.items() if v and k != "view"})  # the filters, for the view switch links
     rows = group_items(items) if view == "list" else None  # the Item list view: one line per product across its rooms
+    fams = services.families(rows, lambda g: (g["item"].name, g["item"].finish)) if rows is not None else None  # a product's variants under it
     floors = floor_choices(p)
     floor_name = next((c["title"] for c in floors if drawings.floor_key(c["value"]) == drawings.floor_key(floor)), floor) if floor else ""
     room_list = [r for r in p.rooms if on_floor(r, floor)] if floor else p.rooms  # the Room dropdown narrows to the floor
     return render(request, "items/list.html", p=p, items=items, suppliers=suppliers, total=total, drafts=drafts, room_obj=room_obj, zoom=zoom,
-                  f=f, qs=qs, rows=rows, deleted=deleted, moods=moods_for(p, room_obj) if room_obj is not None else [],
+                  f=f, qs=qs, rows=rows, fams=fams, deleted=deleted, moods=moods_for(p, room_obj) if room_obj is not None else [],
                   floors=floors, floor_name=floor_name, room_list=room_list, NO_FLOOR=NO_FLOOR)
 
 
