@@ -5,6 +5,7 @@ os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _tmp=tempfile.mkdtemp()
 os.environ["DATABASE_URL"]=f"sqlite:///{_tmp}/test.db"; os.environ["LOCAL_UPLOAD_DIR"]=f"{_tmp}/uploads"; os.environ["STORAGE_BACKEND"]="local"
 os.environ["APP_PASSWORD"]="test123"; os.environ["SECRET_KEY"]="x"*32; os.environ["PHOTO_PREPARE_AT_START"]="0"  # the suite drives the backfill itself
+os.environ["ANTHROPIC_API_KEY"]=""  # start with AI off regardless of workspace secrets; the AI section supplies a fake key and call
 os.environ["PLAN_MAX_PX"]="2400"  # PDF pages rendered at 2400 px rather than 3200: the same rules, half the pixels
 from fastapi.testclient import TestClient
 from app.main import app

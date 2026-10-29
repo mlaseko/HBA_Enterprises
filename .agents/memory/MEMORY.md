@@ -1,1 +1,2 @@
 - [Publishing archive errors](publishing-archive-errors.md) — archive failures can recur with aligned manifests; distinguish packaging from app startup.
+- [Smoke-test isolation](smoke-test-isolation.md) — ambient AI credentials can change expected redirects; isolate services before assuming assertions are stale.
