@@ -1895,6 +1895,7 @@ def flow(c):
     from app import storage as _st
     assert "qi-legend" in r.text and 'id="qi-rooms-tpl"' in r.text and 'id="qi-prod-tpl"' in r.text and 'class="row qi-filter' in r.text and 'id="qi-decide"' in r.text
     assert "Design needs" in r.text and "Design + allowance" not in r.text and 'id="qi-skip-none"' in r.text and 'class="qi-chip sec-skip" data-section="First floor' in r.text and 'name="rooms_X"' in r.text and 'id="qi-todo"' in r.text and "Before you save" in r.text
+    assert 'class="qi-say"' in r.text and 'class="qi-acts row"' in r.text and '<details class="qi-more">' in r.text and 'name="ok_1"' in r.text  # the plain-language card, the controls folded under More
     _sg=__import__("json").loads(_st.read_image(qkey).decode())["suggestions"]
     assert _sg["4"]["action"]=="new" and _sg["4"]["options"] and _sg["4"]["options"][0]["kind"] in ("quote", "new") and any(o["kind"]=="new" for o in _sg["4"]["options"]), _sg["4"]["options"]
     assert _sg["4"]["related"] and _sg["4"]["related"]["word"] in ("handrail", "stair", "stairs") and _sg["4"]["related"]["ids"], _sg["4"]["related"]  # the rooms with a handrail / stair product
@@ -2118,9 +2119,9 @@ def flow(c):
     _pt8=__import__("json").loads(_st.read_image(key8).decode())["parsed"]; assert _pt8["lines"][0]["place"]==_acr[0][1] and _pt8["lines"][2]["place"]==_acr[2][1]  # "For <room>" in Remarks is the line's place
     form8=dict(key=key8, supplier_id="__new__", supplier_name="George Appliances", title="AC", currency="USD", total="1906", discount="0", charges="0", terms="", notes="", sales="", quote_date="", valid_until="", lead_time="",
                act_1="quote", prod_1=str(_acp_id), act_2="quote", prod_2=str(_acp_id), act_3="quote", prod_3=str(_acp_id), vlabel_1="2.5 HP", vrooms_1=str(_acr[0][0]), vlabel_2="1 HP", vrooms_2=str(_acr[1][0]), vlabel_3="1 HP", vrooms_3=str(_acr[2][0]))
-    r=c.post(f"/p/{pid_q}/quotations/draft", data=dict(form8, **{f"split_{_acp_id}":"1"}), follow_redirects=False); assert r.status_code==303 and "Draft%20saved" in r.headers["location"]
+    r=c.post(f"/p/{pid_q}/quotations/draft", data=dict(form8, ok_1="1", **{f"split_{_acp_id}":"1"}), follow_redirects=False); assert r.status_code==303 and "Draft%20saved" in r.headers["location"]
     db=SessionLocal(); key8b=db.query(_QU).filter(_QU.project_id==pid_q, _QU.message=="draft").order_by(_QU.id.desc()).first().state_key; db.close()  # a draft keeps the split
-    h=c.get(f"/p/{pid_q}/quotations/preview?key={key8b}").text; assert 'data-split="1"' in h and 'data-vlabel="2.5 HP"' in h and f'data-vrooms="{_acr[1][0]}"' in h
+    h=c.get(f"/p/{pid_q}/quotations/preview?key={key8b}").text; assert 'data-split="1"' in h and 'data-vlabel="2.5 HP"' in h and f'data-vrooms="{_acr[1][0]}"' in h and 'data-ok="1"' in h  # a draft keeps "Yes, that's it" too
     r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(form8, key=key8b, **{f"split_{_acp_id}":"1"}), follow_redirects=False); assert r.status_code==303 and "2%20quotes%20from%20George%20Appliances%20added" in r.headers["location"], r.headers["location"]
     qd8=int(r.headers["location"].split("/quotations/")[1].split("?")[0])
     db=SessionLocal(); _its={i.room_id: i for i in db.query(Item).filter(Item.project_id==pid_q, Item.name=="Air conditioner")}; assert {k: v.size for k, v in _its.items()}=={_acr[0][0]:"2.5 HP", _acr[1][0]:"1 HP", _acr[2][0]:"1 HP"}, {k: v.size for k, v in _its.items()}
