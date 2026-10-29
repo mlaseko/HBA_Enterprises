@@ -773,6 +773,10 @@ ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                          
   lines, `.qi-acts` buttons Yes that's it (`setOk`, hidden `ok_<line>`, `data-ok`; `_read_form` keeps it in a draft; `toCheck`
   skips a confirmed line; any change of product or action clears it), Change the product… (opens `details.qi-more`), Not
   this (`.qi-notthis` → act buttons)); the old controls live under `details.qi-more`, opened by `show()` for new / merge.
+  By product view: `.qi-views` chips (`setView`, remembered in localStorage `qi.view`) hide `#lines` and show `#qi-byprod`, built
+  by `byProduct()` from `lastPer` / `lastFams` (kept by `simulate()`): `pcard()` per product (lines via `lineRow()`, merged parts,
+  the Together row, quantity / codes / split pills), families in `.qi-pfam`, then Not placed yet / New items / Charges /
+  Skipped sections; `.qi-goto` switches back to the line and opens its More.
   Finding a product on a line: `.qi-find` search box (words, room code, our code: `data-s` on the options = codes, rooms, spec),
   chips of the hits; `data-same` (item number + unit, else name + size + unit) drives the "Also for L…" chip. Memory: `remember()`
   writes the shop's row and a supplier-less row by wording (`memory()` returns both, the shop's first; shortlist 0.9 / 0.85).
