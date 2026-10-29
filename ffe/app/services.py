@@ -20,6 +20,31 @@ def product_key(item: Item) -> str:
     return f"{k}|{_SIZE_SEP_RE.sub('x', _key(item.size)).replace(' ', '')}|{_key(item.finish)}" if k else ""
 
 
+def family_key(name: str, finish: str) -> str:
+    """A product family: the products sharing a name and finish and differing by size (Air conditioner · 1 HP, · 1.5 HP…).
+    Derived, never stored: a variant made by renaming a size joins its family at once."""
+    return f"{_key(name)}|{_key(finish)}"
+
+
+def families(entries: list, name_finish) -> list[dict]:
+    """Group a list (product groups, item-list rows, compare rows) into families, keeping the list's order: each
+    family is {key, name, finish, members, one} with `one` True for a product without variants. `name_finish(entry)`
+    returns the entry's (name, finish)."""
+    out: list[dict] = []
+    by_key: dict[str, dict] = {}
+    for e in entries:
+        name, finish = name_finish(e)
+        k = family_key(name, finish)
+        f = by_key.get(k)
+        if f is None:
+            f = by_key[k] = dict(key=k, name=name, finish=finish, members=[])
+            out.append(f)
+        f["members"].append(e)
+    for f in out:
+        f["one"] = len(f["members"]) == 1
+    return out
+
+
 def twins(p: Project, item: Item) -> list[Item]:
     """The other rooms' lines of the same product among the project's live items."""
     k = product_key(item)

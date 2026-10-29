@@ -81,6 +81,12 @@ def _sections(gs: list) -> list[tuple[str, list]]:
     return sorted(by_cat.items(), key=lambda kv: order.get(kv[0], len(order)))
 
 
+def _family_sections(sections: list[tuple[str, list]]) -> list[tuple[str, list, list]]:
+    """Each category's products grouped into families (a product and its variants together): (category, products, families)."""
+    from .. import services
+    return [(cat, gs, services.families(gs, lambda g: (g.name, g.item.finish or ""))) for cat, gs in sections]
+
+
 def _overview(gs: list) -> dict:
     stages = Counter(g.stage for g in gs)
     lines = sum(len(g.lines) for g in gs)
@@ -100,7 +106,7 @@ def buying_list(request: Request, p: Project = Depends(get_project), db: Session
     shown = _filtered(p, gs, category, floor, stage if stage in bz.STAGES else "")
     f = dict(category=category, floor=floor, stage=stage)
     stage_counts = Counter(g.stage for g in _filtered(p, gs, category, floor, ""))
-    return render(request, "buying/list.html", p=p, sections=_sections(shown), shown=shown, all=_overview(gs), f=f,
+    return render(request, "buying/list.html", p=p, sections=_family_sections(_sections(shown)), shown=shown, all=_overview(gs), f=f,
                   stage_counts=stage_counts, floors=floor_choices(p), NO_FLOOR=NO_FLOOR, STAGES=bz.STAGES, STAGE_COLORS=bz.STAGE_COLORS,
                   STAGE_HELP=bz.STAGE_HELP, qs=urlencode({k: v for k, v in f.items() if v}),
                   base_qs=urlencode({k: v for k, v in f.items() if v and k != "stage"}), ok=ok[:200])

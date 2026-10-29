@@ -763,6 +763,11 @@ ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                          
   "bedroom 1" digits and the floor at half weight; the parser takes a Remarks "For <room>" as the place.
   Preview script: `splits(per)` builds the `#qi-splits` cards (`vget` / `vrow` / `vsum`, `isSplit`), the quantities table
   groups a family (`data-fam` on the options) as one row with its variants under it.
+  Families: `services.family_key(name, finish)` / `families(entries, name_finish)` group products that differ only by size
+  (derived, never stored). The Items list (`fams` from the router: `tr.fam-row[data-fam-head]` + `tr.fam-var[data-fam]`, app.js
+  sorts a family as one block), the Buying list (`_family_sections` → `.bu-fam` with `bu_card(g, variant=true)`) and Compare
+  shops (`compare()` returns `fams` with `priced` per shop) show a family as one row or box with its variants under it; the
+  quotation page's Products and variants card is the same grouping with editing.
   Finding a product on a line: `.qi-find` search box (words, room code, our code: `data-s` on the options = codes, rooms, spec),
   chips of the hits; `data-same` (item number + unit, else name + size + unit) drives the "Also for L…" chip. Memory: `remember()`
   writes the shop's row and a supplier-less row by wording (`memory()` returns both, the shop's first; shortlist 0.9 / 0.85).
