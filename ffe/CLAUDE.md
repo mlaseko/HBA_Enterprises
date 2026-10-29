@@ -768,6 +768,11 @@ ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                          
   sorts a family as one block), the Buying list (`_family_sections` → `.bu-fam` with `bu_card(g, variant=true)`) and Compare
   shops (`compare()` returns `fams` with `priced` per shop) show a family as one row or box with its variants under it; the
   quotation page's Products and variants card is the same grouping with editing.
+  Plain-language card: `.qi-plain` at the top of `.qi-pick` (`say(line)`: the sentence with `sure()` Sure / Fairly sure /
+  A guess / Your pick, `.qi-warns` boxes from the `.qi-why` pills reworded plus the quantity sentence across the product's
+  lines, `.qi-acts` buttons Yes that's it (`setOk`, hidden `ok_<line>`, `data-ok`; `_read_form` keeps it in a draft; `toCheck`
+  skips a confirmed line; any change of product or action clears it), Change the product… (opens `details.qi-more`), Not
+  this (`.qi-notthis` → act buttons)); the old controls live under `details.qi-more`, opened by `show()` for new / merge.
   Finding a product on a line: `.qi-find` search box (words, room code, our code: `data-s` on the options = codes, rooms, spec),
   chips of the hits; `data-same` (item number + unit, else name + size + unit) drives the "Also for L…" chip. Memory: `remember()`
   writes the shop's row and a supplier-less row by wording (`memory()` returns both, the shop's first; shortlist 0.9 / 0.85).

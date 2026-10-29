@@ -187,7 +187,7 @@ def _preview_ctx(db: Session, p: Project, state: dict) -> dict:
         if ch:  # a draft: what the designer chose wins over the suggestion
             s.update(action=ch.get("action", "skip"), product_id=ch.get("product_id"), merge_into=ch.get("into") or 0, name=ch.get("name", ""),
                      category=ch.get("category", ""), room_ids=[int(x) for x in re.findall(r"\d+", str(ch.get("rooms") or ""))], room="",
-                     split=bool(ch.get("split")), variant=ch.get("variant", ""), vrooms=ch.get("vrooms", ""))
+                     split=bool(ch.get("split")), variant=ch.get("variant", ""), vrooms=ch.get("vrooms", ""), ok=bool(ch.get("ok")))
         pic = (state.get("pictures") or {}).get(str(l["no"]))
         lines.append(dict(l, sug=s, pic=pic[1] if pic else "", full=pic[0] if pic else "", dims=qz.dims(l["size"]) or qz.dims(l["name"]),
                           hints=qz.room_hints(l, p), variant=qz.variant_label(l), vcap=qz.capacity_label(l)))
@@ -251,7 +251,8 @@ def _read_form(form, parsed: dict) -> tuple[dict[int, dict], dict]:
         act = form.get(f"act_{n}", "skip")
         choices[n] = dict(action=act if act in ACTIONS else "skip", product_id=fint(form.get(f"prod_{n}")), into=fint(form.get(f"into_{n}")) or 0,
                           rooms=" ".join(form.getlist(f"rooms_{n}")), name=form.get(f"name_{n}", "")[:200], category=form.get(f"cat_{n}", "")[:60],
-                          split=bool(form.get(f"split_{form.get(f'prod_{n}') or 0}")), variant=form.get(f"vlabel_{n}", "")[:60], vrooms=form.get(f"vrooms_{n}", "")[:400])
+                          split=bool(form.get(f"split_{form.get(f'prod_{n}') or 0}")), variant=form.get(f"vlabel_{n}", "")[:60], vrooms=form.get(f"vrooms_{n}", "")[:400],
+                          ok=bool(form.get(f"ok_{n}")))
     head = {k: form.get(k, "") for k in HEAD_FIELDS}
     for k in ("total", "discount", "charges"):
         head[k] = ffloat(head[k], 0)
