@@ -31,7 +31,7 @@ from openpyxl.drawing.image import Image as XLImage
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from PIL import Image as PILImage
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from . import ai, buying, config, drawings, lists, storage
 from .models import Item, Product, Project, Purchase, Quotation, QuotationLine, QuotationUpload, Quote, QuoteMatch, Supplier
@@ -977,6 +977,9 @@ def ask_claude(p: Project, parsed: dict, cands: list[Candidate], lists_: dict, p
               f"(L | section | item number | name | size | qty | unit price | description | shortlist with scores):\n" + "\n".join(lines) +
               "\n\nMatch every line.")
     content.append({"type": "text", "text": prompt})
+    db = object_session(p)  # building the prompt loads the lists and floors, which opens a transaction again: end it before
+    if db is not None and db.in_transaction():  # the wait, or Neon kills the idle connection after 5 minutes
+        db.commit()
     data, last = None, None
     for i in range(len(RETRY_WAITS) + 1):
         try:
