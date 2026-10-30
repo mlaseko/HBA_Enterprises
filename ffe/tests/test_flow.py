@@ -1152,7 +1152,9 @@ def flow(c):
     assert 'name="apply_all" value="1" checked>' in h and "1 other room with this exact item" in h and "differ in" not in h
     assert 'list="dl-name"' in h and '<datalist id="dl-name">' in h and '<option value="Floor tiles">' in h and '<datalist id="dl-size">' in h and '<option value="1200 x 600 mm">' in h and '<option value="Ceramic, matt, cream">' in h
     assert "only in this room so far" in c.get(f"/p/{pid}/items/{t3}").text and '<datalist id="dl-name">' in c.get(f"/p/{pid}/items/new").text
-    h=c.get(f"/p/{pid}/items?view=list&q=Floor%20tiles").text; assert f'<tr id="item-{t1}"' in h and f'<tr id="item-{t3}"' in h and "2 rooms</a>" in h and "· 800 * 400 mm · Ceramic, matt, cream" in h
+    h=c.get(f"/p/{pid}/items?view=list&q=Floor%20tiles").text; assert f'<tr id="item-{t1}"' in h and f'<tr id="item-{t3}"' in h and "2 rooms</a>" in h
+    assert '<tr class="fam-row" data-fam-head="floor tiles|ceramic, matt, cream"' in h and '<b>Floor tiles</b> <span class="muted">· Ceramic, matt, cream</span> <span class="pill">2 variants</span>' in h  # one name and finish in two sizes: a family
+    assert f'<a class="b" href="/p/{pid}/items/{t1}">1200 x 600 mm</a>' in h and f'<a class="b" href="/p/{pid}/items/{t3}">800 * 400 mm</a>' in h and h.count('class="fam-var" data-fam="floor tiles|ceramic, matt, cream"')==2  # a variant line reads by its size
     c.post(f"/p/{pid}/items/{t2}/status", data={"status":"Quoted"}); assert 'name="apply_all" value="1" checked>' in c.get(f"/p/{pid}/items/{t1}").text  # status is per room: no difference that matters
     r=c.post(f"/p/{pid}/items/{t2}", data={"room_id":rids[1],"category":"Tiles","name":"Floor tiles","size":"1200*600 mm","finish":"Ceramic, matt, cream","spec":"Rectified edge","brand":"Marazzi","qty":"20","unit":"m²","status":"Quoted"}, follow_redirects=False); assert r.status_code==303
     h=c.get(f"/p/{pid}/items/{t1}").text; assert 'name="apply_all" value="1">' in h and "The other rooms differ in spec and preferred brand:" in h  # set up its own way: not overwritten by default

@@ -506,7 +506,8 @@ ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                          
 - **Product identity and naming.** `services.product_key` = name + size + finish (brand left it with Buying) (`IDENTITY_FIELDS`; `_key` lowercases
   and collapses spaces, `_SIZE_SEP_RE` makes 1200 x 600 / 1200*600 / 1200×600 one size) is the one rule behind
   `same_item_elsewhere` (the apply-to-other-rooms twins and the "Rooms with this item" checklist) and `group_items` (the Item
-  list, which shows size · finish · brand under the name so variants read apart). `twin_differences(item, others)` lists the
+  list, which shows size · finish · brand under the name so variants read apart; a family's variant line shows its size as the
+  link and finish · brand under it). `twin_differences(item, others)` lists the
   shared fields outside the identity (`DIFF_LABELS`: category, spec, unit, preferred brand) on which the twins no
   longer match; the item form pre-ticks Apply only when it is empty and otherwise names the differences. `suggestions(db, p)`
   (one query over all live items) feeds `<datalist id="dl-name|size|finish|brand">` on the item form and `dl-name` on the
