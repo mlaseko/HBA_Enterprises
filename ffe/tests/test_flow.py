@@ -1877,6 +1877,12 @@ def flow(c):
                          {"line":4,"action":"new","product":"","merge_into":0,"room":"GF-STA","category":"Hardware","confidence":0.8,"reason":"no handrail in the design"},
                          {"line":5,"action":"merge","product":"","merge_into":4,"room":"","category":"","confidence":0.85,"reason":"glass of the handrail"},
                          {"line":99,"action":"quote","product":"P1","merge_into":0,"room":"","category":"","confidence":1,"reason":"ignored: no such line"}]}
+    # the wait for Claude holds no transaction: Neon ends one left idle for 5 minutes (IdleInTransactionSessionTimeout)
+    from app.models import Project as _QP
+    db=SessionLocal(); _qp=db.get(_QP, pid_q); _qc=_qz.candidates(db, _qp); db.commit(); db.expire(_qp); seen=[]
+    ai._call=lambda content, schema=None, **kw: (seen.append(db.in_transaction()), {"lines": []})[1]
+    _qz.ask_claude(_qp, {"lines":[{"no":1,"section":"","place":"","ref":"","name":"Tile","size":"","qty":1,"unit":"m²","unit_price":1,"detail":""}],"currency":"USD"}, _qc, {})
+    db.close(); assert seen==[False], seen
     ai._call=fake_quote_call
     r=c.post(f"/p/{pid_q}/quotations", files={"file":("Tile quotation.xlsx", quote_sheet())}, headers={"Accept":"application/json"}); assert r.status_code==200 and "/quotations/working/" in r.json()["next"], r.text[:300]
     wurl=r.json()["next"]; r=c.get(wurl); assert r.status_code in (200, 303)  # the working page (or the preview already, when the thread was quick)
