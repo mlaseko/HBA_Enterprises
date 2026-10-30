@@ -1357,6 +1357,10 @@ def flow(c):
     db=SessionLocal(); tl=db.query(Item).filter(Item.project_id==int(ps), Item.name=="Floor tile").order_by(Item.id).all(); pr=tl[0].project; same=img("green"); db.add(_np(tl[0].id, same, pr)); db.add(_np(tl[1].id, same, pr)); db.commit(); tids=[i.id for i in tl]; db.close()
     db=SessionLocal(); tl=[db.get(Item,i) for i in tids]; assert sum(len(i.photos) for i in tl)==2 and [len(i.all_photos) for i in tl]==[1,1]; pk=tl[0].photos[0].id; db.close()  # the same picture stored twice (before sharing) shows once
     c.post(f"/p/{ps}/items/{tids[1]}/photo/{pk}/delete", follow_redirects=False); db=SessionLocal(); assert db.query(ItemPhoto).join(Item).filter(Item.id.in_(tids)).count()==0; db.close()  # and goes together
+    db=SessionLocal(); pr=db.get(Item,tids[0]).project; a,b=_np(tids[0], img("red"), pr),_np(tids[1], img("blue"), pr); a.digest=b.digest="-"; db.add_all([a,b]); db.commit(); ua,ub=a.id,b.id; db.close()  # two files that could not be read: no fingerprint
+    db=SessionLocal(); assert [len(db.get(Item,i).all_photos) for i in tids]==[2,2]; db.close()  # still two pictures, not one
+    c.post(f"/p/{ps}/items/{tids[1]}/photo/{ua}/delete", follow_redirects=False); db=SessionLocal(); assert db.get(ItemPhoto,ua) is None and db.get(ItemPhoto,ub) is not None; db.close()  # deleting one leaves the other
+    c.post(f"/p/{ps}/items/{tids[1]}/photo/{ub}/delete", follow_redirects=False)
     c.post(f"/p/{ps}/items/{tids[0]}/photo", files=[("photos",("c.jpg",img("gray"),"image/jpeg"))], follow_redirects=False)
     c.post(f"/p/{ps}/items/delete-selected", data={"ids":[str(tids[0])]}, follow_redirects=False); db=SessionLocal(); t1=db.get(Item,tids[1]); assert len(t1.photos)==1 and t1.cover is not None; fk=t1.photos[0].file_key; db.close()  # bulk delete: the photo moves to the surviving room
     c.post(f"/p/{ps}/items/delete-selected", data={"ids":[str(tids[1])]}, follow_redirects=False); assert _st.read_image(fk) is None  # the last line: the files go

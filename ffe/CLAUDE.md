@@ -270,7 +270,7 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
   to a page (an item in a list) is navigation, not a picture: leave it alone.
 - **Photos belong to the product, not the room line.** `Item.all_photos` / `Item.cover` come from `services.photos_of`
   (the union of the photos of every live line with the same `product_key`, in upload order, one per picture by
-  `ItemPhoto.digest`; computed once per project per request, `forget_pools(p)` after a change in the same request).
+  `ItemPhoto.digest` through `services.fingerprint`, which treats '' and '-' (a file `prepare_photos` could not read) as none; computed once per project per request, `forget_pools(p)` after a change in the same request).
   Store a photo once (on the line it was added from); never copy files to a product's other lines. Before a line is
   deleted call `services.release_photos(db, p, item, survivors)`: its photos move to a surviving twin, files are deleted
   only when none is left. `delete_photo` / `make_cover` act on the pool (a photo of a twin counts) and `delete_photo`
