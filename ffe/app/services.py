@@ -52,6 +52,12 @@ def twins(p: Project, item: Item) -> list[Item]:
 
 
 # ---- photos belong to the product: every room line of it shows the same pictures -----------------------------------
+def fingerprint(ph) -> str:
+    """The digest that names a photo's picture, or '' when it has none: not computed yet, or '-' (main.prepare_photos could
+    not read the file). Two photos without one are never the same picture."""
+    return "" if ph.digest in ("", "-") else ph.digest
+
+
 def photo_pools(p: Project) -> dict:
     """{item id: the photos every line of that product shows}: the union of the lines' photos in upload order, one per
     picture (the same picture stored for two rooms before photos were shared counts once, by its digest). Computed
@@ -67,7 +73,7 @@ def photo_pools(p: Project) -> dict:
     for members in groups.values():
         seen, pool = set(), []
         for ph in sorted((ph for i in members for ph in i.photos), key=lambda ph: ph.id):
-            k = ph.digest or f"key:{ph.file_key}"
+            k = fingerprint(ph) or f"key:{ph.file_key}"
             if k in seen:
                 continue
             seen.add(k)
@@ -92,7 +98,7 @@ def photos_of(item: Item) -> list:
 def same_picture(p: Project, ph) -> list:
     """The other rows of the product that hold the same picture (same digest): copies stored for other rooms before
     photos were shared. They go together with ph."""
-    if not ph.digest or ph.item is None:
+    if not fingerprint(ph) or ph.item is None:
         return []
     return [o for i in [ph.item] + twins(p, ph.item) for o in i.photos if o.id != ph.id and o.digest == ph.digest]
 
