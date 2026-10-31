@@ -209,11 +209,36 @@ def _preview_ctx(db: Session, p: Project, state: dict) -> dict:
         warnings.append(f"The lines add up to {doc['currency']} {lines_sum:,.2f} but the sheet's total less its charges is {expect:,.2f}: a summary table "
                         f"read as lines (make the parts of a set Part of its line), a line missed, or a wrong total. Check before saving.")
     by_id = {c.id: c for c in cands}
-    return dict(parsed=parsed, lines=lines, by_cat=by_cat, by_id=by_id, rooms=rooms, supplier=sup, head=head, doc=doc, new_sup=new_sup, claude=state.get("claude"), totals=totals,
+    diff_groups = _diff_groups(lines, by_id, state.get("decisions") or {})
+    return dict(parsed=parsed, lines=lines, by_cat=by_cat, by_id=by_id, diff_groups=diff_groups, rooms=rooms, supplier=sup, head=head, doc=doc, new_sup=new_sup, claude=state.get("claude"), totals=totals,
                 warnings=warnings,
                 claude_note=state.get("claude_note", ""),
                 draft_at=state.get("draft_at", ""), counts={a: sum(1 for l in lines if l["sug"].get("action") == a) for a in ACTIONS},
                 categories=lists.categories(p), suppliers=_suppliers(db), terms=doc["terms"])
+
+
+def _diff_groups(lines: list[dict], by_id: dict, decisions: dict) -> list[dict]:
+    """The preview's "What differs from your design": every difference of the spec between a line and the product it is
+    matched to (qz.differences, also put on the line as l["diffs"] for its red notes), grouped by what differs (the same
+    "matt offered, satin asked" across several products is one group), with a row per product: its lines, the field name
+    of its decision (dec_<product>_<slug>) and the decision so far (a draft's)."""
+    groups: dict[tuple, dict] = {}
+    for l in lines:
+        s = l["sug"]
+        c = by_id.get(s.get("product_id")) if s.get("action") == "quote" else None
+        l["diffs"] = qz.differences(l, c) if c else []
+        for d in l["diffs"]:
+            g = groups.setdefault((d["kind"], d["offered"], d["asked"]), dict(d, title=qz.DIFF_TITLES[d["kind"]], rows={}))
+            key = f"{c.id}_{d['slug']}"
+            row = g["rows"].setdefault(c.id, dict(c=c, name=f"dec_{key}", decision=decisions.get(key, ""), lines=[], refs=[]))
+            row["lines"].append(l["no"])
+            if l["ref"] and l["ref"] not in row["refs"]:
+                row["refs"].append(l["ref"])
+    out = []
+    for g in groups.values():
+        g["rows"] = list(g["rows"].values())
+        out.append(g)
+    return out
 
 
 @router.get("/p/{project_id}/quotations/preview")
@@ -259,6 +284,11 @@ def _read_form(form, parsed: dict) -> tuple[dict[int, dict], dict]:
     return choices, head
 
 
+def _read_decisions(form) -> dict[str, str]:
+    """The decisions about the differences of the spec, as posted: {"<product>_<slug>": quote | items | ask}."""
+    return {k[4:]: v for k, v in form.items() if k.startswith("dec_") and v in qz.DECISIONS}
+
+
 def _upload_of(db: Session, p: Project, key: str) -> QuotationUpload | None:
     return db.query(QuotationUpload).filter(QuotationUpload.project_id == p.id, QuotationUpload.state_key == key).first()
 
@@ -269,6 +299,7 @@ def _stash(db: Session, p: Project, form, state: dict, key: str) -> str:
     choices, head = _read_form(form, state["parsed"])
     state["choices"] = {str(n): ch for n, ch in choices.items()}
     state["head"] = head
+    state["decisions"] = _read_decisions(form)
     sid = fint(form.get("supplier_id"))
     state["supplier_id"] = sid if sid and db.get(Supplier, sid) is not None else None
     state["new_supplier"] = dict(name=form.get("supplier_name", "")[:160], city=form.get("supplier_city", "")[:120]) if form.get("supplier_id") == "__new__" else None
@@ -319,7 +350,7 @@ async def apply_preview(request: Request, p: Project = Depends(get_project), db:
         if ch["action"] == "quote" and not ch["product_id"]:
             ch["action"] = "skip"
     pictures = {int(k): tuple(v) for k, v in (state.get("pictures") or {}).items()}
-    q = qz.apply(db, p, parsed, choices, head, supplier, pictures, state.get("file_key", ""))
+    q = qz.apply(db, p, parsed, choices, head, supplier, pictures, state.get("file_key", ""), _read_decisions(form))
     if supplier.contact == "" and head.get("sales"):
         supplier.contact = head["sales"][:120]
     up = _upload_of(db, p, key)
@@ -330,7 +361,8 @@ async def apply_preview(request: Request, p: Project = Depends(get_project), db:
     _drop_state(state, key, keep_files=True)
     st = getattr(q, "stats", {"added": 0, "updated": 0})
     msg = f"Quotation saved: {st['added']} quote{'s' if st['added'] != 1 else ''} from {supplier.name} added"
-    msg += f", {st['updated']} updated." if st["updated"] else "."
+    msg += f", {st['updated']} updated" if st["updated"] else ""
+    msg += f"; {st['design']} product{'s' if st['design'] != 1 else ''} of the design now say{'' if st['design'] != 1 else 's'} what the shop offers." if st.get("design") else "."
     return redirect(f"/p/{p.id}/quotations/{q.id}?ok=" + urlquote(msg))
 
 

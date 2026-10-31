@@ -2159,6 +2159,39 @@ def flow(c):
     ai._call=lambda content, schema=None, **kw: (_ for _ in ()).throw(RuntimeError("down"))
     print("quotations ok")
 
+    # what differs from the design: decided once per product and difference, for the quotation alone or into the items as well
+    os.environ["ANTHROPIC_API_KEY"]="test-key"; ai._call=fake_quote_call  # L1 the big slab, L2 the bathroom floor
+    loc9,st=upload_quote("Tile quotation v9.xlsx", quote_sheet()); key9=_unq(loc9.split("key=")[1])
+    h=c.get(loc9).text; fin=f"dec_{big_id}_finish-matt"; slip=f"dec_{bath_id}_slip-none"
+    assert 'id="qi-diffs"' in h and "What differs from your design" in h and "They offer matt. You asked for satin." in h and "Anti-slip R11 asked, not stated in the offer." in h and 'id="qi-ask-text"' in h and 'id="qi-yes-all"' in h
+    assert re.search(r'name="%s"(?:(?!</select>).)*value="items"' % fin, h, re.S) and not re.search(r'name="%s"(?:(?!</select>).)*value="items"' % slip, h, re.S)  # nothing offered on the slip rating: nothing to write into the items
+    assert f'data-dec="{fin}" data-offered="matt"' in h and "we need anti-slip R11; the offer does not say. Please confirm it is R11." in h and "only where you accept a difference" in h
+    form9=dict(base, key=key9, supplier_id="__new__", supplier_name="Foshan Ceramics", discount="0", notes="third round", act_4="skip", act_5="skip", **{fin:"items", slip:"ask"})
+    r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(form9, supplier_id="", supplier_name=""), follow_redirects=False); key9=_unq(r.headers["location"].split("key=")[1].split("&")[0]); form9["key"]=key9
+    h=c.get(f"/p/{pid_q}/quotations/preview?key={key9}").text  # the choices kept, the decisions with them
+    assert re.search(r'name="%s"(?:(?!</select>).)*value="items" selected' % fin, h, re.S) and re.search(r'name="%s"(?:(?!</select>).)*value="ask" selected' % slip, h, re.S)
+    db=SessionLocal(); big_lines=[i.id for i in db.query(Item).filter(Item.project_id==pid_q, Item.size=="1200 x 2400 mm, satin finish")]; bath_spec={i.id: i.spec for i in db.query(Item).filter(Item.project_id==pid_q, Item.spec.like("%R11%"))}; db.close(); assert big_lines and bath_spec
+    r=c.post(f"/p/{pid_q}/quotations/apply", data=form9, follow_redirects=False); loc=r.headers["location"]
+    assert "err=" not in loc and "1%20product%20of%20the%20design%20now%20says%20what%20the%20shop%20offers" in loc, loc
+    qd9=int(loc.split("/quotations/")[1].split("?")[0])
+    db=SessionLocal(); its=[db.get(Item,i) for i in big_lines]
+    assert all(i.size=="1200 x 2400 mm, matt finish" and "Finish matt accepted from Foshan Ceramics, quotation Tiles from Cathy of 2026-10-26; was satin." in i.notes for i in its), [(i.size, i.notes) for i in its]
+    pr9=db.get(_Pr, big_id); assert pr9 is not None and "mattfinish" in pr9.key and pr9.quotes, pr9.key if pr9 else None  # the product followed its lines, its quotes with it
+    assert {i.id: i.spec for i in db.query(Item).filter(Item.id.in_(list(bath_spec)))}==bath_spec  # asked, not accepted: the items stay
+    ls9={ln.no: ln for ln in db.get(_QD, qd9).lines}; assert ls9[1].product_id==big_id
+    assert "finish matt offered vs satin asked (accepted: the design now says matt)" in ls9[1].notes and "anti-slip R11 asked, not stated in the offer (asked the shop)" in ls9[2].notes, (ls9[1].notes, ls9[2].notes)
+    assert "(accepted: the design now says matt)" in ls9[1].quote.notes and "(asked the shop)" in ls9[2].quote.notes; db.close()
+    h=c.get(f"/p/{pid_q}/quotations/{qd9}").text; assert '<span class="pill green">&#10003; finish matt offered vs satin asked (accepted: the design now says matt)</span>' in h
+    # the next sheet is checked against the design as it is now; accepted for that quotation alone, the items stay
+    loc10,st=upload_quote("Tile quotation v10.xlsx", quote_sheet()); key10=_unq(loc10.split("key=")[1])
+    h=c.get(loc10).text; assert "You asked for satin" not in h and "Anti-slip R11 asked, not stated in the offer." in h
+    r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(form9, key=key10, **{fin:"", slip:"quote"}), follow_redirects=False); loc=r.headers["location"]; assert "err=" not in loc and "now%20say" not in loc, loc
+    qd10=int(loc.split("/quotations/")[1].split("?")[0])
+    db=SessionLocal(); assert {i.id: i.spec for i in db.query(Item).filter(Item.id.in_(list(bath_spec)))}==bath_spec
+    assert "anti-slip R11 asked, not stated in the offer (accepted for this quotation)" in {ln.no: ln for ln in db.get(_QD, qd10).lines}[2].notes; db.close()
+    del os.environ["ANTHROPIC_API_KEY"]; ai._call=lambda content, schema=None, **kw: (_ for _ in ()).throw(RuntimeError("down"))
+    print("quotation differences ok")
+
 
 # ---- the runner: sections, dependencies, selection ------------------------------------------------------------------------
 # A section is the statements of flow() up to and including a print("<name> ok"); what comes before the first one is the

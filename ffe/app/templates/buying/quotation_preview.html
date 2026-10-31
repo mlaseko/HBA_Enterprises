@@ -8,7 +8,7 @@
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/quotations">Quotations</a></div>
     <h1>Check the quotation <span class="h-note">{{ lines|length }} line{{ 's' if lines|length != 1 }}</span></h1>
-    <p class="sub">{{ parsed.title or parsed.filename }}. Each line has the product it seems to quote: confirm, change, merge, make a new item or skip it. Nothing is saved until you press <b>Save the quotation</b>; the items of the design are never changed, only quotes are added or, for a shop that already quoted a product, corrected.</p>
+    <p class="sub">{{ parsed.title or parsed.filename }}. Each line has the product it seems to quote: confirm, change, merge, make a new item or skip it. Nothing is saved until you press <b>Save the quotation</b>. Quotes are added or, for a shop that already quoted a product, corrected; the items of the design change only where you accept a difference and choose to update them.</p>
   </div>
   <div class="actions">
     <form method="post" action="/p/{{ p.id }}/quotations/cancel" data-confirm="Discard this upload? The file and its pictures are dropped; the project is not changed."><input type="hidden" name="key" value="{{ key }}"><button class="btn sec"><svg class="ic"><use href="#i-x"/></svg>Discard</button></form>
@@ -42,6 +42,7 @@
     <button type="button" class="btn sm sec" id="qi-nextcheck"><svg class="ic"><use href="#i-chevron-right"/></svg>Next to check</button>
     <button type="button" class="btn sm gold" id="qi-walk" title="One line at a time: the lines to check, each with its three buttons; the rest of the page waits">Walk me through</button>
     <button type="button" class="btn sm sec" id="qi-skip-none" title="Every line set to Quotes a product with no product picked becomes Skip">Skip the lines without a product</button>
+    <button type="button" class="btn sm ok" id="qi-yes-all" title="Every green Sure line not confirmed yet gets its Yes, that's it; untick any on the line">&#10003; Yes to every Sure line <b>0</b></button>
   </div>
   <details class="qi-legend-wrap mt"><summary class="small">What Matched, New, Merged, Extra, Skipped and % sure mean</summary>
   <div class="qi-legend small mt">
@@ -53,6 +54,42 @@
   </div></details>
   <div class="qi-todo mt" id="qi-todo" hidden><b>Before you save</b><ul id="qi-todo-list"></ul></div>
 </div>
+
+{% if diff_groups %}
+<div class="card tight qi-diffs" id="qi-diffs">
+  <div class="row between top"><div><b>What differs from your design</b> <span class="small muted">The sheet's words against your items' specification, grouped: decide once for every product with the same difference. Each line's card says what you chose.</span></div><span class="pill gold" id="qi-diffs-n"></span></div>
+  <details class="qi-legend-wrap mt"><summary class="small">What the choices do</summary>
+  <div class="qi-legend small mt">
+    <div><b>Accept for this quotation</b>: the quote and the document record that you accept it from this shop. Your items stay as they are, so the next shop is still checked against what you asked.</div>
+    <div><b>Accept and update my items</b>: accepted, and on save every room line of the product says what the shop offers instead (each line's notes keep what it was); later sheets are checked against that. Offered only when the sheet names one thing on each side.</div>
+    <div><b>Ask the shop</b>: the question joins the message under this card, ready to copy into WeChat. The quote notes that you asked.</div>
+    <div><b>Leave open</b>: the quote notes the difference, nothing more.</div>
+  </div></details>
+  {% for g in diff_groups %}
+  <div class="qi-dg">
+    <div class="row between qi-dg-head">
+      <div><b>{% if g.offered %}They offer {{ g.offered }}. You asked for {{ g.asked }}.{% else %}{{ g.title }} {{ g.asked }} asked, not stated in the offer.{% endif %}</b> <span class="small muted">({{ g.title|lower }})</span></div>
+      <div class="row qi-dg-all"><span class="small muted">All:</span><button type="button" class="qi-chip" data-all="quote">Accept for this quotation</button>{% if g.can_update %}<button type="button" class="qi-chip" data-all="items">Accept and update my items</button>{% endif %}<button type="button" class="qi-chip" data-all="ask">Ask the shop</button><button type="button" class="qi-chip" data-all="">Leave open</button></div>
+    </div>
+    {% for r in g.rows %}
+    <div class="qi-dg-row" data-pid="{{ r.c.id }}" data-lines="{{ r.lines|join(' ') }}" data-refs="{{ r.refs|join(', ') }}" data-ask="{{ g.ask }}">
+      <div class="qi-dg-what"><b>{{ r.c.title }}</b> <span class="small muted">· {% for n in r.lines %}<a href="#line-{{ n }}">L{{ n }}</a>{{ ', ' if not loop.last }}{% endfor %} · {{ r.c.codes|length }} room line{{ 's' if r.c.codes|length != 1 }}</span></div>
+      <select class="in qi-dec" name="{{ r.name }}" aria-label="{{ g.title }} of {{ r.c.title }}">
+        <option value="">Leave open</option>
+        <option value="quote" {{ 'selected' if r.decision == 'quote' }}>Accept for this quotation</option>
+        {% if g.can_update %}<option value="items" {{ 'selected' if r.decision == 'items' }}>Accept and update my items</option>{% endif %}
+        <option value="ask" {{ 'selected' if r.decision == 'ask' }}>Ask the shop</option>
+      </select>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+  <div class="qi-ask mt" id="qi-ask" hidden>
+    <div class="row between"><b>Message to the shop</b><button type="button" class="btn sm" data-copy="qi-ask-text"><svg class="ic"><use href="#i-copy"/></svg>Copy the message</button></div>
+    <pre class="wechat" id="qi-ask-text"></pre>
+  </div>
+</div>
+{% endif %}
 
 {% macro prod_option(c, sel) %}<option value="{{ c.id }}" data-q="{{ c.quoted_by }}" data-n="{{ c.codes|length }}" data-qty="{{ c.qty|plain }}" data-unit="{{ c.unit }}" data-allow="{{ (c.g.allowance or 0)|plain }}" data-dims="{{ c.dims|join('x') }}" data-cat="{{ c.category }}" data-fam="{{ c.name|lower|trim }}|{{ c.finish|lower|trim }}" data-rids="{{ c.rooms|map(attribute='id')|join(' ') }}" data-s="{{ c.codes|join(' ') }} {{ c.rooms_text }} {{ c.spec|truncate(120, true, '') }}" {{ 'selected' if sel }}>{{ c.title }} · {{ c.qty|num(2) }} {{ c.unit }}{% if c.rooms|length == 1 %} · {{ c.rooms[0].code }}{% elif c.rooms|length %} · {{ c.rooms|length }} rooms{% endif %}</option>{% endmacro %}
 <template id="qi-prod-tpl"><select>{% for cat, cs in by_cat.items() %}<optgroup label="{{ cat }}">{% for c in cs %}{{ prod_option(c, false) }}{% endfor %}</optgroup>{% endfor %}</select></template>
@@ -122,7 +159,7 @@
       </div>
       {% if s.options %}<div class="qi-options small"><span class="muted">Suggested:</span>{% for o in s.options %}<button type="button" class="qi-chip opt" data-kind="{{ o.kind }}" data-id="{{ o.id or '' }}" data-into="{{ o.into or '' }}" data-ids="{{ (o.ids or [])|join(' ') }}" data-cat="{{ o.category or '' }}" title="{{ o.why }}">{{ o.label }}</button>{% endfor %}</div>{% endif %}
       <div class="qi-next small"></div>
-      {% if s.reason or s.flags %}<div class="qi-why small">{% if s.reason %}<span class="muted">{{ s.reason }}</span>{% endif %}{% for f in s.flags %}<span class="pill {{ 'red' if f.startswith(('thickness', 'anti-slip', 'slip', 'finish', 'material')) else 'gold' }}" title="{{ 'The offer contradicts the specification' if f.startswith(('thickness', 'anti-slip', 'slip', 'finish', 'material')) else 'Differs from the design' }}">&#9888; {{ f }}</span>{% endfor %}</div>{% endif %}
+      {% if s.reason or s.flags or l.diffs %}<div class="qi-why small">{% if s.reason %}<span class="muted">{{ s.reason }}</span>{% endif %}{% for d in l.diffs %}<span class="pill red" data-dec="dec_{{ s.product_id }}_{{ d.slug }}" data-offered="{{ d.offered }}" title="The offer contradicts the specification">&#9888; {{ d.text }}</span>{% endfor %}{% for f in s.flags if not f.startswith(('thickness', 'anti-slip', 'slip', 'finish', 'material')) %}<span class="pill gold" title="Differs from the design">&#9888; {{ f }}</span>{% endfor %}</div>{% endif %}
       </details>
     </div>
   </article>
@@ -233,7 +270,8 @@
   function say(line){ var box=line.querySelector('.qi-say'), warns=line.querySelector('.qi-warns'), acts=line.querySelector('.qi-acts'); if(!box) return; var a=line.querySelector('.qi-act').value, sel=line.querySelector('.qi-prod'), o=sel.options[sel.selectedIndex], t='', w=[]; var q=parseFloat(line.dataset.qty)||0, u=line.dataset.unit||'', amt=parseFloat(line.dataset.amount)||0;
     if(a==='quote'){ if(!sel.value){ t='<b>No product of yours matches this clearly.</b> Pick one, make it a new item, or skip it.'; }
       else { var parts=o.textContent.split(' · '), su=sure(line); t='This looks like your <b>'+esc(parts[0])+'</b> <span class="small muted">('+esc(parts.slice(1).join(' · '))+')</span> <span class="pill '+su[1]+'">'+su[0]+'</span>';
-        line.querySelectorAll('.qi-why .pill').forEach(function(p){ var f=p.textContent.replace(/^\s*\u26a0\s*/,'').trim(); if(/^quantity /.test(f)) return; var m=f.match(/^([\w\- ]+?) (.+) offered vs (.+) asked$/); w.push({cls:p.classList.contains('red')?'red':'', html:m?'<b>They offer '+esc(m[2])+'. You asked for '+esc(m[3])+'.</b> <span class="muted">('+esc(m[1])+')</span>':'<b>'+esc(f.charAt(0).toUpperCase()+f.slice(1))+'.</b>'}); });
+        line.querySelectorAll('.qi-why .pill').forEach(function(p){ var f=p.textContent.replace(/^\s*\u26a0\s*/,'').trim(); if(/^quantity /.test(f)) return; var m=f.match(/^([\w\- ]+?) (.+) offered vs (.+) asked$/), dv=decOf(p);
+          w.push({cls:dv&&dv!=='ask'?'done':(p.classList.contains('red')?'red':''), html:(m?'<b>They offer '+esc(m[2])+'. You asked for '+esc(m[3])+'.</b> <span class="muted">('+esc(m[1])+')</span>':'<b>'+esc(f.charAt(0).toUpperCase()+f.slice(1))+'.</b>')+(dv?' <span class="qi-dec-say">'+DEC_SAY[dv](p)+'</span>':'')}); });
         var need=(parseFloat(o.dataset.qty)||0)*(1+(parseFloat(o.dataset.allow)||0)), pu=o.dataset.unit||'', sum=0, others=[];
         if(cu(u)===cu(pu)&&need&&q){ form.querySelectorAll('.qi-line').forEach(function(x){ if(x.querySelector('.qi-act').value!=='quote'||x.querySelector('.qi-prod').value!==sel.value||cu(x.dataset.unit)!==cu(pu)) return; sum+=parseFloat(x.dataset.qty)||0; if(x!==line) others.push(x.id.replace('line-','L')); });
           var pc=sum/need; if(others.length&&q<need*0.9) w.push({cls:'', html:'<b>This line is '+fmtq(q)+' of the '+fmtq(need)+' '+esc(pu)+' you need.</b> The rest is on '+others.join(', ')+': together '+fmtq(sum)+' '+esc(pu)+(pc<0.9?', still short.':(pc>1.25?', more than the rooms need.':', which fits.'))});
@@ -247,6 +285,25 @@
     var ok=line.dataset.ok==='1'&&a==='quote'&&!!sel.value;
     acts.innerHTML=(a==='quote'&&sel.value?'<button type="button" class="btn sm ok'+(ok?' on':'')+' qi-yes">'+(ok?'\u2713 Confirmed':'\u2713 Yes, that\u2019s it')+'</button>':'')+'<button type="button" class="btn sm sec qi-change">'+(a==='quote'?(sel.value?'Change the product\u2026':'Pick the product\u2026'):'Change\u2026')+'</button>'+(a!=='skip'?'<button type="button" class="btn sm ghost qi-not">Not this</button>':''); }
   function setOk(line, v){ line.dataset.ok=v?'1':''; var h=line.querySelector('.qi-ok'); if(h) h.value=v?'1':''; }
+  // What differs from your design: one decision per product and difference (dec_<product>_<slug>). A product's row shows
+  // while one of its lines still quotes it (a row hidden is disabled, so not posted); the "ask" rows make the message.
+  var dbox=document.getElementById('qi-diffs'), yesAll=document.getElementById('qi-yes-all');
+  var DEC_SAY={quote:function(){ return 'Accepted for this quotation; your items stay as they are.'; }, items:function(p){ return 'Accepted: on save your items say '+esc(p.dataset.offered)+'.'; }, ask:function(){ return 'Asked in the message to the shop.'; }};
+  function decOf(p){ var s=p.dataset.dec&&form.querySelector('select[name="'+p.dataset.dec+'"]'); return s&&!s.disabled?s.value:''; }
+  function diffs(){ if(!dbox) return; var open=0, asks=[];
+    dbox.querySelectorAll('.qi-dg-row').forEach(function(r){ var live=r.dataset.lines.split(' ').filter(function(n){ var l=form.querySelector('#line-'+n); return l&&l.querySelector('.qi-act').value==='quote'&&l.querySelector('.qi-prod').value===r.dataset.pid; });
+      var s=r.querySelector('.qi-dec'); r.hidden=!live.length; s.disabled=!live.length; if(!live.length) return; if(!s.value) open++; if(s.value==='ask') asks.push({lines:live, r:r}); });
+    dbox.querySelectorAll('.qi-dg').forEach(function(g){ g.hidden=!g.querySelector('.qi-dg-row:not([hidden])'); });
+    dbox.hidden=!dbox.querySelector('.qi-dg:not([hidden])');
+    var n=document.getElementById('qi-diffs-n'); n.textContent=open?open+' still open':'All decided'; n.className='pill '+(open?'gold':'green');
+    var box=document.getElementById('qi-ask'), title=((form.querySelector('[name=title]')||{}).value||'').trim(); box.hidden=!asks.length;
+    document.getElementById('qi-ask-text').textContent=!asks.length?'':'Hello, about your quotation'+(title?' "'+title+'"':'')+':\n'+asks.map(function(a,i){ var nm=form.querySelector('#line-'+a.lines[0]+' .qi-name').textContent.replace(/\s+/g,' ').trim();
+      return (i+1)+'. '+a.lines.map(function(x){ return 'L'+x; }).join(', ')+(a.r.dataset.refs?' ('+a.r.dataset.refs+')':'')+', '+nm+': '+a.r.dataset.ask; }).join('\n')+'\nThank you.'; }
+  if(dbox){ dbox.addEventListener('click',function(e){ var b=e.target.closest('[data-all]'); if(!b) return; b.closest('.qi-dg').querySelectorAll('.qi-dg-row:not([hidden]) .qi-dec').forEach(function(s){ if(s.querySelector('option[value="'+b.dataset.all+'"]')) s.value=b.dataset.all; }); todo(); });
+    dbox.addEventListener('change',function(e){ if(e.target.classList.contains('qi-dec')) todo(); }); }
+  // Yes to every Sure line: the green lines on the product suggested, with nothing to fix, not confirmed yet
+  function sureOnes(){ return Array.prototype.filter.call(form.querySelectorAll('.qi-line'),function(l){ var sel=l.querySelector('.qi-prod'); return l.querySelector('.qi-act').value==='quote'&&sel.value&&sel.value===(l.dataset.orig||'')&&(parseFloat(l.dataset.conf)||0)>=SURE&&l.dataset.ok!=='1'&&!problems(l).length; }); }
+  if(yesAll) yesAll.addEventListener('click',function(){ var ls=sureOnes(); if(!ls.length){ appAlert('Every Sure line already has its yes.'); return; } ls.forEach(function(l){ setOk(l,true); }); todo(); });
   form.addEventListener('click',function(e){ var b=e.target.closest('.qi-yes,.qi-change,.qi-not,.qi-notthis [data-act]'); if(!b) return; var line=b.closest('.qi-line'), d=line.querySelector('.qi-more'), nt=line.querySelector('.qi-notthis');
     if(b.classList.contains('qi-yes')){ setOk(line, line.dataset.ok!=='1'); say(line); todo(); return; }
     if(b.classList.contains('qi-change')){ d.open=true; var f=line.querySelector('.qi-act').value==='quote'?line.querySelector('.qi-find input'):line.querySelector('.qi-act'); if(f) f.focus(); nt.hidden=true; return; }
@@ -267,14 +324,17 @@
     return out; }
   function toCheck(line){ var a=line.querySelector('.qi-act').value, sel=line.querySelector('.qi-prod'); if(problems(line).length) return true; if(line.dataset.ok==='1'&&a==='quote'&&sel.value) return false;
     return a==='quote'&&sel.value===(line.dataset.orig||'')&&(parseFloat(line.dataset.conf)||0)<SURE; }
-  function todo(){ var items=[], nCheck=0; form.querySelectorAll('.qi-line').forEach(function(line){ var ps=problems(line); line.classList.toggle('needs', toCheck(line)); if(toCheck(line)) nCheck++;
+  function todo(){ var items=[], nCheck=0; diffs();  // first: the red notes (say, below) read the decisions it enables
+    form.querySelectorAll('.qi-line').forEach(function(line){ var ps=problems(line); line.classList.toggle('needs', toCheck(line)); if(toCheck(line)) nCheck++;
       ps.forEach(function(t){ items.push('<li><a href="#'+line.id+'">L'+no(line)+'</a>: '+t.replace(/</g,'&lt;')+'</li>'); }); });
     var box=document.getElementById('qi-todo'); box.hidden=!items.length; document.getElementById('qi-todo-list').innerHTML=items.join('');
     form.querySelectorAll('.qi-line.act-merge').forEach(parts);  // the "also as parts" chips follow every change
     form.querySelectorAll('.qi-line').forEach(same);  // and the "Also for" chips: a pick on L1 changes what L7's chip says
     form.querySelectorAll('.qi-line').forEach(say);  // and the plain sentences: "132 of the 326 m²; the rest is on L9, L17"
     document.getElementById('qi-n-check').textContent=nCheck;
-    document.querySelectorAll('.qi-decide').forEach(function(b){ b.hidden=!items.length; b.querySelector('span').textContent=items.length+' to decide'; }); applyFilter(); if(walk) setTimeout(walkShow, 250); }
+    document.querySelectorAll('.qi-decide').forEach(function(b){ b.hidden=!items.length; b.querySelector('span').textContent=items.length+' to decide'; });
+    if(yesAll){ var k=sureOnes().length; yesAll.querySelector('b').textContent=k; yesAll.disabled=!k; }
+    applyFilter(); if(walk) setTimeout(walkShow, 250); }
   var filter='all';
   function applyFilter(){ if(walk) return; form.querySelectorAll('.qi-line').forEach(function(line){ var a=line.querySelector('.qi-act').value; var show=filter==='all'||(filter==='check'&&line.classList.contains('needs'))||(filter!=='check'&&a===filter); line.classList.toggle('qi-hide', !show); });
     form.querySelectorAll('.qi-section').forEach(function(h){ var n=h.nextElementSibling, any=false; while(n&&!n.classList.contains('qi-section')){ if(n.classList.contains('qi-line')&&!n.classList.contains('qi-hide')) any=true; n=n.nextElementSibling; } h.classList.toggle('qi-hide', !any); }); }
