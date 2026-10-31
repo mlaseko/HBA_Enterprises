@@ -810,7 +810,8 @@ ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                          
   `supplier_name`; the `change` it sends carries `data-quiet` so `data-reveal` does not move the focus. `data-search` is the
   live search's (rows it hides): never put it on a select. A sheet uploaded without a shop: `process_upload` asks
   `guess_supplier(db, parsed)` (2+ item numbers in a shop's `QuoteMatch` rows, the sheet's sales person = `Supplier.contact`,
-  a word of the shop's name outside `SHOP_WORDS` and its city in the file name / title / header; a tie returns nothing) before
+  a word of the shop's name outside `SHOP_WORDS` and its city in the file name / title / header, not when the shop's name names a
+  trade (`TRADE_WORDS`) and the file only others; a tie returns nothing) before
   matching, so the shop's memory applies; `state["supplier_guess"]` → the preview's "Shop recognised" alert (not on a draft).
   Finding a product on a line: `.qi-find` search box (words, room code, our code: `data-s` on the options = codes, rooms, spec),
   chips of the hits; `data-same` (item number + unit, else name + size + unit) drives the "Also for L…" chip. Memory: `remember()`

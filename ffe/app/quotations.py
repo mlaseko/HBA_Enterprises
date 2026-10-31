@@ -1767,13 +1767,17 @@ SHOP_WORDS = {"co", "ltd", "limited", "company", "trading", "group", "factory", 
               "door", "doors", "window", "windows", "aluminium", "aluminum", "curtain", "curtains", "cabinet", "cabinets", "quotation",
               "foshan", "guangzhou", "shenzhen", "zhongshan", "dongguan", "jiangmen", "chaozhou", "lecong", "shunde", "zhuhai",
               "xiamen", "quanzhou", "jinjiang", "shanghai", "ningbo", "hangzhou", "kaiping", "yiwu", "china", "guangdong"}
+TRADE_WORDS = {"sanitary", "ware", "sanitaryware", "bathroom", "kitchen", "tile", "tiles", "ceramic", "ceramics", "porcelain", "stone",
+               "furniture", "lighting", "lights", "light", "appliances", "appliance", "electrical", "electric", "hardware", "glass",
+               "door", "doors", "window", "windows", "aluminium", "aluminum", "curtain", "curtains", "cabinet", "cabinets"}
 
 
 def guess_supplier(db: Session, parsed: dict) -> tuple[Supplier | None, str]:
     """The shop a sheet uploaded without one comes from, when it is one of ours: two or more of its item numbers confirmed
     before for one shop (QuoteMatch), its sales person as a shop's contact, or a word of a shop's name that is not a trade,
-    company form or market (SHOP_WORDS, the shop's own city) in the file name, title or header (the trade words it shares
-    with the file count a little, to tell two shops of one name apart). Only a clear winner is returned, with the reason in
+    company form or market (SHOP_WORDS, the shop's own city) in the file name, title or header, unless the shop's name names
+    a trade (TRADE_WORDS) and the file names only others (the trade words it shares with the file count a little, to tell
+    two shops of one name apart). Only a clear winner is returned, with the reason in
     words; (None, "") otherwise."""
     words = lambda s: set(re.findall(r"[a-z]{3,}", (s or "").lower()))
     sheet_words = words(" ".join([parsed.get("filename") or "", parsed.get("title") or "", *[str(v) for v in (parsed.get("head") or {}).values()]]))
@@ -1794,8 +1798,9 @@ def guess_supplier(db: Session, parsed: dict) -> tuple[Supplier | None, str]:
             found.append((3, f"its sales person {parsed['head']['sales']} is this shop's contact"))
         own = words(s.name) - SHOP_WORDS - words(s.city)
         hit = sorted(own & sheet_words)
-        if hit:  # the trade words of its name break a tie: "George sanitary ware" is George Sanitary Ware, not George Appliances
-            trade = (words(s.name) & SHOP_WORDS & sheet_words) - words(s.city)
+        shop_trade, file_trade = words(s.name) & TRADE_WORDS, sheet_words & TRADE_WORDS
+        if hit and not (shop_trade and file_trade and not shop_trade & file_trade):  # "George sanitary ware" is not George Appliances
+            trade = shop_trade & sheet_words  # the trade words it shares with the file break a tie between two shops of one name
             found.append((2 * len(hit) + 0.5 * len(trade), "the file says " + ", ".join(f"“{w.capitalize()}”" for w in hit)))
         if found:
             scores[s.id] = (sum(x for x, _ in found), "; ".join(t for _, t in found))

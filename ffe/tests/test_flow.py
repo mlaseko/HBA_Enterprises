@@ -2197,7 +2197,9 @@ def flow(c):
     db=SessionLocal(); db.add(_Sup(name="George Sanitary Ware", city="Foshan")); db.commit()
     g,why=_qz.guess_supplier(db, {"filename":"Kino project(George sanitary ware)20261027.xlsx","title":"","head":{"sales":"Sophia"},"lines":[]}); assert g is not None and g.name=="George Sanitary Ware" and why=="the file says “George”", why
     assert _qz.guess_supplier(db, {"filename":"Sanitary ware quotation.xlsx","title":"","head":{},"lines":[]})==(None, "")  # trade and market words name no shop
-    assert _qz.guess_supplier(db, {"filename":"George quotation.xlsx","title":"","head":{},"lines":[]})==(None, ""); db.close()  # George Sanitary Ware or George Appliances: the designer chooses  # trade and market words name no shop
+    assert _qz.guess_supplier(db, {"filename":"George quotation.xlsx","title":"","head":{},"lines":[]})==(None, "")  # George Sanitary Ware or George Appliances: the designer chooses
+    db.delete(db.query(_Sup).filter(_Sup.name=="George Sanitary Ware").one()); db.commit()
+    assert _qz.guess_supplier(db, {"filename":"Kino project(George sanitary ware).xlsx","title":"","head":{},"lines":[]})==(None, ""); db.close()  # the only George sells appliances, the file says sanitary ware: not that shop  # George Sanitary Ware or George Appliances: the designer chooses  # trade and market words name no shop
     r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(form9, key=key10, **{fin:"", slip:"quote"}), follow_redirects=False); loc=r.headers["location"]; assert "err=" not in loc and "now%20say" not in loc, loc
     qd10=int(loc.split("/quotations/")[1].split("?")[0])
     db=SessionLocal(); assert {i.id: i.spec for i in db.query(Item).filter(Item.id.in_(list(bath_spec)))}==bath_spec
