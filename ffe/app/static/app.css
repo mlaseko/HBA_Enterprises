@@ -1367,6 +1367,12 @@ table.ls tr.muted td{color:var(--muted)}
 .qi-sim{margin-bottom:12px}.qi-sim .kpis{margin-bottom:0}
 .in.sm{padding:4px 8px;font-size:.85rem}.qi-plain{display:grid;gap:8px;margin-bottom:8px}.qi-say{font-size:.98rem;line-height:1.45}.qi-say .pill{vertical-align:middle;margin-left:2px}
 .qi-warn{background:var(--gold-soft);border-radius:var(--r-sm);padding:8px 10px;font-size:.85rem;line-height:1.4}.qi-warn.red{background:var(--red-soft)}.qi-warns:empty{display:none}
+.qi-warn.done{background:var(--green-soft)}.qi-dec-say{display:block;margin-top:3px;font-weight:600;color:var(--ink-2)}
+/* What differs from your design (quotation preview): a group per difference, a row per product with its decision */
+.qi-diffs[hidden],.qi-dg[hidden],.qi-dg-row[hidden],.qi-ask[hidden]{display:none}
+.qi-dg{border-top:1px solid var(--line-2);margin-top:10px;padding-top:10px}.qi-dg-head{gap:8px}.qi-dg-all{gap:6px;flex-wrap:wrap}
+.qi-dg-row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 0 6px 12px}
+.qi-dg-row .qi-dec{width:auto;min-width:230px;max-width:100%}
 .qi-acts{gap:6px}.btn.ok{background:var(--green);border-color:var(--green);color:#fff}.btn.ok.on{background:var(--green-soft);color:var(--green)}.qi-notthis{gap:6px;flex-wrap:wrap}.qi-notthis[hidden]{display:none}
 details.qi-more>summary{cursor:pointer;font-size:.8rem;color:var(--ink-2);list-style:none;padding:4px 0}details.qi-more>summary::before{content:"\25B8";margin-right:6px;color:var(--muted)}details.qi-more[open]>summary::before{content:"\25BE"}details.qi-more[open]>summary{margin-bottom:6px}
 .qi-views{gap:6px;margin:10px 0 6px}.qi-views-note{flex-basis:100%}.qi-byprod{display:grid;gap:10px;margin-bottom:12px}.qi-pc.warn{border-color:var(--gold)}.qi-pc-t td,.qi-pc-t th{font-size:.85rem;vertical-align:top}.qi-pc-t .pill{white-space:normal;margin:1px 0}.qi-pc-sum td{background:var(--surface-2)}

@@ -277,6 +277,15 @@ name** (or set the Kind by hand): every existing entry starts as a room.
   added, the discount pro rata, the item numbers in `Quote.model`, the picture copied, the lead time from the sheet, the
   differences noted), new items with `next_code`, and the matches remembered. Deleting a quotation deletes the quotes it
   made that no purchase uses.
+- What differs from your design (`quotations.differences`, `decided`, `accept_into_items`): the spec clashes between a line and
+  its product (thickness, slip rating, finish, material: kind, offered, asked, the question for the shop, `slug`,
+  `can_update`) are grouped on the preview (`_diff_groups`: one group per difference, a row per product) with a decision per
+  product and difference, `dec_<product>_<slug>` = quote (accepted for this quotation) | items (accepted, and the product's
+  room lines take the offer: name / size / finish / spec rewritten by `_swap`, a note on each line, then
+  `buying.follow_renames`) | ask (into the page's "Message to the shop" for WeChat) | "" (left open). The decision is written
+  after the flag on the `QuotationLine` and the `Quote` notes ("(accepted for this quotation)", "(accepted: the design now
+  says matt)", "(asked the shop)"; green on the document page), a draft keeps them (`state["decisions"]`), and the save
+  message counts the products changed. "Yes to every Sure line" confirms the green lines in one press.
 - Variants (`quotations.split_products`, `families`, `set_variants`): on the preview, lines with different models or
   prices on one product get a "Split … by model" card (`split_<product>`, `vlabel_<line>`, `vrooms_<line>`; the rooms
   pre-ticked from `room_hints`, which reads the line's place first — a Remarks cell "For <room>" is the place when the

@@ -783,6 +783,21 @@ ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                          
   Walk me through: `#qi-walk` → `walkStart()` (the `.needs` lines in order, `body.qi-walking`, `#qi-walkbar` with counter and
   bar), `walkShow()` hides every other line and moves past lines no longer `.needs` (called after each `todo()`), Skip for now /
   Exit, `walkEnd(finished)` with an `appAlert`; `applyFilter()` is a no-op while walking.
+  What differs from your design: `differences(line, c)` is `spec_diffs` as data (kind, offered — '' when the offer does not
+  say —, asked, text, ask, slug, `can_update` = one value on each side and something offered); `spec_diffs` keeps the
+  wording. `_diff_groups` (router) puts `l["diffs"]` on the lines (their red pills carry `data-dec` = the decision's field
+  name and `data-offered`) and groups them for the `#qi-diffs` card: one `.qi-dg` per (kind, offered, asked), a
+  `.qi-dg-row` per product with `select.qi-dec[name=dec_<product>_<slug>]` (Leave open / quote / items / ask), All chips
+  (`data-all`). The page script's `diffs()` (first thing in `todo()`) hides and disables a row whose lines no longer quote
+  that product, counts the open ones (`#qi-diffs-n`) and writes `#qi-ask-text` from the ask rows (`data-copy`); `say()` adds
+  the decision under each red note (`DEC_SAY`, `.qi-warn.done` when accepted). `_read_decisions(form)` feeds `apply(...,
+  decisions)` and `_stash` (`state["decisions"]`). In `apply`, `decided(l, c, decisions)` suffixes each flag with the
+  decision for the line's and the quote's notes and returns the differences to take; after the quote loop
+  `accept_into_items(c.g.lines, diffs, source)` rewrites name / size / finish / spec (`_swap`: the thickness or slip number,
+  any spelling of the finish / material word, a repeated word collapsed) and appends "<Kind> <offered> accepted from <shop>,
+  quotation <title> of <date>; was <asked>." to each line's notes, inside `buying.keys` / `follow_renames`; `stats["design"]`
+  counts the products for the message. The document page shows an accepted flag as a green pill. `#qi-yes-all` (`sureOnes()`:
+  quote lines on the suggested product, ≥ `SURE`, no problems, not confirmed) sets every `ok_<line>` at once.
   Finding a product on a line: `.qi-find` search box (words, room code, our code: `data-s` on the options = codes, rooms, spec),
   chips of the hits; `data-same` (item number + unit, else name + size + unit) drives the "Also for L…" chip. Memory: `remember()`
   writes the shop's row and a supplier-less row by wording (`memory()` returns both, the shop's first; shortlist 0.9 / 0.85).

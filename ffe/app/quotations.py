@@ -825,30 +825,44 @@ def _thickness(text: str) -> float | None:
     return found[-1] if found else None
 
 
-def spec_diffs(line: dict, c: Candidate) -> list[str]:
+def differences(line: dict, c: Candidate) -> list[dict]:
     """Where the offer's words contradict the requirement: thickness, slip rating, finish, material. Only what both sides
-    state is compared, except the slip rating, which is flagged when asked for and not stated."""
+    state is compared, except the slip rating, which is flagged when asked for and not stated. Each difference: kind,
+    offered ('' when the offer does not say), asked, text (the flag's wording), ask (the question for the shop), slug (with
+    the product id, the name of its decision on the preview: dec_<product>_<slug>) and can_update (one value on each
+    side, so the items can take the offer: accept_into_items)."""
     offer = f"{line['name']} {line['size']} {line['detail']}"
     asked = f"{c.name} {c.size} {c.finish} {c.spec}"
     out = []
+
+    def add(kind, offered, wanted, text, ask, can_update=True):
+        slug = f"{kind}-" + (re.sub(r"[^a-z0-9]+", "-", offered.lower()).strip("-") or "none")
+        out.append(dict(kind=kind, offered=offered, asked=wanted, text=text, ask=ask, slug=slug, can_update=can_update and bool(offered)))
     to, ta = _thickness(offer), _thickness(asked)
     if to and ta and abs(to - ta) > 0.5:
-        out.append(f"thickness {to:g} mm offered vs {ta:g} mm asked")
+        add("thickness", f"{to:g} mm", f"{ta:g} mm", f"thickness {to:g} mm offered vs {ta:g} mm asked",
+            f"we asked for {ta:g} mm thick, you offer {to:g} mm. Can you supply {ta:g} mm?")
     so, sa = _SLIP_RE.search(offer), _SLIP_RE.search(asked)
     if sa and not so:
-        out.append(f"anti-slip R{sa.group(1)} asked, not stated in the offer")
+        add("slip", "", f"R{sa.group(1)}", f"anti-slip R{sa.group(1)} asked, not stated in the offer",
+            f"we need anti-slip R{sa.group(1)}; the offer does not say. Please confirm it is R{sa.group(1)}.")
     elif sa and so and so.group(1) != sa.group(1):
-        out.append(f"slip rating R{so.group(1)} offered vs R{sa.group(1)} asked")
+        add("slip", f"R{so.group(1)}", f"R{sa.group(1)}", f"slip rating R{so.group(1)} offered vs R{sa.group(1)} asked",
+            f"we need anti-slip R{sa.group(1)}, you offer R{so.group(1)}. Can you supply R{sa.group(1)}?")
     lo, la = tokens(offer.lower()), tokens(asked.lower())
-    fo = {FINISH_WORDS[w] for w in FINISH_WORDS if w in lo}
-    fa = {FINISH_WORDS[w] for w in FINISH_WORDS if w in la}
-    if fo and fa and not (fo & fa):
-        out.append(f"finish {'/'.join(sorted(fo))} offered vs {'/'.join(sorted(fa))} asked")
-    mo = {MATERIAL_WORDS[w] for w in MATERIAL_WORDS if w in lo}
-    ma = {MATERIAL_WORDS[w] for w in MATERIAL_WORDS if w in la}
-    if mo and ma and not (mo & ma):
-        out.append(f"material {'/'.join(sorted(mo))} offered vs {'/'.join(sorted(ma))} asked")
+    for kind, words, what in (("finish", FINISH_WORDS, "a {} finish"), ("material", MATERIAL_WORDS, "{}")):
+        wo = {words[w] for w in words if w in lo}
+        wa = {words[w] for w in words if w in la}
+        if wo and wa and not (wo & wa):
+            o, a = "/".join(sorted(wo)), "/".join(sorted(wa))
+            add(kind, o, a, f"{kind} {o} offered vs {a} asked", f"we asked for {what.format(a)}, you offer {o}. Can you supply {a}?",
+                can_update=len(wo) == 1 and len(wa) == 1)
     return out
+
+
+def spec_diffs(line: dict, c: Candidate) -> list[str]:
+    """The differences' wording (differences), as the preview's and the document's flags show them."""
+    return [d["text"] for d in differences(line, c)]
 
 
 def flags(line: dict, c: Candidate | None) -> list[str]:
@@ -868,6 +882,79 @@ def flags(line: dict, c: Candidate | None) -> list[str]:
         if ratio > 1.5 or ratio < 0.6:
             out.append(f"quantity {line['qty']:g} {lu or ''} vs {c.qty:g} {cu} in the rooms")
     return out
+
+
+# ---- a difference decided on the preview: accepted for the quotation, accepted into the items, or asked of the shop -----------
+DECISIONS = ("quote", "items", "ask")
+DIFF_TITLES = {"thickness": "Thickness", "slip": "Anti-slip", "finish": "Finish", "material": "Material"}
+
+
+def decided(line: dict, c: Candidate, decisions: dict) -> tuple[list[str], list[dict]]:
+    """The line's flags with what the designer decided about each difference of the spec ({"<product>_<slug>": decision}),
+    and the differences to write into the product's items. "items" where the items cannot take the offer counts as
+    accepted for the quotation."""
+    by_text = {d["text"]: d for d in differences(line, c)}
+    out, take = [], []
+    for f in flags(line, c):
+        d = by_text.get(f)
+        dec = decisions.get(f"{c.id}_{d['slug']}", "") if d else ""
+        if dec == "items" and not d["can_update"]:
+            dec = "quote"
+        if dec == "items":
+            take.append(d)
+            f += f" (accepted: the design now says {d['offered']})"
+        elif dec == "quote":
+            f += " (accepted for this quotation)"
+        elif dec == "ask":
+            f += " (asked the shop)"
+        out.append(f)
+    return out, take
+
+
+def _swap(text: str, d: dict) -> str:
+    """text with what was asked replaced by what is offered: the thickness, the slip rating, or the finish / material word
+    (any spelling of it: matte → matt), keeping a capital letter."""
+    if not text:
+        return text
+    if d["kind"] in ("thickness", "slip"):
+        rx = _THICK_RE if d["kind"] == "thickness" else _SLIP_RE
+        old, new = (d["asked"].replace(" mm", ""), d["offered"].replace(" mm", "")) if d["kind"] == "thickness" else (d["asked"][1:], d["offered"][1:])
+        out, at = [], 0
+        for m in rx.finditer(text):
+            if (float(m.group(1)) == float(old)) if d["kind"] == "thickness" else m.group(1) == old:
+                out.append(text[at:m.start(1)] + new)
+                at = m.end(1)
+        return "".join(out) + text[at:]
+    words = FINISH_WORDS if d["kind"] == "finish" else MATERIAL_WORDS
+    for w in sorted((w for w, v in words.items() if v == d["asked"]), key=len, reverse=True):
+        text = re.sub(rf"(?<![\w-]){re.escape(w)}(?![\w-])", lambda m: d["offered"].capitalize() if m.group(0)[0].isupper() else d["offered"], text, flags=re.I)
+    return re.sub(rf"(?<![\w-])({re.escape(d['offered'])})(\s+{re.escape(d['offered'])})+(?![\w-])", r"\1", text, flags=re.I)  # vitrified porcelain → ceramic, not ceramic ceramic
+
+
+_FIELD_MAX = {"name": 200, "size": 160, "finish": 160, "spec": 0}  # the columns' lengths (spec is text)
+
+
+def accept_into_items(items: list[Item], diffs: list[dict], source: str) -> int:
+    """The offer written into a product's room lines: name, size, finish and spec say what the shop offers instead of what
+    was asked, and each line's notes keep what it was. Returns the number of lines changed. The caller lets the products
+    follow (buying.keys before, follow_renames after): a word in the name, size or finish changes the product."""
+    changed = 0
+    for it in items:
+        notes = []
+        for d in diffs:
+            hit = False
+            for f in ("name", "size", "finish", "spec"):
+                old = getattr(it, f) or ""
+                new = _swap(old, d)
+                if new != old:
+                    setattr(it, f, new[:_FIELD_MAX[f]] if _FIELD_MAX[f] else new)
+                    hit = True
+            if hit:
+                notes.append(f"{DIFF_TITLES[d['kind']]} {d['offered']} accepted from {source}; was {d['asked']}.")
+        if notes:
+            it.notes = "\n".join(x for x in [(it.notes or "").strip(), *notes] if x)
+            changed += 1
+    return changed
 
 
 # ---- Claude: pick from the shortlists -------------------------------------------------------------------------------------------
@@ -1262,10 +1349,13 @@ def expiry(valid_until: str, quote_date: dt.date | None) -> dt.date | None:
 
 
 def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head: dict, supplier: Supplier | None,
-          pictures: dict[int, tuple[str, str]], file_key: str) -> Quotation:
+          pictures: dict[int, tuple[str, str]], file_key: str, decisions: dict | None = None) -> Quotation:
     """Write the quotation and what the designer confirmed. `choices` = {line no: {action, product_id, into, rooms,
     name, category}}; `head` = the document fields as edited; `pictures` = {line no: (photo_key, thumb_key)} already
-    stored. One Quote per product; the lines merged into another count toward its product; new items are made first."""
+    stored; `decisions` = {"<product>_<slug>": quote | items | ask} for the differences of the spec (decided()). One Quote per
+    product; the lines merged into another count toward its product; new items are made first; the differences accepted
+    into the items are written last (accept_into_items), and the products follow."""
+    decisions = decisions or {}
     q = Quotation(project_id=p.id, supplier=supplier, supplier_id=supplier.id if supplier else None, filename=(parsed.get("filename") or "")[:255],
                   file_key=file_key, title=(head.get("title") or parsed.get("title") or "")[:200], sales=(head.get("sales") or "")[:120],
                   quote_date=_d(head.get("quote_date", "")), valid_until=(head.get("valid_until") or "")[:60],
@@ -1360,7 +1450,8 @@ def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head:
                 rows[n].action = "extra"
     memo_seen = set()
     known = memory(db, supplier)
-    stats = {"added": 0, "updated": 0}
+    stats = {"added": 0, "updated": 0, "design": 0}
+    updates: dict[int, tuple[Candidate, dict]] = {}
     for pid, nos in per_product.items():
         c = cands[pid]
         main = [by_no[n] for n in nos]
@@ -1391,7 +1482,12 @@ def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head:
             note.append(by_design)
         if factor < 1:
             note.append(f"Sheet discount of {100 * (1 - factor):.1f}% applied.")
-        fl = [f for l in main for f in flags(l, c)]
+        fl = []
+        for l in main:
+            fs, take = decided(l, c, decisions)
+            fl += fs
+            for d in take:
+                updates.setdefault(c.id, (c, {}))[1][d["slug"]] = d
         if fl:
             note.append("Differs: " + "; ".join(dict.fromkeys(fl)) + ".")
         detail = main[0]["detail"].strip()
@@ -1420,7 +1516,7 @@ def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head:
             buying.follow_quote(db, quote)  # the rooms bought from the earlier quote take the new price
         for l in main:
             rows[l["no"]].quote_id = quote.id
-            rows[l["no"]].notes = "; ".join(flags(l, c))
+            rows[l["no"]].notes = "; ".join(decided(l, c, decisions)[0])
             if supplier is not None:
                 key = (_norm(l["ref"]), _memo_text(l))
                 if key not in memo_seen:
@@ -1428,6 +1524,13 @@ def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head:
                     remember(db, supplier, l, c.key, known)
         for l in parts:
             rows[l["no"]].quote_id = quote.id
+    if updates:  # the offer accepted into the items: their words change, the products follow
+        before = buying.keys(p)
+        source = f"{supplier.name if supplier else 'the shop'}, quotation {q.title or q.filename}" + (f" of {q.quote_date.isoformat()}" if q.quote_date else "")
+        for c, ds in updates.values():
+            if accept_into_items(c.g.lines, list(ds.values()), source):
+                stats["design"] += 1
+        buying.follow_renames(db, p, before)
     db.flush()
     if stats["updated"]:  # a revised sheet from the shop: the latest earlier document whose quotes it corrected
         mine = {r.quote_id for r in rows.values() if r.quote_id}
