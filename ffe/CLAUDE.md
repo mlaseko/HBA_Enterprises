@@ -783,6 +783,10 @@ ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                          
   Walk me through: `#qi-walk` → `walkStart()` (the `.needs` lines in order, `body.qi-walking`, `#qi-walkbar` with counter and
   bar), `walkShow()` hides every other line and moves past lines no longer `.needs` (called after each `todo()`), Skip for now /
   Exit, `walkEnd(finished)` with an `appAlert`; `applyFilter()` is a no-op while walking.
+  A line's size is `line_dims(line)`: what a slab is cut into ("600*1200 (cut into 100*1200)" = skirting 100 x 1200), else
+  the size, else the name; `score`, `flags` and the preview's `data-dims` read it. `scope_note(p)` tells Claude in the prompt
+  that the design's staff / servant / boys' quarters rooms (`_scope_rooms`) are in scope: the system prompt calls them out of
+  scope, and Claude skipped Kinondoni's staff-quarters tiles although the Boys' Quarter had them.
   What differs from your design: `differences(line, c)` is `spec_diffs` as data (kind, offered — '' when the offer does not
   say —, asked, text, ask, slug, `can_update` = one value on each side and something offered); `spec_diffs` keeps the
   wording. `_diff_groups` (router) puts `l["diffs"]` on the lines (their red pills carry `data-dec` = the decision's field

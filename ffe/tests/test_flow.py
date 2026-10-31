@@ -2189,6 +2189,13 @@ def flow(c):
     qd10=int(loc.split("/quotations/")[1].split("?")[0])
     db=SessionLocal(); assert {i.id: i.spec for i in db.query(Item).filter(Item.id.in_(list(bath_spec)))}==bath_spec
     assert "anti-slip R11 asked, not stated in the offer (accepted for this quotation)" in {ln.no: ln for ln in db.get(_QD, qd10).lines}[2].notes; db.close()
+    # a slab cut into skirting is read at the size it is cut into (the size check and the quantities table's m² of it)
+    assert _qz.line_dims({"size":"600*1200\n(cut into 100*1200)","name":"Porcelain tile"})==[1200,100] and _qz.line_dims({"size":"600*1200","name":"x"})==[1200,600]
+    # staff quarters in the design: Claude is told their lines are the design's, not out of scope
+    assert "do not skip them" not in [b["text"] for b in qcalls[-1][0] if b.get("type")=="text"][-1]
+    r=c.post(f"/p/{pid_q}/rooms", data={"code":"BQ","name":"Boys' Quarter","floor":"Staff quarters","kind":"room"}, follow_redirects=False); assert r.status_code==303
+    qcalls.clear(); upload_quote("Tile quotation v11.xlsx", quote_sheet())
+    assert "BQ Boys' Quarter): match the lines for them to the products of those rooms like any other line; do not skip them as out of scope." in [b["text"] for b in qcalls[-1][0] if b.get("type")=="text"][-1]
     del os.environ["ANTHROPIC_API_KEY"]; ai._call=lambda content, schema=None, **kw: (_ for _ in ()).throw(RuntimeError("down"))
     print("quotation differences ok")
 
