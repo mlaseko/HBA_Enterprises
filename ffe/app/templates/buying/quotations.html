@@ -44,8 +44,8 @@
     <p class="small muted">The supplier's own Excel file (.xlsx, or .xls without its pictures). Nothing is saved until you have checked the preview.</p>
     <div class="grid g2 mt">
       <div><label>File</label><input class="in" type="file" name="file" accept=".xlsx,.xls,.xlsm" required></div>
-      <div><label>Shop <span class="muted small">(optional here; chosen on the preview)</span></label>
-        <select class="in" name="supplier_id"><option value="">Not sure yet</option>{% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if s.id == pre_supplier }}>{{ s.name }}{% if s.city %} · {{ s.city }}{% endif %}</option>{% endfor %}</select>
+      <div><label>Shop <span class="muted small">(optional: one of your shops is recognised from the file)</span></label>
+        <select class="in" name="supplier_id" data-find="Search the shops by name"><option value="">Not sure yet</option>{% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if s.id == pre_supplier }}>{{ s.name }}{% if s.city %} · {{ s.city }}{% endif %}</option>{% endfor %}</select>
         <div class="help">Naming the shop lets earlier confirmed matches from it apply at once.</div></div>
     </div>
     <div class="row mt"><button class="btn accent" id="qi-go"><svg class="ic"><use href="#i-upload"/></svg>Read the sheet</button>

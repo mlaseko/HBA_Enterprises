@@ -231,6 +231,7 @@ tr.selected td,tbody tr.selected:hover td{background:var(--accent-soft)}
 /* the floor list on the Rooms page (#floors): one row per floor with its order buttons, inline name + kind form, counts, merge and delete */
 .in[hidden]{display:none}
 .floor-new{margin-top:6px}
+.sel-search{margin-bottom:6px}.sel-hint[hidden]{display:none}  /* the search box above a select with data-find */
 table.floors td{vertical-align:middle}
 table.floors form.inl{display:inline-flex;gap:6px;align-items:center;margin:0}
 table.floors .in{padding:7px 10px;font-size:.86rem;min-width:0}

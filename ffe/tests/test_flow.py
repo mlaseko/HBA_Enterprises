@@ -1906,6 +1906,7 @@ def flow(c):
     assert any(b.get("type")=="image" for b in qcalls[-1][0]) and "Picture of line L1" in [b["text"] for b in qcalls[-1][0] if b.get("type")=="text"][0]
     r=c.get(loc); assert r.status_code==200 and "Check the quotation" in r.text and "Tile quotation" in r.text
     from app import storage as _st
+    assert 'id="qi-sup" data-find="Search the shops, or type a new one"' in r.text and "select[data-find]" in open("app/static/app.js").read()  # the shop: a search box over the list
     assert "qi-legend" in r.text and 'id="qi-rooms-tpl"' in r.text and 'id="qi-prod-tpl"' in r.text and 'class="row qi-filter' in r.text and 'id="qi-decide"' in r.text
     assert "Design needs" in r.text and "Design + allowance" not in r.text and 'id="qi-skip-none"' in r.text and 'class="qi-chip sec-skip" data-section="First floor' in r.text and 'name="rooms_X"' in r.text and 'id="qi-todo"' in r.text and "Before you save" in r.text
     assert 'id="qi-walk"' in r.text and 'id="qi-walkbar"' in r.text and 'id="qi-walk-skip"' in r.text  # the walk-through
@@ -1956,7 +1957,9 @@ def flow(c):
     h=r.text; assert "Tiles from Cathy" in h and "Foshan Ceramics" in h and "Original file" in h and "Part of L4" in h and "New item ·" in h and "Skipped" in h and "USD 4,000" in h and "Not quoted" in h and "Stair risers" in h and "1.Delivery Term: EXW" in h
     assert f"/p/{pid_q}/buying/{big_id}#quote-{q1.id}" in h and "size offered 600*1200" in h
     r=c.get(f"/p/{pid_q}/quotations/{qd_id}/file"); assert r.status_code==200 and r.headers["content-type"].startswith("application/vnd.openxml") and "Tile%20quotation.xlsx" in r.headers.get("content-disposition","") or "Tile quotation.xlsx" in r.headers.get("content-disposition","")
-    r=c.get(f"/p/{pid_q}/buying/{big_id}"); assert "Tiles from Cathy" in r.text and f"/quotations/{qd_id}" in r.text and "GC-1" in r.text
+    assert 'data-find="Search the shops by name"' in c.get(f"/p/{pid_q}/quotations").text  # the upload form's shop
+    r=c.get(f"/p/{pid_q}/buying/{big_id}"); assert 'data-reveal="newshop-' in r.text and 'data-find="Search the shops, or type a new one"' in r.text  # the quote form's shop
+    assert "Tiles from Cathy" in r.text and f"/quotations/{qd_id}" in r.text and "GC-1" in r.text
     r=c.get(f"/p/{pid_q}/quotations"); assert "Tiles from Cathy" in r.text and "Foshan Ceramics" in r.text and "1 new" in r.text
     # the same sheet again, Claude off: the shop's remembered matches apply by item number
     del os.environ["ANTHROPIC_API_KEY"]; qcalls.clear()
@@ -2051,7 +2054,11 @@ def flow(c):
     key6=_unq(st["next"].split("key=")[1]); r=c.post(f"/p/{pid_q}/quotations/cancel", data={"key":key6}, follow_redirects=False); assert r.status_code==303
     # the wording is remembered across shops: a sheet from no named shop matches by it
     db=SessionLocal(); assert db.query(_QM).filter(_QM.supplier_id.is_(None), _QM.text.like("main floor porcelain tile%")).count()==1; db.close()
-    loc7,st7=upload_quote("Tile quotation v7.xlsx", quote_sheet()); key7=_unq(loc7.split("key=")[1])
+    _wb7=openpyxl.load_workbook(io.BytesIO(quote_sheet())); _ws7=_wb7.active; _ws7["N5"]="Wang"  # another shop: its own sales person and item numbers
+    for _r in _ws7.iter_rows(min_row=10):
+        if isinstance(_r[4].value, str) and _r[4].value.startswith("GC-"): _r[4].value="WX-"+_r[4].value[3:]
+    _b7=io.BytesIO(); _wb7.save(_b7)
+    loc7,st7=upload_quote("Tile quotation v7.xlsx", _b7.getvalue()); key7=_unq(loc7.split("key=")[1])
     st7s=__import__("json").loads(_st.read_image(key7).decode())["suggestions"]; assert st7s["1"]["shortlist"][0]["why"]=="matched before by wording (another shop)" and st7s["1"]["shortlist"][0]["id"]==big_id, st7s["1"]
     c.post(f"/p/{pid_q}/quotations/cancel", data={"key":key7}, follow_redirects=False)
     # a proforma with a summary table and its breakdown: the parts are merged into the summary line and counted once
@@ -2185,6 +2192,14 @@ def flow(c):
     # the next sheet is checked against the design as it is now; accepted for that quotation alone, the items stay
     loc10,st=upload_quote("Tile quotation v10.xlsx", quote_sheet()); key10=_unq(loc10.split("key=")[1])
     h=c.get(loc10).text; assert "You asked for satin" not in h and "Anti-slip R11 asked, not stated in the offer." in h
+    assert "Shop recognised: <b>Foshan Ceramics</b>" in h and "its sales person Cathy is this shop&#39;s contact" in h and "item numbers were matched with this shop before" in h  # uploaded without a shop: one of ours, recognised
+    from app.models import Supplier as _Sup
+    db=SessionLocal(); db.add(_Sup(name="George Sanitary Ware", city="Foshan")); db.commit()
+    g,why=_qz.guess_supplier(db, {"filename":"Kino project(George sanitary ware)20261027.xlsx","title":"","head":{"sales":"Sophia"},"lines":[]}); assert g is not None and g.name=="George Sanitary Ware" and why=="the file says “George”", why
+    assert _qz.guess_supplier(db, {"filename":"Sanitary ware quotation.xlsx","title":"","head":{},"lines":[]})==(None, "")  # trade and market words name no shop
+    assert _qz.guess_supplier(db, {"filename":"George quotation.xlsx","title":"","head":{},"lines":[]})==(None, "")  # George Sanitary Ware or George Appliances: the designer chooses
+    db.delete(db.query(_Sup).filter(_Sup.name=="George Sanitary Ware").one()); db.commit()
+    assert _qz.guess_supplier(db, {"filename":"Kino project(George sanitary ware).xlsx","title":"","head":{},"lines":[]})==(None, ""); db.close()  # the only George sells appliances, the file says sanitary ware: not that shop  # George Sanitary Ware or George Appliances: the designer chooses  # trade and market words name no shop
     r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(form9, key=key10, **{fin:"", slip:"quote"}), follow_redirects=False); loc=r.headers["location"]; assert "err=" not in loc and "now%20say" not in loc, loc
     qd10=int(loc.split("/quotations/")[1].split("?")[0])
     db=SessionLocal(); assert {i.id: i.spec for i in db.query(Item).filter(Item.id.in_(list(bath_spec)))}==bath_spec

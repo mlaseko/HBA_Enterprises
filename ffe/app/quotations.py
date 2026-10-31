@@ -1759,6 +1759,60 @@ def expected_seconds(lines: int, pictures: int, claude: bool) -> int:
 WAITING = "waiting"  # stopped before the matching: Claude could not be reached; the page offers to try again or to go on without
 
 
+# words of a shop's name that say nothing about which shop it is: the trade, the company form, the markets
+SHOP_WORDS = {"co", "ltd", "limited", "company", "trading", "group", "factory", "shop", "store", "industrial", "industry", "the", "and",
+              "building", "materials", "material", "home", "decor", "decoration", "international", "import", "export", "supply",
+              "sanitary", "ware", "sanitaryware", "bathroom", "kitchen", "tile", "tiles", "ceramic", "ceramics", "porcelain", "stone",
+              "furniture", "lighting", "lights", "light", "appliances", "appliance", "electrical", "electric", "hardware", "glass",
+              "door", "doors", "window", "windows", "aluminium", "aluminum", "curtain", "curtains", "cabinet", "cabinets", "quotation",
+              "foshan", "guangzhou", "shenzhen", "zhongshan", "dongguan", "jiangmen", "chaozhou", "lecong", "shunde", "zhuhai",
+              "xiamen", "quanzhou", "jinjiang", "shanghai", "ningbo", "hangzhou", "kaiping", "yiwu", "china", "guangdong"}
+TRADE_WORDS = {"sanitary", "ware", "sanitaryware", "bathroom", "kitchen", "tile", "tiles", "ceramic", "ceramics", "porcelain", "stone",
+               "furniture", "lighting", "lights", "light", "appliances", "appliance", "electrical", "electric", "hardware", "glass",
+               "door", "doors", "window", "windows", "aluminium", "aluminum", "curtain", "curtains", "cabinet", "cabinets"}
+
+
+def guess_supplier(db: Session, parsed: dict) -> tuple[Supplier | None, str]:
+    """The shop a sheet uploaded without one comes from, when it is one of ours: two or more of its item numbers confirmed
+    before for one shop (QuoteMatch), its sales person as a shop's contact, or a word of a shop's name that is not a trade,
+    company form or market (SHOP_WORDS, the shop's own city) in the file name, title or header, unless the shop's name names
+    a trade (TRADE_WORDS) and the file names only others (the trade words it shares with the file count a little, to tell
+    two shops of one name apart). Only a clear winner is returned, with the reason in
+    words; (None, "") otherwise."""
+    words = lambda s: set(re.findall(r"[a-z]{3,}", (s or "").lower()))
+    sheet_words = words(" ".join([parsed.get("filename") or "", parsed.get("title") or "", *[str(v) for v in (parsed.get("head") or {}).values()]]))
+    sales = " ".join(((parsed.get("head") or {}).get("sales") or "").lower().split())
+    refs = {_norm(l["ref"]) for l in parsed.get("lines") or [] if l.get("ref")}
+    known = Counter()
+    if refs:
+        for m in db.query(QuoteMatch).filter(QuoteMatch.supplier_id.isnot(None)).all():
+            if m.ref and m.ref in refs:
+                known[m.supplier_id] += 1
+    scores: dict[int, tuple[float, str]] = {}
+    for s in db.query(Supplier).all():
+        found = []
+        if known.get(s.id, 0) >= 2:
+            found.append((known[s.id], f"{known[s.id]} of its item numbers were matched with this shop before"))
+        contact = " ".join((s.contact or "").lower().split())
+        if sales and contact and (sales == contact or sales in contact.split() or contact in sales.split()):
+            found.append((3, f"its sales person {parsed['head']['sales']} is this shop's contact"))
+        own = words(s.name) - SHOP_WORDS - words(s.city)
+        hit = sorted(own & sheet_words)
+        shop_trade, file_trade = words(s.name) & TRADE_WORDS, sheet_words & TRADE_WORDS
+        if hit and not (shop_trade and file_trade and not shop_trade & file_trade):  # "George sanitary ware" is not George Appliances
+            trade = shop_trade & sheet_words  # the trade words it shares with the file break a tie between two shops of one name
+            found.append((2 * len(hit) + 0.5 * len(trade), "the file says " + ", ".join(f"“{w.capitalize()}”" for w in hit)))
+        if found:
+            scores[s.id] = (sum(x for x, _ in found), "; ".join(t for _, t in found))
+    if not scores:
+        return None, ""
+    ranked = sorted(scores.items(), key=lambda kv: -kv[1][0])
+    if len(ranked) > 1 and ranked[1][1][0] == ranked[0][1][0]:
+        return None, ""  # two shops as likely: let the designer choose
+    sid, (_, why) = ranked[0]
+    return db.get(Supplier, sid), why
+
+
 def start_upload(db: Session, p: Project, data: bytes, filename: str, supplier_id: int | None) -> QuotationUpload:
     """Keep the file, make the upload row, and read the sheet on a thread of its own (process_upload). Returns the row
     (committed) that the working page follows."""
@@ -1801,6 +1855,11 @@ def process_upload(upload_id: int, project_id: int, data: bytes, filename: str, 
             pictures[int(no)] = (fk, tk)
         raw_pictures = parsed.pop("pictures")
         state = dict(parsed=parsed, pictures={str(k): list(v) for k, v in pictures.items()}, file_key=file_key, supplier_id=supplier_id, base=base)
+        if not supplier_id:  # one of our shops, recognised: its remembered matches apply to the suggestions too
+            with SessionLocal() as db:
+                shop, why = guess_supplier(db, parsed)
+            if shop is not None:
+                state.update(supplier_id=shop.id, supplier_guess=why)
         match_upload(upload_id, project_id, state, raw_pictures, use_claude=True)
     except ReadError as e:
         storage.delete_image(file_key)

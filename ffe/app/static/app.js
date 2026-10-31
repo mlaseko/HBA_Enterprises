@@ -152,7 +152,31 @@
     var box = document.getElementById(sel.dataset.reveal); if (!box) return;
     var on = sel.value === '__new__'; box.hidden = !on;
     box.querySelectorAll('[data-req]').forEach(function (i) { i.required = on; });
-    if (on) { var first = box.querySelector('input'); if (first) first.focus(); }
+    if (on && !sel.dataset.quiet) { var first = box.querySelector('input'); if (first) first.focus(); }
+  });
+  // a select with data-find (the shop of a quotation or a quote): a search box above it narrows the list as you type
+  // (every word, any order; the options are rebuilt, since a hidden <option> still shows on iPhones). One shop left is
+  // chosen; none, in a list with "+ New shop…", chooses that and writes the typed name into the form's supplier_name.
+  document.querySelectorAll('select[data-find]').forEach(function (sel) {
+    var all = Array.prototype.slice.call(sel.options), fixed = function (o) { return o.value === '' || o.value === '__new__'; };
+    var add = all.filter(function (o) { return o.value === '__new__'; })[0];
+    var box = document.createElement('input'); box.type = 'search'; box.className = 'in sel-search'; box.placeholder = sel.dataset.find;
+    box.autocomplete = 'off'; box.setAttribute('aria-label', sel.dataset.find); sel.parentNode.insertBefore(box, sel);
+    var hint = document.createElement('div'); hint.className = 'help sel-hint'; hint.hidden = true; sel.parentNode.insertBefore(hint, sel.nextSibling);
+    box.addEventListener('keydown', function (e) { if (e.key === 'Enter') e.preventDefault(); });  // Enter must not post the form
+    box.addEventListener('input', function () {
+      var w = box.value.toLowerCase().split(/\s+/).filter(Boolean), keep = sel.value, typed = box.value.trim();
+      var hits = all.filter(function (o) { return !fixed(o) && w.every(function (x) { return o.textContent.toLowerCase().indexOf(x) >= 0; }); });
+      sel.innerHTML = ''; all.forEach(function (o) { if (fixed(o) || !w.length || hits.indexOf(o) >= 0) sel.appendChild(o); });
+      var pick = null, nm = sel.form && sel.form.querySelector('[name=supplier_name]');
+      if (w.length && hits.length === 1) pick = hits[0].value;
+      else if (w.length && !hits.length && add) { pick = '__new__'; if (nm) nm.value = typed; }
+      else if (all.some(function (o) { return o.value === keep && o.parentNode === sel; })) pick = keep;
+      if (pick !== null) { sel.value = pick; if (pick !== keep) { sel.dataset.quiet = '1'; sel.dispatchEvent(new Event('change', { bubbles: true })); delete sel.dataset.quiet; } }
+      hint.hidden = !w.length;
+      hint.textContent = hits.length === 1 ? 'Shop found: ' + hits[0].textContent + '.' : hits.length ? hits.length + ' shops match: pick one in the list.'
+        : add ? 'No shop by that name: "' + typed + '" is added as a new shop when you save.' : 'No shop by that name.';
+    });
   });
   // a link with data-open="id" opens that <details> and brings it into view (Buying: "Add a quote"); so does an address
   // ending in #id of a <details> (the page comes back there after a save with an error)

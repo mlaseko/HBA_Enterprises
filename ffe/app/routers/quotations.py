@@ -212,7 +212,7 @@ def _preview_ctx(db: Session, p: Project, state: dict) -> dict:
     diff_groups = _diff_groups(lines, by_id, state.get("decisions") or {})
     return dict(parsed=parsed, lines=lines, by_cat=by_cat, by_id=by_id, diff_groups=diff_groups, rooms=rooms, supplier=sup, head=head, doc=doc, new_sup=new_sup, claude=state.get("claude"), totals=totals,
                 warnings=warnings,
-                claude_note=state.get("claude_note", ""),
+                claude_note=state.get("claude_note", ""), supplier_guess=state.get("supplier_guess", "") if sup is not None and not state.get("draft_at") else "",
                 draft_at=state.get("draft_at", ""), counts={a: sum(1 for l in lines if l["sug"].get("action") == a) for a in ACTIONS},
                 categories=lists.categories(p), suppliers=_suppliers(db), terms=doc["terms"])
 
