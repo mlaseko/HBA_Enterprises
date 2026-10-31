@@ -679,14 +679,28 @@ def _scope_rooms(p: Project | None) -> list:
     return out
 
 
-def scope_note(p: Project | None) -> str:
-    """For Claude's prompt: the system prompt calls staff / servant quarters out of scope, which is wrong when the design
-    has such rooms (Kinondoni's Boys' Quarter): then their lines are the design's to match."""
+def scope_note(p: Project | None, parsed: dict | None = None) -> str:
+    """For Claude's prompt: the system prompt calls staff / servant quarters and a basement out of scope, which is wrong
+    when the design has such rooms (Kinondoni's Boys' Quarter: their lines are the design's to match), and when a sheet
+    for a house without a basement heads its lowest floor "Basement floor" (Kinondoni's tile sheet: Basement, First,
+    Roof): that section is the ground floor."""
+    out = ""
     rs = _scope_rooms(p)
-    if not rs:
-        return ""
-    return (f"\nStaff / servant / boys' quarters are part of this design ({', '.join(f'{r.code} {r.name}' for r in rs)}): match the "
-            f"lines for them to the products of those rooms like any other line; do not skip them as out of scope.")
+    if rs:
+        out += (f"\nStaff / servant / boys' quarters are part of this design ({', '.join(f'{r.code} {r.name}' for r in rs)}): match the "
+                f"lines for them to the products of those rooms like any other line; do not skip them as out of scope.")
+    if p is not None and parsed and not _has_basement(p) and any(
+            "basement" in _norm(f"{l['section']} {l.get('place', '')}") for l in parsed.get("lines") or []):
+        out += ("\nThis house has no basement: the sheet numbers its floors from the bottom, so its 'Basement floor' section is the "
+                "ground floor and the sections above it are the floors above (its First floor is the First floor). Match the "
+                "basement lines to the ground-floor products; do not skip them as out of scope.")
+    return out
+
+
+def _has_basement(p: Project) -> bool:
+    """Whether the design has a basement: a floor or a room's floor that says so."""
+    names = [f.name for f in p.floors] + [r.floor or "" for r in p.rooms]
+    return any("basement" in (n or "").lower() for n in names)
 
 
 def out_of_scope(line: dict, p: Project | None = None) -> bool:
@@ -1079,7 +1093,7 @@ def ask_claude(p: Project, parsed: dict, cands: list[Candidate], lists_: dict, p
                 content.append({"type": "text", "text": f"Picture of line L{l['no']}:"})
                 content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": base64.standard_b64encode(small).decode("ascii")}})
                 n += 1
-    prompt = (f"Project: {p.name}.\nRooms: {rooms}{scope_note(p)}\nCategories: {', '.join(lists.categories(p))}\n\nProducts (id | category | name | size | finish | "
+    prompt = (f"Project: {p.name}.\nRooms: {rooms}{scope_note(p, parsed)}\nCategories: {', '.join(lists.categories(p))}\n\nProducts (id | category | name | size | finish | "
               f"quantity needed | rooms):\n{products}\n\nQuotation '{parsed.get('title') or parsed.get('filename', '')}' lines "
               f"(L | section | item number | name | size | qty | unit price | description | shortlist with scores):\n" + "\n".join(lines) +
               "\n\nMatch every line.")

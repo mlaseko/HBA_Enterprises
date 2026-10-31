@@ -2196,6 +2196,12 @@ def flow(c):
     r=c.post(f"/p/{pid_q}/rooms", data={"code":"BQ","name":"Boys' Quarter","floor":"Staff quarters","kind":"room"}, follow_redirects=False); assert r.status_code==303
     qcalls.clear(); upload_quote("Tile quotation v11.xlsx", quote_sheet())
     assert "BQ Boys' Quarter): match the lines for them to the products of those rooms like any other line; do not skip them as out of scope." in [b["text"] for b in qcalls[-1][0] if b.get("type")=="text"][-1]
+    # a sheet heading its lowest floor "Basement floor" for a house without one: Claude is told it is the ground floor
+    bsheet={"lines":[{"section":"Basement floor (Including 10% of wastage)","place":"main floor"}]}
+    db=SessionLocal(); _pp=db.get(_QP, pid_q)
+    assert "its 'Basement floor' section is the ground floor" in _qz.scope_note(_pp, bsheet) and "Basement" not in _qz.scope_note(_pp, {"lines":[{"section":"First floor","place":""}]}); db.close()
+    r=c.post(f"/p/{pid_q}/rooms", data={"code":"BS-STO","name":"Basement store","floor":"Basement","kind":"room"}, follow_redirects=False); assert r.status_code==303
+    db=SessionLocal(); assert "Basement floor' section" not in _qz.scope_note(db.get(_QP, pid_q), bsheet); db.close()  # a house with a basement: the heading means what it says
     del os.environ["ANTHROPIC_API_KEY"]; ai._call=lambda content, schema=None, **kw: (_ for _ in ()).throw(RuntimeError("down"))
     print("quotation differences ok")
 

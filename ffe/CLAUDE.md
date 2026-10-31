@@ -787,6 +787,8 @@ ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                          
   the size, else the name; `score`, `flags` and the preview's `data-dims` read it. `scope_note(p)` tells Claude in the prompt
   that the design's staff / servant / boys' quarters rooms (`_scope_rooms`) are in scope: the system prompt calls them out of
   scope, and Claude skipped Kinondoni's staff-quarters tiles although the Boys' Quarter had them.
+  It also says, when the house has no basement (`_has_basement`: no floor or room floor named so) and the sheet has a
+  "Basement floor" section (Kinondoni's tile sheet: Basement, First, Roof), that the section is the ground floor.
   What differs from your design: `differences(line, c)` is `spec_diffs` as data (kind, offered — '' when the offer does not
   say —, asked, text, ask, slug, `can_update` = one value on each side and something offered); `spec_diffs` keeps the
   wording. `_diff_groups` (router) puts `l["diffs"]` on the lines (their red pills carry `data-dec` = the decision's field
