@@ -34,7 +34,7 @@
 {% set per = 'each' if unit == 'pcs' else 'per ' ~ (unit if unit != 'mixed' else 'unit') %}
 <div class="grid g2 stack">
   <div class="span2"><label for="sup-{{ key }}">Shop</label>
-    <select class="in" name="supplier_id" id="sup-{{ key }}" data-reveal="newshop-{{ key }}">
+    <select class="in" name="supplier_id" id="sup-{{ key }}" data-reveal="newshop-{{ key }}" data-find="Search the shops, or type a new one">
       {% if not q %}<option value="">Choose the shop…</option>{% endif %}
       {% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if q and q.supplier_id == s.id }}>{{ s.name }}{% if s.city %} · {{ s.city }}{% endif %}</option>{% endfor %}
       <option value="__new__" {{ 'selected' if new_shop }}>+ New shop…</option>

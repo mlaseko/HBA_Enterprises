@@ -277,6 +277,11 @@ name** (or set the Kind by hand): every existing entry starts as a room.
   added, the discount pro rata, the item numbers in `Quote.model`, the picture copied, the lead time from the sheet, the
   differences noted), new items with `next_code`, and the matches remembered. Deleting a quotation deletes the quotes it
   made that no purchase uses.
+- The shop of a quotation: every shop dropdown that makes quotes (upload form, preview, a product's Add a quote) has a search
+  box (`select[data-find]` in app.js): typing narrows the list, one match is chosen, a name no shop has becomes "+ New shop…"
+  with that name. A sheet uploaded without a shop is matched to one of ours when it is clear (`quotations.guess_supplier`:
+  item numbers confirmed for that shop, its sales person as the shop's contact, a distinctive word of its name in the file
+  name or header) before the lines are matched, so the shop's remembered matches apply; the preview says which and why.
 - What differs from your design (`quotations.differences`, `decided`, `accept_into_items`): the spec clashes between a line and
   its product (thickness, slip rating, finish, material: kind, offered, asked, the question for the shop, `slug`,
   `can_update`) are grouped on the preview (`_diff_groups`: one group per difference, a row per product) with a decision per
