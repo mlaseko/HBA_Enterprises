@@ -242,6 +242,16 @@ def _unit(u: str) -> str:
 _SIZE_SEP = re.compile(r"\s*[x×*X]\s*")
 
 
+_CUT_RE = re.compile(r"cut\s*(?:into|to)\s*([^)\n]+)", re.I)
+
+
+def line_dims(line: dict) -> list[float]:
+    """The size a line delivers: what a slab is cut into ('600*1200 (cut into 100*1200)' is skirting 100 x 1200), else
+    the size, else the name."""
+    m = _CUT_RE.search(line.get("size") or "")
+    return (dims(m.group(1)) if m else []) or dims(line["size"]) or dims(line["name"])
+
+
 def dims(text: str) -> list[float]:
     """The dimensions in a size text, in mm, largest first: '600*1200' -> [1200, 600]; 'main cabinet:1470*420*350' ->
     [1470, 420, 350]; '1200 x 2400 mm' -> [2400, 1200]; '90 cm' -> [900]; '1.2 m' -> [1200]."""
@@ -641,7 +651,7 @@ def score(line: dict, c: Candidate) -> float:
         if (a in words and b in name_words and a not in name_words) or (b in words and a in name_words and b not in name_words):
             s -= 0.3
     s -= 0.25 * len((name_words & QUALIFIERS) - words - c.room_words.intersection(words))
-    d = _dims_match(dims(line["size"]) or dims(line["name"]) or dims(line["detail"][:200]), c.dims)
+    d = _dims_match(line_dims(line) or dims(line["detail"][:200]), c.dims)
     s += {1.0: 0.2, 0.8: 0.15, 0.4: 0.05, 0.0: 0.0, -1.0: -0.1}[d]
     lu, cu = _same_unit(_unit(line["unit"])), _same_unit(c.unit)
     if lu and cu:
@@ -667,6 +677,16 @@ def _scope_rooms(p: Project | None) -> list:
         if any(w in t for w in ("staff", "servant", "quarter", "boys")) or code.startswith(("BQ", "SQ")) or code.split("-")[0] in ("BQ", "SQ"):
             out.append(r)
     return out
+
+
+def scope_note(p: Project | None) -> str:
+    """For Claude's prompt: the system prompt calls staff / servant quarters out of scope, which is wrong when the design
+    has such rooms (Kinondoni's Boys' Quarter): then their lines are the design's to match."""
+    rs = _scope_rooms(p)
+    if not rs:
+        return ""
+    return (f"\nStaff / servant / boys' quarters are part of this design ({', '.join(f'{r.code} {r.name}' for r in rs)}): match the "
+            f"lines for them to the products of those rooms like any other line; do not skip them as out of scope.")
 
 
 def out_of_scope(line: dict, p: Project | None = None) -> bool:
@@ -871,7 +891,7 @@ def flags(line: dict, c: Candidate | None) -> list[str]:
     if c is None:
         return []
     out = spec_diffs(line, c)
-    ld, cd = dims(line["size"]) or dims(line["name"]), c.dims
+    ld, cd = line_dims(line), c.dims
     if ld and cd and _dims_match(ld, cd) < 0:
         out.append(f"size offered {line['size'] or line['name']} vs {c.size if dims(c.size) else c.name} asked")
     lu, cu = _unit(line["unit"]), c.unit
@@ -1059,7 +1079,7 @@ def ask_claude(p: Project, parsed: dict, cands: list[Candidate], lists_: dict, p
                 content.append({"type": "text", "text": f"Picture of line L{l['no']}:"})
                 content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": base64.standard_b64encode(small).decode("ascii")}})
                 n += 1
-    prompt = (f"Project: {p.name}.\nRooms: {rooms}\nCategories: {', '.join(lists.categories(p))}\n\nProducts (id | category | name | size | finish | "
+    prompt = (f"Project: {p.name}.\nRooms: {rooms}{scope_note(p)}\nCategories: {', '.join(lists.categories(p))}\n\nProducts (id | category | name | size | finish | "
               f"quantity needed | rooms):\n{products}\n\nQuotation '{parsed.get('title') or parsed.get('filename', '')}' lines "
               f"(L | section | item number | name | size | qty | unit price | description | shortlist with scores):\n" + "\n".join(lines) +
               "\n\nMatch every line.")
