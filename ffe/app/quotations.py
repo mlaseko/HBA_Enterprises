@@ -35,6 +35,7 @@ from sqlalchemy.orm import Session, object_session
 
 from . import ai, buying, config, drawings, lists, storage
 from .models import Item, Product, Project, Purchase, Quotation, QuotationLine, QuotationLineAlso, QuotationUpload, Quote, QuoteMatch, Supplier
+from .refs import tokens as ref_tokens
 from .services import next_code, product_key
 
 # ---- reading the sheet ---------------------------------------------------------------------------------------------------
@@ -586,6 +587,9 @@ class Candidate:
         self.words = tokens(f"{self.name} {self.category} {self.finish}")
         self.room_words = tokens(" ".join(f"{r.name} {r.floor or ''}" for r in self.rooms))
         self.spec_words = tokens(self.spec) - self.words
+        own = {(i.code or "").upper() for i in g.lines}
+        # the design's reference codes on the lines (the designer's window F1-W05 in the notes): a sheet quoting by them matches
+        self.refs = {t for i in g.lines for t in ref_tokens(" ".join(x or "" for x in (i.name, i.spec, i.notes))) if t not in own}
 
     @property
     def title(self) -> str:
@@ -813,6 +817,12 @@ def shortlist(line: dict, cands: list[Candidate], memo: list[QuoteMatch], n: int
         for c in cands:
             if code in c.codes:
                 return [(c, 1.0, f"our code {code}")]
+    wanted = ref_tokens(f"{line['ref']} {line.get('place', '')} {line['name']}")
+    if wanted:  # the design's own reference (window F1-W05): one product carrying it is the match, several are offered
+        hits = [c for c in cands if c.refs & set(wanted)]
+        if len(hits) == 1:
+            return [(hits[0], 0.98, f"design reference {', '.join(sorted(hits[0].refs & set(wanted)))}")]
+        out.extend((c, 0.7, f"design reference {', '.join(sorted(c.refs & set(wanted)))}: on several products") for c in hits[:n])
     ref = _norm(line["ref"])
     text = _memo_text(line)
     by_ref = [m for m in memo if ref and m.ref == ref and m.product_key in by_key]
@@ -1150,7 +1160,7 @@ def suggest(db: Session, p: Project, parsed: dict, pictures: dict[int, bytes] | 
                    shortlist=[dict(id=c.id, title=c.title, score=s, why=w, rooms=c.rooms_text) for c, s, w in sl])
         if out_of_scope(l, p):
             sug.update(action="skip", confidence=0.8, reason="out of scope (staff or servant quarters)")
-        elif sl and sl[0][2].startswith(("our code", "matched before")):
+        elif sl and sl[0][2].startswith(("our code", "matched before", "design reference")) and sl[0][1] >= SURE:
             c, s, w = sl[0]
             sug.update(action="quote", product_id=c.id, confidence=s, reason=w)
         pick = picks.get(l["no"])

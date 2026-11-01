@@ -692,7 +692,7 @@ ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                          
   `quotation_preview.html`, `quotation.html`, a Quotations tab in `buying/_tabs.html`. A supplier's own Excel sheet is read
   whatever its layout (`parse`: header block, header row by words with merged headers filled to the right, several tables,
   sections, item numbers, sizes or width × height, packs, pictures by row, charges, total, after-discount, terms; .xls via
-  `xlrd` without pictures), each line matched to a product (our code from the inquiry sheet, then a remembered `QuoteMatch`
+  `xlrd` without pictures), each line matched to a product (our code from the inquiry sheet, then a design reference — a `refs.tokens` code such as F1-W05 in the line's item number / name that exactly one product carries in its lines' name, spec or notes (`Candidate.refs`): 0.98, several = 0.7 chips —, then a remembered `QuoteMatch`
   of the shop, then `score()` on words / size / unit / rooms / quantity capped at `MAX_SCORE`, then Claude through
   `ai._call(system=, effort=, max_tokens=)` with up to 40 line pictures) and confirmed on the preview (quote / new / merge /
   extra / skip; the chips are the shortlist; flags say what differs). `apply` writes the `Quotation` document, its lines with
