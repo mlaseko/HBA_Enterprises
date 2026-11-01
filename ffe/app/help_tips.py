@@ -130,6 +130,7 @@ TIPS = {
                "The <b>Buying</b> panel under the quantity says which shop supplies this room and at what price. <b>Open in Buying</b> to add quotes or choose the shop.",
                "Add photos: take one, or choose several from the gallery at once; paste a web link instead if you like. The first photo is the cover, <b>Make cover</b> changes it.",
                "<b>Rooms with this item</b> is a checklist of every room: tick one to copy the item there with its own code, untick one to take the item out of that room (its line is deleted, with its photos). The chips tick a whole group at once; this line's own room is locked.",
+               "When the item is in more than one room, the bottom of the page offers <b>Delete from this room</b> (the other rooms keep it) or <b>Delete from all N rooms</b> (the whole product goes, and a saved quotation that priced it marks the line <b>No rooms left in the design</b>).",
                "<b>Plan</b> / <b>On the plan</b> opens the room on the drawing."],
         tips=["Quantity, status and notes stay per room. Photos are shared: added from any room's line or from the item list, a photo shows on the same item in every room, and a photo deleted anywhere goes everywhere.",
               "Tap a photo to see it full size on top of the page: zoom with the buttons, the wheel or a pinch, drag to move, ‹ › for the next one, and × (or Back on the phone) brings you back here.",

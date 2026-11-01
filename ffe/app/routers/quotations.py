@@ -400,11 +400,13 @@ def quotation_page(request: Request, quotation_id: int, p: Project = Depends(get
             by_quote.setdefault(ln.quote_id, []).append(ln)
     counts = {a: sum(1 for ln in q.lines if ln.action == a) for a in ACTIONS}
     by_cand = {c.id: c.category for c in qz.candidates(db, p)}
+    # products this sheet priced that no room has any more (deleted from the design since): the page says so on the line
+    dropped = {ln.product_id for ln in q.lines if ln.product_id and ln.action in ("quote", "new") and ln.product_id not in by_cand}
     cmp_cat = next((by_cand[ln.product_id] for ln in q.lines if ln.product_id in by_cand), "")
     revises = db.get(Quotation, q.replaces_id) if q.replaces_id else None
     revised_by = db.query(Quotation).filter(Quotation.replaces_id == q.id).order_by(Quotation.id.desc()).first()
     return render(request, "buying/quotation.html", p=p, q=q, gaps=gaps, counts=counts, ok=ok[:200], err=err[:300], warn=warn[:600], by_quote=by_quote,
-                  revises=revises, revised_by=revised_by, cmp_cat=cmp_cat, families=qz.families(db, p, q),
+                  revises=revises, revised_by=revised_by, cmp_cat=cmp_cat, families=qz.families(db, p, q), dropped=dropped,
                   lines_total=round(sum(ln.amount or 0 for ln in q.lines), 2))
 
 

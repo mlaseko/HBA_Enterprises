@@ -2260,6 +2260,18 @@ def flow(c):
     assert "warn=" in r.headers["location"] and "now%20cost" in r.headers["location"], r.headers["location"]
     db=SessionLocal(); pu=db.query(_Pu).filter(_Pu.quote_id==qb_id).first(); assert abs(pu.amount-(1600+310)/110)<0.01; db.close()
     assert "now cost" in c.get(r.headers["location"].split("#")[0]).text
+    # an item in two rooms deleted from its page: this room only, or every room; the quotation says the product left the design
+    db=SessionLocal(); hv=db.query(Item).filter(Item.project_id==pid_q, Item.name=="Handrail v10").one(); hv_id=hv.id; _rm2=next(r_.id for r_ in db.get(_P, pid_q).rooms if r_.id!=_sta)
+    r=c.post(f"/p/{pid_q}/items/new", data={"room_ids":[str(_rm2)],"category":hv.category,"name":hv.name,"size":hv.size or "","finish":hv.finish or "","qty":"1","unit":hv.unit or "pcs","status":"To buy"}, follow_redirects=False); hv2=int(r.headers["location"].split("/")[-1]); db.close()
+    h=c.get(f"/p/{pid_q}/items/{hv_id}").text; assert "Delete from this room" in h and "Delete from all 2 rooms" in h and 'name="scope" value="all"' in h
+    assert "No rooms left in the design" not in c.get(f"/p/{pid_q}/quotations/{qd10}").text
+    r=c.post(f"/p/{pid_q}/items/{hv2}/delete", follow_redirects=False); assert r.headers["location"].endswith("?deleted=1")
+    db=SessionLocal(); assert db.get(Item, hv2) is None and db.get(Item, hv_id) is not None; db.close()
+    assert 'name="scope" value="all"' not in c.get(f"/p/{pid_q}/items/{hv_id}").text  # one room left: one plain button
+    r=c.post(f"/p/{pid_q}/items/new", data={"room_ids":[str(_rm2)],"category":hv.category,"name":hv.name,"size":hv.size or "","finish":hv.finish or "","qty":"1","unit":hv.unit or "pcs","status":"To buy"}, follow_redirects=False); hv2=int(r.headers["location"].split("/")[-1])
+    r=c.post(f"/p/{pid_q}/items/{hv_id}/delete", data={"scope":"all"}, follow_redirects=False); assert r.headers["location"].endswith("?deleted=2")
+    db=SessionLocal(); assert db.get(Item, hv2) is None and db.get(Item, hv_id) is None and db.get(_Pr, hp) is not None; db.close()
+    h=c.get(f"/p/{pid_q}/quotations/{qd10}").text; assert "No rooms left in the design" in h and "no longer in any room" in h
     print("quotation amendments ok")
 
 

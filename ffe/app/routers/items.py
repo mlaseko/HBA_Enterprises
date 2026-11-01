@@ -465,14 +465,22 @@ def make_cover(item_id: int, photo_id: int, p: Project = Depends(get_project), d
 
 
 @router.post("/p/{project_id}/items/{item_id}/delete")
-def delete_item(item_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+def delete_item(item_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), scope: str = Form("")):
+    """Deletes this room's line, or with scope=all the product in every room (this line plus same_item_elsewhere), the
+    way the Items list's box does. A purchase left without rooms goes (buying.prune), so the Buy list and the saved
+    quotations show the drop at once."""
     item = db.get(Item, item_id)
-    if item and item.project_id == p.id:
-        release_photos(db, p, item)  # its photos stay with the product's other rooms; deleted only when none is left
-        db.delete(item)
-        buying.prune(db, p)  # a purchase left without rooms goes
-        db.commit()
-    return redirect(f"/p/{p.id}/items")
+    if not (item and item.project_id == p.id):
+        return redirect(f"/p/{p.id}/items")
+    doomed = [item] + (same_item_elsewhere(p, item) if scope == "all" and not item.draft else [])
+    gone = {i.id for i in doomed}
+    survivors = [i for i in p.live_items if i.id not in gone]
+    for i in doomed:
+        release_photos(db, p, i, survivors)  # photos stay with the product's other rooms; deleted only when none is left
+        db.delete(i)
+    buying.prune(db, p)  # a purchase left without rooms goes
+    db.commit()
+    return redirect(f"/p/{p.id}/items?deleted={len(doomed)}")
 
 
 @router.post("/p/{project_id}/items/{item_id}/duplicate")

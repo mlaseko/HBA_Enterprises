@@ -21,6 +21,7 @@
 {% if ok %}<div class="alert">{{ ok }}</div>{% endif %}
 {% if err %}<div class="alert err">{{ err }}</div>{% endif %}
 {% if warn %}<div class="alert info">{{ warn }}</div>{% endif %}
+{% if dropped %}<div class="alert info">{{ dropped|length }} product{{ 's' if dropped|length != 1 }} this sheet priced {{ 'are' if dropped|length != 1 else 'is' }} no longer in any room: marked <b>No rooms left in the design</b> below. The sheet keeps its price as the shop sent it; the Buy list leaves it out.</div>{% endif %}
 {% if revised_by %}<div class="alert info">Revised by <a href="/p/{{ p.id }}/quotations/{{ revised_by.id }}"><b>{{ revised_by.title or revised_by.filename }}</b></a>{% if revised_by.quote_date %} of {{ revised_by.quote_date.isoformat() }}{% endif %}: the quotes on the Buying page carry that sheet's prices now; this one is kept as it was sent.</div>{% endif %}
 {% if revises %}<div class="alert info">A revision of <a href="/p/{{ p.id }}/quotations/{{ revises.id }}"><b>{{ revises.title or revises.filename }}</b></a>{% if revises.quote_date %} of {{ revises.quote_date.isoformat() }}{% endif %}: its quotes were corrected to these prices.</div>{% endif %}
 
@@ -47,6 +48,7 @@
     <td class="qi-became">
       {% if ln.action in ('quote', 'new') and ln.product %}
         <a href="/p/{{ p.id }}/buying/{{ ln.product.id }}#quote-{{ ln.quote_id }}" class="pill green">{{ 'New item · ' if ln.action == 'new' }}{{ ln.product.title|truncate(60) }}</a>
+        {% if ln.product_id in dropped %}<div><span class="pill red">No rooms left in the design</span></div>{% endif %}
         {% if ln.quote %}<div class="small muted">¥{{ ln.quote.unit_price|money(2) }} per unit{% if by_quote[ln.quote_id]|length > 1 %} · combined with {{ by_quote[ln.quote_id]|length - 1 }} other line{{ 's' if by_quote[ln.quote_id]|length > 2 }}{% endif %}</div>{% endif %}
       {% elif ln.action == 'merge' %}<span class="pill gold">Part of L{{ (q.lines|selectattr('id', 'equalto', ln.into_id)|map(attribute='no')|list or ['?'])[0] }}</span>
       {% elif ln.action == 'extra' %}<span class="pill">Extra charge</span>
