@@ -388,7 +388,7 @@ def inquiry_sheet(p: Project = Depends(get_project), db: Session = Depends(get_d
 
 # ---- one document --------------------------------------------------------------------------------------------------------------
 @router.get("/p/{project_id}/quotations/{quotation_id}")
-def quotation_page(request: Request, quotation_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), ok: str = "", err: str = ""):
+def quotation_page(request: Request, quotation_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), ok: str = "", err: str = "", warn: str = ""):
     q = _quotation(db, p, quotation_id)
     if q is None:
         return redirect(f"/p/{p.id}/quotations")
@@ -403,7 +403,7 @@ def quotation_page(request: Request, quotation_id: int, p: Project = Depends(get
     cmp_cat = next((by_cand[ln.product_id] for ln in q.lines if ln.product_id in by_cand), "")
     revises = db.get(Quotation, q.replaces_id) if q.replaces_id else None
     revised_by = db.query(Quotation).filter(Quotation.replaces_id == q.id).order_by(Quotation.id.desc()).first()
-    return render(request, "buying/quotation.html", p=p, q=q, gaps=gaps, counts=counts, ok=ok[:200], err=err[:300], by_quote=by_quote,
+    return render(request, "buying/quotation.html", p=p, q=q, gaps=gaps, counts=counts, ok=ok[:200], err=err[:300], warn=warn[:600], by_quote=by_quote,
                   revises=revises, revised_by=revised_by, cmp_cat=cmp_cat, families=qz.families(db, p, q),
                   lines_total=round(sum(ln.amount or 0 for ln in q.lines), 2))
 
@@ -423,6 +423,77 @@ async def edit_variants(request: Request, quotation_id: int, p: Project = Depend
     bz.settle(db, p)
     db.commit()
     return redirect(f"/p/{p.id}/quotations/{q.id}?ok=" + urlquote(f"Variants saved: {n} room line{'s' if n != 1 else ''} changed." if n else "Nothing changed.") + "#variants")
+
+
+def _line(q: Quotation, line_id: int):
+    return next((x for x in q.lines if x.id == line_id), None)
+
+
+@router.get("/p/{project_id}/quotations/{quotation_id}/lines/{line_id}")
+def line_page(request: Request, quotation_id: int, line_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), err: str = ""):
+    """A saved line to amend: what it became, its quantity / unit / price as read, and the products it also prices."""
+    q = _quotation(db, p, quotation_id)
+    ln = _line(q, line_id) if q is not None else None
+    if ln is None:
+        return redirect(f"/p/{p.id}/quotations" + (f"/{q.id}" if q is not None else ""))
+    order = lists.category_order(p)
+    by_cat: dict[str, list] = {}
+    for c in sorted(qz.candidates(db, p), key=lambda c: (order.get(c.category, 999), c.name.lower(), c.size)):
+        by_cat.setdefault(c.category, []).append(c)
+    later = qz.superseded(db, q)
+    db.commit()
+    return render(request, "buying/quotation_line.html", p=p, q=q, ln=ln, by_cat=by_cat, later=later, err=err[:300],
+                  targets=[x for x in q.lines if x.id != ln.id and x.action in ("quote", "new")], categories=lists.categories(p),
+                  merged=[x for x in q.lines if x.action == "merge" and x.into_id == ln.id])
+
+
+def _amend(db: Session, p: Project, q: Quotation, ln, **kw):
+    """amend_line, settle, commit: (redirect to the document with the change and its warnings) or (back to the line with the reason)."""
+    try:
+        what, warns = qz.amend_line(db, p, q, ln, **kw)
+    except ValueError as e:
+        db.rollback()
+        return redirect(f"/p/{p.id}/quotations/{q.id}/lines/{ln.id}?err=" + urlquote(str(e)))
+    bz.settle(db, p)
+    db.commit()
+    return redirect(f"/p/{p.id}/quotations/{q.id}?ok=" + urlquote(what[:200]) + ("&warn=" + urlquote(" ".join(warns)[:600]) if warns else "") + f"#line-{ln.id}")
+
+
+@router.post("/p/{project_id}/quotations/{quotation_id}/lines/{line_id}")
+async def amend_line(request: Request, quotation_id: int, line_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """The line page posted: act (quote | new | merge | extra | skip) with prod / name, cat, rooms / into; qty, unit,
+    unit_price corrected; also_add (a product the line also prices) and also_remove (ones it no longer does)."""
+    q = _quotation(db, p, quotation_id)
+    ln = _line(q, line_id) if q is not None else None
+    if ln is None:
+        return redirect(f"/p/{p.id}/quotations")
+    later = qz.superseded(db, q)
+    if later is not None:
+        return redirect(f"/p/{p.id}/quotations/{q.id}?err=" + urlquote(f"This sheet was revised by {later.title or later.filename}: amend that one, it carries the prices now."))
+    form = await request.form()
+    return _amend(db, p, q, ln, action=form.get("act", ""), product_id=fint(form.get("prod")), into_id=fint(form.get("into")),
+                  qty=ffloat(form.get("qty"), None), unit=form.get("unit"), unit_price=ffloat(form.get("unit_price"), None),
+                  name=form.get("name", "")[:200], category=form.get("cat", "")[:60], room_ids=[int(x) for x in form.getlist("rooms") if str(x).isdigit()],
+                  also_add=fint(form.get("also_add")), also_remove=[int(x) for x in form.getlist("also_remove") if str(x).isdigit()])
+
+
+@router.post("/p/{project_id}/quotations/{quotation_id}/assign")
+async def assign_line(request: Request, quotation_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """Not quoted card: a product the sheet quoted under another name. mode=move: the line quotes this product now;
+    mode=also: the line keeps what it is and also prices this product."""
+    q = _quotation(db, p, quotation_id)
+    if q is None:
+        return redirect(f"/p/{p.id}/quotations")
+    form = await request.form()
+    ln, pid = _line(q, fint(form.get("line")) or 0), fint(form.get("product"))
+    if ln is None or not pid:
+        return redirect(f"/p/{p.id}/quotations/{q.id}?err=" + urlquote("Pick the line of the sheet that quotes it.") + "#gaps")
+    later = qz.superseded(db, q)
+    if later is not None:
+        return redirect(f"/p/{p.id}/quotations/{q.id}?err=" + urlquote(f"This sheet was revised by {later.title or later.filename}: amend that one, it carries the prices now."))
+    if form.get("mode") == "move":
+        return _amend(db, p, q, ln, action="quote", product_id=pid)
+    return _amend(db, p, q, ln, action=ln.action, product_id=ln.product_id, into_id=ln.into_id, also_add=pid)
 
 
 @router.get("/p/{project_id}/quotations/{quotation_id}/file")

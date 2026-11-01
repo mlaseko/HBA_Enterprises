@@ -2220,6 +2220,48 @@ def flow(c):
     del os.environ["ANTHROPIC_API_KEY"]; ai._call=lambda content, schema=None, **kw: (_ for _ in ()).throw(RuntimeError("down"))
     print("quotation differences ok")
 
+    # a saved quotation amended: a line re-matched, its numbers corrected, another product priced from it too
+    db=SessionLocal(); _q10=db.get(_QD, qd10); L={ln.no: ln.id for ln in _q10.lines}; shop10=_q10.supplier_id; L9=db.get(_QD, qd9).lines[0].id
+    db.query(_QD).filter(_QD.replaces_id==qd9).update({"replaces_id": None}); _q10.replaces_id=qd9; db.commit()  # the second sheet is the revision of the first
+    wall_id=db.query(_Pr).filter(_Pr.project_id==pid_q, _Pr.title.like("Bathroom walls%")).first().id; db.close()
+    QB=lambda pid: (lambda d: (d.query(_Qt).filter(_Qt.product_id==pid, _Qt.supplier_id==shop10).first(), d))(SessionLocal())
+    h=c.get(f"/p/{pid_q}/quotations/{qd10}").text; assert f'/quotations/{qd10}/lines/{L[3]}">Change…' in h and 'id="gaps"' in h and 'name="mode" value="also"' in h
+    assert f"/quotations/{qd9}/lines/" not in c.get(f"/p/{pid_q}/quotations/{qd9}").text  # revised by the next sheet: amend that one
+    r=c.post(f"/p/{pid_q}/quotations/{qd9}/lines/{L9}", data={"act":"skip"}, follow_redirects=False); assert "revised%20by" in r.headers["location"]
+    h=c.get(f"/p/{pid_q}/quotations/{qd10}/lines/{L[3]}").text; assert 'name="act"' in h and 'data-find="Find the product' in h and 'name="also_add"' in h
+    r=c.post(f"/p/{pid_q}/quotations/{qd10}/lines/{L[3]}", data={"act":"quote","prod":""}, follow_redirects=False); assert "Pick%20the%20product" in r.headers["location"]
+    # L3 (skipped, 10 m² @ 16) read as 20 and made to quote the big slab with L1 (100 m² @ 16): one quote of (1600 + 200) / 110
+    r=c.post(f"/p/{pid_q}/quotations/{qd10}/lines/{L[3]}", data={"act":"quote","prod":str(big_id),"qty":"10","unit":"m²","unit_price":"20"}, follow_redirects=False)
+    assert r.status_code==303 and "was%20skipped" in r.headers["location"] and "price%2016%20%E2%86%92%2020" in r.headers["location"], r.headers["location"]
+    qb,db=QB(big_id); ln3=db.get(_QL, L[3]); assert abs(qb.amount-1800/110)<0.01 and "Amended on the quotation" in qb.notes and ln3.action=="quote" and ln3.quote_id==qb.id and ln3.amount==200 and "Changed on" in ln3.notes; qb_id=qb.id; db.close()
+    # the Not quoted card: the bathroom walls priced from L1 too, then no more
+    r=c.post(f"/p/{pid_q}/quotations/{qd10}/assign", data={"product":str(wall_id),"line":str(L[1]),"mode":"also"}, follow_redirects=False); assert "also%20prices" in r.headers["location"], r.headers["location"]
+    qw,db=QB(wall_id); assert qw is not None and qw.amount==16 and "Also priced from L1" in qw.notes and [a.product_id for a in db.get(_QL, L[1]).also]==[wall_id]; db.close()
+    assert "Also prices" in c.get(f"/p/{pid_q}/quotations/{qd10}").text
+    c.post(f"/p/{pid_q}/quotations/{qd10}/lines/{L[1]}", data={"act":"quote","prod":str(big_id),"also_remove":str(wall_id)}, follow_redirects=False)
+    qw,db=QB(wall_id); assert qw is None and db.get(_QL, L[1]).also==[] and abs(db.get(_Qt, qb_id).amount-1800/110)<0.01; db.close()
+    # moved away the quote goes, moved back (Move it here) it returns
+    c.post(f"/p/{pid_q}/quotations/{qd10}/lines/{L[2]}", data={"act":"skip"}, follow_redirects=False)
+    qx,db=QB(bath_id); assert qx is None and db.get(_QL, L[2]).quote_id is None; db.close()
+    c.post(f"/p/{pid_q}/quotations/{qd10}/assign", data={"product":str(bath_id),"line":str(L[2]),"mode":"move"}, follow_redirects=False)
+    qx,db=QB(bath_id); assert qx is not None and qx.amount==12; db.close()
+    # a new item from a line, a part merged into it, then that part an extra charge
+    r=c.post(f"/p/{pid_q}/quotations/{qd10}/lines/{L[4]}", data={"act":"new","name":"Handrail v10","cat":"Hardware","rooms":str(_sta)}, follow_redirects=False); assert "new%20item" in r.headers["location"]
+    db=SessionLocal(); hv=db.query(Item).filter(Item.project_id==pid_q, Item.name=="Handrail v10").one(); hp=db.get(_QL, L[4]).product_id; assert hv.room_id==_sta and hp; charges0=db.get(_QD, qd10).charges; db.close()
+    c.post(f"/p/{pid_q}/quotations/{qd10}/lines/{L[5]}", data={"act":"merge","into":str(L[4])}, follow_redirects=False)
+    qh,db=QB(hp); assert abs(qh.amount-(480+1012)/20)<0.01 and db.get(_QL, L[5]).quote_id==qh.id; db.close()
+    c.post(f"/p/{pid_q}/quotations/{qd10}/lines/{L[4]}", data={"act":"new","unit_price":"25"}, follow_redirects=False)  # already new: no second item
+    db=SessionLocal(); assert db.query(Item).filter(Item.project_id==pid_q, Item.name=="Handrail v10").count()==1; db.close()
+    c.post(f"/p/{pid_q}/quotations/{qd10}/lines/{L[5]}", data={"act":"extra"}, follow_redirects=False)
+    qh,db=QB(hp); assert abs(qh.amount-25)<0.01 and abs(db.get(_QD, qd10).charges-(charges0+1012))<0.01; db.close()
+    # a quote bought from: the purchase takes the new price, and the page says so
+    r=c.post(f"/p/{pid_q}/buying/{big_id}/quotes/{qb_id}/buy", follow_redirects=False); assert r.status_code==303 and "err=" not in r.headers["location"]
+    r=c.post(f"/p/{pid_q}/quotations/{qd10}/lines/{L[3]}", data={"act":"quote","prod":str(big_id),"unit_price":"31"}, follow_redirects=False)
+    assert "warn=" in r.headers["location"] and "now%20cost" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); pu=db.query(_Pu).filter(_Pu.quote_id==qb_id).first(); assert abs(pu.amount-(1600+310)/110)<0.01; db.close()
+    assert "now cost" in c.get(r.headers["location"].split("#")[0]).text
+    print("quotation amendments ok")
+
 
 # ---- the runner: sections, dependencies, selection ------------------------------------------------------------------------
 # A section is the statements of flow() up to and including a print("<name> ok"); what comes before the first one is the

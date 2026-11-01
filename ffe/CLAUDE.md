@@ -54,7 +54,8 @@ app/models.py          Settings, SchemaMark (one-time data upgrades that ran), P
                        loaded_on / etd / eta / arrived_on / delivered_on), Carton.warehouse_on / Carton.shipment_id
                        Item.draft = quick-capture draft (no name/code yet); Project.live_items / Project.drafts split them,
                        Quotation (a supplier's sheet as received: Project.quotations), QuotationLine (a line and what it became: action
-                       quote | merge | new | extra | skip, product_id, quote_id, into_id), QuoteMatch (a confirmed match remembered per shop)
+                       quote | merge | new | extra | skip, product_id, quote_id, into_id; QuotationLine.also = QuotationLineAlso rows:
+                       other products the line also prices), QuoteMatch (a confirmed match remembered per shop)
 app/common.py          templates, auth helpers, number filters, render()/redirect() (render injects `help_tip` for the ? drawer)
 app/help_tips.py       "Help for this page": TIPS (title, what, steps, tips, anchor into help.html) per page key, TEMPLATE_KEYS,
                        tip_for(template, ctx); shots() reads static/help/shots.json (picture sizes for the guide)
@@ -372,7 +373,7 @@ ALTER TABLE cartons ADD COLUMN warehouse_on DATE;                               
 ALTER TABLE cartons ADD COLUMN shipment_id INTEGER;                                       -- the shipment a box is on
 ALTER TABLE projects ADD COLUMN deposit_pct / soon_days / balance_days / lcl_up_to;       -- the project's defaults (lists.py)
 ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                                    -- a revised sheet: the earlier document it corrected
--- new tables (create_all): products, quotes, purchases, orders, shipments, project_lists, quotations, quotation_lines, quote_matches, quotation_uploads
+-- new tables (create_all): products, quotes, purchases, orders, shipments, project_lists, quotations, quotation_lines, quote_matches, quotation_uploads, quotation_line_also
 ```
 
 ## Done
@@ -813,6 +814,21 @@ ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                          
   a word of the shop's name outside `SHOP_WORDS` and its city in the file name / title / header, not when the shop's name names a
   trade (`TRADE_WORDS`) and the file only others; a tie returns nothing) before
   matching, so the shop's memory applies; `state["supplier_guess"]` → the preview's "Shop recognised" alert (not on a draft).
+  Amending a saved quotation: `apply`'s pricing is `price_lines(q, c, groups, factor)` (groups = [(line, its merged parts)],
+  dicts; `line_dict(ln)` makes one of a saved line) with `discount_factor(q)`, and its new items `make_items(...)`, so saving and
+  amending price and create the same way. `amend_line(db, p, q, ln, action=…, product_id, into_id, qty, unit, unit_price, name,
+  category, room_ids, also_add, also_remove)` (ValueError with the reason when the choice cannot be made; a line already `new`
+  keeps its items; the lines merged into a line that stops quoting become skip; `q.charges` follows an extra) then
+  `reprice(db, p, q, touched, ours)`: this shop's quote on each product touched made again from the lines now on it (own
+  quote/new lines + their merged parts + `QuotationLineAlso` lines), deleted when no line is left and it is one of the sheet's
+  (`sheet_quotes(q)` taken before the change), kept with a warning when bought from; a bought quote's purchases follow
+  (`follow_quote`) with a warning. The line's notes get "Changed on <date>: …"; a quote line is `remember`ed. Routes
+  (routers/quotations.py): `GET/POST /quotations/<q>/lines/<line>` (`quotation_line.html`: act / prod / name / cat / rooms /
+  into / qty / unit / unit_price / also_add / also_remove; the product selects have `data-find` + `data-find-what="product"`),
+  `POST /quotations/<q>/assign` (Not quoted card: product, line, mode also | move); `_amend` redirects with `?ok=` and `&warn=`
+  (`.alert.info` on the document page). `superseded(db, q)` (a later sheet with `replaces_id = q`) refuses amendments and hides
+  the Change links. `delete()` also removes the quotes of the products its lines also priced. `follow_renames` repoints
+  `QuotationLineAlso.product_id` when products merge.
   Finding a product on a line: `.qi-find` search box (words, room code, our code: `data-s` on the options = codes, rooms, spec),
   chips of the hits; `data-same` (item number + unit, else name + size + unit) drives the "Also for L…" chip. Memory: `remember()`
   writes the shop's row and a supplier-less row by wording (`memory()` returns both, the shop's first; shortlist 0.9 / 0.85).

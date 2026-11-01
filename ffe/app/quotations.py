@@ -34,7 +34,7 @@ from PIL import Image as PILImage
 from sqlalchemy.orm import Session, object_session
 
 from . import ai, buying, config, drawings, lists, storage
-from .models import Item, Product, Project, Purchase, Quotation, QuotationLine, QuotationUpload, Quote, QuoteMatch, Supplier
+from .models import Item, Product, Project, Purchase, Quotation, QuotationLine, QuotationLineAlso, QuotationUpload, Quote, QuoteMatch, Supplier
 from .services import next_code, product_key
 
 # ---- reading the sheet ---------------------------------------------------------------------------------------------------
@@ -1399,10 +1399,7 @@ def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head:
                   lead_time=(head.get("lead_time") or "")[:120], notes=(head.get("notes") or "").strip())
     db.add(q)
     db.flush()
-    factor = 1.0
-    base = q.total - (q.charges if q.charges and q.charges < q.total else 0)  # the sheet's total carries the pallet: the discount is on the lines
-    if base and q.discount and 0 < q.discount < base:
-        factor = (base - q.discount) / base
+    factor = discount_factor(q)  # the sheet's total carries the pallet: the discount is on the lines
     rows: dict[int, QuotationLine] = {}
     for l in parsed["lines"]:
         ch = choices.get(l["no"], {})
@@ -1426,27 +1423,9 @@ def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head:
         ch = choices.get(l["no"], {})
         if ch.get("action") != "new":
             continue
-        name = " ".join((ch.get("name") or l["name"] or l["ref"] or "Item").split())[:200]
-        cat = lists.ensure(db, p, "category", ch.get("category") or "") or lists.fallback_category(p)
-        unit = lists.ensure(db, p, "unit", _unit(l["unit"]) or "pcs") or "pcs"
         room_ids = [int(x) for x in re.findall(r"\d+", str(ch.get("rooms") or ""))]
-        rooms = [r for r in p.rooms if r.id in room_ids] or [None]
-        first = None
-        for room in rooms:
-            it = Item(project_id=p.id, room_id=room.id if room else None, category=cat, name=name, spec=l["detail"][:2000], size=l["size"][:160],
-                      qty=round(l["qty"] / len(rooms), 2) if l["qty"] else 1.0, unit=unit,
-                      notes=f"Added from quotation {q.title or q.filename}" + (f"; the sheet's {l['qty']:g} {unit} shared over {len(rooms)} rooms" if len(rooms) > 1 else ""))
-            it.code = next_code(db, p, room)
-            db.add(it)
-            db.flush()
-            p.items.append(it)
-            first = first or it
-            made_items += 1
-        if first is not None and pictures.get(l["no"], ("", ""))[0]:
-            from .routers.items import new_photo  # the photo once, on the first room's line (shared by the product)
-            data = storage.read_image(pictures[l["no"]][0])
-            if data:
-                db.add(new_photo(first.id, data, p))
+        first = make_items(db, p, q, l, ch.get("name") or "", ch.get("category") or "", room_ids, pictures.get(l["no"], ("", ""))[0])
+        made_items += 1
         rows[l["no"]].action = "new"
         rows[l["no"]].notes = f"New item {first.code}" if first else ""
         pr = buying.product_of(db, p, first) if first else None
@@ -1489,33 +1468,9 @@ def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head:
     for pid, nos in per_product.items():
         c = cands[pid]
         main = [by_no[n] for n in nos]
-        parts = [by_no[m] for n in nos for m in merged_into.get(n, [])]
-        qty = sum(l["qty"] for l in main)
-        added = [by_no[m] for n in nos if not is_breakdown(by_no[n], [by_no[m] for m in merged_into.get(n, [])]) for m in merged_into.get(n, [])]
-        amount = sum(l["amount"] for l in main) + sum(l["amount"] for l in added)  # a breakdown's parts are inside their line's price
-        mixed = any(_same_unit(_unit(l["unit"])) != _same_unit(c.unit) for l in main if _unit(l["unit"]) and c.unit)
-        by_design = ""
-        if mixed and c.qty > 0:  # steps by the piece and landings by the m² for a product in m²: a sum of pieces means nothing
-            unit_price = amount / c.qty
-            by_design = f"Priced from the design's {c.qty:g} {c.unit}: the sheet's lines are in other units ({', '.join(sorted({l['unit'] or '?' for l in main}))})."
-        elif qty > 0:
-            unit_price = amount / qty
-        else:
-            unit_price = sum(l["unit_price"] for l in main) / max(1, len(main))
-        unit_price = round(unit_price * factor, 4)
-        refs = []
-        for l in main:
-            if l["ref"] and l["ref"] not in refs:
-                refs.append(l["ref"])
-        note = [f"From quotation {q.title or q.filename}" + (f" of {q.quote_date.isoformat()}" if q.quote_date else "") + "."]
-        if len(main) > 1:
-            note.append("Lines combined: " + "; ".join(f"{(l['section'] or l.get('place', '')) + ': ' if (l['section'] or l.get('place')) else ''}{l['name']} {l['qty']:g} {l['unit']} @ {l['unit_price']:g}" for l in main) + ".")
-        if parts:
-            note.append(("Includes: " if added else "Made up of: ") + "; ".join(f"{l['name']} {l['qty']:g} {l['unit']} = {l['amount']:g}" for l in parts) + ".")
-        if by_design:
-            note.append(by_design)
-        if factor < 1:
-            note.append(f"Sheet discount of {100 * (1 - factor):.1f}% applied.")
+        groups = [(by_no[n], [by_no[m] for m in merged_into.get(n, [])]) for n in nos]
+        parts = [x for _, ps in groups for x in ps]
+        unit_price, refs, note = price_lines(q, c, groups, factor)
         fl = []
         for l in main:
             fs, take = decided(l, c, decisions)
@@ -1576,6 +1531,74 @@ def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head:
     return q
 
 
+def discount_factor(q: Quotation) -> float:
+    """What the sheet's discount leaves of the line prices: the discount is on the lines, not on the charges inside the total."""
+    base = q.total - (q.charges if q.charges and q.charges < q.total else 0)
+    return (base - q.discount) / base if base and q.discount and 0 < q.discount < base else 1.0
+
+
+def price_lines(q: Quotation, c: "Candidate", groups: list[tuple[dict, list[dict]]], factor: float) -> tuple[float, list[str], list[str]]:
+    """One shop's price per unit of a product from the lines on it: groups = [(line, the lines merged into it)], each line
+    a dict (the parsed sheet's, or line_dict of a saved one). Total amount over total quantity (a breakdown's parts are
+    inside their line's price; parts that are not add theirs), from the design's quantity when the lines are in other
+    units than the product, the sheet's discount spread. Returns (unit price, the shop's item numbers, the quote's notes)."""
+    main = [l for l, _ in groups]
+    parts = [x for _, ps in groups for x in ps]
+    added = [x for l, ps in groups if not is_breakdown(l, ps) for x in ps]
+    qty = sum(l["qty"] for l in main)
+    amount = sum(l["amount"] for l in main) + sum(l["amount"] for l in added)
+    mixed = any(_same_unit(_unit(l["unit"])) != _same_unit(c.unit) for l in main if _unit(l["unit"]) and c.unit)
+    by_design = ""
+    if mixed and c.qty > 0:  # steps by the piece and landings by the m² for a product in m²: a sum of pieces means nothing
+        unit_price = amount / c.qty
+        by_design = f"Priced from the design's {c.qty:g} {c.unit}: the sheet's lines are in other units ({', '.join(sorted({l['unit'] or '?' for l in main}))})."
+    elif qty > 0:
+        unit_price = amount / qty
+    else:
+        unit_price = sum(l["unit_price"] for l in main) / max(1, len(main))
+    unit_price = round(unit_price * factor, 4)
+    refs = []
+    for l in main:
+        if l["ref"] and l["ref"] not in refs:
+            refs.append(l["ref"])
+    note = [f"From quotation {q.title or q.filename}" + (f" of {q.quote_date.isoformat()}" if q.quote_date else "") + "."]
+    if len(main) > 1:
+        note.append("Lines combined: " + "; ".join(f"{(l['section'] or l.get('place', '')) + ': ' if (l['section'] or l.get('place')) else ''}{l['name']} {l['qty']:g} {l['unit']} @ {l['unit_price']:g}" for l in main) + ".")
+    if parts:
+        note.append(("Includes: " if added else "Made up of: ") + "; ".join(f"{l['name']} {l['qty']:g} {l['unit']} = {l['amount']:g}" for l in parts) + ".")
+    if by_design:
+        note.append(by_design)
+    if factor < 1:
+        note.append(f"Sheet discount of {100 * (1 - factor):.1f}% applied.")
+    return unit_price, refs, note
+
+
+def make_items(db: Session, p: Project, q: Quotation, l: dict, name: str, category: str, room_ids: list[int], photo_key: str = "") -> Item:
+    """A line made a new item of the design: one item per room ticked (none = whole house), the sheet's quantity shared
+    over them, the line's words as its name, spec and size, its picture once on the first room's line (the product shares
+    it). Returns the first room's item."""
+    name = " ".join((name or l["name"] or l["ref"] or "Item").split())[:200]
+    cat = lists.ensure(db, p, "category", category or "") or lists.fallback_category(p)
+    unit = lists.ensure(db, p, "unit", _unit(l["unit"]) or "pcs") or "pcs"
+    rooms = [r for r in p.rooms if r.id in room_ids] or [None]
+    first = None
+    for room in rooms:
+        it = Item(project_id=p.id, room_id=room.id if room else None, category=cat, name=name, spec=(l["detail"] or "")[:2000], size=(l["size"] or "")[:160],
+                  qty=round(l["qty"] / len(rooms), 2) if l["qty"] else 1.0, unit=unit,
+                  notes=f"Added from quotation {q.title or q.filename}" + (f"; the sheet's {l['qty']:g} {unit} shared over {len(rooms)} rooms" if len(rooms) > 1 else ""))
+        it.code = next_code(db, p, room)
+        db.add(it)
+        db.flush()
+        p.items.append(it)
+        first = first or it
+    if first is not None and photo_key:
+        from .routers.items import new_photo  # the photo once, on the first room's line (shared by the product)
+        data = storage.read_image(photo_key)
+        if data:
+            db.add(new_photo(first.id, data, p))
+    return first
+
+
 def existing_quote(product: Product, supplier: Supplier | None) -> Quote | None:
     """The quote this shop already gave for the product, if any: a new sheet corrects it rather than adding a second."""
     if supplier is None:
@@ -1621,6 +1644,13 @@ def delete(db: Session, q: Quotation) -> int:
             if not used:  # a revised sheet that corrected this quote keeps it
                 buying.delete_quote(db, qu)  # its photo goes
                 gone += 1
+        for a in line.also:  # the products the line also priced: this shop's quote on them, unless bought from or another sheet's
+            qu = existing_quote(a.product, q.supplier) if a.product is not None else None
+            if qu is not None and qu.id not in seen and db.query(Purchase).filter(Purchase.quote_id == qu.id).first() is None and \
+                    db.query(QuotationLine).filter(QuotationLine.quote_id == qu.id, QuotationLine.quotation_id != q.id).first() is None:
+                seen.add(qu.id)
+                buying.delete_quote(db, qu)
+                gone += 1
         for k in (line.photo_key, line.thumb_key):
             if k:
                 storage.delete_image(k)
@@ -1629,6 +1659,186 @@ def delete(db: Session, q: Quotation) -> int:
     db.delete(q)
     db.flush()
     return gone
+
+
+# ---- a saved quotation amended -----------------------------------------------------------------------------------------------
+def line_dict(ln: QuotationLine) -> dict:
+    """A saved line in the shape of a parsed one, for price_lines, flags, make_items and remember."""
+    return dict(no=ln.no, section=ln.section or "", place="", ref=ln.ref or "", name=ln.name or "", detail=ln.detail or "", size=ln.size or "",
+                qty=ln.qty or 0, unit=ln.unit or "", unit_price=ln.unit_price or 0, amount=ln.amount or 0, pack_size=ln.pack_size or 0)
+
+
+def superseded(db: Session, q: Quotation) -> Quotation | None:
+    """The later sheet from the shop that corrected this one's quotes: amendments go there, not here."""
+    return db.query(Quotation).filter(Quotation.replaces_id == q.id).order_by(Quotation.id.desc()).first()
+
+
+def became(q: Quotation, ln: QuotationLine, titles: dict | None = None) -> str:
+    """What a saved line became, in words (for the notes of an amendment); titles = {product id: title}, current while
+    the line's product relationship still shows the one before the change."""
+    title = (titles or {}).get(ln.product_id) or (ln.product.title if ln.product is not None and ln.product.id == ln.product_id else "")
+    if ln.action in ("quote", "new") and title:
+        return ("new item " if ln.action == "new" else "") + title
+    if ln.action == "merge":
+        t = next((x for x in q.lines if x.id == ln.into_id), None)
+        return f"part of L{t.no}" if t else "part of another line"
+    return "an extra charge" if ln.action == "extra" else "skipped"
+
+
+def _bought(db: Session, quote: Quote) -> int:
+    return db.query(Purchase).filter(Purchase.quote_id == quote.id).count()
+
+
+def sheet_quotes(q: Quotation) -> set[int]:
+    """The quotes this sheet stands behind: its shop's quote on every product its lines quote or also price."""
+    prods = {ln.product for ln in q.lines if ln.product is not None} | {a.product for ln in q.lines for a in ln.also if a.product is not None}
+    return {qu.id for pr in prods if (qu := existing_quote(pr, q.supplier)) is not None}
+
+
+def reprice(db: Session, p: Project, q: Quotation, product_ids, ours: set[int] | None = None) -> list[str]:
+    """This quotation's quotes on these products made again from the lines now on them: the lines quoting the product (with
+    the lines merged into them) and the lines that also price it (QuotationLineAlso), by price_lines like apply. A product
+    left with none loses this shop's quote when it came from this sheet, unless rooms were bought from it (kept, said). A
+    quote bought from takes the new price on its purchases (follow_quote, said). `ours` = sheet_quotes(q) taken before the
+    change: a quote of this sheet that lost its lines is found by it. Returns the warnings, in words."""
+    ours = set(ours or ()) | sheet_quotes(q)
+    warns: list[str] = []
+    db.flush()
+    cands = {c.id: c for c in candidates(db, p)}
+    factor = discount_factor(q)
+    for pid in sorted({x for x in product_ids if x}):
+        c = cands.get(pid)
+        if c is None:
+            continue
+        own = [ln for ln in q.lines if ln.product_id == pid and ln.action in ("quote", "new")]
+        also = [ln for ln in q.lines if ln not in own and any(a.product_id == pid for a in ln.also)]
+        quote = existing_quote(c.product, q.supplier)
+        if not own and not also:
+            if quote is not None and quote.id in ours:
+                n = _bought(db, quote)
+                if n:
+                    warns.append(f"{c.title}: its quote of {quote.currency} {quote.amount:g} stays, {n} purchase{'s were' if n != 1 else ' was'} made from it.")
+                else:
+                    for ln in q.lines:
+                        if ln.quote_id == quote.id:
+                            ln.quote_id = None
+                    db.flush()
+                    buying.delete_quote(db, quote)
+            continue
+        groups = [(line_dict(ln), [line_dict(x) for x in q.lines if x.action == "merge" and x.into_id == ln.id]) for ln in own]
+        groups += [(line_dict(ln), []) for ln in also]
+        unit_price, refs, note = price_lines(q, c, groups, factor)
+        if also:
+            note.append("Also priced from " + "; ".join(f"L{ln.no} {ln.name} {ln.size}".strip() for ln in also) + ".")
+        note.append(f"Amended on the quotation's page on {dt.date.today().isoformat()}.")
+        replaced = quote is not None
+        before = quote.amount if replaced else None
+        if quote is None:
+            quote = Quote(project_id=p.id, product=c.product)
+            db.add(quote)
+        pack = next((g[0]["pack_size"] for g in groups if g[0]["pack_size"]), 0)
+        buying.set_quote(quote, p, supplier=q.supplier, brand=quote.brand if replaced else "", model=", ".join(refs)[:160], amount=unit_price,
+                         currency=q.currency, pack_size=pack if c.unit in ("m²", "pcs") else 0, moq=quote.moq if replaced else "",
+                         lead_time=(q.lead_time or "")[:60], notes="\n".join(note))
+        db.flush()
+        if replaced:
+            n = _bought(db, quote)
+            buying.follow_quote(db, quote)
+            if n and abs((before or 0) - unit_price) > 1e-6:
+                warns.append(f"{c.title}: {n} purchase{'s' if n != 1 else ''} made from this quote now cost {q.currency} {unit_price:g} per unit instead of {before:g}.")
+        for ln in own:
+            ln.quote_id = quote.id
+            for x in q.lines:
+                if x.action == "merge" and x.into_id == ln.id:
+                    x.quote_id = quote.id
+    return warns
+
+
+def amend_line(db: Session, p: Project, q: Quotation, ln: QuotationLine, *, action: str, product_id: int | None = None,
+               into_id: int | None = None, qty: float | None = None, unit: str | None = None, unit_price: float | None = None,
+               name: str = "", category: str = "", room_ids: list[int] | None = None, also_add: int | None = None,
+               also_remove: list[int] | None = None) -> tuple[str, list[str]]:
+    """A saved line changed on the quotation's page: its quantity, unit or price corrected (the amount follows), what it
+    became (quote a product, a new item in the rooms ticked, part of another line, an extra charge, skipped), and the
+    products it also prices. The quotes of every product touched are made again (reprice), the change is noted on the
+    line, and a line now quoting a product is remembered for the shop's next sheet. Returns (the change in words, warnings);
+    raises ValueError with the reason when the choice cannot be made."""
+    cands = {c.id: c for c in candidates(db, p)}
+    by_id = {x.id: x for x in q.lines}
+    ours = sheet_quotes(q)
+    titles = {cid: c.title for cid, c in cands.items()}
+    was = became(q, ln, titles)
+    touched = {ln.product_id, *(a.product_id for a in ln.also)}
+    if ln.action == "merge" and ln.into_id in by_id:
+        touched.add(by_id[ln.into_id].product_id)
+    if action not in ("quote", "new", "merge", "extra", "skip"):
+        raise ValueError("Choose what the line is.")
+    if action == "quote" and product_id not in cands:
+        raise ValueError("Pick the product this line quotes.")
+    target = by_id.get(into_id) if action == "merge" else None
+    if action == "merge" and (target is None or target.id == ln.id or target.action not in ("quote", "new")):
+        raise ValueError("Pick a line that quotes a product: this one becomes a part of it.")
+    old_amount = ln.amount or 0
+    changes = []
+    if qty is not None and abs(qty - (ln.qty or 0)) > 1e-9:
+        changes.append(f"quantity {ln.qty:g} → {qty:g}")
+        ln.qty = qty
+    if unit is not None and unit.strip() != (ln.unit or ""):
+        changes.append(f"unit {ln.unit or '—'} → {unit.strip()}")
+        ln.unit = unit.strip()[:20]
+    if unit_price is not None and abs(unit_price - (ln.unit_price or 0)) > 1e-9:
+        changes.append(f"price {ln.unit_price:g} → {unit_price:g}")
+        ln.unit_price = unit_price
+    if changes:
+        ln.amount = round((ln.qty or 0) * (ln.unit_price or 0), 2)
+    if ln.action == "extra":
+        q.charges = round((q.charges or 0) - old_amount, 2)
+    if action == "extra":
+        q.charges = round((q.charges or 0) + (ln.amount or 0), 2)
+    if action == "quote":
+        ln.product_id, ln.into_id = product_id, None
+    elif action == "new":
+        if not (ln.action == "new" and ln.product_id):  # a line already made new keeps its items and product
+            first = make_items(db, p, q, line_dict(ln), name, category, room_ids or [], ln.photo_key)
+            ln.product_id = buying.product_of(db, p, first).id if first else None
+        ln.into_id = None
+    elif action == "merge":
+        ln.product_id, ln.into_id = None, target.id
+        touched.add(target.product_id)
+    else:
+        ln.product_id, ln.into_id = None, None
+    ln.action = action
+    if action not in ("quote", "new"):  # the lines merged into it lose their line
+        for x in q.lines:
+            if x.action == "merge" and x.into_id == ln.id:
+                x.action, x.into_id, x.quote_id = "skip", None, None
+                x.notes = f"Skipped on {dt.date.today().isoformat()}: its line L{ln.no} no longer quotes a product."
+    for a in list(ln.also):
+        if a.product_id in (also_remove or []) or a.product_id == ln.product_id:
+            touched.add(a.product_id)
+            ln.also.remove(a)
+    if also_add and also_add in cands and also_add != ln.product_id and all(a.product_id != also_add for a in ln.also):
+        ln.also.append(QuotationLineAlso(product_id=also_add))
+        touched.add(also_add)
+    touched.add(ln.product_id)
+    if ln.product_id and ln.product_id not in titles:  # a new item's product, made just now
+        titles[ln.product_id] = db.get(Product, ln.product_id).title or "the new item"
+    now = became(q, ln, titles)
+    also_txt = ", ".join(titles.get(a.product_id, str(a.product_id)) for a in ln.also) if ln.also else ""
+    what = ([f"was {was}, now {now}"] if was != now else []) + changes + ([f"also prices {also_txt}"] if also_txt and (also_add or also_remove) else [])
+    if not what:
+        what = ["nothing changed"]
+    flagged = "; ".join(flags(line_dict(ln), cands[ln.product_id])) if ln.action in ("quote", "new") and ln.product_id in cands else ""
+    stamp = f"Changed on {dt.date.today().isoformat()}: " + ", ".join(what) + "."
+    ln.notes = "; ".join(x for x in (flagged, stamp) if x)
+    db.flush()
+    warns = reprice(db, p, q, touched, ours)
+    for x in q.lines:
+        if x.action not in ("quote", "new", "merge"):
+            x.quote_id = None
+    if ln.action == "quote" and q.supplier is not None and ln.product_id in cands:
+        remember(db, q.supplier, line_dict(ln), cands[ln.product_id].key, memory(db, q.supplier))
+    return f"L{ln.no}: " + ", ".join(what) + ".", warns
 
 
 # ---- shops compared --------------------------------------------------------------------------------------------------------------

@@ -767,10 +767,22 @@ class QuotationLine(Base):
     quotation: Mapped["Quotation"] = relationship(back_populates="lines")
     product: Mapped["Product | None"] = relationship(lazy="joined")
     quote: Mapped["Quote | None"] = relationship(lazy="joined")
+    also: Mapped[list["QuotationLineAlso"]] = relationship(back_populates="line", cascade="all, delete-orphan", lazy="selectin")
 
     @property
     def thumb(self) -> str:
         return self.thumb_key or self.photo_key
+
+
+class QuotationLineAlso(Base):
+    """A line that also prices another product (the shop quoted one model for several sizes of ours): the product gets
+    this shop's quote from the line's price too (quotations.reprice). Added on the saved quotation's page."""
+    __tablename__ = "quotation_line_also"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    line_id: Mapped[int] = mapped_column(ForeignKey("quotation_lines.id", ondelete="CASCADE"), index=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"))
+    line: Mapped["QuotationLine"] = relationship(back_populates="also")
+    product: Mapped["Product"] = relationship(lazy="joined")
 
 
 class QuotationUpload(Base):

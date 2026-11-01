@@ -174,8 +174,9 @@
       else if (all.some(function (o) { return o.value === keep && o.parentNode === sel; })) pick = keep;
       if (pick !== null) { sel.value = pick; if (pick !== keep) { sel.dataset.quiet = '1'; sel.dispatchEvent(new Event('change', { bubbles: true })); delete sel.dataset.quiet; } }
       hint.hidden = !w.length;
-      hint.textContent = hits.length === 1 ? 'Shop found: ' + hits[0].textContent + '.' : hits.length ? hits.length + ' shops match: pick one in the list.'
-        : add ? 'No shop by that name: "' + typed + '" is added as a new shop when you save.' : 'No shop by that name.';
+      var what = sel.dataset.findWhat || 'shop', What = what.charAt(0).toUpperCase() + what.slice(1);  // data-find-what="product"
+      hint.textContent = hits.length === 1 ? What + ' found: ' + hits[0].textContent + '.' : hits.length ? hits.length + ' ' + what + 's match: pick one in the list.'
+        : add ? 'No ' + what + ' by that name: "' + typed + '" is added as a new ' + what + ' when you save.' : 'No ' + what + ' by that name.';
     });
   });
   // a link with data-open="id" opens that <details> and brings it into view (Buying: "Add a quote"); so does an address
