@@ -714,3 +714,38 @@
   boxes.forEach(function (b) { b.addEventListener('change', refresh); });
   refresh();
 })();
+// Item quick view: a link with data-quick (an item on the Buying pages) opens the item's details on top of the page
+// (GET <href>/quick, items/_quick.html) instead of leaving it; × / Close / Esc / the backdrop close it and you stay
+// where you were. Ctrl/⌘/middle click, or no JavaScript, still opens the item page itself.
+(function () {
+  var box = null, before = null, lbOpen = false;
+  function make() {
+    box = document.createElement('div'); box.className = 'modal qv'; box.hidden = true;
+    box.innerHTML = '<div class="back" data-qv-close></div><div class="panel" role="dialog" aria-modal="true" aria-labelledby="qv-title" tabindex="-1"></div>';
+    document.body.appendChild(box);
+    box.addEventListener('click', function (e) { if (e.target.closest('[data-qv-close]')) close(); });
+    return box;
+  }
+  function close() {
+    if (!box || box.hidden) return;
+    box.hidden = true; document.body.style.overflow = '';
+    if (before && before.focus) before.focus();
+  }
+  function open(href) {
+    var b = box || make(), panel = b.querySelector('.panel');
+    before = document.activeElement;
+    panel.innerHTML = '<p class="muted small">Loading…</p>';
+    b.hidden = false; document.body.style.overflow = 'hidden'; panel.focus();
+    fetch(href.replace(/[?#].*$/, '') + '/quick', {credentials: 'same-origin'})
+      .then(function (r) { return r.text(); })
+      .then(function (html) { panel.innerHTML = html; var c = panel.querySelector('button[data-qv-close]'); if (c) c.focus(); })
+      .catch(function () { panel.innerHTML = '<p>Could not load the item. <a href="' + href + '">Open it</a></p>'; });
+  }
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('a[data-quick]');
+    if (!a || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation(); open(a.getAttribute('href'));
+  });
+  document.addEventListener('keydown', function () { lbOpen = !!document.querySelector('.lb:not([hidden])'); }, true);  // Esc in the picture viewer closes only the picture
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !lbOpen) close(); });
+})();
