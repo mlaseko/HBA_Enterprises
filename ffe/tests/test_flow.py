@@ -2164,6 +2164,13 @@ def flow(c):
     h=c.get(r.headers["location"].split("#")[0]).text; assert 'value="1 HP Gree"' in h and "Variants saved" in h and "its quote stays" in h, h.split('id="variants"')[1][:3000] if 'id="variants"' in h else h[:500]
     r=c.post(f"/p/{pid_q}/quotations/{qd8}/variants", data={f"label_{_p1}":"1 HP Gree"}, follow_redirects=False); assert "Nothing%20changed" in r.headers["location"]  # a variant without lines cannot be renamed into another
     ai._call=lambda content, schema=None, **kw: (_ for _ in ()).throw(RuntimeError("down"))
+    # a sheet quoting by the design's own references (window F1-W05 in an item's notes) matches that product outright
+    _dbr=SessionLocal(); _P_=__import__("app.models", fromlist=["Project"]).Project; _cr=_qz.candidates(_dbr, _dbr.get(_P_, pid_q)); _t1, _t2=_cr[0], _cr[1]
+    _t1.refs.add("ZZ-W91"); _t2.refs.update({"ZZ-W92"}); _t1.refs.add("ZZ-W92")
+    _ln=dict(no=1, ref="ZZ-W91", name="Floor 1 Living room", place="", section="", size="", unit="", qty=1, code="", detail="")
+    _sl=_qz.shortlist(_ln, _cr, []); assert _sl[0][0].id==_t1.id and _sl[0][1]>=_qz.SURE and _sl[0][2].startswith("design reference"), _sl[0]
+    _sl=_qz.shortlist(dict(_ln, ref="ZZ-W92"), _cr, []); assert {x[0].id for x in _sl[:2]}=={_t1.id, _t2.id} and all(x[1]<_qz.SURE for x in _sl[:2])  # on two products: offered, not chosen
+    _dbr.close()
     print("quotations ok")
 
     # what differs from the design: decided once per product and difference, for the quotation alone or into the items as well
