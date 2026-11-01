@@ -1,0 +1,23 @@
+{# The item's quick view (GET /p/<id>/items/<item>/quick): loaded into the .qv box by app.js, no page around it. #}
+{% set ph = it.all_photos %}
+<div class="qv-head">
+  <div><div class="eyebrow">{{ it.code }} · {{ it.category }}</div><h2 id="qv-title">{{ it.name }}</h2>
+    <div class="small muted">{{ it.room.name if it.room else 'Whole house' }}{% if it.room and it.room.floor %} · {{ it.room.floor }}{% endif %}</div></div>
+  <button type="button" class="btn icon ghost" data-qv-close aria-label="Close"><svg class="ic"><use href="#i-x"/></svg></button>
+</div>
+<div class="qv-body">
+  {% if ph %}<div class="qv-pics" data-lb-group>{% for x in ph[:8] %}<a href="/media/{{ x.file_key }}" data-caption="{{ it.name }}"><img src="/media/{{ x.thumb }}" alt="{{ it.name }}" loading="lazy"></a>{% endfor %}</div>
+  {% else %}<div class="qv-nopic small muted"><svg class="ic lg"><use href="#i-image"/></svg>No photo yet</div>{% endif %}
+  <dl class="qv-spec">
+    {% if it.size %}<dt>Size</dt><dd>{{ it.size }}</dd>{% endif %}
+    {% if it.finish %}<dt>Finish</dt><dd>{{ it.finish }}</dd>{% endif %}
+    {% if it.brand %}<dt>Preferred brand</dt><dd>{{ it.brand }}</dd>{% endif %}
+    <dt>Quantity</dt><dd>{{ it.qty|num(2) }} {{ it.unit }}{% if it.optional %} <span class="pill">optional</span>{% endif %}</dd>
+    <dt>Status</dt><dd>{{ it.status }}</dd>
+    {% if it.purchase_id and it.supplier %}<dt>Buying from</dt><dd>{{ it.supplier.name }} · ¥{{ it.unit_price|money(2) }} per {{ it.unit }}{% if it.lead_time %} · {{ it.lead_time }}{% endif %}</dd>{% endif %}
+    {% if it.spec %}<dt>Must-have spec</dt><dd class="pre">{{ it.spec }}</dd>{% endif %}
+    {% if it.notes %}<dt>Notes</dt><dd class="pre">{{ it.notes }}</dd>{% endif %}
+    {% if others %}<dt>Also in</dt><dd>{% for o in others %}<span class="pill"><b>{{ o.code }}</b> {{ o.room.name if o.room else 'Whole house' }} · {{ o.qty|num(2) }} {{ o.unit }}</span> {% endfor %}</dd>{% endif %}
+  </dl>
+</div>
+<div class="qv-foot"><button type="button" class="btn sec" data-qv-close>Close</button><a class="btn" href="/p/{{ p.id }}/items/{{ it.id }}"><svg class="ic"><use href="#i-grid"/></svg>Open the item</a></div>

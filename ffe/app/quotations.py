@@ -1310,7 +1310,11 @@ def families(db: Session, p: Project, q: Quotation) -> list[dict]:
             ls = lines_of.get(m["id"], [])
             refs = list(dict.fromkeys(x.ref for x in ls if x.ref))
             quote = next((x.quote for x in ls if x.quote is not None), None)
-            variants.append(dict(id=m["id"], label=m["label"], rooms=m["rooms"], lines=ls, refs=refs, quote=quote,
+            cov = next((i.cover for i in m["items"] if i.cover is not None), None)  # the variant's picture: its rooms' photo,
+            pic = ((cov.file_key, cov.thumb) if cov is not None else  # else the shop's (the quote's sample, the sheet's line)
+                   (quote.photo_key, quote.thumb_key or quote.photo_key) if quote is not None and quote.photo_key else
+                   next(((x.photo_key, x.thumb) for x in ls if x.photo_key), None))
+            variants.append(dict(id=m["id"], label=m["label"], rooms=m["rooms"], lines=ls, refs=refs, quote=quote, pic=pic,
                                  price=sum(x.amount or 0 for x in ls) / (sum(x.qty or 0 for x in ls) or 1) if ls else 0))
         rows = sorted(((i, m["id"]) for m in ms for i in m["items"]),
                       key=lambda t: ((t[0].room.sort if t[0].room is not None and t[0].room.sort is not None else 0), t[0].code))

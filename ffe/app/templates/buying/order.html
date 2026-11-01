@@ -68,7 +68,7 @@
       <td class="prod"><a class="b" href="/p/{{ p.id }}/buying/{{ pu.product_id }}">{{ it.name }}</a>
         <div class="small muted">{{ [it.size, it.finish]|select|join(' · ') }}</div>
         {% if pu.brand or pu.model %}<div class="small">Brand: {{ [pu.brand, pu.model]|select|join(' · ') }}</div>{% endif %}</td>
-      <td class="rooms">{% for i in v.lines %}<span class="pill"><b>{{ i.code }}</b> {{ i.qty|num(2) }} {{ i.unit }}</span>{% endfor %}</td>
+      <td class="rooms">{% for i in v.lines %}<a class="pill" href="/p/{{ p.id }}/items/{{ i.id }}" data-quick title="Quick view"><b>{{ i.code }}</b> {{ i.qty|num(2) }} {{ i.unit }}</a>{% endfor %}</td>
       <td class="num qty"><b>{{ v.qty|num(2) }} {{ v.unit }}</b>{% if v.packs %}<div class="small muted">{{ packs(v.packs, word) }} of {{ v.pack|num(3) }}</div>{% endif %}</td>
       <td class="num price">¥{{ pu.unit_price|money(2) }}</td>
       <td class="num b amt">¥{{ v.total|money(2) }}</td>

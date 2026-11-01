@@ -525,6 +525,17 @@ ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                          
   the pricing note, Prepared by with the studio logo). Suppliers, notes and CNY are never printed (parity with the client link).
   `packing.py` still uses `common.py`; moving it to the theme is the next step of the redesign.
 
+- **Item quick view.** `GET /p/<id>/items/<item>/quick` renders `items/_quick.html` (a fragment, read-only). Any
+  `a[data-quick]` whose href is the item page opens it in a `.modal.qv` box (app.js) instead of navigating; Ctrl/⌘ click
+  and no-JS still open the page. Used on the Buying product page, order lines, the line picks and the quotation's
+  variants card. The variants card shows a picture per variant (`families()` → `pic`: rooms' cover, else quote/line photo).
+
+- **Delete from the item page.** `POST /p/<id>/items/<item>/delete` deletes that room's line; with `scope=all` it
+  deletes the product in every room (the line plus `same_item_elsewhere`), photos released against the survivors, then
+  `buying.prune`, redirecting to `/items?deleted=N`. The item page shows both buttons only when the item is in other
+  rooms. Products are kept (their quotes too); the saved quotation page marks a quote/new line whose product is no
+  longer a candidate (`dropped`: no live line) as "No rooms left in the design".
+
 - **Delete by selection.** `POST /p/<id>/items/delete-selected` (routers/items.py) deletes the ticked lines and nothing
   else: `ids` form values (an Item list box carries every room line of its product, "12 13 14"), restricted to this
   project's live items, photos released to the product's surviving lines (`services.release_photos`, files deleted only with the last line), pins by cascade; nothing ticked = straight back. The

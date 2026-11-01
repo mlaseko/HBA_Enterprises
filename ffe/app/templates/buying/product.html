@@ -17,7 +17,7 @@
   </div>
   <div class="actions">
     <span class="badge" style="--c:{{ STAGE_COLORS[g.stage] }}" title="{{ STAGE_HELP[g.stage] }}">{{ g.stage }}</span>
-    <a class="btn sec sm" href="/p/{{ p.id }}/items/{{ g.item.id }}"><svg class="ic"><use href="#i-grid"/></svg>Open the item</a>
+    <a class="btn sec sm" href="/p/{{ p.id }}/items/{{ g.item.id }}" data-quick><svg class="ic"><use href="#i-eye"/></svg>Quick view</a> <a class="btn ghost sm" href="/p/{{ p.id }}/items/{{ g.item.id }}"><svg class="ic"><use href="#i-grid"/></svg>Open the item</a>
     <a class="btn ghost sm" href="/p/{{ p.id }}/buying/schedule?category={{ g.category|urlencode }}"><svg class="ic"><use href="#i-file"/></svg>Purchase schedule</a>
   </div>
 </div>
@@ -158,7 +158,7 @@
         <div class="m">{{ [pu.brand, pu.model]|select|join(' · ') or 'Brand not noted' }}{% if pu.lead_time %} · Lead time: {{ pu.lead_time }}{% endif %}{% if not pu.quote_id %} · <span title="The quote it came from was deleted; the purchase keeps its own copy">quote deleted</span>{% endif %}</div></div></div>
       <div class="amt"><span class="v">¥{{ v.total|money }}</span><span class="small muted">¥{{ pu.unit_price|money(2) }} {{ per }}{% if pu.currency == 'USD' %} (typed ${{ pu.amount|money(2) }}){% endif %}</span></div>
     </div>
-    <div class="pu-rooms">{% for i in v.lines %}<a class="pill" href="/p/{{ p.id }}/items/{{ i.id }}" title="{{ i.code }} · {{ i.qty|num(2) }} {{ i.unit }}"><b>{{ i.code }}</b> {{ i.room.name if i.room else 'Whole house' }}</a>{% endfor %}</div>
+    <div class="pu-rooms">{% for i in v.lines %}<a class="pill" href="/p/{{ p.id }}/items/{{ i.id }}" data-quick title="{{ i.code }} · {{ i.qty|num(2) }} {{ i.unit }}"><b>{{ i.code }}</b> {{ i.room.name if i.room else 'Whole house' }}</a>{% endfor %}</div>
     <div class="pu-qty">
       <span><b>{{ v.needed|num(2) }}</b> {{ unit }} for these rooms</span>
       {% if pu.qty is none %}{% if g.allowance %}<span>+ {{ (g.allowance * 100)|num(1) }}%</span>{% endif %}{% else %}<span class="pill gold" title="Set by hand below">quantity set by hand</span>{% endif %}
@@ -215,7 +215,7 @@
       {% if by_floor|length > 1 %}<tr class="sub"><td colspan="6">{{ fl }}</td></tr>{% endif %}
       {% for i in ls %}
       <tr>
-        <td class="nowrap"><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.code }}</a></td>
+        <td class="nowrap"><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}" data-quick>{{ i.code }}</a></td>
         <td>{{ i.room.name if i.room else 'Whole house' }}</td>
         <td class="num">{{ i.qty|num(2) }} {{ i.unit }}</td>
         <td><span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status }}</span></td>

@@ -131,7 +131,12 @@
   <span class="muted small">Need a similar item? Duplicate this one and tweak the copy.</span>
   <div class="row">
     <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/duplicate"><button class="btn sm sec"><svg class="ic"><use href="#i-copy"/></svg>Duplicate</button></form>
-    <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/delete" data-confirm="Delete this item? Its dot on the plan goes with it. The same item in other rooms stays, with the photos; they go only when no room is left."><button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete item</button></form>
+    {% if others %}
+    <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/delete" data-confirm="Delete this item from {{ it.room.name if it.room else 'this line' }} only? Its dot on the plan goes with it. The other {{ others|length }} room{{ 's' if others|length != 1 }} keep it, with the photos."><button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete from this room</button></form>
+    <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/delete" data-confirm="Delete this item from all {{ others|length + 1 }} rooms ({{ ([it] + others)|map(attribute='code')|join(', ') }})? Its plan dots and photos go, and its purchase leaves the Buy list and the quotations' design."><input type="hidden" name="scope" value="all"><button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete from all {{ others|length + 1 }} rooms</button></form>
+    {% else %}
+    <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/delete" data-confirm="Delete this item? Its dot on the plan goes with it, and its photos, since no other room has it."><button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete item</button></form>
+    {% endif %}
   </div>
 </div>
 {% endif %}

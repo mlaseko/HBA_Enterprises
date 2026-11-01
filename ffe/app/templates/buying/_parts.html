@@ -18,7 +18,7 @@
     {% for i in ls %}
     {% set mine = (pu_id and i.purchase_id == pu_id) or (not pu_id and not i.purchase_id) %}
     <label class="pk"><input type="checkbox" name="line" value="{{ i.id }}" data-floor="{{ fl }}" data-group="{{ 'open' if not i.purchase_id else 'taken' }}"{{ ' checked' if mine }}>
-      <span class="code">{{ i.code }}</span><span class="nm">{{ i.room.name if i.room else 'Whole house' }}</span>
+      <a class="code" href="/p/{{ i.project_id }}/items/{{ i.id }}" data-quick title="Quick view">{{ i.code }}</a><span class="nm">{{ i.room.name if i.room else 'Whole house' }}</span>
       {% if i.purchase_id and i.purchase_id != pu_id %}<span class="from" title="Ticking it moves this room to this shop">now {{ i.purchase.supplier.name if i.purchase and i.purchase.supplier else 'another shop' }}</span>{% endif %}
       <span class="q">{{ i.qty|num(2) }} {{ i.unit }}</span></label>
     {% endfor %}

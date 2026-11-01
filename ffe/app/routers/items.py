@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from urllib.parse import quote, urlencode
 import re
 from sqlalchemy import func, or_
@@ -305,6 +305,17 @@ async def create_item(request: Request, p: Project = Depends(get_project), db: S
     return redirect(f"/p/{p.id}/items/{item.id}")
 
 
+@router.get("/p/{project_id}/items/{item_id}/quick")
+def item_quick(request: Request, item_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """The item's quick view: a fragment the Buying pages open on top of the page (a[data-quick] in app.js), read-only,
+    with a link to the full item page."""
+    item = db.get(Item, item_id)
+    if not item or item.project_id != p.id:
+        return HTMLResponse("<p class=\"muted\">This item no longer exists.</p>", status_code=404)
+    others = sorted(same_item_elsewhere(p, item), key=lambda i: i.code)
+    return render(request, "items/_quick.html", p=p, it=item, others=others, help_tip=None, nav=None)
+
+
 @router.get("/p/{project_id}/items/{item_id}")
 def item_detail(request: Request, item_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), err: str = "",
                 filled: str = "", next: str = ""):
@@ -465,14 +476,22 @@ def make_cover(item_id: int, photo_id: int, p: Project = Depends(get_project), d
 
 
 @router.post("/p/{project_id}/items/{item_id}/delete")
-def delete_item(item_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+def delete_item(item_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), scope: str = Form("")):
+    """Deletes this room's line, or with scope=all the product in every room (this line plus same_item_elsewhere), the
+    way the Items list's box does. A purchase left without rooms goes (buying.prune), so the Buy list and the saved
+    quotations show the drop at once."""
     item = db.get(Item, item_id)
-    if item and item.project_id == p.id:
-        release_photos(db, p, item)  # its photos stay with the product's other rooms; deleted only when none is left
-        db.delete(item)
-        buying.prune(db, p)  # a purchase left without rooms goes
-        db.commit()
-    return redirect(f"/p/{p.id}/items")
+    if not (item and item.project_id == p.id):
+        return redirect(f"/p/{p.id}/items")
+    doomed = [item] + (same_item_elsewhere(p, item) if scope == "all" and not item.draft else [])
+    gone = {i.id for i in doomed}
+    survivors = [i for i in p.live_items if i.id not in gone]
+    for i in doomed:
+        release_photos(db, p, i, survivors)  # photos stay with the product's other rooms; deleted only when none is left
+        db.delete(i)
+    buying.prune(db, p)  # a purchase left without rooms goes
+    db.commit()
+    return redirect(f"/p/{p.id}/items?deleted={len(doomed)}")
 
 
 @router.post("/p/{project_id}/items/{item_id}/duplicate")
