@@ -277,6 +277,12 @@ name** (or set the Kind by hand): every existing entry starts as a room.
   added, the discount pro rata, the item numbers in `Quote.model`, the picture copied, the lead time from the sheet, the
   differences noted), new items with `next_code`, and the matches remembered. Deleting a quotation deletes the quotes it
   made that no purchase uses.
+- Amending a saved quotation: every line has Change… (`/quotations/<q>/lines/<line>`): re-match it (another product, a new item,
+  part of another line, an extra charge, skip), correct its quantity / unit / price, or let it also price other products
+  (`QuotationLineAlso`, table `quotation_line_also`); the Not quoted card offers the same from the product's side (`/assign`,
+  Also price / Move here). This sheet's quotes on the products touched are made again from the lines now on them
+  (`quotations.reprice`, the same pricing as saving); a quote left without lines goes unless bought from, a quote bought from
+  takes the new price, both said on the page. A sheet revised by a later one is amended there.
 - The shop of a quotation: every shop dropdown that makes quotes (upload form, preview, a product's Add a quote) has a search
   box (`select[data-find]` in app.js): typing narrows the list, one match is chosen, a name no shop has becomes "+ New shop…"
   with that name. A sheet uploaded without a shop is matched to one of ours when it is clear (`quotations.guess_supplier`:

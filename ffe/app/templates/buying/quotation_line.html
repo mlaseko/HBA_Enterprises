@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% from "buying/_tabs.html" import tabs %}
+{% from "_macros.html" import room_picks %}
+{% block title %}L{{ ln.no }} · {{ q.title or 'Quotation' }} · {{ p.name }}{% endblock %}
+{% block content %}
+{% set cur = q.currency %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/quotations">Quotations</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/quotations/{{ q.id }}#line-{{ ln.id }}">{{ q.title or q.filename }}</a></div>
+    <h1>Line L{{ ln.no }} <span class="h-note">{{ q.supplier.name if q.supplier else 'no shop' }}</span></h1>
+    <p class="sub">Change what this line became, correct a number the sheet was read wrong, or let it price another product of yours too. On save, this sheet's quotes on every product touched are made again from the lines now on them.</p>
+  </div>
+  <div class="actions"><a class="btn sec" href="/p/{{ p.id }}/quotations/{{ q.id }}#line-{{ ln.id }}"><svg class="ic"><use href="#i-x"/></svg>Back</a></div>
+</div>
+{{ tabs(p, 'quotations') }}
+{% if err %}<div class="alert err">{{ err }}</div>{% endif %}
+{% if later %}<div class="alert info">This sheet was revised by <a href="/p/{{ p.id }}/quotations/{{ later.id }}"><b>{{ later.title or later.filename }}</b></a>: its prices are the ones in use, so amend that one.</div>{% endif %}
+
+<div class="card ql-line">
+  <div class="row top">
+    {% if ln.thumb %}<a href="/media/{{ ln.photo_key }}" target="_blank" data-caption="Line {{ ln.no }} · {{ ln.name }}"><img class="ql-pic" src="/media/{{ ln.thumb }}" alt=""></a>{% endif %}
+    <div>
+      <div class="small muted">L{{ ln.no }}{% if ln.section %} · {{ ln.section }}{% endif %}{% if ln.ref %} · <b>{{ ln.ref }}</b>{% endif %}</div>
+      <div class="b">{{ ln.name }}{% if ln.size %} <span class="muted">· {{ ln.size }}</span>{% endif %}</div>
+      <div>{{ ln.qty|num(2) }} {{ ln.unit }} × {{ cur }} {{ ln.unit_price|num(2) }} = <b>{{ cur }} {{ ln.amount|money(2) }}</b></div>
+      {% if ln.detail %}<details class="qi-detail"><summary class="small">Description</summary><div class="small">{{ ln.detail }}</div></details>{% endif %}
+      <div class="small mt">Now: <b>{% if ln.action in ('quote', 'new') and ln.product %}{{ 'new item · ' if ln.action == 'new' }}{{ ln.product.title }}{% elif ln.action == 'merge' %}part of another line{% elif ln.action == 'extra' %}an extra charge{% else %}skipped{% endif %}</b>{% if merged %} · with {% for x in merged %}L{{ x.no }}{{ ', ' if not loop.last }}{% endfor %} merged into it{% endif %}</div>
+    </div>
+  </div>
+</div>
+
+{% if not later %}
+<form method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/lines/{{ ln.id }}" class="card mt" id="ql-form">
+  <h2 class="mb-0">What it is</h2>
+  <div class="grid g2 mt">
+    <div class="span2"><label for="ql-act">The line</label>
+      <select class="in" name="act" id="ql-act">
+        <option value="quote" {{ 'selected' if ln.action == 'quote' }}>Quotes a product of mine</option>
+        <option value="new" {{ 'selected' if ln.action == 'new' }}>{{ 'A new item (made already)' if ln.action == 'new' else 'A new item in the design' }}</option>
+        <option value="merge" {{ 'selected' if ln.action == 'merge' }}>Part of another line</option>
+        <option value="extra" {{ 'selected' if ln.action == 'extra' }}>An extra charge (pallet, packing)</option>
+        <option value="skip" {{ 'selected' if ln.action == 'skip' }}>Skip it (not ours)</option>
+      </select></div>
+    <div class="span2 ql-f" data-act="quote"><label for="ql-prod">The product it quotes</label>
+      <select class="in" name="prod" id="ql-prod" data-find="Find the product: a word or two, a size" data-find-what="product">
+        <option value="">— pick the product —</option>
+        {% for cat, cs in by_cat.items() %}<optgroup label="{{ cat }}">{% for c in cs %}<option value="{{ c.id }}" {{ 'selected' if c.id == ln.product_id }}>{{ c.title }} · {{ c.qty|num(2) }} {{ c.unit }}{% if c.rooms|length == 1 %} · {{ c.rooms[0].code }}{% elif c.rooms|length %} · {{ c.rooms|length }} rooms{% endif %}</option>{% endfor %}</optgroup>{% endfor %}
+      </select>
+      <div class="help">Its price becomes this shop's quote on that product, combined with the sheet's other lines on it.</div></div>
+    {% if ln.action != 'new' %}
+    <div class="ql-f" data-act="new"><label>Name on the schedule</label><input class="in" type="text" name="name" value="{{ ln.name }}" maxlength="200"></div>
+    <div class="ql-f" data-act="new"><label>Category</label><select class="in" name="cat"><option value="">Category…</option>{% for c in categories %}<option>{{ c }}</option>{% endfor %}</select></div>
+    <div class="span2 ql-f" data-act="new"><label>Rooms</label>{{ room_picks(p.rooms, 'rooms') }}<div class="help">One item per room ticked, the sheet's quantity shared between them; none = whole house.</div></div>
+    {% endif %}
+    <div class="span2 ql-f" data-act="merge"><label for="ql-into">Part of which line</label>
+      <select class="in" name="into" id="ql-into"><option value="">— pick the line —</option>{% for x in targets %}<option value="{{ x.id }}" {{ 'selected' if x.id == ln.into_id }}>L{{ x.no }} {{ x.name|truncate(50) }}{% if x.product %} → {{ x.product.title|truncate(40) }}{% endif %}</option>{% endfor %}</select>
+      <div class="help">Its amount joins that line's quote (hardware of a set), unless the parts add up to that line's own price.</div></div>
+  </div>
+
+  <h2 class="mb-0 mt">The numbers as read</h2>
+  <div class="grid g3 mt">
+    <div><label>Quantity</label><input class="in" type="number" step="any" min="0" name="qty" value="{{ ln.qty|plain }}" inputmode="decimal"></div>
+    <div><label>Unit</label><input class="in" type="text" name="unit" value="{{ ln.unit }}" maxlength="20"></div>
+    <div><label>Unit price ({{ cur }})</label><input class="in" type="number" step="any" min="0" name="unit_price" value="{{ ln.unit_price|plain }}" inputmode="decimal"></div>
+  </div>
+  <div class="help">Correct a cell the sheet was read wrong: the amount becomes quantity × price. Your rooms' quantities are on the items, not here.</div>
+
+  <h2 class="mb-0 mt">It also prices</h2>
+  <p class="small muted">When the shop quoted one model for several products of yours (one mirror for two sizes), this line's price becomes the shop's quote on those too.</p>
+  {% if ln.also %}<div class="ql-also">{% for a in ln.also %}<label class="row"><input type="checkbox" name="also_remove" value="{{ a.product_id }}"> <span>{{ a.product.title if a.product else a.product_id }} <span class="small muted">· tick to stop</span></span></label>{% endfor %}</div>{% endif %}
+  <div class="mt"><select class="in" name="also_add" data-find="Find another product it prices" data-find-what="product"><option value="">— no other product —</option>{% for cat, cs in by_cat.items() %}<optgroup label="{{ cat }}">{% for c in cs %}{% if c.id != ln.product_id %}<option value="{{ c.id }}">{{ c.title }} · {{ c.qty|num(2) }} {{ c.unit }}</option>{% endif %}{% endfor %}</optgroup>{% endfor %}</select></div>
+
+  <div class="row mt"><button class="btn accent"><svg class="ic"><use href="#i-check"/></svg>Save the line</button><a class="btn ghost" href="/p/{{ p.id }}/quotations/{{ q.id }}#line-{{ ln.id }}">Cancel</a>
+  <span class="small muted">The quotes follow; rooms already bought from a quote take its new price, and the page says so.</span></div>
+</form>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+(function(){ var act=document.getElementById('ql-act'); if(!act) return;
+  function show(){ document.querySelectorAll('.ql-f').forEach(function(d){ d.hidden=d.dataset.act!==act.value; }); }
+  act.addEventListener('change', show); show(); })();
+</script>
+{% endblock %}

@@ -7,7 +7,7 @@
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/quotations">Quotations</a></div>
     <h1>{{ q.title or q.filename or 'Quotation' }} <span class="h-note">{{ q.supplier.name if q.supplier else 'no shop' }}</span></h1>
-    <p class="sub">The sheet as the supplier sent it, and what each line became. {{ q.lines|length }} line{{ 's' if q.lines|length != 1 }}: {{ counts.quote + counts.new }} quoting a product, {{ counts.merge }} merged, {{ counts.extra }} extra, {{ counts.skip }} skipped.</p>
+    <p class="sub">The sheet as the supplier sent it, and what each line became. {{ q.lines|length }} line{{ 's' if q.lines|length != 1 }}: {{ counts.quote + counts.new }} quoting a product, {{ counts.merge }} merged, {{ counts.extra }} extra, {{ counts.skip }} skipped.{% if not revised_by %} <b>Change…</b> on a line re-matches it, corrects a number read wrong, or lets it price another product of yours too.{% endif %}</p>
   </div>
   <div class="actions">
     {% if q.file_key %}<a class="btn sec" href="/p/{{ p.id }}/quotations/{{ q.id }}/file"><svg class="ic"><use href="#i-download"/></svg>Original file</a>{% endif %}
@@ -20,6 +20,7 @@
 
 {% if ok %}<div class="alert">{{ ok }}</div>{% endif %}
 {% if err %}<div class="alert err">{{ err }}</div>{% endif %}
+{% if warn %}<div class="alert info">{{ warn }}</div>{% endif %}
 {% if revised_by %}<div class="alert info">Revised by <a href="/p/{{ p.id }}/quotations/{{ revised_by.id }}"><b>{{ revised_by.title or revised_by.filename }}</b></a>{% if revised_by.quote_date %} of {{ revised_by.quote_date.isoformat() }}{% endif %}: the quotes on the Buying page carry that sheet's prices now; this one is kept as it was sent.</div>{% endif %}
 {% if revises %}<div class="alert info">A revision of <a href="/p/{{ p.id }}/quotations/{{ revises.id }}"><b>{{ revises.title or revises.filename }}</b></a>{% if revises.quote_date %} of {{ revises.quote_date.isoformat() }}{% endif %}: its quotes were corrected to these prices.</div>{% endif %}
 
@@ -36,7 +37,7 @@
   {% set ns = namespace(section=none) %}
   {% for ln in q.lines %}
   {% if ln.section != ns.section %}{% set ns.section = ln.section %}{% if ln.section %}<tr class="qi-sec"><td colspan="7">{{ ln.section }}</td></tr>{% endif %}{% endif %}
-  <tr class="act-{{ ln.action }}">
+  <tr class="act-{{ ln.action }}" id="line-{{ ln.id }}">
     <td class="qi-td-pic">{% if ln.thumb %}<a href="/media/{{ ln.photo_key }}" target="_blank" data-caption="Line {{ ln.no }} · {{ ln.name }}"><img src="/media/{{ ln.thumb }}" alt=""></a>{% endif %}</td>
     <td class="small muted nowrap">L{{ ln.no }}{% if ln.ref %}<div><b>{{ ln.ref }}</b></div>{% endif %}</td>
     <td><div>{{ ln.name }}</div>{% if ln.size %}<div class="small muted">{{ ln.size }}</div>{% endif %}{% if ln.detail %}<details class="qi-detail"><summary class="small">Description</summary><div class="small">{{ ln.detail }}</div></details>{% endif %}</td>
@@ -50,6 +51,8 @@
       {% elif ln.action == 'merge' %}<span class="pill gold">Part of L{{ (q.lines|selectattr('id', 'equalto', ln.into_id)|map(attribute='no')|list or ['?'])[0] }}</span>
       {% elif ln.action == 'extra' %}<span class="pill">Extra charge</span>
       {% else %}<span class="pill">Skipped</span>{% endif %}
+      {% if ln.also %}<div class="small">Also prices {% for a in ln.also %}<a href="/p/{{ p.id }}/buying/{{ a.product_id }}">{{ (a.product.title if a.product else '')|truncate(50) }}</a>{{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
+      {% if not revised_by %}<a class="small qi-change" href="/p/{{ p.id }}/quotations/{{ q.id }}/lines/{{ ln.id }}">Change…</a>{% endif %}
       {% if ln.notes %}<div class="small qi-notes">{% for f in ln.notes.split('; ') %}{% if '(accepted' in f %}<span class="pill green">&#10003; {{ f }}</span>{% else %}<span class="pill {{ 'red' if f.startswith(('thickness', 'anti-slip', 'slip', 'finish', 'material')) else 'gold' }}">&#9888; {{ f }}</span>{% endif %} {% endfor %}</div>{% endif %}
     </td>
   </tr>
@@ -78,10 +81,14 @@
 {% endif %}
 
 <div class="grid g2 mt">
-  <div class="card">
+  <div class="card" id="gaps">
     <h2 class="mb-0">Not quoted</h2>
-    <p class="small muted">Products in the same categories that got no price from {{ q.supplier.name if q.supplier else 'this shop' }}: ask for them, or they stay to be sourced elsewhere.</p>
-    {% if gaps %}<ul class="qi-gaps mt">{% for c in gaps %}<li><a href="/p/{{ p.id }}/buying/{{ c.id }}">{{ c.title }}</a> <span class="small muted">· {{ c.qty|num(2) }} {{ c.unit }} · {{ c.rooms_text }}</span></li>{% endfor %}</ul>
+    <p class="small muted">Products in the same categories that got no price from {{ q.supplier.name if q.supplier else 'this shop' }}: ask for them, or they stay to be sourced elsewhere.{% if not revised_by %} If the sheet has one under another name, pick its line: <b>Also price</b> keeps the line as it is and prices this product from it too, <b>Move here</b> makes the line quote this product instead.{% endif %}</p>
+    {% if gaps %}<ul class="qi-gaps mt">{% for c in gaps %}<li><a href="/p/{{ p.id }}/buying/{{ c.id }}">{{ c.title }}</a> <span class="small muted">· {{ c.qty|num(2) }} {{ c.unit }} · {{ c.rooms_text }}</span>
+      {% if not revised_by %}<form class="qi-assign" method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/assign"><input type="hidden" name="product" value="{{ c.id }}">
+        <select class="in sm" name="line" aria-label="The line of the sheet for {{ c.title }}"><option value="">— the line on the sheet —</option>{% for ln in q.lines %}<option value="{{ ln.id }}">L{{ ln.no }} {{ ln.name|truncate(36) }}{% if ln.size %} · {{ ln.size|truncate(20) }}{% endif %} · {{ cur }} {{ ln.unit_price|num(2) }}</option>{% endfor %}</select>
+        <div class="row"><button class="btn sm sec" name="mode" value="also">Also price from it</button><button class="btn sm ghost" name="mode" value="move">Move it here</button></div></form>{% endif %}
+      </li>{% endfor %}</ul>
     {% else %}<p class="small mt">Every product of these categories has a quote from this shop.</p>{% endif %}
   </div>
   <div class="card">

@@ -1351,6 +1351,8 @@ table.ls tr.muted td{color:var(--muted)}
 .qi-doc tr.act-skip td{color:var(--muted)}
 .qi-became .pill{white-space:normal;text-align:left}
 .qi-gaps{padding-left:1.1rem;margin:0}.qi-gaps li{margin:4px 0}
+.qi-assign{display:flex;flex-direction:column;gap:6px;max-width:520px;margin-top:6px}.qi-assign .row{gap:6px}.qi-change{display:inline-block;margin-top:4px}
+.ql-pic{width:96px;height:96px;object-fit:cover;border-radius:var(--r-sm);margin-right:12px}.ql-f[hidden]{display:none}.ql-also label{gap:8px;margin:4px 0}
 .qi-terms{white-space:pre-wrap;font:inherit;font-size:.85rem;background:var(--surface-2);padding:10px;border-radius:8px;margin:8px 0 0}
 @media (max-width:760px){.qi-line{grid-template-columns:56px minmax(0,1fr)}.qi-pick{grid-column:1/-1}.qi-pic img,.qi-pic .pic.empty{width:56px;height:56px}}
 .qi-upload{margin-top:10px}.qi-upload .bar{height:10px}.qi-upload .bar i{transition:width .3s}
