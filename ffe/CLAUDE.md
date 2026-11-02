@@ -731,7 +731,9 @@ ALTER TABLE projects ADD COLUMN show_currency VARCHAR(3) NOT NULL DEFAULT 'CNY';
   gold when another product's lines carry the same supplier code — the skirting cut from the floor slab, with its m² from the
   lines' `data-dims` smallest dimension; the header reads "Design needs" and the allowance is named only where it applies).
   `flags()` = `spec_diffs()` (thickness via `_thickness`, slip rating, finish and material words: red pills) + size / unit
-  (m and lm equal, `_same_unit`) / quantity (gold). `out_of_scope(line, p)` skips staff / servant quarters only when
+  (m and lm equal, `_same_unit`) / quantity (gold). The quantity is the product's: `flags(line, c, together)` takes the quantity of every line quoting
+  the product (one AC per room on lines of their own) — `suggest` passes the suggested lines' total, `apply` and `amend_line` the
+  saved ones'; the document page hides a stored quantity note when the lines on its product add up (`qty_fine`). `out_of_scope(line, p)` skips staff / servant quarters only when
   `_scope_rooms(p)` is empty; a line matching nothing defaults to `new` with `room_hints()` (rooms sharing the most words
   with the supplier's place / name / section) pre-ticked, and a new item in several rooms shares the line's quantity. In
   `apply`, lines in other units than the product's (steps by the piece for a product in m²) price it from the design's quantity.

@@ -2170,6 +2170,9 @@ def flow(c):
     _ln=dict(no=1, ref="ZZ-W91", name="Floor 1 Living room", place="", section="", size="", unit="", qty=1, code="", detail="")
     _sl=_qz.shortlist(_ln, _cr, []); assert _sl[0][0].id==_t1.id and _sl[0][1]>=_qz.SURE and _sl[0][2].startswith("design reference"), _sl[0]
     _sl=_qz.shortlist(dict(_ln, ref="ZZ-W92"), _cr, []); assert {x[0].id for x in _sl[:2]}=={_t1.id, _t2.id} and all(x[1]<_qz.SURE for x in _sl[:2])  # on two products: offered, not chosen
+    # one line per room (an AC per room): the quantity is checked on all the product's lines together
+    _cq=next(x for x in _cr if (x.qty or 0) >= 2); _l1=dict(_ln, ref="", name=_cq.name, size=_cq.size, unit=_cq.unit, qty=1)
+    assert any(f_.startswith("quantity") for f_ in _qz.flags(_l1, _cq)) and not any(f_.startswith("quantity") for f_ in _qz.flags(_l1, _cq, _cq.qty))
     _dbr.close()
     print("quotations ok")
 

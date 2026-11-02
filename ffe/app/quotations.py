@@ -909,9 +909,10 @@ def spec_diffs(line: dict, c: Candidate) -> list[str]:
     return [d["text"] for d in differences(line, c)]
 
 
-def flags(line: dict, c: Candidate | None) -> list[str]:
+def flags(line: dict, c: Candidate | None, together: float | None = None) -> list[str]:
     """What differs between a line and the product it is matched to: the size, the unit, the quantity, and the
-    specification (spec_diffs)."""
+    specification (spec_diffs). `together` = the quantity of every line quoting this product (one AC per room on a line
+    of its own): the quantity is checked on that, not on the line alone."""
     if c is None:
         return []
     out = spec_diffs(line, c)
@@ -921,10 +922,11 @@ def flags(line: dict, c: Candidate | None) -> list[str]:
     lu, cu = _unit(line["unit"]), c.unit
     if lu and cu and _same_unit(lu) != _same_unit(cu):
         out.append(f"unit {lu} vs {cu}")
-    if c.qty and line["qty"]:
-        ratio = line["qty"] / c.qty
+    qty = together if together else line["qty"]
+    if c.qty and qty:
+        ratio = qty / c.qty
         if ratio > 1.5 or ratio < 0.6:
-            out.append(f"quantity {line['qty']:g} {lu or ''} vs {c.qty:g} {cu} in the rooms")
+            out.append(f"quantity {qty:g} {lu or ''}{' (all its lines)' if together and together != line['qty'] else ''} vs {c.qty:g} {cu} in the rooms")
     return out
 
 
@@ -933,13 +935,13 @@ DECISIONS = ("quote", "items", "ask")
 DIFF_TITLES = {"thickness": "Thickness", "slip": "Anti-slip", "finish": "Finish", "material": "Material"}
 
 
-def decided(line: dict, c: Candidate, decisions: dict) -> tuple[list[str], list[dict]]:
+def decided(line: dict, c: Candidate, decisions: dict, together: float | None = None) -> tuple[list[str], list[dict]]:
     """The line's flags with what the designer decided about each difference of the spec ({"<product>_<slug>": decision}),
     and the differences to write into the product's items. "items" where the items cannot take the offer counts as
     accepted for the quotation."""
     by_text = {d["text"]: d for d in differences(line, c)}
     out, take = [], []
-    for f in flags(line, c):
+    for f in flags(line, c, together):
         d = by_text.get(f)
         dec = decisions.get(f"{c.id}_{d['slug']}", "") if d else ""
         if dec == "items" and not d["can_update"]:
@@ -1202,6 +1204,16 @@ def suggest(db: Session, p: Project, parsed: dict, pictures: dict[int, bytes] | 
         sug["flags"] = flags(l, c)
         sug["options"] = options(l, sug, sl, parsed["lines"], p) if (sug["action"] != "quote" or sug["confidence"] < SURE) and not out_of_scope(l, p) else []
         out[l["no"]] = sug
+    # the quantity against the rooms is the product's: lines quoting it one per room are checked together
+    tot: dict[int, float] = {}
+    for l in parsed["lines"]:
+        s_ = out[l["no"]]
+        if s_["action"] == "quote" and s_["product_id"]:
+            tot[s_["product_id"]] = tot.get(s_["product_id"], 0) + (l["qty"] or 0)
+    for l in parsed["lines"]:
+        s_ = out[l["no"]]
+        if s_["action"] == "quote" and s_["product_id"] in by_id and tot.get(s_["product_id"]) != (l["qty"] or 0):
+            s_["flags"] = flags(l, by_id[s_["product_id"]], tot[s_["product_id"]])
     return {"lines": out, "claude": bool(picks)}
 
 
@@ -1486,8 +1498,9 @@ def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head:
         parts = [x for _, ps in groups for x in ps]
         unit_price, refs, note = price_lines(q, c, groups, factor)
         fl = []
+        together = sum(l["qty"] or 0 for l in main) if len({_same_unit(_unit(l["unit"]) or "") for l in main}) == 1 else None
         for l in main:
-            fs, take = decided(l, c, decisions)
+            fs, take = decided(l, c, decisions, together)
             fl += fs
             for d in take:
                 updates.setdefault(c.id, (c, {}))[1][d["slug"]] = d
@@ -1519,7 +1532,7 @@ def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head:
             buying.follow_quote(db, quote)  # the rooms bought from the earlier quote take the new price
         for l in main:
             rows[l["no"]].quote_id = quote.id
-            rows[l["no"]].notes = "; ".join(decided(l, c, decisions)[0])
+            rows[l["no"]].notes = "; ".join(decided(l, c, decisions, together)[0])
             if supplier is not None:
                 key = (_norm(l["ref"]), _memo_text(l))
                 if key not in memo_seen:
@@ -1842,7 +1855,8 @@ def amend_line(db: Session, p: Project, q: Quotation, ln: QuotationLine, *, acti
     what = ([f"was {was}, now {now}"] if was != now else []) + changes + ([f"also prices {also_txt}"] if also_txt and (also_add or also_remove) else [])
     if not what:
         what = ["nothing changed"]
-    flagged = "; ".join(flags(line_dict(ln), cands[ln.product_id])) if ln.action in ("quote", "new") and ln.product_id in cands else ""
+    together = sum(x.qty or 0 for x in q.lines if x.product_id == ln.product_id and x.action in ("quote", "new")) or None
+    flagged = "; ".join(flags(line_dict(ln), cands[ln.product_id], together)) if ln.action in ("quote", "new") and ln.product_id in cands else ""
     stamp = f"Changed on {dt.date.today().isoformat()}: " + ", ".join(what) + "."
     ln.notes = "; ".join(x for x in (flagged, stamp) if x)
     db.flush()
