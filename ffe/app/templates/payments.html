@@ -14,15 +14,15 @@
 </div>
 
 <div class="grid g3">
-  <div class="kpi"><div class="v">¥{{ s.ordered|money }}</div><div class="l">on confirmed orders</div><svg class="ic"><use href="#i-file"/></svg></div>
-  <div class="kpi"><div class="v">¥{{ s.paid|money }}</div><div class="l">paid · ${{ s.paid_usd|money }}</div><svg class="ic"><use href="#i-check"/></svg></div>
-  <div class="kpi accent"><div class="v">¥{{ s.to_pay|money }}</div><div class="l">still to pay on orders</div><svg class="ic"><use href="#i-card"/></svg></div>
+  <div class="kpi"><div class="v">{{ s.ordered|cur }}</div><div class="l">on confirmed orders</div><svg class="ic"><use href="#i-file"/></svg></div>
+  <div class="kpi"><div class="v">{{ s.paid|cur }}</div><div class="l">paid · {{ s.paid|cur_other }}</div><svg class="ic"><use href="#i-check"/></svg></div>
+  <div class="kpi accent"><div class="v">{{ s.to_pay|cur }}</div><div class="l">still to pay on orders</div><svg class="ic"><use href="#i-card"/></svg></div>
 </div>
 
 <form method="post" enctype="multipart/form-data" class="card mt">
   <h2>Record a payment</h2>
   <div class="grid stack g3">
-    <div><label>Order</label><select name="order_id" class="in"><option value="">No order: to the supplier below</option>{% for ov in ovs|selectattr('o.confirmed') %}<option value="{{ ov.o.id }}">{{ ov.ref }} · {{ ov.o.supplier.name if ov.o.supplier else 'Shop' }} · to pay ¥{{ [ov.balance, 0]|max|money }}</option>{% endfor %}{% for ov in ovs|rejectattr('o.confirmed') %}<option value="{{ ov.o.id }}">{{ ov.ref }} (draft) · {{ ov.o.supplier.name if ov.o.supplier else 'Shop' }}</option>{% endfor %}</select>
+    <div><label>Order</label><select name="order_id" class="in"><option value="">No order: to the supplier below</option>{% for ov in ovs|selectattr('o.confirmed') %}<option value="{{ ov.o.id }}">{{ ov.ref }} · {{ ov.o.supplier.name if ov.o.supplier else 'Shop' }} · to pay {{ ([ov.balance, 0]|max)|cur }}</option>{% endfor %}{% for ov in ovs|rejectattr('o.confirmed') %}<option value="{{ ov.o.id }}">{{ ov.ref }} (draft) · {{ ov.o.supplier.name if ov.o.supplier else 'Shop' }}</option>{% endfor %}</select>
       <div class="help">Paying an order counts toward it: its rooms become Paid once it is paid in full.</div></div>
     <div><label>Supplier</label><select name="supplier_id" class="in"><option value="">—</option>{% for sp in suppliers %}<option value="{{ sp.id }}">{{ sp.name }}</option>{% endfor %}</select>
       <div class="help">With an order chosen, its shop is used.</div></div>
@@ -44,10 +44,10 @@
     {% for r in s.by_sup %}
     <tr>
       <td>{% if r.key %}<a href="/suppliers/{{ r.key }}?project={{ p.id }}">{{ r.label }}</a>{% else %}<span class="muted">{{ r.label }}</span>{% endif %}</td>
-      <td class="num">¥{{ r.bought|money }}</td>
-      <td class="num">¥{{ r.ordered|money }}</td>
-      <td class="num">¥{{ r.paid|money }}</td>
-      <td class="num b">¥{{ r.balance|money }}</td>
+      <td class="num">{{ r.bought|cur }}</td>
+      <td class="num">{{ r.ordered|cur }}</td>
+      <td class="num">{{ r.paid|cur }}</td>
+      <td class="num b">{{ r.balance|cur }}</td>
     </tr>
     {% else %}
     <tr><td colspan="5" class="muted center">No items yet, so nothing to pay for.</td></tr>
@@ -59,7 +59,7 @@
 <div class="card">
   <h2>All payments</h2>
   <div class="tbl"><table>
-    <thead><tr><th>Date</th><th>Supplier</th><th>Order</th><th>Type</th><th class="num">CNY</th><th>Reference</th><th>Note</th><th>Receipt</th><th></th></tr></thead>
+    <thead><tr><th>Date</th><th>Supplier</th><th>Order</th><th>Type</th><th class="num">{{ 'USD' if show_usd(p) else 'CNY' }}</th><th>Reference</th><th>Note</th><th>Receipt</th><th></th></tr></thead>
     <tbody>
     {% for pay in pays %}
     <tr>
@@ -67,7 +67,7 @@
       <td>{% if pay.supplier %}<a href="/suppliers/{{ pay.supplier.id }}?project={{ p.id }}">{{ pay.supplier.name }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
       <td class="nowrap">{% if pay.order_id and refs.get(pay.order_id) %}<a class="b" href="/p/{{ p.id }}/orders/{{ pay.order_id }}">{{ refs[pay.order_id] }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
       <td><span class="pill">{{ pay.kind }}</span></td>
-      <td class="num b">{{ pay.amount|money(2) }}</td>
+      <td class="num b">{{ pay.amount|cur_num(2) }}</td>
       <td>{{ pay.reference }}</td>
       <td class="small muted">{{ pay.note }}</td>
       <td>{% if pay.receipt_key %}<a href="/media/{{ pay.receipt_key }}" target="_blank" data-caption="Receipt{% if pay.supplier %} · {{ pay.supplier.name }}{% endif %} · {{ pay.paid_on }}"><img class="thumb sm" src="/media/{{ pay.receipt_key }}" alt="Receipt"></a>{% else %}<span class="muted">—</span>{% endif %}</td>

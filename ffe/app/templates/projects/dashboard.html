@@ -23,7 +23,7 @@
   </div>
   <div class="kpi ink">
     <div class="v">¥{{ s.total|money }}</div><div class="l">Total CNY</div>
-    <div class="d">{% if s.must != s.total %}Must-have ¥{{ s.must|money }}{% else %}No optional items{% endif %}</div>
+    <div class="d">{% if s.must != s.total %}Must-have {{ s.must|cur }}{% else %}No optional items{% endif %}</div>
     <svg class="ic"><use href="#i-tag"/></svg>
   </div>
   <div class="kpi">
@@ -35,8 +35,8 @@
     <svg class="ic"><use href="#i-card"/></svg>
   </div>
   <div class="kpi">
-    <div class="v">¥{{ s.paid|money }}</div><div class="l">Paid</div>
-    <div class="d">{% if s.ordered %}¥{{ s.to_pay|money }} still to pay on ¥{{ s.ordered|money }} ordered{% else %}Nothing on a confirmed order yet{% endif %}</div>
+    <div class="v">{{ s.paid|cur }}</div><div class="l">Paid</div>
+    <div class="d">{% if s.ordered %}{{ s.to_pay|cur }} still to pay on {{ s.ordered|cur }} ordered{% else %}Nothing on a confirmed order yet{% endif %}</div>
     <svg class="ic"><use href="#i-check"/></svg>
   </div>
   <div class="kpi sage">
@@ -94,13 +94,13 @@
   <div class="card">
     <div class="row between"><h2 class="mb-0">By room &amp; area</h2><span class="row"><a class="small b" href="/p/{{ p.id }}/plan"><svg class="ic sm"><use href="#i-map"/></svg> Plan view</a><span class="muted small">·</span><a class="small" href="/p/{{ p.id }}/rooms">Manage rooms</a></span></div>
     <div class="tbl mt"><table>
-      <thead><tr><th>Room</th><th class="num">Items</th><th class="num">CNY</th><th class="num">Recv</th><th></th></tr></thead>
+      <thead><tr><th>Room</th><th class="num">Items</th><th class="num">{{ 'USD' if show_usd(p) else 'CNY' }}</th><th class="num">Recv</th><th></th></tr></thead>
       <tbody>
       {% for r in s.by_room %}
       {% if r.kind != 'room' and (loop.first or loop.previtem.kind != r.kind) %}<tr class="sub"><td colspan="5">{{ 'Areas' if r.kind == 'area' else 'Not in a room or area' }}</td></tr>{% endif %}
       <tr>
         <td><a href="{% if r.key %}/p/{{ p.id }}/plan?room={{ r.key }}{% else %}/p/{{ p.id }}/items?room=none{% endif %}">{{ r.label }}</a></td>
-        <td class="num">{{ r.count }}</td><td class="num">{{ r.total|money }}</td><td class="num">{{ r.received }}</td>
+        <td class="num">{{ r.count }}</td><td class="num">{{ r.total|cur_num }}</td><td class="num">{{ r.received }}</td>
         <td class="right"><a class="btn ghost sm" href="/p/{{ p.id }}/export/room/{{ r.key }}.pdf" target="_blank" title="Room schedule PDF"><svg class="ic"><use href="#i-file"/></svg>PDF</a></td>
       </tr>
       {% else %}<tr><td colspan="5" class="muted center">No items yet.</td></tr>{% endfor %}
@@ -144,7 +144,7 @@
       <div class="body">
         <div class="t"><a href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a></div>
         <div class="m">{{ i.code }} · {{ i.room.name if i.room else 'Whole house' }} · {{ i.category }}</div>
-        <div class="foot"><span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status }}</span>{% if i.total %}<span class="small b">¥{{ i.total|money }}</span>{% endif %}</div>
+        <div class="foot"><span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status }}</span>{% if i.total %}<span class="small b">{{ i.total|cur }}</span>{% endif %}</div>
       </div>
     </div>
     {% else %}

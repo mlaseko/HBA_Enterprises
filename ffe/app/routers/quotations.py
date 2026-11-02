@@ -368,12 +368,12 @@ async def apply_preview(request: Request, p: Project = Depends(get_project), db:
 
 # ---- shops compared --------------------------------------------------------------------------------------------------------
 @router.get("/p/{project_id}/quotations/compare")
-def compare_page(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), category: str = "", currency: str = "USD", ok: str = "", err: str = ""):
+def compare_page(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), category: str = "", currency: str = "", ok: str = "", err: str = ""):
     """Products × shops for one category: every shop's price per unit, the lowest marked, who is bought from, and Buy
     from a shop in one press (the existing buy route, which comes back here)."""
     cmp = qz.compare(db, p, category)
     db.commit()
-    return render(request, "buying/quotation_compare.html", p=p, cur=currency if currency in ("USD", "CNY") else "USD", ok=ok[:200], err=err[:300], **cmp)
+    return render(request, "buying/quotation_compare.html", p=p, cur=currency if currency in ("USD", "CNY") else ("USD" if p.show_currency == "USD" else "CNY"), ok=ok[:200], err=err[:300], **cmp)
 
 
 # ---- the inquiry sheet ---------------------------------------------------------------------------------------------------------

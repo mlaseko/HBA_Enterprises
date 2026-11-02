@@ -241,10 +241,11 @@ TIPS = {
         title="Tracker", anchor="purchasing",
         what="Where the buying stands: the money from budget to paid, what needs you now, and the breakdown by stage, shop and category.",
         steps=["The top row is the money: budget, estimated, committed, ordered, paid and still to pay, with the bar against the budget.",
-               "<b>Needs attention</b> lists what to do, the most pressing first: tap a line to open the order or the products concerned.",
+               "While products are still being priced, <b>Sourcing</b> shows how many have a quote, category by category, and how much of the budget is left for the ones not priced yet; a category with no quote has its <b>Inquiry sheet</b> link.",
+               "<b>Needs attention</b> lists what to do, the most pressing first: tap a line to open the order or the products concerned. It also warns of a quotation that expires within a week (or has expired) while products it priced still have no shop, of a quotation read but not saved, and of the categories with no quote.",
                "Below, the products by stage (tap one to list them), each shop's money and next ready date, and each category."],
         tips=["Estimated counts the shops you chose and, for the rest, the lowest quote; products with no quote yet count nothing.",
-              "Set the budget (in USD) in Project settings."]),
+              "Set the budget (in USD) and <b>Show amounts in</b> (USD or CNY) in Project settings: every amount on the designer's pages follows, with the other currency underneath. Prices are still kept in CNY."]),
     "capture": dict(
         title="Quick capture", anchor="capture",
         what="Shoot first, fill in later. Every photo is saved at once as a draft item.",

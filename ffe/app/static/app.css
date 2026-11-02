@@ -1419,3 +1419,12 @@ tr.fam-row td{background:var(--surface-2);border-top:2px solid var(--line)}tr.fa
 .qi-var-pic img{width:48px;height:48px;object-fit:cover;border-radius:10px;display:block}
 .qi-var-pic .none{display:block;width:48px;height:48px;border-radius:10px;background:var(--surface-3)}
 .bu-picks a.code:hover,.od-lines a.pill:hover{text-decoration:underline}
+
+/* tracker: sourcing card */
+.tr-src-sum{margin:0 0 12px}
+.tr-src-sum.over b{color:var(--red,#B4372A)}
+.tr-src-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:6px 22px}
+.tr-src-row{display:grid;grid-template-columns:1fr 110px auto auto;gap:10px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line-2)}
+.tr-src-row .tr-mini i.q{position:absolute;left:0;top:0;bottom:0;background:#16A34A}
+.tr-src-row.none .b{color:var(--muted,#8A8178)}
+@media(max-width:560px){.tr-src-row{grid-template-columns:1fr 70px auto}.tr-src-row>a.small,.tr-src-row>span.small.muted{grid-column:1/-1}}

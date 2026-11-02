@@ -2279,6 +2279,17 @@ def flow(c):
     r=c.post(f"/p/{pid_q}/items/{hv_id}/delete", data={"scope":"all"}, follow_redirects=False); assert r.headers["location"].endswith("?deleted=2")
     db=SessionLocal(); assert db.get(Item, hv2) is None and db.get(Item, hv_id) is None and db.get(_Pr, hp) is not None; db.close()
     h=c.get(f"/p/{pid_q}/quotations/{qd10}").text; assert "No rooms left in the design" in h and "no longer in any room" in h
+    # amounts in USD on the designer's pages (stored in CNY), and the tracker's sourcing card and lines
+    import datetime as _dtq
+    db=SessionLocal(); _pq=db.get(_P, pid_q); _pq.budget_usd=100000; _q10=db.get(_QD, qd10); _q10.quote_date=_dtq.date.today()-_dtq.timedelta(days=12); _q10.valid_until="10 days"; db.commit(); db.close()
+    h=c.get(f"/p/{pid_q}/buying/tracker").text; assert 'id="sourcing"' in h and "products have a quote" in h and "¥" in h and "expired 2 days ago" in h and "not priced yet" in h
+    assert "Inquiry sheet" in h and "No quote yet in" in h or "with no quote yet" in h
+    r=c.post(f"/p/{pid_q}/edit", data={"client_name":"X","name":"Quotes house","rate":"7.1","budget_usd":"100000","show_currency":"USD"}, follow_redirects=False); assert r.status_code==303
+    db=SessionLocal(); assert db.get(_P, pid_q).show_currency=="USD"; db.close()
+    h=c.get(f"/p/{pid_q}/buying/tracker").text; _money=h[h.index('class="card tr-money"'):h.index('id="sourcing"')]; assert "$100,000" in _money and "¥710,000" in _money  # USD first, CNY under it
+    h=c.get(f"/p/{pid_q}/buying/{big_id}").text; assert "$" in h[h.index('class="price"'):h.index('class="price"')+400]
+    assert "Show amounts in" in c.get(f"/p/{pid_q}/edit").text
+    c.post(f"/p/{pid_q}/edit", data={"client_name":"X","name":"Quotes house","rate":"7.1","budget_usd":"0","show_currency":"CNY"}, follow_redirects=False)
     print("quotation amendments ok")
 
 

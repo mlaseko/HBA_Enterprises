@@ -125,7 +125,36 @@ def _order_ref(o) -> str:
     return ref(o)
 
 
+def show_usd(p) -> bool:
+    """Whether the designer's pages show this project's amounts in USD (Project.show_currency; stored in CNY)."""
+    return getattr(p, "show_currency", "CNY") == "USD"
+
+
+def fmt_cur(p, cny, dec=0) -> str:
+    """An amount stored in CNY as the project shows it: "$1,234" in USD (at the project rate) or "¥8,762"."""
+    try:
+        v = float(cny or 0)
+    except (TypeError, ValueError):
+        return "-"
+    if show_usd(p):
+        return f"${v / (p.rate or 1):,.{dec}f}"
+    return f"¥{v:,.{dec}f}"
+
+
+def fmt_other(p, cny, dec=0) -> str:
+    """The same amount in the other currency (the small line under it)."""
+    try:
+        v = float(cny or 0)
+    except (TypeError, ValueError):
+        return ""
+    return f"¥{v:,.{dec}f}" if show_usd(p) else f"${v / ((p.rate if p is not None else 0) or 1):,.{dec}f}"
+
+
 templates.env.filters["money"] = fmt_money
+templates.env.filters["cur"] = jinja2.pass_context(lambda ctx, v, dec=0: fmt_cur(ctx.get("p"), v, dec))  # an amount in CNY as the project shows it
+templates.env.filters["cur_num"] = jinja2.pass_context(lambda ctx, v, dec=0: fmt_cur(ctx.get("p"), v, dec)[1:])  # the same, no symbol (the column says the currency)
+templates.env.filters["cur_other"] = jinja2.pass_context(lambda ctx, v, dec=0: fmt_other(ctx.get("p"), v, dec))
+templates.env.globals.update(show_usd=lambda p: show_usd(p))
 templates.env.filters["num"] = fnum
 templates.env.filters["plain"] = fplain
 templates.env.filters["floor_title"] = jinja2.pass_context(lambda ctx, s: drawings.floor_title(s, ctx.get("p")))  # the project's floor list decides the spelling and the kind
