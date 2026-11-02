@@ -114,7 +114,8 @@ def buying_list(request: Request, p: Project = Depends(get_project), db: Session
 
 @router.get("/p/{project_id}/buying/schedule")
 def purchase_schedule(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), category: str = "", floor: str = "",
-                      stage: str = "", cur: str = "CNY", market: str = ""):
+                      stage: str = "", cur: str = "", market: str = ""):
+    cur = cur or p.show_currency  # the project's choice unless the page's switch says otherwise
     prods = bz.sync_products(db, p)
     db.commit()
     gs = bz.groups(p, prods)
@@ -128,8 +129,9 @@ def purchase_schedule(request: Request, p: Project = Depends(get_project), db: S
 
 @router.get("/p/{project_id}/buying/schedule.pdf")
 def purchase_schedule_pdf(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), category: str = "", floor: str = "",
-                          stage: str = "", cur: str = "CNY", market: str = ""):
+                          stage: str = "", cur: str = "", market: str = ""):
     """The internal Purchase schedule as a PDF, with the page's filters: shops and CNY (or USD), never for the client."""
+    cur = cur or p.show_currency
     from fastapi.responses import Response
     from ..pdf.purchase import build
     from .exports import build_error, try_build
@@ -154,7 +156,9 @@ def tracker(request: Request, p: Project = Depends(get_project), db: Session = D
     led = bz.Ledger(p)
     gs = bz.groups(p, prods, led)
     ovs = od.views(p, led)
-    t = od.tracker(p, led, gs, ovs)
+    from ..models import QuotationUpload
+    waiting = db.query(QuotationUpload).filter(QuotationUpload.project_id == p.id, QuotationUpload.stage == "done").order_by(QuotationUpload.id).all()
+    t = od.tracker(p, led, gs, ovs, waiting=waiting)
     return render(request, "buying/tracker.html", p=p, t=t, ovs=ovs, STAGES=bz.STAGES, STAGE_COLORS=bz.STAGE_COLORS, STAGE_HELP=bz.STAGE_HELP,
                   ORDER_COLORS=od.STAGE_COLORS, SHIP_COLORS=sh.STAGE_COLORS)
 

@@ -43,6 +43,7 @@ class Project(Base):
     rate: Mapped[float] = mapped_column(Float, default=7.10)  # CNY per 1 USD
     tile_extra: Mapped[float] = mapped_column(Float, default=0.12)
     budget_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    show_currency: Mapped[str] = mapped_column(String(3), default="CNY")  # the designer's pages show amounts in USD or CNY (stored in CNY)
     orders_made: Mapped[int] = mapped_column(Integer, default=0)  # the last order number given: numbers are never reused (ordering.py)
     shipments_made: Mapped[int] = mapped_column(Integer, default=0)  # the same for shipments (shipping.py)
     # Buying and shipping defaults of this project (lists.py, edited on the Lists page)

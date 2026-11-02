@@ -14,7 +14,7 @@
     {% if it.brand %}<dt>Preferred brand</dt><dd>{{ it.brand }}</dd>{% endif %}
     <dt>Quantity</dt><dd>{{ it.qty|num(2) }} {{ it.unit }}{% if it.optional %} <span class="pill">optional</span>{% endif %}</dd>
     <dt>Status</dt><dd>{{ it.status }}</dd>
-    {% if it.purchase_id and it.supplier %}<dt>Buying from</dt><dd>{{ it.supplier.name }} · ¥{{ it.unit_price|money(2) }} per {{ it.unit }}{% if it.lead_time %} · {{ it.lead_time }}{% endif %}</dd>{% endif %}
+    {% if it.purchase_id and it.supplier %}<dt>Buying from</dt><dd>{{ it.supplier.name }} · {{ it.unit_price|cur(2) }} per {{ it.unit }}{% if it.lead_time %} · {{ it.lead_time }}{% endif %}</dd>{% endif %}
     {% if it.spec %}<dt>Must-have spec</dt><dd class="pre">{{ it.spec }}</dd>{% endif %}
     {% if it.notes %}<dt>Notes</dt><dd class="pre">{{ it.notes }}</dd>{% endif %}
     {% if others %}<dt>Also in</dt><dd>{% for o in others %}<span class="pill"><b>{{ o.code }}</b> {{ o.room.name if o.room else 'Whole house' }} · {{ o.qty|num(2) }} {{ o.unit }}</span> {% endfor %}</dd>{% endif %}

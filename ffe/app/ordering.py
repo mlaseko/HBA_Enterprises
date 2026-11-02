@@ -18,6 +18,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from . import buying, lists
+from .common import fmt_cur
 from .models import Order, Payment, Project, Purchase, Supplier
 
 STAGES = ["Draft", "Deposit due", "Balance due", "Paid"]
@@ -270,7 +271,7 @@ def wechat_text(ov: OrderView, p: Project, studio) -> str:
 
 
 # ---- the tracker -------------------------------------------------------------------------------------------------------------
-def tracker(p: Project, led: buying.Ledger, gs: list, ovs: list[OrderView], today: date | None = None, bx=None) -> dict:
+def tracker(p: Project, led: buying.Ledger, gs: list, ovs: list[OrderView], today: date | None = None, bx=None, waiting: list | None = None) -> dict:
     """The figures of the Buying tracker: the money from budget to paid, what needs attention, and the breakdown by stage,
     category and supplier. Estimated = committed + the lowest quote for the rooms still without a shop. With the
     project's boxes (shipping.Boxes) the shipping side joins: where the boxes are, the shipments and what they need."""
@@ -287,8 +288,10 @@ def tracker(p: Project, led: buying.Ledger, gs: list, ovs: list[OrderView], toda
     unpriced = 0
     estimated = committed = 0.0
     for g in gs:
-        c = cats.setdefault(g.category, dict(category=g.category, products=0, estimated=0.0, committed=0.0, ordered=0.0, paid=0.0, open=0))
+        c = cats.setdefault(g.category, dict(category=g.category, products=0, quoted=0, estimated=0.0, committed=0.0, ordered=0.0, paid=0.0, open=0))
         c["products"] += 1
+        if g.quotes or g.purchases:
+            c["quoted"] += 1
         st = stages[g.stage]
         st["products"] += 1
         st["lines"] += len(g.lines)
@@ -344,20 +347,20 @@ def tracker(p: Project, led: buying.Ledger, gs: list, ovs: list[OrderView], toda
     for ov in sorted((x for x in ovs if x.late), key=lambda x: x.days):
         listed.add(ov.o.id)
         att.append(dict(tone="red", icon="clock", title=f"{ov.ref} was due {ov.ready_text}",
-                        detail=f"{shop(ov)} · ready by {ov.o.ready_date.strftime('%d %b')} · ¥{ov.balance:,.0f} still to pay", href=on(ov)))
+                        detail=f"{shop(ov)} · ready by {ov.o.ready_date.strftime('%d %b')} · {fmt_cur(p, ov.balance)} still to pay", href=on(ov)))
     att += ship_att["red"]
     for ov in (x for x in ovs if x.changed):
         att.append(dict(tone="red", icon="info", title=f"{ov.ref} changed after it was confirmed",
-                        detail=f"Confirmed at ¥{ov.o.confirmed_total:,.0f}, now ¥{ov.total:,.0f}: send the shop the new purchase order", href=on(ov)))
+                        detail=f"Confirmed at {fmt_cur(p, ov.o.confirmed_total)}, now {fmt_cur(p, ov.total)}: send the shop the new purchase order", href=on(ov)))
     for ov in (x for x in ovs if x.o.confirmed and x.deposit_left > 0.005 and x.o.id not in listed):
         listed.add(ov.o.id)
         when = f" · ready {ov.ready_text}" if ov.ready_text else ""
-        att.append(dict(tone="gold", icon="card", title=f"Deposit to pay on {ov.ref}: ¥{ov.deposit_left:,.0f}",
-                        detail=f"{shop(ov)} · {ov.o.deposit_pct:g}% of ¥{ov.total:,.0f}{when}", href=on(ov)))
+        att.append(dict(tone="gold", icon="card", title=f"Deposit to pay on {ov.ref}: {fmt_cur(p, ov.deposit_left)}",
+                        detail=f"{shop(ov)} · {ov.o.deposit_pct:g}% of {fmt_cur(p, ov.total)}{when}", href=on(ov)))
     for ov in sorted((x for x in ovs if x.stage == "Balance due" and x.o.id not in listed and not x.done and x.days is not None and x.days <= lists.balance_days(p)),
                      key=lambda x: x.days):
         listed.add(ov.o.id)
-        att.append(dict(tone="gold", icon="card", title=f"Balance before collection on {ov.ref}: ¥{ov.balance:,.0f}",
+        att.append(dict(tone="gold", icon="card", title=f"Balance before collection on {ov.ref}: {fmt_cur(p, ov.balance)}",
                         detail=f"{shop(ov)} · ready {ov.ready_text}, {ov.o.ready_date.strftime('%d %b')}", href=on(ov)))
     att += ship_att["gold"]
     for ov in sorted((x for x in ovs if x.soon and x.o.id not in listed), key=lambda x: x.days):
@@ -375,12 +378,33 @@ def tracker(p: Project, led: buying.Ledger, gs: list, ovs: list[OrderView], toda
                         href=boxes_at if listed_boxes else on(ov)))
     att += ship_att["blue"]
     for ov in (x for x in ovs if not x.o.confirmed):
-        att.append(dict(tone="muted", icon="file", title=f"Draft {ov.ref} to confirm with the shop", detail=f"{shop(ov)} · ¥{ov.total:,.0f}", href=on(ov)))
+        att.append(dict(tone="muted", icon="file", title=f"Draft {ov.ref} to confirm with the shop", detail=f"{shop(ov)} · {fmt_cur(p, ov.total)}", href=on(ov)))
     att += ship_att["accent"]
     for e in unordered(p, led, ovs):
         name = e["supplier"].name if e["supplier"] is not None else "A shop"
         att.append(dict(tone="accent", icon="bag", title=f"Bought from {name}, not on an order yet",
-                        detail=f"{len(e['views'])} product{'s' if len(e['views']) != 1 else ''} · ¥{e['total']:,.0f}", href=f"{href}/orders#ready"))
+                        detail=f"{len(e['views'])} product{'s' if len(e['views']) != 1 else ''} · {fmt_cur(p, e['total'])}", href=f"{href}/orders#ready"))
+    # sourcing: quotations about to lapse while products they price still have rooms without a shop, sheets not saved yet
+    open_ids = {g.product.id for g in gs if g.product is not None and any(not i.purchase_id for i in g.lines)}
+    revised = {x.replaces_id for x in p.quotations if x.replaces_id}
+    for qd in p.quotations:
+        e = qd.expires
+        if qd.id in revised or e is None or (e - today).days > 7:
+            continue
+        n = len({ln.product_id for ln in qd.lines if ln.action in ("quote", "new") and ln.product_id in open_ids})
+        if not n:
+            continue
+        days = (e - today).days
+        when = (f"expired {-days} day{'s' if days != -1 else ''} ago" if days < 0 else "expires today" if days == 0
+                else f"expires in {days} day{'s' if days != 1 else ''}")
+        name = qd.supplier.name if qd.supplier else "A shop"
+        att.append(dict(tone="red" if days < 0 else "gold", icon="clock", title=f"{qd.title or qd.filename}: {when}",
+                        detail=f"{name} · valid until {e.strftime('%d %b')} · {n} product{'s' if n != 1 else ''} priced on it still without a shop: buy, or ask for a new date",
+                        href=f"{href}/quotations/{qd.id}"))
+    for up in waiting or []:
+        att.append(dict(tone="gold", icon="file", title=f"{up.filename} read, not saved yet",
+                        detail=f"{up.lines or 0} line{'s' if (up.lines or 0) != 1 else ''} waiting since {up.updated_at.strftime('%d %b') if up.updated_at else 'earlier'}: check and save it so its prices count",
+                        href=f"{href}/quotations"))
     n_src, n_q, n_part = (stages[s]["products"] for s in ("To source", "Quoting", "Part sourced"))
     if n_part:
         att.append(dict(tone="accent", icon="layout", title=f"{n_part} product{'s' if n_part != 1 else ''} with rooms still without a shop", detail="Choose the shop for the rest",
@@ -388,12 +412,21 @@ def tracker(p: Project, led: buying.Ledger, gs: list, ovs: list[OrderView], toda
     if n_q:
         att.append(dict(tone="accent", icon="users", title=f"{n_q} product{'s' if n_q != 1 else ''} quoted, no shop chosen", detail="Compare the quotes and buy",
                         href=f"{href}/buying?stage=Quoting"))
+    none_cats = sorted((c for c in cats.values() if not c["quoted"]), key=lambda c: -c["products"])
+    if none_cats:
+        names = ", ".join(f"{c['category']} ({c['products']})" for c in none_cats[:5]) + (f" and {len(none_cats) - 5} more" if len(none_cats) > 5 else "")
+        att.append(dict(tone="muted", icon="search", title=f"No quote yet in {len(none_cats)} categor{'ies' if len(none_cats) != 1 else 'y'}",
+                        detail=f"{names}: send an inquiry sheet", href=f"{href}/quotations#inquiry"))
     if n_src:
         att.append(dict(tone="muted", icon="search", title=f"{n_src} product{'s' if n_src != 1 else ''} with no quote yet", detail="Record what the shops offer",
                         href=f"{href}/buying?stage=To%20source"))
     budget = round((p.budget_usd or 0) * rate, 2)
     order = lists.category_order(p)
+    n_all = len(gs)
+    sourcing = dict(products=n_all, quoted=sum(1 for g in gs if g.quotes or g.purchases), unpriced=unpriced,
+                    left=round(budget - estimated, 2), over=bool(budget) and estimated > budget,
+                    cats=sorted(cats.values(), key=lambda c: (c["quoted"] >= c["products"], c["quoted"] / (c["products"] or 1), order.get(c["category"], len(order)))))
     return dict(budget=budget, estimated=round(estimated, 2), committed=round(committed, 2), ordered=ordered, paid=paid_all, to_pay=to_pay,
-                unpriced=unpriced, attention=att, stages=stages, boxes=bx.counts(), shipments=svs,
+                unpriced=unpriced, attention=att, stages=stages, sourcing=sourcing, boxes=bx.counts(), shipments=svs,
                 cats=sorted(cats.values(), key=lambda c: order.get(c["category"], len(order))),
                 sups=sorted(sups.values(), key=lambda r: -r["committed"]), rate=rate)

@@ -73,7 +73,7 @@
       {% if s.arrived_on %}<dt>Arrived</dt><dd>{{ s.arrived_on.strftime('%d %b %Y') }}</dd>{% endif %}
       {% if s.delivered_on %}<dt>Delivered</dt><dd>{{ s.delivered_on.strftime('%d %b %Y') }}</dd>{% endif %}
       <dt>Container</dt><dd>{{ s.container_no or '—' }}{% if s.seal_no %} <span class="muted">· seal {{ s.seal_no }}</span>{% endif %}</dd>
-      {% if s.cost %}<dt>Freight</dt><dd>¥{{ s.cost|money }} <span class="muted">· ${{ (s.cost / rate)|money }}</span></dd>{% endif %}
+      {% if s.cost %}<dt>Freight</dt><dd>{{ s.cost|cur }} <span class="muted">· {{ (s.cost)|cur_other }}</span></dd>{% endif %}
     </dl>
     <a class="btn sm ghost" href="#details"><svg class="ic"><use href="#i-edit"/></svg>Change the details</a>
   </div>

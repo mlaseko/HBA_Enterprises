@@ -47,7 +47,7 @@
     {% if waiting %}
     <form method="post" action="{{ '/p/' ~ p.id ~ '/orders/' ~ waiting.draft.o.id ~ '/add' if waiting.draft else '/p/' ~ p.id ~ '/orders/new' }}">
       <input type="hidden" name="supplier_id" value="{{ s.id }}">{% for v in waiting.views %}<input type="hidden" name="pu" value="{{ v.purchase.id }}">{% endfor %}
-      <button class="btn sm accent"><svg class="ic"><use href="#i-plus"/></svg>{% if waiting.draft %}Add {{ waiting.views|length }} waiting to {{ waiting.draft.ref }}{% else %}Order the {{ waiting.views|length }} product{{ 's' if waiting.views|length != 1 }} waiting · ¥{{ waiting.total|money }}{% endif %}</button>
+      <button class="btn sm accent"><svg class="ic"><use href="#i-plus"/></svg>{% if waiting.draft %}Add {{ waiting.views|length }} waiting to {{ waiting.draft.ref }}{% else %}Order the {{ waiting.views|length }} product{{ 's' if waiting.views|length != 1 }} waiting · {{ waiting.total|cur }}{% endif %}</button>
     </form>
     {% endif %}
   </div>
@@ -59,7 +59,7 @@
     <tr>
       <td class="nowrap"><a class="b" href="/p/{{ p.id }}/orders/{{ ov.o.id }}">{{ ov.ref }}</a>{% if ov.o.confirmed_on %}<div class="small muted">{{ ov.o.confirmed_on.strftime('%d %b %Y') }}</div>{% endif %}</td>
       <td><span class="badge" style="--c:{{ ORDER_COLORS[ov.stage] }}">{{ ov.stage }}</span></td>
-      <td class="num">¥{{ ov.total|money }}</td><td class="num">¥{{ ov.paid|money }}</td><td class="num b">¥{{ [ov.balance, 0]|max|money }}</td>
+      <td class="num">{{ ov.total|cur }}</td><td class="num">{{ ov.paid|cur }}</td><td class="num b">{{ ([ov.balance, 0]|max)|cur }}</td>
       <td class="small nowrap{{ ' bu-late' if ov.late }}">{{ ov.o.ready_date.strftime('%d %b') if ov.o.ready_date else '—' }}{% if ov.ready_text %}<div class="muted">{{ ov.ready_text }}</div>{% endif %}</td>
       <td class="right"><a class="btn ghost sm" href="/p/{{ p.id }}/orders/{{ ov.o.id }}/po.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>PO</a></td>
     </tr>
@@ -78,15 +78,15 @@
       <a class="btn sec sm" href="/p/{{ p.id }}/payments"><svg class="ic"><use href="#i-card"/></svg>Record a payment</a>
     </div>
     <div class="grid g2 mt">
-      <div class="kpi"><div class="v">¥{{ money.committed|money }}</div><div class="l">bought</div></div>
-      <div class="kpi"><div class="v">¥{{ money.ordered|money }}</div><div class="l">on confirmed orders</div></div>
-      <div class="kpi"><div class="v">¥{{ paid|money }}</div><div class="l">paid</div></div>
-      <div class="kpi accent"><div class="v">¥{{ money.to_pay|money }}</div><div class="l">to pay</div></div>
+      <div class="kpi"><div class="v">{{ money.committed|cur }}</div><div class="l">bought</div></div>
+      <div class="kpi"><div class="v">{{ money.ordered|cur }}</div><div class="l">on confirmed orders</div></div>
+      <div class="kpi"><div class="v">{{ paid|cur }}</div><div class="l">paid</div></div>
+      <div class="kpi accent"><div class="v">{{ money.to_pay|cur }}</div><div class="l">to pay</div></div>
     </div>
     {% if payments %}
     <div class="eyebrow mt">Payments on this project</div>
     <dl class="kv mt">
-      {% for pay in payments %}<dt>{{ pay.paid_on }}</dt><dd>{{ pay.kind }} · <b>¥{{ pay.amount|money }}</b>{% if pay.reference %} <span class="muted">{{ pay.reference }}</span>{% endif %}</dd>{% endfor %}
+      {% for pay in payments %}<dt>{{ pay.paid_on }}</dt><dd>{{ pay.kind }} · <b>{{ pay.amount|cur }}</b>{% if pay.reference %} <span class="muted">{{ pay.reference }}</span>{% endif %}</dd>{% endfor %}
     </dl>
     {% else %}
     <p class="small muted mt">No payments to this supplier on this project yet.</p>
@@ -120,7 +120,7 @@
     <a href="/p/{{ p.id }}/items/{{ i.id }}">{% if i.cover %}<img class="thumb" src="/media/{{ i.cover.thumb }}" alt="{{ i.name }}" data-full="/media/{{ i.cover.file_key }}" data-caption="{{ i.code }} · {{ i.name }}">{% else %}<div class="ph">no photo</div>{% endif %}</a>
     <div class="body">
       <div class="t"><a href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a></div>
-      <div class="m">{{ i.code }} · {{ i.room.name if i.room else 'Whole house' }} · {{ i.qty|num }} {{ i.unit }}{% if i.unit_price %} · ¥{{ i.total|money }}{% endif %}</div>
+      <div class="m">{{ i.code }} · {{ i.room.name if i.room else 'Whole house' }} · {{ i.qty|num }} {{ i.unit }}{% if i.unit_price %} · {{ i.total|cur }}{% endif %}</div>
       <div class="status-row"><span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status }}</span></div>
     </div>
   </div>

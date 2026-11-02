@@ -16,7 +16,7 @@
   <div class="ph-stats">
     <div><div class="v">{{ n }}</div><div class="l">Item{{ 's' if n != 1 }}</div></div>
     {% if ro %}<div><div class="v">${{ ((st.total if st else 0) / usd)|money }}</div><div class="l">Total USD</div></div>
-    {% else %}<div><div class="v">¥{{ (st.total if st else 0)|money }}</div><div class="l">Total CNY</div></div>{% endif %}
+    {% else %}<div><div class="v">{{ (st.total if st else 0)|cur }}</div><div class="l">Total {{ 'USD' if show_usd(p) else 'CNY' }}</div></div>{% endif %}
     <div><div class="v"><span data-received>{{ st.received if st else 0 }}</span><span class="of">/{{ n }}</span></div><div class="l">Received</div></div>
   </div>
   {% include "plan/_inspiration.html" %}
@@ -48,7 +48,7 @@
       {% else %}<a class="pic empty" href="/p/{{ p.id }}/items/{{ i.id }}?next={{ here|urlencode }}" title="Open the item to add a photo">no photo</a>{% endif %}
       <div class="body">
         <a class="t" href="/p/{{ p.id }}/items/{{ i.id }}?next={{ here|urlencode }}">{{ i.name }}</a>
-        <div class="m">{{ i.code }} · {{ i.qty|num }} {{ i.unit }}{% if i.unit_price %} · ¥{{ i.total|money }}{% endif %}{% if i.supplier %} · {{ i.supplier.name }}{% endif %}{% if i.optional %} · optional{% endif %}</div>
+        <div class="m">{{ i.code }} · {{ i.qty|num }} {{ i.unit }}{% if i.unit_price %} · {{ i.total|cur }}{% endif %}{% if i.supplier %} · {{ i.supplier.name }}{% endif %}{% if i.optional %} · optional{% endif %}</div>
       </div>
       <div class="pi-tools">
         <select class="status-sel" data-url="/p/{{ p.id }}/items/{{ i.id }}/status" style="--c:{{ STATUS_COLORS[i.status] }}" aria-label="Status of {{ i.name }}">{% for s in STATUSES %}<option data-c="{{ STATUS_COLORS[s] }}" {{ 'selected' if i.status == s }}>{{ s }}</option>{% endfor %}</select>

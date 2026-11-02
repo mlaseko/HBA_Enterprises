@@ -49,7 +49,7 @@
       {% if ln.action in ('quote', 'new') and ln.product %}
         <a href="/p/{{ p.id }}/buying/{{ ln.product.id }}#quote-{{ ln.quote_id }}" class="pill green">{{ 'New item · ' if ln.action == 'new' }}{{ ln.product.title|truncate(60) }}</a>
         {% if ln.product_id in dropped %}<div><span class="pill red">No rooms left in the design</span></div>{% endif %}
-        {% if ln.quote %}<div class="small muted">¥{{ ln.quote.unit_price|money(2) }} per unit{% if by_quote[ln.quote_id]|length > 1 %} · combined with {{ by_quote[ln.quote_id]|length - 1 }} other line{{ 's' if by_quote[ln.quote_id]|length > 2 }}{% endif %}</div>{% endif %}
+        {% if ln.quote %}<div class="small muted">{{ ln.quote.unit_price|cur(2) }} per unit{% if by_quote[ln.quote_id]|length > 1 %} · combined with {{ by_quote[ln.quote_id]|length - 1 }} other line{{ 's' if by_quote[ln.quote_id]|length > 2 }}{% endif %}</div>{% endif %}
       {% elif ln.action == 'merge' %}<span class="pill gold">Part of L{{ (q.lines|selectattr('id', 'equalto', ln.into_id)|map(attribute='no')|list or ['?'])[0] }}</span>
       {% elif ln.action == 'extra' %}<span class="pill">Extra charge</span>
       {% else %}<span class="pill">Skipped</span>{% endif %}

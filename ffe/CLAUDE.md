@@ -373,6 +373,7 @@ ALTER TABLE cartons ADD COLUMN warehouse_on DATE;                               
 ALTER TABLE cartons ADD COLUMN shipment_id INTEGER;                                       -- the shipment a box is on
 ALTER TABLE projects ADD COLUMN deposit_pct / soon_days / balance_days / lcl_up_to;       -- the project's defaults (lists.py)
 ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                                    -- a revised sheet: the earlier document it corrected
+ALTER TABLE projects ADD COLUMN show_currency VARCHAR(3) NOT NULL DEFAULT 'CNY';           -- the designer's pages: amounts in USD or CNY
 -- new tables (create_all): products, quotes, purchases, orders, shipments, project_lists, quotations, quotation_lines, quote_matches, quotation_uploads, quotation_line_also
 ```
 
@@ -524,6 +525,18 @@ ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                          
   spec and brand · finish · size; room sub-header rows in the by-floor layout), `_summary` (two columns past 13 rows, share bars,
   the pricing note, Prepared by with the studio logo). Suppliers, notes and CNY are never printed (parity with the client link).
   `packing.py` still uses `common.py`; moving it to the theme is the next step of the redesign.
+
+- **Display currency.** `Project.show_currency` (USD | CNY, column via `db.COLUMN_MIGRATIONS`, default CNY; the new project
+  form pre-selects USD; Project settings "Show amounts in"). Storage stays CNY. Jinja filters (common.py, read `p` from the
+  context): `cur` (amount in the project's currency with its symbol), `cur_num` (same, no symbol, for table cells whose header
+  names the currency: `{{ 'USD' if show_usd(p) else 'CNY' }}`), `cur_other` (the other currency, the small line); Python:
+  `common.fmt_cur(p, cny)` (the tracker's attention lines). A quote typed in USD shows its typed amount in USD mode. Compare
+  shops, the Purchase schedule (+ PDF) default to the project's currency; the shop's WeChat text and the PO stay CNY; the client
+  link and schedule are USD whatever the setting. Write new amounts with these filters, never `¥{{ x|money }}`.
+- **Tracker sourcing.** `ordering.tracker(..., waiting=)` (the `QuotationUpload` rows at stage done, from the route) adds
+  `cats[].quoted`, `sourcing` (products, quoted, unpriced, left = budget − estimated, over, cats by coverage) for the
+  `#sourcing` card (shown while a product has no quote), and attention lines: quotations expiring within 7 days or expired
+  (`Quotation.expires`, not revised, with products still open), uploads not saved, categories with no quote (→ `#inquiry`).
 
 - **Item quick view.** `GET /p/<id>/items/<item>/quick` renders `items/_quick.html` (a fragment, read-only). Any
   `a[data-quick]` whose href is the item page opens it in a `.modal.qv` box (app.js) instead of navigating; Ctrl/⌘ click

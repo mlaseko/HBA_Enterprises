@@ -23,7 +23,7 @@
   <div class="kpi"><svg class="ic"><use href="#i-tag"/></svg><div class="v">{{ all.products }}</div><div class="l">Products</div><div class="d">{{ all.lines }} room line{{ 's' if all.lines != 1 }} in the design</div></div>
   <div class="kpi sage"><svg class="ic"><use href="#i-check"/></svg><div class="v">{{ all.covered }}<span class="of">/{{ all.lines }}</span></div><div class="l">Rooms with a shop</div><div class="bar"><i style="width:{{ all.pct }}%"></i></div><div class="d">{{ all.pct }}% sourced</div></div>
   <div class="kpi gold"><svg class="ic"><use href="#i-users"/></svg><div class="v">{{ all.quotes }}</div><div class="l">Quotes recorded</div><div class="d">from {{ all.shops }} shop{{ 's' if all.shops != 1 }}</div></div>
-  <div class="kpi ink"><svg class="ic"><use href="#i-card"/></svg><div class="v">¥{{ all.committed|money }}</div><div class="l">Committed</div><div class="d">${{ (all.committed / rate)|money }} · allowances and whole packs included</div></div>
+  <div class="kpi ink"><svg class="ic"><use href="#i-card"/></svg><div class="v">{{ all.committed|cur }}</div><div class="l">Committed</div><div class="d">{{ (all.committed)|cur_other }} · allowances and whole packs included</div></div>
 </div>
 
 <nav class="bu-stages" aria-label="Stage">
@@ -68,8 +68,8 @@
       <span class="m where"><svg class="ic sm"><use href="#i-layout"/></svg>{{ n }} room{{ 's' if n != 1 }}{% if g.floors %} · {{ g.floors|join(', ') }}{% endif %}</span>
       <span class="facts">
         <span><span class="v">{{ o.qty|num(2) }}<small>{{ g.unit }}</small></span><span class="l">to order{% if o.packs %} · {{ o.packs }} {{ g.pack_name or 'pack' }}{{ ('es' if (g.pack_name or 'pack')[-1:] in 'xs' else 's') if o.packs != 1 }}{% endif %}</span></span>
-        {% if g.committed %}<span><span class="v">¥{{ g.committed|money }}</span><span class="l">committed</span></span>
-        {% elif best %}<span><span class="v">¥{{ best.unit_price|money(2) }}<small>/{{ g.unit }}</small></span><span class="l">best quote</span></span>
+        {% if g.committed %}<span><span class="v">{{ g.committed|cur }}</span><span class="l">committed</span></span>
+        {% elif best %}<span><span class="v">{{ best.unit_price|cur(2) }}<small>/{{ g.unit }}</small></span><span class="l">best quote</span></span>
         {% else %}<span class="none"><span class="v">—</span><span class="l">no price yet</span></span>{% endif %}
       </span>
       <span class="shop">{% if pus %}<svg class="ic sm"><use href="#i-truck"/></svg><span>{{ pus[0].supplier.name if pus[0].supplier else 'A shop' }}{% if pus|length > 1 %} + {{ pus|length - 1 }} more{% endif %}</span>
@@ -80,12 +80,12 @@
   </a>{% endmacro %}
 {% for cat, gs, fams in sections %}
 {% set cat_total = gs|sum(attribute='committed') %}
-<div class="group-title"><h2>{{ cat }}</h2><span class="n">{{ gs|length }} product{{ 's' if gs|length != 1 }}{% if cat_total %} · ¥{{ cat_total|money }}{% endif %}</span></div>
+<div class="group-title"><h2>{{ cat }}</h2><span class="n">{{ gs|length }} product{{ 's' if gs|length != 1 }}{% if cat_total %} · {{ cat_total|cur }}{% endif %}</span></div>
 <div class="cards bu-grid">
   {% for fam in fams %}{% if fam.one %}{{ bu_card(fam.members[0]) }}{% else %}
   {% set fl = fam.members|map(attribute='lines')|map('length')|sum %}{% set fc = fam.members|sum(attribute='committed') %}
   <div class="bu-fam" data-search="{{ fam.name }} {{ fam.finish }} variants">
-    <div class="bu-fam-h"><span class="t">{{ fam.name }}</span>{% if fam.finish %}<span class="m">· {{ fam.finish }}</span>{% endif %}<span class="pill">{{ fam.members|length }} variants</span><span class="m">{{ fl }} room{{ 's' if fl != 1 }}{% if fc %} · ¥{{ fc|money }} committed{% endif %}</span></div>
+    <div class="bu-fam-h"><span class="t">{{ fam.name }}</span>{% if fam.finish %}<span class="m">· {{ fam.finish }}</span>{% endif %}<span class="pill">{{ fam.members|length }} variants</span><span class="m">{{ fl }} room{{ 's' if fl != 1 }}{% if fc %} · {{ fc|cur }} committed{% endif %}</span></div>
     <div class="cards bu-grid">{% for g in fam.members %}{{ bu_card(g, true) }}{% endfor %}</div>
   </div>{% endif %}{% endfor %}
 </div>

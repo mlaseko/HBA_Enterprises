@@ -33,6 +33,7 @@ def get_db():
 # is listed here with the SQL that adds it (SQLite and Postgres both accept ADD COLUMN ... DEFAULT) and migrate() applies
 # the missing ones at startup. Prefer a new table when you can; when a column is the right model, add it here too.
 COLUMN_MIGRATIONS = [
+    ("projects", "show_currency", "VARCHAR(3) NOT NULL DEFAULT 'CNY'"),  # the designer's pages: amounts in USD or CNY
     ("items", "draft", "BOOLEAN NOT NULL DEFAULT FALSE"),           # quick-capture drafts
     ("rooms", "kind", "VARCHAR(10) NOT NULL DEFAULT 'room'"),       # room | area
     ("project_images", "layer", "VARCHAR(20) NOT NULL DEFAULT 'main'"),  # what a floor plan shows (a plan_layers key, layers.py)
