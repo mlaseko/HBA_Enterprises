@@ -1491,7 +1491,14 @@ def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head:
     known = memory(db, supplier)
     stats = {"added": 0, "updated": 0, "design": 0}
     updates: dict[int, tuple[Candidate, dict]] = {}
+    work: list[tuple[int, list[int], str]] = []  # (product, its lines, the option's label or '')
     for pid, nos in per_product.items():
+        if len(nos) > 1 and any(choices.get(n, {}).get("opts") for n in nos):  # options to choose: a quote per line
+            labels = option_labels([by_no[n] for n in nos], choices)
+            work += [(pid, [n], labels[n]) for n in nos]
+        else:
+            work.append((pid, nos, ""))
+    for pid, nos, option in work:
         c = cands[pid]
         main = [by_no[n] for n in nos]
         groups = [(by_no[n], [by_no[m] for m in merged_into.get(n, [])]) for n in nos]
@@ -1510,16 +1517,18 @@ def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head:
         if detail:
             note.append(detail[:600])
         pack = next((l["pack_size"] for l in main if l["pack_size"]), 0)
-        quote = existing_quote(c.product, supplier)
+        quote = existing_quote(c.product, supplier, option)
         replaced = quote is not None
         if quote is None:
-            quote = Quote(project_id=p.id, product=c.product)
+            quote = Quote(project_id=p.id, product=c.product, option_label=option)
             db.add(quote)
             stats["added"] += 1
         else:
             stats["updated"] += 1
             note.insert(1, f"Replaces this shop's earlier quote of {quote.currency} {quote.amount:g}.")
-        buying.set_quote(quote, p, supplier=supplier, brand=quote.brand if replaced else "", model=", ".join(refs)[:160], amount=unit_price,
+        if option:
+            note.insert(1, f"One of the options to choose for this product: {option}.")
+        buying.set_quote(quote, p, supplier=supplier, brand=quote.brand if replaced else "", model=_option_model(option, refs), amount=unit_price,
                          currency=q.currency, pack_size=pack if c.unit in ("m²", "pcs") else 0, moq=quote.moq if replaced else "",
                          lead_time=(q.lead_time or "")[:60], notes="\n".join(note))
         pk = next((pictures[l["no"]][0] for l in main if pictures.get(l["no"], ("", ""))[0]), None)
@@ -1556,6 +1565,13 @@ def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head:
             q.replaces_id = prev.quotation_id
     q.stats = stats  # not stored: for the message after applying
     return q
+
+
+def _option_model(option: str, refs: list[str]) -> str:
+    """The quote's model: the shop's item numbers, with the option's label first when it is one of the options (the
+    purchase order then names the option the shop is to supply)."""
+    parts = ([option] if option else []) + [r for r in refs if _norm(r) != _norm(option)]
+    return ", ".join(parts)[:160]
 
 
 def discount_factor(q: Quotation) -> float:
@@ -1629,11 +1645,27 @@ def make_items(db: Session, p: Project, q: Quotation, l: dict, name: str, catego
     return first
 
 
-def existing_quote(product: Product, supplier: Supplier | None) -> Quote | None:
-    """The quote this shop already gave for the product, if any: a new sheet corrects it rather than adding a second."""
+def existing_quote(product: Product, supplier: Supplier | None, option: str = "") -> Quote | None:
+    """The quote this shop already gave for the product, if any: a new sheet corrects it rather than adding a second.
+    `option` = an option's label: the shop's quote for that option (options to choose are a quote each)."""
     if supplier is None:
         return None
-    return next((x for x in product.quotes if x.supplier_id == supplier.id), None)
+    o = _norm(option)
+    return next((x for x in product.quotes if x.supplier_id == supplier.id and _norm(x.option_label or "") == o), None)
+
+
+def option_labels(lines: list[dict], choices: dict[int, dict]) -> dict[int, str]:
+    """The label of each line of a product offered as options to choose: what the designer typed, else variant_label(),
+    else "Option A", "Option B"…; made unique within the product."""
+    out: dict[int, str] = {}
+    seen: set[str] = set()
+    for k, l in enumerate(lines):
+        label = " ".join((choices.get(l["no"], {}).get("variant") or variant_label(l) or "").split())[:56]
+        if not label or _norm(label) in seen:
+            label = (f"{label} ({chr(65 + k)})" if label else f"Option {chr(65 + k) if k < 26 else k + 1}")[:60]
+        seen.add(_norm(label))
+        out[l["no"]] = label
+    return out
 
 
 def remember(db: Session, supplier: Supplier, line: dict, key: str, known: list[QuoteMatch]) -> None:
@@ -1722,7 +1754,8 @@ def _bought(db: Session, quote: Quote) -> int:
 def sheet_quotes(q: Quotation) -> set[int]:
     """The quotes this sheet stands behind: its shop's quote on every product its lines quote or also price."""
     prods = {ln.product for ln in q.lines if ln.product is not None} | {a.product for ln in q.lines for a in ln.also if a.product is not None}
-    return {qu.id for pr in prods if (qu := existing_quote(pr, q.supplier)) is not None}
+    return {qu.id for pr in prods if (qu := existing_quote(pr, q.supplier)) is not None} | \
+        {ln.quote_id for ln in q.lines if ln.quote_id and ln.quote is not None and ln.quote.option_label}
 
 
 def reprice(db: Session, p: Project, q: Quotation, product_ids, ours: set[int] | None = None) -> list[str]:
@@ -1741,7 +1774,27 @@ def reprice(db: Session, p: Project, q: Quotation, product_ids, ours: set[int] |
         if c is None:
             continue
         own = [ln for ln in q.lines if ln.product_id == pid and ln.action in ("quote", "new")]
-        also = [ln for ln in q.lines if ln not in own and any(a.product_id == pid for a in ln.also)]
+        for ln in [x for x in own if x.quote is not None and x.quote.option_label and x.quote.product_id == pid]:  # an option: its own quote, from its line
+            own.remove(ln)
+            quote = ln.quote
+            groups = [(line_dict(ln), [line_dict(x) for x in q.lines if x.action == "merge" and x.into_id == ln.id])]
+            unit_price, refs, note = price_lines(q, c, groups, factor)
+            note.insert(1, f"One of the options to choose for this product: {quote.option_label}.")
+            note.append(f"Amended on the quotation's page on {dt.date.today().isoformat()}.")
+            before = quote.amount
+            buying.set_quote(quote, p, supplier=q.supplier, brand=quote.brand, model=_option_model(quote.option_label, refs), amount=unit_price,
+                             currency=q.currency, pack_size=quote.pack_size, moq=quote.moq, lead_time=(q.lead_time or "")[:60], notes="\n".join(note))
+            db.flush()
+            n = _bought(db, quote)
+            buying.follow_quote(db, quote)
+            if n and abs((before or 0) - unit_price) > 1e-6:
+                warns.append(f"{c.title} ({quote.option_label}): {n} purchase{'s' if n != 1 else ''} made from this option now cost {q.currency} {unit_price:g} per unit instead of {before:g}.")
+            for x in q.lines:
+                if x.action == "merge" and x.into_id == ln.id:
+                    x.quote_id = quote.id
+        also = [ln for ln in q.lines if ln not in own and ln.product_id != pid and any(a.product_id == pid for a in ln.also)]
+        if not own and not also and any(ln.product_id == pid and ln.quote is not None and ln.quote.option_label for ln in q.lines):
+            continue  # only options on it: done above
         quote = existing_quote(c.product, q.supplier)
         if not own and not also:
             if quote is not None and quote.id in ours:
@@ -1781,6 +1834,22 @@ def reprice(db: Session, p: Project, q: Quotation, product_ids, ours: set[int] |
             for x in q.lines:
                 if x.action == "merge" and x.into_id == ln.id:
                     x.quote_id = quote.id
+    db.flush()
+    for qid in sorted(ours):  # an option of this sheet whose line now quotes something else goes, unless rooms were bought from it
+        quote = db.get(Quote, qid)
+        if quote is None or not quote.option_label:
+            continue
+        if any(ln.quote_id == qid and ln.action in ("quote", "new") and ln.product_id == quote.product_id for ln in q.lines):
+            continue
+        n = _bought(db, quote)
+        if n:
+            warns.append(f"Option {quote.option_label}: its quote stays, {n} purchase{'s were' if n != 1 else ' was'} made from it.")
+            continue
+        for ln in q.lines:
+            if ln.quote_id == qid:
+                ln.quote_id = None
+        db.flush()
+        buying.delete_quote(db, quote)
     return warns
 
 

@@ -70,6 +70,41 @@
   </div>
 </div>
 
+{# ---- options to choose ---- #}
+{% if g.options %}{% set orows = g.option_rooms() %}
+<section class="bu-sec" id="options">
+  <div class="bu-sec-head">
+    <div><h2>Options to choose <span class="n">{{ g.options|length }}</span></h2>
+      <p class="small muted">Each room needs {{ orows[0].need|num(2) if orows else 1 }} {{ unit }}. Tick the option it takes, or two for a room that rotates them: the quantity goes up by itself. Until a room is chosen the budget counts the dearest option. Only the chosen options go on the order.</p></div>
+    {% if g.rooms_open %}<span class="pill gold">{{ g.rooms_open }} room{{ 's' if g.rooms_open != 1 }} to choose</span>{% else %}<span class="pill green">All chosen</span>{% endif %}
+  </div>
+  <form method="post" action="/p/{{ p.id }}/buying/{{ prod.id }}/options" class="card opt-card">
+    <div class="opt-heads" style="--n:{{ g.options|length }}">
+      <div class="opt-corner small muted">Room</div>
+      {% for q in g.options %}{% set t = g.quote_total(q) %}
+      <div class="opt-head">
+        {% if q.thumb %}<a class="pic" href="/media/{{ q.photo_key }}" target="_blank" data-caption="{{ q.option_label }} · {{ g.name }}"><img src="/media/{{ q.thumb }}" alt=""></a>{% else %}<span class="pic empty"><svg class="ic"><use href="#i-image"/></svg></span>{% endif %}
+        <div class="opt-name"><span class="opt-letter">{{ 'ABCDEFGHIJ'[loop.index0] if loop.index0 < 10 else loop.index }}</span> <b>{{ q.option_label }}</b></div>
+        <div class="small muted">{{ q.supplier.name if q.supplier else 'Shop not known' }}{% set mdl = q.model[q.option_label|length + 2:] if q.model.startswith(q.option_label ~ ', ') else ('' if q.model == q.option_label else q.model) %}{% if mdl %} · {{ mdl }}{% endif %}</div>
+        <div class="opt-price">{% if q.unit_price %}{% if show_usd(p) and q.currency == 'USD' %}${{ q.amount|money(2) }}{% else %}{{ q.unit_price|cur(2) }}{% endif %} <span class="small muted">{{ per }}</span>{% else %}<span class="muted">No price yet</span>{% endif %}</div>
+        {% if q.unit_price %}<button class="btn sm sec" name="all" value="{{ q.id }}" title="Every room takes this option only">All rooms</button>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% for r in orows %}{% set rid = r.room.id if r.room else 0 %}
+    <div class="opt-row{{ ' locked' if r.locked }}{{ ' open' if not r.chosen and not r.other }}" style="--n:{{ g.options|length }}">
+      <div class="opt-room"><b>{{ r.room.code if r.room else 'ALL' }}</b> {{ r.room.name if r.room else 'Whole house' }}
+        <div class="small muted">{% if r.chosen|length > 1 %}{{ r.chosen|length }} options · {{ (r.need * r.chosen|length)|num(2) }} {{ unit }}{% elif r.chosen %}{{ r.need|num(2) }} {{ unit }}{% elif r.other %}bought from {{ r.other.supplier.name if r.other.supplier else 'a shop' }}{% else %}not chosen yet{% endif %}{% if r.locked %} · on a confirmed order{% endif %}</div></div>
+      {% for q in g.options %}
+      <label class="opt-cell"><input type="checkbox" name="pick_{{ rid }}" value="{{ q.id }}"{{ ' checked' if q.id in r.chosen }}{{ ' disabled' if r.locked or not q.unit_price }} aria-label="{{ q.option_label }} for {{ r.room.code if r.room else 'the whole house' }}"><span>{{ 'ABCDEFGHIJ'[loop.index0] if loop.index0 < 10 else loop.index }}</span></label>
+      {% endfor %}
+    </div>
+    {% endfor %}
+    <div class="row mt"><button class="btn sm"><svg class="ic"><use href="#i-check"/></svg>Save the choices</button><span class="small muted">A room with two options gets a second line (its own code); untick one and that line goes again.</span></div>
+  </form>
+</section>
+{% endif %}
+
 {# ---- quotes ---- #}
 <section class="bu-sec" id="quotes">
   <div class="bu-sec-head">
@@ -86,7 +121,7 @@
         <div class="who">
           <div class="shop">{{ q.supplier.name if q.supplier else 'Shop not known' }}</div>
           {% if q.supplier %}<div class="m">{{ [q.supplier.city, ('WeChat ' ~ q.supplier.wechat) if q.supplier.wechat else '']|select|join(' · ') }}{% if q.supplier.phone %}{% if q.supplier.city or q.supplier.wechat %} · {% endif %}<a href="tel:{{ q.supplier.phone|replace(' ', '') }}">{{ q.supplier.phone }}</a>{% endif %}</div>{% endif %}
-          {% if v or is_best %}<div class="tags">{% if v %}<span class="pill accent"><svg class="ic sm"><use href="#i-check"/></svg>Buying for {{ v.lines|length }} room{{ 's' if v.lines|length != 1 }}</span>{% endif %}{% if is_best %}<span class="pill green">Lowest price</span>{% endif %}</div>{% endif %}
+          {% if v or is_best or q.option_label %}<div class="tags">{% if q.option_label %}<span class="pill gold" title="One of the options to choose (above)">Option: {{ q.option_label }}</span>{% endif %}{% if v %}<span class="pill accent"><svg class="ic sm"><use href="#i-check"/></svg>Buying for {{ v.lines|length }} room{{ 's' if v.lines|length != 1 }}</span>{% endif %}{% if is_best %}<span class="pill green">Lowest price</span>{% endif %}</div>{% endif %}
         </div>
       </header>
       <div class="price">

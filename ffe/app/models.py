@@ -547,6 +547,10 @@ class Quote(Base):
     notes: Mapped[str] = mapped_column(Text, default="")
     photo_key: Mapped[str] = mapped_column(String(255), default="")
     thumb_key: Mapped[str] = mapped_column(String(255), default="")
+    # One of the options to choose from (a shop quoting two carpets for a room that needs one): its label ("Grey wool");
+    # '' = a plain quote. The designer chooses on the product's Buying page (buying.choose_options): a room that takes two
+    # options gets a second line. Added by db.COLUMN_MIGRATIONS.
+    option_label: Mapped[str] = mapped_column(String(60), default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     product: Mapped["Product"] = relationship(back_populates="quotes")
     supplier: Mapped["Supplier | None"] = relationship(lazy="joined")

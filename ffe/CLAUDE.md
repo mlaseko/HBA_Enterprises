@@ -374,6 +374,7 @@ ALTER TABLE cartons ADD COLUMN shipment_id INTEGER;                             
 ALTER TABLE projects ADD COLUMN deposit_pct / soon_days / balance_days / lcl_up_to;       -- the project's defaults (lists.py)
 ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                                    -- a revised sheet: the earlier document it corrected
 ALTER TABLE projects ADD COLUMN show_currency VARCHAR(3) NOT NULL DEFAULT 'CNY';           -- the designer's pages: amounts in USD or CNY
+ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';              -- one of the options to choose ('' = a plain quote)
 -- new tables (create_all): products, quotes, purchases, orders, shipments, project_lists, quotations, quotation_lines, quote_matches, quotation_uploads, quotation_line_also
 ```
 
@@ -542,6 +543,20 @@ ALTER TABLE projects ADD COLUMN show_currency VARCHAR(3) NOT NULL DEFAULT 'CNY';
   `a[data-quick]` whose href is the item page opens it in a `.modal.qv` box (app.js) instead of navigating; Ctrl/⌘ click
   and no-JS still open the page. Used on the Buying product page, order lines, the line picks and the quotation's
   variants card. The variants card shows a picture per variant (`families()` → `pic`: rooms' cover, else quote/line photo).
+
+- **Options to choose.** A shop offering several designs for rooms that need one (two carpets per bedroom) is saved with
+  the preview's split card on **Options to choose from** (`split_<product>` = `opts`, `_read_form` → `choice["opts"]`):
+  `apply` makes one `Quote` per line with `Quote.option_label` (`option_labels()`: the typed `vlabel_<line>`, else
+  `variant_label`, else Option A…; unique per product) and `model` = label + the shop's codes (`_option_model`, so the PO
+  names it); `existing_quote(product, shop, option)` keys a shop's quote by option; `sheet_quotes` includes option quotes;
+  `reprice` reprices an option line alone and deletes an option quote whose line moved away (kept if bought from). The
+  product page's `#options` grid (`Group.options`, `option_rooms()`, `rooms_open`) posts to `/buying/<product>/options`
+  → `buying.choose_options(db, p, product, g, picks)`: each room's ticked options are bought through `buy()` one line
+  each; an extra option adds a line in the room (`SHARED_FIELDS`, the first line's qty, `next_code`), an option unticked
+  deletes its line (photos released; Shipped / Received lines are only uncovered), nothing ticked leaves one open line;
+  rooms with a line on a confirmed order are skipped and counted (`locked`). The Tracker estimates open rooms at
+  `Group.estimate_quote` (the dearest option while options exist, else the lowest quote) and lists the products with
+  rooms to choose (→ `/buying?options=1`); the Buying list card shows the price range and a "to choose" pill.
 
 - **Delete from the item page.** `POST /p/<id>/items/<item>/delete` deletes that room's line; with `scope=all` it
   deletes the product in every room (the line plus `same_item_elsewhere`), photos released against the survivors, then

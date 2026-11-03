@@ -300,7 +300,7 @@ def tracker(p: Project, led: buying.Ledger, gs: list, ovs: list[OrderView], toda
         open_lines = [i for i in g.lines if not i.purchase_id]
         if open_lines:
             c["open"] += 1
-            best = g.best_quote
+            best = g.estimate_quote  # the dearest option while options are open
             if best is not None:
                 o_ = buying.order_qty(sum(i.qty or 0 for i in open_lines), g.allowance, best.pack_size or g.pack_size, g.unit, whole=g.whole)
                 est += o_["qty"] * (best.unit_price or 0)
@@ -406,6 +406,13 @@ def tracker(p: Project, led: buying.Ledger, gs: list, ovs: list[OrderView], toda
                         detail=f"{up.lines or 0} line{'s' if (up.lines or 0) != 1 else ''} waiting since {up.updated_at.strftime('%d %b') if up.updated_at else 'earlier'}: check and save it so its prices count",
                         href=f"{href}/quotations"))
     n_src, n_q, n_part = (stages[s]["products"] for s in ("To source", "Quoting", "Part sourced"))
+    to_choose = [g for g in gs if g.options and g.rooms_open]
+    if to_choose:
+        one = to_choose[0]
+        att.append(dict(tone="gold", icon="layout", title=f"{len(to_choose)} product{'s' if len(to_choose) != 1 else ''} with options to choose",
+                        detail=", ".join(f"{g.name} ({len(g.options)} options, {g.rooms_open} room{'s' if g.rooms_open != 1 else ''} open)" for g in to_choose[:4])
+                        + (f" and {len(to_choose) - 4} more" if len(to_choose) > 4 else "") + ": counted at the dearest option until chosen",
+                        href=f"{href}/buying/{one.product.id}#options" if len(to_choose) == 1 and one.product is not None else f"{href}/buying?options=1"))
     if n_part:
         att.append(dict(tone="accent", icon="layout", title=f"{n_part} product{'s' if n_part != 1 else ''} with rooms still without a shop", detail="Choose the shop for the rest",
                         href=f"{href}/buying?stage=Part%20sourced"))
