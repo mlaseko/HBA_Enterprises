@@ -55,7 +55,7 @@
       {% else %}<span class="pill">Skipped</span>{% endif %}
       {% if ln.also %}<div class="small">Also prices {% for a in ln.also %}<a href="/p/{{ p.id }}/buying/{{ a.product_id }}">{{ (a.product.title if a.product else '')|truncate(50) }}</a>{{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
       {% if not revised_by %}<a class="small qi-change" href="/p/{{ p.id }}/quotations/{{ q.id }}/lines/{{ ln.id }}">Change…</a>{% endif %}
-      {% if ln.notes %}<div class="small qi-notes">{% for f in ln.notes.split('; ') %}{% if '(accepted' in f %}<span class="pill green">&#10003; {{ f }}</span>{% else %}<span class="pill {{ 'red' if f.startswith(('thickness', 'anti-slip', 'slip', 'finish', 'material')) else 'gold' }}">&#9888; {{ f }}</span>{% endif %} {% endfor %}</div>{% endif %}
+      {% if ln.notes %}<div class="small qi-notes">{% for f in ln.notes.split('; ') if not (ln.id in qty_fine and f.startswith('quantity ')) %}{% if '(accepted' in f %}<span class="pill green">&#10003; {{ f }}</span>{% else %}<span class="pill {{ 'red' if f.startswith(('thickness', 'anti-slip', 'slip', 'finish', 'material')) else 'gold' }}">&#9888; {{ f }}</span>{% endif %} {% endfor %}</div>{% endif %}
     </td>
   </tr>
   {% endfor %}

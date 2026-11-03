@@ -399,14 +399,24 @@ def quotation_page(request: Request, quotation_id: int, p: Project = Depends(get
         if ln.quote_id:
             by_quote.setdefault(ln.quote_id, []).append(ln)
     counts = {a: sum(1 for ln in q.lines if ln.action == a) for a in ACTIONS}
-    by_cand = {c.id: c.category for c in qz.candidates(db, p)}
+    cands_now = qz.candidates(db, p)
+    by_cand = {c.id: c.category for c in cands_now}
+    # a quantity note written line by line (one AC per room, each on its own line) is moot when the lines on the
+    # product add up to what the rooms need: such lines do not show it
+    need = {c.id: c.qty for c in cands_now}
+    total_on: dict[int, float] = {}
+    for ln in q.lines:
+        if ln.product_id and ln.action in ("quote", "new"):
+            total_on[ln.product_id] = total_on.get(ln.product_id, 0) + (ln.qty or 0)
+    qty_fine = {ln.id for ln in q.lines if ln.product_id in total_on and need.get(ln.product_id)
+                and 0.6 <= total_on[ln.product_id] / need[ln.product_id] <= 1.5}
     # products this sheet priced that no room has any more (deleted from the design since): the page says so on the line
     dropped = {ln.product_id for ln in q.lines if ln.product_id and ln.action in ("quote", "new") and ln.product_id not in by_cand}
     cmp_cat = next((by_cand[ln.product_id] for ln in q.lines if ln.product_id in by_cand), "")
     revises = db.get(Quotation, q.replaces_id) if q.replaces_id else None
     revised_by = db.query(Quotation).filter(Quotation.replaces_id == q.id).order_by(Quotation.id.desc()).first()
     return render(request, "buying/quotation.html", p=p, q=q, gaps=gaps, counts=counts, ok=ok[:200], err=err[:300], warn=warn[:600], by_quote=by_quote,
-                  revises=revises, revised_by=revised_by, cmp_cat=cmp_cat, families=qz.families(db, p, q), dropped=dropped,
+                  revises=revises, revised_by=revised_by, cmp_cat=cmp_cat, families=qz.families(db, p, q), dropped=dropped, qty_fine=qty_fine,
                   lines_total=round(sum(ln.amount or 0 for ln in q.lines), 2))
 
 
