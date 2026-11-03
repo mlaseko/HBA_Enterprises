@@ -1399,8 +1399,10 @@ details.qi-more>summary{cursor:pointer;font-size:.8rem;color:var(--ink-2);list-s
 body.qi-walking .qi-line{grid-template-columns:1fr}body.qi-walking .qi-summary,body.qi-walking .qi-views,body.qi-walking #qi-splits,body.qi-walking #qi-sim,body.qi-walking #document{display:none}body.qi-walking .qi-line .qi-acts .btn{padding:10px 16px;font-size:.95rem}body.qi-walking .fab.qi-decide,body.qi-walking .page-head p.sub{display:none}
 #qi-splits{margin-bottom:12px}.qi-split-card{border-color:var(--gold);margin-bottom:10px}.qi-split-head{display:flex;align-items:center;gap:8px;cursor:pointer}.qi-split-head input{width:18px;height:18px}
 .qi-split-modes{display:grid;gap:6px;margin:8px 0}.qi-split-modes label{display:flex;gap:8px;align-items:flex-start;cursor:pointer;line-height:1.35}.qi-split-modes input{width:18px;height:18px;flex:none;margin-top:1px}
-.qi-opts-body .qi-vhead,.qi-opts-body .qi-orow{display:grid;grid-template-columns:1fr minmax(160px,260px);gap:8px;align-items:center;padding:4px 0}
-@media(max-width:640px){.qi-opts-body .qi-orow{grid-template-columns:1fr}}
+.qi-splits-all{gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.qi-opic{width:56px;height:56px;border-radius:8px;overflow:hidden;background:var(--line-2);display:flex;align-items:center;justify-content:center;color:var(--muted-2)}.qi-opic img{width:100%;height:100%;object-fit:cover}
+.qi-opts-body .qi-vhead,.qi-opts-body .qi-orow{display:grid;grid-template-columns:56px 1fr minmax(160px,260px);gap:8px;align-items:center;padding:4px 0}
+@media(max-width:640px){.qi-opts-body .qi-orow{grid-template-columns:56px 1fr}.qi-opts-body .qi-orow>div:last-child{grid-column:1/-1}}
 .qi-vhead,.qi-vrow{display:grid;grid-template-columns:minmax(140px,1fr) minmax(120px,.7fr) 2fr;gap:8px;align-items:start;padding:8px 0;border-top:1px solid var(--line)}.qi-vhead{border-top:0;padding-bottom:0;margin-top:8px}
 .qi-vgroup{margin-top:10px;padding:4px 8px;background:var(--surface-2);border-radius:var(--r-sm);font-size:.85rem}.qi-vgroup+.qi-vrow{border-top:0}
 .qi-vrooms{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.qi-chip.vr.on{border-color:var(--green);background:var(--green-soft);color:var(--green)}.qi-vmore{width:auto;max-width:160px;font-size:.78rem;padding:2px 6px}
