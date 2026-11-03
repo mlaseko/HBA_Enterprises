@@ -305,6 +305,14 @@ name** (or set the Kind by hand): every existing entry starts as a room.
   quote (`buying.follow_renames`); the generic product left without rooms, quotes or purchases is removed. The document
   page's "Products and variants" card (`POST /quotations/<q>/variants`: `label_<product>`, `var_<item>`) renames
   variants and moves room lines between them; the preview's quantities table groups a family's variants under one row.
+- Options to choose (`Quote.option_label`, `quotations.option_labels`, `buying.choose_options`): the split card's third
+  choice (`split_<product>` = `opts`; `1` = split by model, '' = keep as one) saves each line of the product as its own
+  quote named by `vlabel_<line>` (else `variant_label`, else Option A, B…; `existing_quote(product, shop, option)` finds it
+  on the next sheet; `reprice` reprices an option from its line alone and drops an option whose line moved away). The
+  product page's `#options` grid (`POST /p/<id>/buying/<product>/options`: `pick_<room id>` = option quote ids, or `all`)
+  buys each room from the options ticked; a second option adds a line in the room with the same quantity, dropping it
+  deletes that line, rooms on a confirmed order are kept. `Group.estimate_quote` (the dearest option while options are
+  open) is what the Tracker estimates with; `Group.rooms_open` drives the Tracker's attention line and `/buying?options=1`.
 - A sheet with a summary table and its breakdown: `_parse_sheet` numbers the tables (`line["table"]`) and `_mark_breakdowns`
   sets `summary_of` / `part_of` when one table's lines add up to a line of another; `suggest` merges the parts into the
   summary line and `apply` / the preview count their amounts once (`is_breakdown`). `Quotation.replaces_id` (column via

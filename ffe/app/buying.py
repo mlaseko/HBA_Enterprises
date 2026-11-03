@@ -194,6 +194,47 @@ class Group:
         priced = [q for q in self.quotes if q.unit_price]
         return min(priced, key=lambda q: q.unit_price) if priced else None
 
+    @property
+    def options(self) -> list[Quote]:
+        """The quotes that are options to choose from (Quote.option_label), in the order they came."""
+        return [q for q in self.quotes if q.option_label]
+
+    @property
+    def estimate_quote(self) -> Quote | None:
+        """The quote the budget counts for the rooms without a shop: the dearest option while options are open (the safe
+        side until the client chooses), else the lowest price."""
+        priced = [q for q in self.options if q.unit_price]
+        return max(priced, key=lambda q: q.unit_price) if priced else self.best_quote
+
+    @cached_property
+    def rooms_open(self) -> int:
+        """While options are offered: the rooms where none is chosen yet (0 when the product has no options)."""
+        if not self.options:
+            return 0
+        ids = {q.id for q in self.options}
+        by_room: dict = {}
+        for i in self.lines:
+            by_room.setdefault(i.room_id or 0, []).append(i)
+        return sum(1 for ls in by_room.values() if not any(i.purchase is not None and i.purchase.quote_id in ids for i in ls)
+                   and not any(i.purchase_id for i in ls))
+
+    def option_rooms(self) -> list[dict]:
+        """The rooms of the product with the options chosen in each: [{room, lines, need (the quantity of one line),
+        chosen (option quote ids), locked (a line on a confirmed order: not changed here)}], in schedule order."""
+        ids = {q.id for q in self.options}
+        out: dict = {}
+        for i in self.lines:
+            r = out.setdefault(i.room_id or 0, dict(room=i.room, lines=[], need=i.qty or 0, chosen=[], locked=False, other=None))
+            r["lines"].append(i)
+            pu = i.purchase
+            if pu is not None and pu.quote_id in ids:
+                r["chosen"].append(pu.quote_id)
+            elif pu is not None:
+                r["other"] = pu
+            if pu is not None and pu.order is not None and pu.order.confirmed:
+                r["locked"] = True
+        return list(out.values())
+
     def purchase_view(self, pu: Purchase) -> dict:
         if self.ledger is not None and pu.id in self.ledger.pv:
             return self.ledger.pv[pu.id]
@@ -505,6 +546,79 @@ def set_rooms(db: Session, p: Project, pu: Purchase, lines: list[Item], all_line
         elif i.purchase is pu:
             uncover(i)
     prune(db, p)
+
+
+def choose_options(db: Session, p: Project, product: Product, g: Group, picks: dict[int, list[int]]) -> dict:
+    """The options chosen per room, as ticked on the product's Buying page: picks = {room id (0 = no room): [option quote
+    ids]}. A room takes one line per option chosen: a second option adds a line in the room with the same quantity (so the
+    quantity goes up), dropping it removes that line again; a room with nothing chosen keeps one line, without a shop. A
+    room bought from a plain quote moves to the option ticked. Rooms on a confirmed order are left as they are. Returns
+    {chosen, added, removed, locked} (rooms, lines, lines, rooms)."""
+    from .routers.items import SHARED_FIELDS
+    from .services import next_code, release_photos
+    opts = {q.id: q for q in g.options}
+    order = [q.id for q in g.options]
+    stats = dict(chosen=0, added=0, removed=0, locked=0)
+    doomed: list[Item] = []
+    for r in g.option_rooms():
+        rid = r["room"].id if r["room"] is not None else 0
+        want = [qid for qid in order if qid in set(picks.get(rid, []))]
+        if r["locked"]:
+            if sorted(want) != sorted(r["chosen"]):
+                stats["locked"] += 1
+            continue
+        lines = sorted(r["lines"], key=lambda i: i.id)
+        have = {}  # option quote id -> the line already on it
+        spare = []
+        for i in lines:
+            qid = i.purchase.quote_id if i.purchase is not None else None
+            if qid in want and qid not in have:
+                have[qid] = i
+            else:
+                spare.append(i)
+        for qid in want:
+            if qid in have:
+                continue
+            if spare:
+                it = spare.pop(0)
+            else:  # a second option for the room: one more line, the same quantity as the room's first
+                base = lines[0]
+                it = Item(project_id=p.id, room_id=base.room_id, qty=base.qty, status="To buy", optional=base.optional,
+                          notes="Second option for this room (Buying › options to choose).", **{f: getattr(base, f) for f in SHARED_FIELDS})
+                it.code = next_code(db, p, base.room)
+                db.add(it)
+                db.flush()
+                p.items.append(it)
+                stats["added"] += 1
+            have[qid] = it
+        for qid, it in have.items():
+            buy(db, p, product, opts[qid], [it])
+        keep_one = not want
+        for i in spare:
+            if keep_one:  # nothing chosen: the room keeps one line, open again unless a plain quote's shop supplies it
+                keep_one = False
+                if i.purchase is not None and i.purchase.quote_id in opts:
+                    uncover(i)
+                continue
+            if i.status in ("Shipped", "Received"):  # boxed and on its way: kept, without the option
+                if i.purchase is not None and i.purchase.quote_id in opts:
+                    uncover(i)
+                continue
+            doomed.append(i)
+        if want:
+            stats["chosen"] += 1
+    if doomed:
+        gone = {i.id for i in doomed}
+        survivors = [i for i in p.live_items if i.id not in gone]
+        for i in doomed:
+            release_photos(db, p, i, survivors)
+            db.delete(i)
+            if i in p.items:
+                p.items.remove(i)
+        stats["removed"] = len(doomed)
+    db.flush()
+    prune(db, p)
+    return stats
 
 
 def remove_purchase(db: Session, p: Project, pu: Purchase) -> None:

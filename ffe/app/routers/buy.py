@@ -99,12 +99,14 @@ def _overview(gs: list) -> dict:
 
 @router.get("/p/{project_id}/buying")
 def buying_list(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), category: str = "", floor: str = "",
-                stage: str = "", ok: str = ""):
+                stage: str = "", ok: str = "", options: str = ""):
     prods = bz.sync_products(db, p)
     db.commit()
     gs = bz.groups(p, prods)
     shown = _filtered(p, gs, category, floor, stage if stage in bz.STAGES else "")
-    f = dict(category=category, floor=floor, stage=stage)
+    if options:  # the products with options still to choose (the Tracker's line)
+        shown = [g for g in shown if g.options and g.rooms_open]
+    f = dict(category=category, floor=floor, stage=stage, options="1" if options else "")
     stage_counts = Counter(g.stage for g in _filtered(p, gs, category, floor, ""))
     return render(request, "buying/list.html", p=p, sections=_family_sections(_sections(shown)), shown=shown, all=_overview(gs), f=f,
                   stage_counts=stage_counts, floors=floor_choices(p), NO_FLOOR=NO_FLOOR, STAGES=bz.STAGES, STAGE_COLORS=bz.STAGE_COLORS,
@@ -354,6 +356,35 @@ async def buy_from_quote(request: Request, product_id: int, quote_id: int, p: Pr
     if nxt:  # from the compare grid: back to it
         return redirect(f"{nxt}{'&' if '?' in nxt else '?'}ok=" + urlquote(f"Buying {g.name} from {who} for {len(lines)} room{'s' if len(lines) != 1 else ''}."))
     return _back(p, prod, "#buying-from", ok=f"Buying from {who} for {len(lines)} room{'s' if len(lines) != 1 else ''}.")
+
+
+@router.post("/p/{project_id}/buying/{product_id}/options")
+async def choose_options(request: Request, product_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """The options chosen per room (pick_<room id> = option quote ids; `all` = one option for every room)."""
+    prod = _product(db, p, product_id)
+    if prod is None:
+        return redirect(f"/p/{p.id}/buying")
+    g = bz.group_of(p, prod)
+    if g is None or not g.options:
+        return _back(p, prod)
+    form = await request.form()
+    rids = [(r["room"].id if r["room"] is not None else 0) for r in g.option_rooms()]
+    priced = {q.id for q in g.options if q.unit_price}
+    if fint(form.get("all")) in priced:
+        picks = {rid: [fint(form.get("all"))] for rid in rids}
+    else:
+        picks = {rid: [x for x in (fint(v) for v in form.getlist(f"pick_{rid}")) if x in priced] for rid in rids}
+    st = bz.choose_options(db, p, prod, g, picks)
+    bz.settle(db, p)
+    db.commit()
+    msg = [f"Options saved: {st['chosen']} room{'s' if st['chosen'] != 1 else ''} chosen."]
+    if st["added"]:
+        msg.append(f"{st['added']} room{'s take' if st['added'] != 1 else ' takes'} a second option: a line was added for each.")
+    if st["removed"]:
+        msg.append(f"{st['removed']} second-option line{'s' if st['removed'] != 1 else ''} removed.")
+    if st["locked"]:
+        msg.append(f"{st['locked']} room{'s' if st['locked'] != 1 else ''} on a confirmed order left as {'they were' if st['locked'] != 1 else 'it was'}: take it off the order first.")
+    return _back(p, prod, "#options", ok=" ".join(msg))
 
 
 def _purchase(db: Session, prod: Product, purchase_id: int) -> Purchase | None:

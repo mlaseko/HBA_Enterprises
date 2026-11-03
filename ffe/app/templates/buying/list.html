@@ -3,7 +3,7 @@
 {% block title %}Buying · {{ p.name }}{% endblock %}
 {% block content %}
 {% set rate = p.rate or 1 %}
-{% set filtering = f.category or f.floor or f.stage %}
+{% set filtering = f.category or f.floor or f.stage or f.options %}
 {% set bq = base_qs ~ '&' if base_qs else '' %}
 <div class="page-head">
   <div>
@@ -18,6 +18,7 @@
 {{ tabs(p, 'products') }}
 
 {% if ok %}<div class="alert">{{ ok }}</div>{% endif %}
+{% if f.options %}<div class="alert info">Showing the products with options still to choose. <a href="/p/{{ p.id }}/buying">Show every product</a></div>{% endif %}
 
 <div class="grid g4 kpis bu-kpis">
   <div class="kpi"><svg class="ic"><use href="#i-tag"/></svg><div class="v">{{ all.products }}</div><div class="l">Products</div><div class="d">{{ all.lines }} room line{{ 's' if all.lines != 1 }} in the design</div></div>
@@ -69,13 +70,15 @@
       <span class="facts">
         <span><span class="v">{{ o.qty|num(2) }}<small>{{ g.unit }}</small></span><span class="l">to order{% if o.packs %} · {{ o.packs }} {{ g.pack_name or 'pack' }}{{ ('es' if (g.pack_name or 'pack')[-1:] in 'xs' else 's') if o.packs != 1 }}{% endif %}</span></span>
         {% if g.committed %}<span><span class="v">{{ g.committed|cur }}</span><span class="l">committed</span></span>
+        {% elif g.options and g.estimate_quote %}{% set pr = g.options|map(attribute='unit_price')|select|list %}<span><span class="v">{{ (pr|min)|cur(2) }}{% if pr|max != pr|min %}–{{ (pr|max)|cur_num(2) }}{% endif %}<small>/{{ g.unit }}</small></span><span class="l">{{ g.options|length }} options</span></span>
         {% elif best %}<span><span class="v">{{ best.unit_price|cur(2) }}<small>/{{ g.unit }}</small></span><span class="l">best quote</span></span>
         {% else %}<span class="none"><span class="v">—</span><span class="l">no price yet</span></span>{% endif %}
       </span>
       <span class="shop">{% if pus %}<svg class="ic sm"><use href="#i-truck"/></svg><span>{{ pus[0].supplier.name if pus[0].supplier else 'A shop' }}{% if pus|length > 1 %} + {{ pus|length - 1 }} more{% endif %}</span>
+        {% elif g.options %}<svg class="ic sm"><use href="#i-layout"/></svg><span>{{ g.options|length }} options to choose{% if g.options[0].supplier %} · {{ g.options[0].supplier.name }}{% endif %}</span>
         {% elif g.quotes %}<svg class="ic sm"><use href="#i-users"/></svg><span>{{ g.quotes|length }} quote{{ 's' if g.quotes|length != 1 }}{% if best and best.supplier %} · best from {{ best.supplier.name }}{% endif %}</span>
         {% else %}<svg class="ic sm"><use href="#i-search"/></svg><span class="muted">No quote yet</span>{% endif %}</span>
-      <span class="foot"><span class="badge" style="--c:{{ STAGE_COLORS[g.stage] }}">{{ g.stage }}</span><span class="bar" title="{{ g.covered }} of {{ n }} rooms have a shop"><i style="width:{{ (100 * g.covered / n)|round|int if n else 0 }}%"></i></span><span class="frac">{{ g.covered }}/{{ n }}</span></span>
+      <span class="foot"><span class="badge" style="--c:{{ STAGE_COLORS[g.stage] }}">{{ g.stage }}</span>{% if g.options and g.rooms_open %}<span class="pill gold" title="Counted at the dearest option until you choose">to choose</span>{% endif %}<span class="bar" title="{{ g.covered }} of {{ n }} rooms have a shop"><i style="width:{{ (100 * g.covered / n)|round|int if n else 0 }}%"></i></span><span class="frac">{{ g.covered }}/{{ n }}</span></span>
     </span>
   </a>{% endmacro %}
 {% for cat, gs, fams in sections %}

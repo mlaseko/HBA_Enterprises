@@ -2180,6 +2180,52 @@ def flow(c):
     _up=_qz.price_lines(_qd, _cm, [(_lw, [])], 1.0)[0]; assert abs(_up - 2539.7 / _cm.qty) < 0.01, (_up, _cm.qty)
     _up=_qz.price_lines(_qd, _cm, [(dict(_lw, unit=_cm.unit, qty=_cm.qty), [])], 1.0)[0]; assert abs(_up - 2539.7 / _cm.qty) < 0.01  # in its own unit: as before
     _dbr.close()
+    # options to choose (two carpets quoted for rooms that need one each): a quote per line, chosen per room on the Buying page;
+    # a room taking both gets a second line, dropping one removes it again; the budget counts the dearest option until chosen
+    from app.models import Quote as _OQ, QuotationLine as _OQL, Item as _OI, Purchase as _OPu
+    r=c.post(f"/p/{pid_q}/items/new", data={"name":"Carpet","category":"Lighting","qty":"1","unit":"pcs","room_ids":[str(i) for i,_ in _acr]}, follow_redirects=False); assert r.status_code==303
+    db=SessionLocal(); _cpp=_bz.product_of(db, db.get(_P, pid_q), db.query(_OI).filter(_OI.project_id==pid_q, _OI.name=="Carpet").first()); _cp_id=_cpp.id; db.commit(); db.close()
+    def carpet_sheet():
+        wb=openpyxl.Workbook(); ws=wb.active; ws.title="PI"; ws.append(["Proforma invoice"])
+        ws.append(["NO.","Product Type","model","Unit","Quantity","Unit Price(USD)","Amount(USD)","Remarks"])
+        ws.append([1,"Hand tufted carpet grey wool 2000*3000","CP-1","PCS",3,300,900,""])
+        ws.append([2,"Machine woven carpet beige 2000*3000","CP-2","PCS",3,420,1260,""])
+        ws.append(["Total amount:",None,None,None,None,None,2160]); buf=io.BytesIO(); wb.save(buf); return buf.getvalue()
+    locc,_=upload_quote("Carpet options.xlsx", carpet_sheet()); keyc=_unq(locc.split("key=")[1]); h=c.get(locc).text; assert "Options to choose from" in h and "qi-opts-body" in h
+    formc=dict(key=keyc, supplier_id="__new__", supplier_name="Aomeng Test", title="Carpets", currency="USD", total="2160", discount="0", charges="0", terms="", notes="", sales="", quote_date="", valid_until="", lead_time="",
+               act_1="quote", prod_1=str(_cp_id), act_2="quote", prod_2=str(_cp_id), vlabel_1="Grey wool", vlabel_2="", **{f"split_{_cp_id}":"opts"})
+    r=c.post(f"/p/{pid_q}/quotations/draft", data=formc, follow_redirects=False); assert r.status_code==303
+    db=SessionLocal(); keyc2=db.query(_QU).filter(_QU.project_id==pid_q, _QU.message=="draft").order_by(_QU.id.desc()).first().state_key; db.close()
+    assert 'data-split="opts"' in c.get(f"/p/{pid_q}/quotations/preview?key={keyc2}").text  # a draft keeps the choice
+    r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(formc, key=keyc2), follow_redirects=False); assert r.status_code==303 and "2%20quotes" in r.headers["location"], r.headers["location"]
+    qdc=int(r.headers["location"].split("/quotations/")[1].split("?")[0])
+    db=SessionLocal(); _os=sorted(db.get(_Pr, _cp_id).quotes, key=lambda x: x.id); assert [x.option_label for x in _os]==["Grey wool", "CP-2"] and [round(x.amount) for x in _os]==[300, 420], [(x.option_label, x.amount) for x in _os]
+    assert _os[0].model=="Grey wool, CP-1" and not any(f_.startswith("quantity") for f_ in (db.query(_OQL).filter(_OQL.quotation_id==qdc).first().notes or "").split("; "))
+    _oa, _ob = _os[0].id, _os[1].id; _Lc={ln.no: ln.id for ln in db.get(_QD, qdc).lines}; db.close()
+    h=c.get(f"/p/{pid_q}/buying/{_cp_id}").text; assert 'id="options"' in h and "Options to choose" in h and f'name="pick_{_acr[0][0]}"' in h and "3 rooms to choose" in h and "Option: Grey wool" in h
+    h=c.get(f"/p/{pid_q}/buying/tracker").text; assert "with options to choose" in h and "counted at the dearest option" in h
+    db=SessionLocal(); _g=_bz.group_of(db.get(_P, pid_q), db.get(_Pr, _cp_id)); assert _g.estimate_quote.id==_ob and _g.best_quote.id==_oa; db.close()
+    assert "to choose" in c.get(f"/p/{pid_q}/buying?options=1").text
+    # Grey wool for every room
+    r=c.post(f"/p/{pid_q}/buying/{_cp_id}/options", data={"all":str(_oa)}, follow_redirects=False); assert "3%20rooms%20chosen" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); _cl=db.query(_OI).filter(_OI.project_id==pid_q, _OI.name=="Carpet").all(); assert len(_cl)==3 and {i.purchase.quote_id for i in _cl}=={_oa}; db.close()
+    # the first room rotates both: a second line there, the quantity up by one
+    picks={f"pick_{_acr[0][0]}":[str(_oa), str(_ob)], f"pick_{_acr[1][0]}":str(_oa), f"pick_{_acr[2][0]}":str(_oa)}
+    r=c.post(f"/p/{pid_q}/buying/{_cp_id}/options", data=picks, follow_redirects=False); assert "a%20second%20option" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); _cl=db.query(_OI).filter(_OI.project_id==pid_q, _OI.name=="Carpet").all(); assert len(_cl)==4 and sum(i.qty for i in _cl)==4
+    _r0=[i for i in _cl if i.room_id==_acr[0][0]]; assert sorted(i.purchase.quote_id for i in _r0)==sorted([_oa, _ob]) and len({i.code for i in _cl})==4; db.close()
+    h=c.get(f"/p/{pid_q}/buying/{_cp_id}").text; assert "2 options · 2" in h and "All chosen" in h
+    # back to one (Machine woven) in that room: the second line goes; nothing chosen anywhere: one open line per room
+    picks[f"pick_{_acr[0][0]}"]=str(_ob); r=c.post(f"/p/{pid_q}/buying/{_cp_id}/options", data=picks, follow_redirects=False); assert "1%20second-option%20line%20removed" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); _cl=db.query(_OI).filter(_OI.project_id==pid_q, _OI.name=="Carpet").all(); assert len(_cl)==3 and [i.purchase.quote_id for i in _cl if i.room_id==_acr[0][0]]==[_ob]; db.close()
+    r=c.post(f"/p/{pid_q}/buying/{_cp_id}/options", data={}, follow_redirects=False); assert "0%20rooms%20chosen" in r.headers["location"]
+    db=SessionLocal(); _cl=db.query(_OI).filter(_OI.project_id==pid_q, _OI.name=="Carpet").all(); assert len(_cl)==3 and all(i.purchase_id is None and i.status=="To buy" for i in _cl) and db.query(_OPu).filter(_OPu.product_id==_cp_id).count()==0; db.close()
+    # amending an option's line on the saved quotation reprices that option alone
+    r=c.post(f"/p/{pid_q}/quotations/{qdc}/lines/{_Lc[2]}", data={"act":"quote","prod":str(_cp_id),"qty":"3","unit":"PCS","unit_price":"350"}, follow_redirects=False); assert r.status_code==303
+    db=SessionLocal(); _os={x.id: x for x in db.get(_Pr, _cp_id).quotes}; assert set(_os)=={_oa, _ob} and round(_os[_ob].amount)==350 and round(_os[_oa].amount)==300 and _os[_ob].option_label=="CP-2"; db.close()
+    # moved off the product, the option's quote goes
+    c.post(f"/p/{pid_q}/quotations/{qdc}/lines/{_Lc[2]}", data={"act":"skip"}, follow_redirects=False)
+    db=SessionLocal(); assert {x.id for x in db.get(_Pr, _cp_id).quotes}=={_oa}; db.close()
     print("quotations ok")
 
     # what differs from the design: decided once per product and difference, for the quotation alone or into the items as well
