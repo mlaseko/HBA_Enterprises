@@ -47,9 +47,10 @@
   <div class="nw-list">
   {% for r in now.rows %}{% set t = now_amount(r) %}
     <details class="nw-prod" data-pid="{{ r.pid }}">
-      <summary><span class="nw-name"><b>{{ r.title }}</b>{% if r.options %} <span class="pill gold">options</span>{% endif %}<span class="small muted"> · {{ r.rooms|length }} room line{{ 's' if r.rooms|length != 1 }} · {{ r.price|num(2) }} per {{ r.unit or 'unit' }}</span></span>
-        <span class="nw-fig"><span class="small muted">sheet</span> {{ r.sheet_qty|num(2) }} · {{ r.sheet_amount|money(2) }}</span>
-        <span class="nw-fig"><span class="small muted">today</span> {{ t[0]|num(2) }} · {{ t[1]|money(2) }}</span>
+      <summary><span class="nw-name"><svg class="ic sm nw-chev"><use href="#i-chevron-down"/></svg><b>{{ r.title }}</b>{% if r.options %} <span class="pill gold">options</span>{% endif %}</span>
+        <span class="nw-meta small muted">{{ r.rooms|length }} room line{{ 's' if r.rooms|length != 1 }} · {{ r.price|num(2) }} per {{ r.unit or 'unit' }}</span>
+        <span class="nw-fig nw-sheet"><span class="l">Sheet</span> {{ r.sheet_qty|num(2) }} · {{ r.sheet_amount|money(2) }}</span>
+        <span class="nw-fig nw-today"><span class="l">Today</span> {{ t[0]|num(2) }} · {{ t[1]|money(2) }}</span>
         <span class="nw-fig nw-new" data-pid="{{ r.pid }}"></span></summary>
       <div class="nw-rooms">
       {% for x in r.rooms %}
@@ -63,15 +64,16 @@
   {% endfor %}
   </div>
   <div class="row mt nw-acts">
-    <button class="btn" data-confirm="Apply these changes to the design? The room lines take the new quantities and the ones you left out are deleted (their photos stay with the product). Buying, the Tracker and the orders follow; the quotation keeps the shop's figures." data-confirm-ok="Apply to the design"><svg class="ic"><use href="#i-check"/></svg>Apply to the design</button>
-    <button class="btn sec" formaction="/p/{{ p.id }}/quotations/{{ q.id }}/revised.xlsx"><svg class="ic"><use href="#i-download"/></svg>Revised quantities for the shop (Excel)</button>
-    <span class="small muted">The Excel lists the shop's lines with the quantities tried here, for them to confirm their prices.</span>
+    <div class="nw-bar"><span class="l">New total</span><b id="nw-bar-total">{{ cur }} {{ now.today|money(2) }}</b><span class="small" id="nw-bar-delta"></span></div>
+    <button class="btn" data-confirm="Apply these changes to the design? The room lines take the new quantities and the ones you left out are deleted (their photos stay with the product). Buying, the Tracker and the orders follow; the quotation keeps the shop's figures." data-confirm-ok="Apply to the design"><svg class="ic"><use href="#i-check"/></svg><span class="hide-m">Apply to the design</span><span class="hide-d">Apply</span></button>
+    <button class="btn sec" formaction="/p/{{ p.id }}/quotations/{{ q.id }}/revised.xlsx"><svg class="ic"><use href="#i-download"/></svg><span class="hide-m">Revised quantities for the shop (Excel)</span><span class="hide-d">Excel</span></button>
+    <span class="small muted nw-hint">The Excel lists the shop's lines with the quantities tried here, for them to confirm their prices.</span>
   </div>
   <script type="application/json" id="nw-data">{{ now_json|safe }}</script>
 </form>
 {% endif %}
 
-<div class="tbl"><table class="qi-doc">
+<div class="tbl"><table class="qi-doc qi-saved">
   <thead><tr><th></th><th>Line</th><th>As written</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Amount</th><th>Became</th></tr></thead>
   <tbody>
   {% set ns = namespace(section=none) %}
@@ -153,10 +155,11 @@
     var sum=0; r.rooms.forEach(function(x){ sum+=q(x); }); var o=order(r, sum); return [o, o*r.price]; }
   function update(){ var today=0, tried=0, changed=0;
     rows.forEach(function(r){ var a=amount(r,false), b=amount(r,true); today+=a[1]; tried+=b[1]; var cell=form.querySelector('.nw-new[data-pid="'+r.pid+'"]'), d=b[1]-a[1];
-      if(cell){ cell.innerHTML=Math.abs(d)>0.005?'<span class="small muted">new</span> '+(Math.round(b[0]*100)/100)+' · <b>'+fmt(b[1])+'</b> <span class="'+(d<0?'green':'red')+'">'+(d>0?'+':'')+fmt(d)+'</span>':''; }
+      if(cell){ cell.innerHTML=Math.abs(d)>0.005?'<span class="l">New</span> '+(Math.round(b[0]*100)/100)+' · <b>'+fmt(b[1])+'</b> <span class="'+(d<0?'green':'red')+'">'+(d>0?'+':'')+fmt(d)+'</span>':''; }
       r.rooms.forEach(function(x){ var v=qtyOf(x.id); var lab=form.querySelector('input[name="keep_'+x.id+'"]'); if(lab) lab.closest('.nw-room').classList.toggle('out', v===0); if(v!==null&&Math.abs(v-x.qty)>1e-9) changed++; }); });
     var d=tried-today; document.getElementById('nw-total').textContent=cur+' '+fmt(tried);
     document.getElementById('nw-delta').innerHTML=changed?'<span class="'+(d<0?'green':'red')+'">'+(d>0?'+':'')+fmt(d)+'</span> against today · '+changed+' room line'+(changed===1?'':'s')+' changed':'no change tried yet';
+    document.getElementById('nw-bar-total').textContent=cur+' '+fmt(tried); document.getElementById('nw-bar-delta').innerHTML=changed?'<span class="'+(d<0?'green':'red')+'">'+(d>0?'+':'')+fmt(d)+'</span> · '+changed+' changed':'';
     form.classList.toggle('tried', changed>0); }
   form.addEventListener('input', update); form.addEventListener('change', update);
   form.addEventListener('click', function(e){ var chip=e.target.closest('.nw-chips .pick-chip'); if(!chip) return;
