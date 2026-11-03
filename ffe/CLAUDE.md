@@ -736,7 +736,8 @@ ALTER TABLE projects ADD COLUMN show_currency VARCHAR(3) NOT NULL DEFAULT 'CNY';
   saved ones'; the document page hides a stored quantity note when the lines on its product add up (`qty_fine`). `out_of_scope(line, p)` skips staff / servant quarters only when
   `_scope_rooms(p)` is empty; a line matching nothing defaults to `new` with `room_hints()` (rooms sharing the most words
   with the supplier's place / name / section) pre-ticked, and a new item in several rooms shares the line's quantity. In
-  `apply`, lines in other units than the product's (steps by the piece for a product in m²) price it from the design's quantity.
+  `apply`, lines in other units than the product's (steps by the piece for a product in m²) price it from the design's quantity. So do lines with no unit at all whose
+  quantity is far from a measured product's (a worktop's "1" against 7 m²: `price_lines`).
   Claude down: `ask_claude` retries (`RETRY_WAITS`; a 401 / `AuthenticationError` is not retried: `ClaudeUnavailable(fatal=True)` with
   the message naming the secret) and raises `ClaudeUnavailable`; `match_upload` then keeps the state (parsed,
   picture keys, file) under a `.w…json` key and sets the row to `WAITING`; the working page shows Try Claude again / Continue

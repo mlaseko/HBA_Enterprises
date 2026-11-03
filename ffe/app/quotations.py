@@ -1575,6 +1575,9 @@ def price_lines(q: Quotation, c: "Candidate", groups: list[tuple[dict, list[dict
     qty = sum(l["qty"] for l in main)
     amount = sum(l["amount"] for l in main) + sum(l["amount"] for l in added)
     mixed = any(_same_unit(_unit(l["unit"])) != _same_unit(c.unit) for l in main if _unit(l["unit"]) and c.unit)
+    if not mixed and c.unit and c.qty > 0 and qty > 0 and not any(_unit(l["unit"]) for l in main) \
+            and _same_unit(c.unit) != "pcs" and not 0.6 <= qty / c.qty <= 1.5:
+        mixed = True  # "1" with no unit against a worktop of 7 m²: the sheet prices the whole thing, not one m²
     by_design = ""
     if mixed and c.qty > 0:  # steps by the piece and landings by the m² for a product in m²: a sum of pieces means nothing
         unit_price = amount / c.qty

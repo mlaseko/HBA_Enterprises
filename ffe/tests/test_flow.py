@@ -2173,6 +2173,12 @@ def flow(c):
     # one line per room (an AC per room): the quantity is checked on all the product's lines together
     _cq=next(x for x in _cr if (x.qty or 0) >= 2); _l1=dict(_ln, ref="", name=_cq.name, size=_cq.size, unit=_cq.unit, qty=1)
     assert any(f_.startswith("quantity") for f_ in _qz.flags(_l1, _cq)) and not any(f_.startswith("quantity") for f_ in _qz.flags(_l1, _cq, _cq.qty))
+    # a line with no unit ("1") against a product in m²: the sheet prices the whole worktop, not one m²
+    _cm=next(x for x in _cr if x.unit in ("m²", "m") and (x.qty or 0) > 2)
+    _qd=type("Q", (), dict(title="T", filename="t.xlsx", quote_date=None))()
+    _lw=dict(_ln, ref="", unit="", qty=1, unit_price=2539.7, amount=2539.7, section="", place="")
+    _up=_qz.price_lines(_qd, _cm, [(_lw, [])], 1.0)[0]; assert abs(_up - 2539.7 / _cm.qty) < 0.01, (_up, _cm.qty)
+    _up=_qz.price_lines(_qd, _cm, [(dict(_lw, unit=_cm.unit, qty=_cm.qty), [])], 1.0)[0]; assert abs(_up - 2539.7 / _cm.qty) < 0.01  # in its own unit: as before
     _dbr.close()
     print("quotations ok")
 
