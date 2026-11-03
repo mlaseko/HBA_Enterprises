@@ -1447,3 +1447,20 @@ tr.fam-row td{background:var(--surface-2);border-top:2px solid var(--line)}tr.fa
 .tr-src-row .tr-mini i.q{position:absolute;left:0;top:0;bottom:0;background:#16A34A}
 .tr-src-row.none .b{color:var(--muted,#8A8178)}
 @media(max-width:560px){.tr-src-row{grid-template-columns:1fr 70px auto}.tr-src-row>a.small,.tr-src-row>span.small.muted{grid-column:1/-1}}
+/* a saved quotation: what it comes to now, and what-if changes (quotation.html #now) */
+.nw{margin:14px 0}
+.nw-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:10px 0}
+.nw-kpis>div{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--line-2)}
+.nw-kpis .l{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}.nw-kpis .v{font-size:1.25rem;font-weight:700}.nw-kpis .d{font-size:.8rem;color:var(--muted)}
+.nw-kpis .try{border-color:var(--gold);background:var(--gold-soft)}.nw.tried .nw-kpis .try{box-shadow:0 0 0 2px var(--gold)}
+.nw .green{color:#15803D}.nw .red{color:#B91C1C}
+.nw-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0 10px}.nw-chips .pick-chip.on{background:var(--accent-soft);border-color:var(--accent)}
+.nw-prod{border-top:1px solid var(--line-2);padding:6px 0}
+.nw-prod summary{display:grid;grid-template-columns:minmax(200px,2fr) repeat(3,minmax(110px,1fr));gap:8px;align-items:center;cursor:pointer;list-style:none}
+.nw-prod summary::-webkit-details-marker{display:none}
+.nw-fig{font-variant-numeric:tabular-nums;text-align:right}
+.nw-rooms{display:grid;gap:4px;padding:6px 0 6px 12px}
+.nw-room{display:grid;grid-template-columns:20px 1fr 90px 40px;gap:8px;align-items:center}.nw-room input[type=checkbox]{width:18px;height:18px}
+.nw-room.out>span:first-of-type{text-decoration:line-through;color:var(--muted)}.nw-room.locked{opacity:.6}
+.nw-acts{flex-wrap:wrap;gap:8px}
+@media(max-width:700px){.nw-prod summary{grid-template-columns:1fr 1fr}.nw-name{grid-column:1/-1}.nw-fig{text-align:left}}

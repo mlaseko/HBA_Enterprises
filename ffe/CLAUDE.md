@@ -544,6 +544,15 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   and no-JS still open the page. Used on the Buying product page, order lines, the line picks and the quotation's
   variants card. The variants card shows a picture per variant (`families()` → `pic`: rooms' cover, else quote/line photo).
 
+- **What it comes to now.** The saved quotation page's `#now` form: `quotations.now_rows(db, p, q)` (per product the sheet
+  quotes: its lines, the shop's unit price in the sheet's currency via `_sheet_price`, allowance, pack, the sheet's quantity
+  and amount — options count the dearest — and the product's room lines with `locked` for a confirmed order),
+  `now_amount(row, qtys)` (the quantity to order and the amount, mirrored by the page script), `now_chips` (Staff quarters
+  from `_scope_rooms`, then each floor). The page's script simulates; `tried_quantities(form, rows)` reads `keep_<item>` /
+  `qty_<item>`; `POST /quotations/<q>/now` → `apply_now` (sets qty, deletes lines at 0 with `release_photos`) + `settle`;
+  `POST /quotations/<q>/revised.xlsx` → `revised_workbook` (`revised_lines`: a line whose place names rooms of its product,
+  disjoint across the product's lines, follows those rooms; else the product's order ratio; merged parts follow; pcs whole).
+
 - **Options to choose.** A shop offering several designs for rooms that need one (two carpets per bedroom) is saved with
   the preview's split card on **Options to choose from** (`split_<product>` = `opts`, `_read_form` → `choice["opts"]`):
   `apply` makes one `Quote` per line with `Quote.option_label` (`option_labels()`: the typed `vlabel_<line>`, else
