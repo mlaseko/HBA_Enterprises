@@ -2226,6 +2226,25 @@ def flow(c):
     # moved off the product, the option's quote goes
     c.post(f"/p/{pid_q}/quotations/{qdc}/lines/{_Lc[2]}", data={"act":"skip"}, follow_redirects=False)
     db=SessionLocal(); assert {x.id for x in db.get(_Pr, _cp_id).quotes}=={_oa}; db.close()
+    # what a saved sheet comes to now, a change tried on the page (nothing saved), the revised Excel for the shop, then applied
+    r=c.post(f"/p/{pid_q}/items/new", data={"name":"Wall lamp","category":"Lighting","qty":"2","unit":"pcs","room_ids":[str(i) for i,_ in _acr]}, follow_redirects=False); assert r.status_code==303
+    db=SessionLocal(); _wlp=_bz.product_of(db, db.get(_P, pid_q), db.query(_OI).filter(_OI.project_id==pid_q, _OI.name=="Wall lamp").first()).id; db.commit()
+    _wl={i.room_id: i.id for i in db.query(_OI).filter(_OI.project_id==pid_q, _OI.name=="Wall lamp")}; db.close()
+    def lamp_sheet():
+        wb=openpyxl.Workbook(); ws=wb.active; ws.title="PI"; ws.append(["Proforma invoice"])
+        ws.append(["NO.","Product Type","model","Unit","Quantity","Unit Price(USD)","Amount(USD)"])
+        ws.append([1,"Wall lamp brass","WL-7","PCS",6,10,60]); ws.append(["Total amount:",None,None,None,None,None,60]); buf=io.BytesIO(); wb.save(buf); return buf.getvalue()
+    locw,_=upload_quote("Lamp quotation.xlsx", lamp_sheet()); keyw=_unq(locw.split("key=")[1])
+    r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(key=keyw, supplier_id="__new__", supplier_name="Lamp Shop", title="Lamps", currency="USD", total="60", discount="0", charges="0", terms="", notes="", sales="", quote_date="", valid_until="", lead_time="", act_1="quote", prod_1=str(_wlp)), follow_redirects=False)
+    qdw=int(r.headers["location"].split("/quotations/")[1].split("?")[0])
+    h=c.get(f"/p/{pid_q}/quotations/{qdw}").text; assert 'id="now"' in h and "What it comes to now" in h and f'name="keep_{_wl[_acr[0][0]]}"' in h and 'id="nw-data"' in h and "USD 60.00" in h
+    tried={f"keep_{_wl[_acr[1][0]]}":"1", f"qty_{_wl[_acr[1][0]]}":"1", f"keep_{_wl[_acr[2][0]]}":"1", f"qty_{_wl[_acr[2][0]]}":"2", f"qty_{_wl[_acr[0][0]]}":"2"}  # room 1 left out, room 2 down to 1
+    r=c.post(f"/p/{pid_q}/quotations/{qdw}/revised.xlsx", data=tried); assert r.status_code==200 and r.headers["content-type"].startswith("application/vnd.openxml")
+    _wb=openpyxl.load_workbook(io.BytesIO(r.content)); _ws=_wb.active; _row=[c_.value for c_ in _ws[5]]; assert _row[0]==1 and _row[6]==6 and _row[7]==3 and _row[9]==30 and "left out" in _row[10] and "less in" in _row[10], _row
+    db=SessionLocal(); assert sorted(i.qty for i in db.query(_OI).filter(_OI.project_id==pid_q, _OI.name=="Wall lamp"))==[2, 2, 2]; db.close()  # the Excel changed nothing
+    r=c.post(f"/p/{pid_q}/quotations/{qdw}/now", data=tried, follow_redirects=False); loc=_unq(r.headers["location"]); assert "1 quantity changed, 1 room line removed" in loc and "USD 30.00 (was 60.00)" in loc, loc
+    db=SessionLocal(); assert sorted(i.qty for i in db.query(_OI).filter(_OI.project_id==pid_q, _OI.name=="Wall lamp"))==[1, 2]; db.close()
+    r=c.post(f"/p/{pid_q}/quotations/{qdw}/now", data={f"keep_{_wl[_acr[1][0]]}":"1", f"qty_{_wl[_acr[1][0]]}":"1", f"keep_{_wl[_acr[2][0]]}":"1", f"qty_{_wl[_acr[2][0]]}":"2"}, follow_redirects=False); assert "Nothing%20changed" in r.headers["location"]
     print("quotations ok")
 
     # what differs from the design: decided once per product and difference, for the quotation alone or into the items as well

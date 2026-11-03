@@ -2245,3 +2245,243 @@ def retry_matching(db: Session, up: QuotationUpload, use_claude: bool) -> bool:
     storage.delete_image(old_key)
     threading.Thread(target=match_upload, args=(up.id, up.project_id, state, None, use_claude), name=f"quotation-{up.id}-match", daemon=True).start()
     return True
+
+
+# ---- a saved quotation against the design as it is now, and what-if changes -------------------------------------------------
+# The "What it comes to now" card of the quotation's page: per product the sheet priced, the sheet's quantity and amount, the
+# same at today's design quantities (the shop's unit price, the allowance and packs as Buying counts them), and the rooms with
+# their quantities so the page can try leaving rooms out or lowering a quantity (a simulation in the page's script). Apply
+# writes the tried quantities into the design (apply_now); the revised Excel gives the shop the new quantity of each line.
+def _sheet_price(q: Quotation, quote: Quote) -> float:
+    """The quote's unit price in the sheet's currency (the quote may have been retyped in the other one)."""
+    if quote.currency == q.currency:
+        return quote.amount or 0.0
+    rate = (q.project.rate if q.project is not None else 0) or 1
+    return round((quote.unit_price or 0) / rate, 4) if q.currency == "USD" else (quote.unit_price or 0)
+
+
+def now_rows(db: Session, p: Project, q: Quotation) -> list[dict]:
+    """The products this sheet quotes, each {pid, title, unit, price, allow, pack, whole, options, sheet_qty, sheet_amount,
+    lines (the sheet's QuotationLines on it), rooms [{id, code, room, room_id, floor, qty, price, locked}]}, in sheet order."""
+    cands = {c.id: c for c in candidates(db, p)}
+    factor = discount_factor(q)
+    whole = lists.whole_units(p)
+    by_pid: dict[int, list[QuotationLine]] = {}
+    for ln in q.lines:
+        if ln.action in ("quote", "new") and ln.product_id and ln.quote is not None:
+            by_pid.setdefault(ln.product_id, []).append(ln)
+    rows = []
+    for pid, lns in by_pid.items():
+        c = cands.get(pid)
+        amounts = []
+        for ln in lns:
+            parts = [x for x in q.lines if x.action == "merge" and x.into_id == ln.id]
+            extra = 0.0 if is_breakdown(line_dict(ln), [line_dict(x) for x in parts]) else sum(x.amount or 0 for x in parts)
+            amounts.append(((ln.amount or 0) + extra) * factor)
+        opts = {ln.quote_id: _sheet_price(q, ln.quote) for ln in lns if ln.quote.option_label}
+        if opts:  # options to choose: the dearest one stands for the sheet, a room counts the option chosen for it
+            sheet_qty, sheet_amount = max(ln.qty or 0 for ln in lns), max(amounts)
+            price = max(opts.values())
+        else:
+            sheet_qty, sheet_amount = sum(ln.qty or 0 for ln in lns), sum(amounts)
+            price = _sheet_price(q, lns[0].quote)
+        rooms = []
+        for i in (c.g.lines if c is not None else []):
+            pu = i.purchase
+            rp = opts.get(pu.quote_id, price) if opts and pu is not None else price
+            rooms.append(dict(id=i.id, code=i.code, room=(i.room.name if i.room is not None else "Whole house"), room_id=i.room_id or 0,
+                              floor=(drawings.floor_title(i.room.floor, p) if i.room is not None and i.room.floor else "No floor"),
+                              qty=i.qty or 0, price=rp, locked=bool(pu is not None and pu.order is not None and pu.order.confirmed)))
+        unit = c.unit if c is not None else (lns[0].unit or "")
+        rows.append(dict(pid=pid, title=c.title if c is not None else (lns[0].product.title if lns[0].product else lns[0].name), unit=unit,
+                         price=price, allow=c.g.allowance if c is not None else 0.0, pack=(lns[0].quote.pack_size or (c.g.pack_size if c else 0)) or 0,
+                         whole=unit in whole, options=bool(opts), sheet_qty=round(sheet_qty, 3), sheet_amount=round(sheet_amount, 2),
+                         lines=lns, rooms=rooms))
+    return rows
+
+
+def now_amount(row: dict, qtys: dict[int, float] | None = None) -> tuple[float, float]:
+    """(quantity to order from this shop, its amount in the sheet's currency) for the rooms' quantities (`qtys` = {item id:
+    quantity} tried on the page; missing = as the design has it)."""
+    get = (lambda r: max(0.0, float(qtys.get(r["id"], r["qty"])))) if qtys is not None else (lambda r: r["qty"])
+    if row["options"]:
+        qty = sum(get(r) for r in row["rooms"]) * (1 + row["allow"])
+        return round(qty, 3), round(sum(get(r) * r["price"] for r in row["rooms"]) * (1 + row["allow"]), 2)
+    o = buying.order_qty(sum(get(r) for r in row["rooms"]), row["allow"], row["pack"], row["unit"], whole={row["unit"]} if row["whole"] else set())
+    return o["qty"], round(o["qty"] * row["price"], 2)
+
+
+def now_chips(p: Project, rows: list[dict]) -> list[dict]:
+    """The quick picks of the card's "Leave out" bar: the staff quarters, then each floor, with the item ids they cover."""
+    scope = {r.id for r in _scope_rooms(p)}
+    out, floors = [], {}
+    staff = [r["id"] for row in rows for r in row["rooms"] if r["room_id"] in scope]
+    if staff:
+        out.append(dict(label="Staff quarters", ids=staff))
+    for row in rows:
+        for r in row["rooms"]:
+            floors.setdefault(r["floor"], []).append(r["id"])
+    out += [dict(label=f, ids=ids) for f, ids in floors.items() if sorted(ids) != sorted(staff)]  # a staff-house floor is the chip above
+    return out
+
+
+def tried_quantities(form, rows: list[dict]) -> dict[int, float]:
+    """The quantities tried on the card, as posted: qty_<item>, and keep_<item> unticked = left out (0)."""
+    out: dict[int, float] = {}
+    for row in rows:
+        for r in row["rooms"]:
+            if r["locked"]:
+                continue
+            raw = form.get(f"qty_{r['id']}")
+            try:
+                v = max(0.0, float(raw)) if raw not in (None, "") else r["qty"]
+            except ValueError:
+                v = r["qty"]
+            out[r["id"]] = 0.0 if not form.get(f"keep_{r['id']}") else v
+    return out
+
+
+def revised_lines(p: Project, q: Quotation, rows: list[dict], qtys: dict[int, float]) -> dict[int, float]:
+    """The new quantity of each sheet line ({line id: qty}) for the tried room quantities: a line whose place names rooms
+    of its product follows those rooms; otherwise every line of the product moves with the product's quantity to order.
+    Merged parts follow their line; countable units stay whole."""
+    out: dict[int, float] = {}
+    for row in rows:
+        old_q, new_q = now_amount(row)[0], now_amount(row, qtys)[0]
+        ratio = (new_q / old_q) if old_q else 1.0
+        ids = {r["room_id"]: [] for r in row["rooms"]}
+        for r in row["rooms"]:
+            ids[r["room_id"]].append(r)
+        hints = [set(room_hints(line_dict(ln) | {"place": (ln.section or "").split(" / ")[-1]}, p)) & set(ids) for ln in row["lines"]]
+        by_room = len(row["lines"]) > 1 and all(hints) and sum(len(h) for h in hints) == len(set().union(*hints))
+        pcs = _same_unit(_unit(row["unit"])) == "pcs"
+        for ln, h in zip(row["lines"], hints):
+            if by_room:
+                rs = [r for rid in h for r in ids[rid]]
+                was = sum(r["qty"] for r in rs)
+                now = sum(qtys.get(r["id"], r["qty"]) for r in rs)
+                k = now / was if was else 1.0
+            else:
+                k = ratio
+            for x in [ln] + [x for x in q.lines if x.action == "merge" and x.into_id == ln.id]:
+                v = (x.qty or 0) * k
+                out[x.id] = float(round(v)) if pcs or _same_unit(_unit(x.unit or "")) == "pcs" else round(v, 2)
+    return out
+
+
+def revised_workbook(p: Project, q: Quotation, rows: list[dict], qtys: dict[int, float]) -> bytes:
+    """The shop's lines with the quantities we now need, for them to confirm their prices: their item number, what they
+    wrote, the quantity they quoted, ours (yellow), their unit price and the new amount; extras as they were."""
+    new = revised_lines(p, q, rows, qtys)
+    of_line = {ln.id: row for row in rows for ln in row["lines"]}
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Revised quantities"
+    shop = q.supplier.name if q.supplier else "the shop"
+    ws["A1"] = f"{p.name} — revised quantities"
+    ws["A1"].font = Font(bold=True, size=14)
+    ws["A2"] = (f"To {shop}: your quotation {q.title or q.filename}" + (f" of {q.quote_date.isoformat()}" if q.quote_date else "")
+                + ". Some rooms changed: the yellow column is the quantity we now need. Please confirm your unit prices still hold for these quantities, or correct them.")
+    ws["A2"].alignment = Alignment(wrap_text=True)
+    ws.merge_cells("A2:K2")
+    ws.row_dimensions[2].height = 34
+    cols = [("Line", 6), ("Photo", 17), ("Your item no.", 14), ("Description", 40), ("Size", 18), ("Unit", 8), ("Quoted qty", 11),
+            ("New qty", 11), (f"Unit price ({q.currency})", 14), (f"New amount ({q.currency})", 16), ("Our codes / change", 40)]
+    hr = 4
+    for i, (name, width) in enumerate(cols, start=1):
+        c = ws.cell(row=hr, column=i, value=name)
+        c.font, c.fill = Font(bold=True, color="FFFFFF"), HEAD
+        ws.column_dimensions[get_column_letter(i)].width = width
+    ws.freeze_panes = f"A{hr + 1}"
+    factor = discount_factor(q)
+    r, total = hr + 1, 0.0
+    for ln in q.lines:
+        if ln.action == "skip":
+            continue
+        row = of_line.get(ln.id) or of_line.get(ln.into_id or -1)
+        if ln.action == "merge":
+            tgt = next((x for x in q.lines if x.id == ln.into_id), None)
+            row = of_line.get(tgt.id) if tgt is not None else None
+        nq = new.get(ln.id, ln.qty or 0)
+        amount = round(nq * (ln.unit_price or 0), 2)
+        if not (ln.action == "merge" and row is not None and is_breakdown(line_dict(next(x for x in q.lines if x.id == ln.into_id)), [line_dict(ln)])):
+            total += amount
+        note = ""
+        if row is not None and ln.action in ("quote", "new"):
+            gone = [x["code"] for x in row["rooms"] if qtys.get(x["id"], x["qty"]) <= 0 and x["qty"] > 0]
+            less = [x["code"] for x in row["rooms"] if 0 < qtys.get(x["id"], x["qty"]) < x["qty"]]
+            more = [x["code"] for x in row["rooms"] if qtys.get(x["id"], x["qty"]) > x["qty"]]
+            note = "; ".join(x for x in (", ".join(r_["code"] for r_ in row["rooms"][:8]),
+                                         ("left out: " + ", ".join(gone)) if gone else "", ("less in: " + ", ".join(less)) if less else "",
+                                         ("more in: " + ", ".join(more)) if more else "") if x)
+            if ln.quote is not None and ln.quote.option_label:
+                note = f"Option {ln.quote.option_label}. " + note
+        elif ln.action == "extra":
+            note = "Extra charge, as quoted"
+        vals = [ln.no, "", ln.ref, " ".join(x for x in (ln.name, (ln.detail or "")[:200]) if x), ln.size, ln.unit, ln.qty, nq, ln.unit_price, amount, note]
+        for i, v in enumerate(vals, start=1):
+            cell = ws.cell(row=r, column=i, value=v)
+            cell.alignment = Alignment(wrap_text=True, vertical="top")
+            if i == 8:
+                cell.fill = YELLOW
+                if abs(nq - (ln.qty or 0)) > 1e-9:
+                    cell.font = Font(bold=True)
+        if ln.thumb:
+            data = storage.read_image(ln.thumb)
+            if data:
+                try:
+                    im = PILImage.open(io.BytesIO(data)).convert("RGB")
+                    im.thumbnail(PHOTO_PX)
+                    b = io.BytesIO()
+                    im.save(b, "PNG")
+                    b.seek(0)
+                    xi = XLImage(b)
+                    xi.width, xi.height = im.size
+                    ws.add_image(xi, f"B{r}")
+                    ws.row_dimensions[r].height = 66
+                except Exception:
+                    pass
+        r += 1
+    r += 1
+    ws.cell(row=r, column=9, value="Lines").font = Font(bold=True)
+    ws.cell(row=r, column=10, value=round(total, 2)).font = Font(bold=True)
+    if factor < 1:
+        r += 1
+        ws.cell(row=r, column=9, value=f"Less your discount ({100 * (1 - factor):.1f}%)")
+        ws.cell(row=r, column=10, value=round(total * factor, 2))
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def apply_now(db: Session, p: Project, rows: list[dict], qtys: dict[int, float]) -> dict:
+    """The tried quantities written into the design: a room line set to 0 is deleted (its photos stay with the product's
+    other rooms), the others take the new quantity. Lines on a confirmed order are not touched. Returns {changed, removed,
+    locked}."""
+    from .services import release_photos
+    by_id = {i.id: i for i in p.live_items}
+    st = dict(changed=0, removed=0, locked=0)
+    doomed = []
+    for row in rows:
+        for r in row["rooms"]:
+            if r["id"] not in qtys:
+                st["locked"] += 1 if r["locked"] else 0
+                continue
+            it = by_id.get(r["id"])
+            v = qtys[r["id"]]
+            if it is None or abs(v - (it.qty or 0)) < 1e-9:
+                continue
+            if v <= 0:
+                doomed.append(it)
+            else:
+                it.qty = round(v, 3)
+                st["changed"] += 1
+    if doomed:
+        gone = {i.id for i in doomed}
+        survivors = [i for i in p.live_items if i.id not in gone]
+        for i in doomed:
+            release_photos(db, p, i, survivors)
+            db.delete(i)
+        st["removed"] = len(doomed)
+    db.flush()
+    return st

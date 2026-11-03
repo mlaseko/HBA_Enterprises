@@ -415,9 +415,51 @@ def quotation_page(request: Request, quotation_id: int, p: Project = Depends(get
     cmp_cat = next((by_cand[ln.product_id] for ln in q.lines if ln.product_id in by_cand), "")
     revises = db.get(Quotation, q.replaces_id) if q.replaces_id else None
     revised_by = db.query(Quotation).filter(Quotation.replaces_id == q.id).order_by(Quotation.id.desc()).first()
+    nrows = qz.now_rows(db, p, q)
+    now = dict(rows=nrows, chips=qz.now_chips(p, nrows), sheet=round(sum(r["sheet_amount"] for r in nrows), 2),
+               today=round(sum(qz.now_amount(r)[1] for r in nrows), 2), charges=round(q.charges or 0, 2))
+    now_data = [dict(pid=r["pid"], unit=r["unit"], price=r["price"], allow=r["allow"], pack=r["pack"], whole=r["whole"], options=r["options"],
+                     rooms=[dict(id=x["id"], qty=x["qty"], price=x["price"]) for x in r["rooms"]]) for r in nrows]
     return render(request, "buying/quotation.html", p=p, q=q, gaps=gaps, counts=counts, ok=ok[:200], err=err[:300], warn=warn[:600], by_quote=by_quote,
                   revises=revises, revised_by=revised_by, cmp_cat=cmp_cat, families=qz.families(db, p, q), dropped=dropped, qty_fine=qty_fine,
-                  lines_total=round(sum(ln.amount or 0 for ln in q.lines), 2))
+                  lines_total=round(sum(ln.amount or 0 for ln in q.lines), 2), now=now, now_amount=qz.now_amount, now_json=json.dumps(now_data))
+
+
+@router.post("/p/{project_id}/quotations/{quotation_id}/now")
+async def apply_now(request: Request, quotation_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """The quantities tried on the "What it comes to now" card written into the design (lines at 0 deleted)."""
+    q = _quotation(db, p, quotation_id)
+    if q is None:
+        return redirect(f"/p/{p.id}/quotations")
+    form = await request.form()
+    rows = qz.now_rows(db, p, q)
+    qtys = qz.tried_quantities(form, rows)
+    before = round(sum(qz.now_amount(r)[1] for r in rows), 2)
+    after = round(sum(qz.now_amount(r, qtys)[1] for r in rows), 2)
+    st = qz.apply_now(db, p, rows, qtys)
+    bz.settle(db, p)
+    db.commit()
+    if not st["changed"] and not st["removed"]:
+        return redirect(f"/p/{p.id}/quotations/{q.id}?ok=" + urlquote("Nothing changed in the design.") + "#now")
+    msg = [f"Design changed: {st['changed']} quantit{'ies' if st['changed'] != 1 else 'y'} changed, {st['removed']} room line{'s' if st['removed'] != 1 else ''} removed."]
+    msg.append(f"At this shop's prices it comes to {q.currency} {after:,.2f} (was {before:,.2f}).")
+    if st["locked"]:
+        msg.append(f"{st['locked']} line{'s' if st['locked'] != 1 else ''} on a confirmed order left as {'they were' if st['locked'] != 1 else 'it was'}.")
+    return redirect(f"/p/{p.id}/quotations/{q.id}?ok=" + urlquote(" ".join(msg)) + "#now")
+
+
+@router.post("/p/{project_id}/quotations/{quotation_id}/revised.xlsx")
+async def revised_sheet(request: Request, quotation_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """The shop's lines with the quantities tried on the card (or the design's, untouched), for the shop to confirm."""
+    q = _quotation(db, p, quotation_id)
+    if q is None:
+        return redirect(f"/p/{p.id}/quotations")
+    form = await request.form()
+    rows = qz.now_rows(db, p, q)
+    data = qz.revised_workbook(p, q, rows, qz.tried_quantities(form, rows))
+    db.rollback()
+    name = re.sub(r"[^A-Za-z0-9]+", "-", q.title or q.filename or "quotation").strip("-")
+    return Response(content=data, media_type=qz.XLSX, headers=content_disposition(f"{p.name}-{name}-revised-quantities.xlsx"))
 
 
 @router.post("/p/{project_id}/quotations/{quotation_id}/variants")

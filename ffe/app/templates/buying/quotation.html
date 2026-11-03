@@ -32,6 +32,45 @@
   <div class="kpi ink"><svg class="ic"><use href="#i-truck"/></svg><div class="v">{{ q.lead_time or '—' }}</div><div class="l">Lead time</div><div class="d">{{ q.sales or (q.supplier.contact if q.supplier else '') or 'as written on the sheet' }}</div></div>
 </div>
 
+
+{% if now.rows %}{% set diff = now.today - now.sheet %}
+<form method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/now" class="card nw" id="now" data-cur="{{ cur }}">
+  <div class="row between top"><div><h2 class="mb-0">What it comes to now</h2>
+    <p class="small muted">This shop's unit prices against the design as it is today (allowance and packs included, as on Buying). Untick a room or lower a quantity to try a change: nothing is saved until you press <b>Apply to the design</b>.</p></div></div>
+  <div class="nw-kpis">
+    <div><span class="l">On the sheet</span><span class="v">{{ cur }} {{ now.sheet|money(2) }}</span><span class="d">the lines that price products</span></div>
+    <div><span class="l">At today's design</span><span class="v">{{ cur }} {{ now.today|money(2) }}</span><span class="d{{ ' red' if diff > 0.5 else (' green' if diff < -0.5 else '') }}">{% if diff|abs > 0.5 %}{{ '+' if diff > 0 }}{{ diff|money(2) }} against the sheet{% else %}as on the sheet{% endif %}</span></div>
+    <div class="try"><span class="l">With your changes</span><span class="v" id="nw-total">{{ cur }} {{ now.today|money(2) }}</span><span class="d" id="nw-delta">no change tried yet</span></div>
+  </div>
+  {% if now.charges %}<p class="small muted">Plus the sheet's extra charges, {{ cur }} {{ now.charges|money(2) }}, which belong to no product.</p>{% endif %}
+  {% if now.chips %}<div class="nw-chips"><span class="small muted">Leave out:</span>{% for ch in now.chips %}<button type="button" class="pick-chip" data-ids="{{ ch.ids|join(' ') }}">{{ ch.label }} <b>{{ ch.ids|length }}</b></button>{% endfor %}<button type="button" class="pick-chip" data-reset>Reset</button></div>{% endif %}
+  <div class="nw-list">
+  {% for r in now.rows %}{% set t = now_amount(r) %}
+    <details class="nw-prod" data-pid="{{ r.pid }}">
+      <summary><span class="nw-name"><b>{{ r.title }}</b>{% if r.options %} <span class="pill gold">options</span>{% endif %}<span class="small muted"> · {{ r.rooms|length }} room line{{ 's' if r.rooms|length != 1 }} · {{ r.price|num(2) }} per {{ r.unit or 'unit' }}</span></span>
+        <span class="nw-fig"><span class="small muted">sheet</span> {{ r.sheet_qty|num(2) }} · {{ r.sheet_amount|money(2) }}</span>
+        <span class="nw-fig"><span class="small muted">today</span> {{ t[0]|num(2) }} · {{ t[1]|money(2) }}</span>
+        <span class="nw-fig nw-new" data-pid="{{ r.pid }}"></span></summary>
+      <div class="nw-rooms">
+      {% for x in r.rooms %}
+        <label class="nw-room{{ ' locked' if x.locked }}"><input type="checkbox" name="keep_{{ x.id }}" value="1" checked{{ ' disabled' if x.locked }} data-id="{{ x.id }}">
+          <span><b>{{ x.code }}</b> {{ x.room }} <span class="small muted">{{ x.floor }}{% if x.locked %} · on a confirmed order{% endif %}</span></span>
+          <input class="in sm" type="number" step="any" min="0" name="qty_{{ x.id }}" value="{{ x.qty|plain }}" data-id="{{ x.id }}" data-was="{{ x.qty|plain }}"{{ ' disabled' if x.locked }} inputmode="decimal" aria-label="Quantity in {{ x.code }}"> <span class="small muted">{{ r.unit }}</span></label>
+      {% endfor %}
+      {% if not r.rooms %}<p class="small muted">No room line left in the design.</p>{% endif %}
+      </div>
+    </details>
+  {% endfor %}
+  </div>
+  <div class="row mt nw-acts">
+    <button class="btn" data-confirm="Apply these changes to the design? The room lines take the new quantities and the ones you left out are deleted (their photos stay with the product). Buying, the Tracker and the orders follow; the quotation keeps the shop's figures." data-confirm-ok="Apply to the design"><svg class="ic"><use href="#i-check"/></svg>Apply to the design</button>
+    <button class="btn sec" formaction="/p/{{ p.id }}/quotations/{{ q.id }}/revised.xlsx"><svg class="ic"><use href="#i-download"/></svg>Revised quantities for the shop (Excel)</button>
+    <span class="small muted">The Excel lists the shop's lines with the quantities tried here, for them to confirm their prices.</span>
+  </div>
+  <script type="application/json" id="nw-data">{{ now_json|safe }}</script>
+</form>
+{% endif %}
+
 <div class="tbl"><table class="qi-doc">
   <thead><tr><th></th><th>Line</th><th>As written</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Amount</th><th>Became</th></tr></thead>
   <tbody>
@@ -100,4 +139,31 @@
     <form method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/delete" class="mt" data-confirm="Delete this quotation? Its quotes go with it, except those a purchase uses or a later sheet from the shop corrected; rooms already bought keep their prices."><button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete the quotation</button></form>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+  var form=document.getElementById('now'); if(!form) return; var rows=[]; try{ rows=JSON.parse(document.getElementById('nw-data').textContent); }catch(e){ return; }
+  var cur=form.dataset.cur, fmt=function(v){ return v.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  function qtyOf(id){ var k=form.querySelector('input[name="keep_'+id+'"]'), q=form.querySelector('input[name="qty_'+id+'"]'); if(!k||k.disabled) return null; if(!k.checked) return 0; var v=parseFloat(q.value); return isNaN(v)||v<0?0:v; }
+  function order(r, sum){ var base=sum*(1+(r.allow||0)); if(r.pack>0) return Math.ceil(Math.round(base/r.pack*1e6)/1e6)*r.pack; if(r.whole) return Math.ceil(Math.round(base*1e6)/1e6); return Math.round(base*100)/100; }
+  function amount(r, tried){ var q=function(x){ var v=tried?qtyOf(x.id):null; return v===null?x.qty:v; };
+    if(r.options){ var s=0, a=0; r.rooms.forEach(function(x){ s+=q(x); a+=q(x)*x.price; }); return [s*(1+(r.allow||0)), a*(1+(r.allow||0))]; }
+    var sum=0; r.rooms.forEach(function(x){ sum+=q(x); }); var o=order(r, sum); return [o, o*r.price]; }
+  function update(){ var today=0, tried=0, changed=0;
+    rows.forEach(function(r){ var a=amount(r,false), b=amount(r,true); today+=a[1]; tried+=b[1]; var cell=form.querySelector('.nw-new[data-pid="'+r.pid+'"]'), d=b[1]-a[1];
+      if(cell){ cell.innerHTML=Math.abs(d)>0.005?'<span class="small muted">new</span> '+(Math.round(b[0]*100)/100)+' · <b>'+fmt(b[1])+'</b> <span class="'+(d<0?'green':'red')+'">'+(d>0?'+':'')+fmt(d)+'</span>':''; }
+      r.rooms.forEach(function(x){ var v=qtyOf(x.id); var lab=form.querySelector('input[name="keep_'+x.id+'"]'); if(lab) lab.closest('.nw-room').classList.toggle('out', v===0); if(v!==null&&Math.abs(v-x.qty)>1e-9) changed++; }); });
+    var d=tried-today; document.getElementById('nw-total').textContent=cur+' '+fmt(tried);
+    document.getElementById('nw-delta').innerHTML=changed?'<span class="'+(d<0?'green':'red')+'">'+(d>0?'+':'')+fmt(d)+'</span> against today · '+changed+' room line'+(changed===1?'':'s')+' changed':'no change tried yet';
+    form.classList.toggle('tried', changed>0); }
+  form.addEventListener('input', update); form.addEventListener('change', update);
+  form.addEventListener('click', function(e){ var chip=e.target.closest('.nw-chips .pick-chip'); if(!chip) return;
+    if(chip.hasAttribute('data-reset')){ form.querySelectorAll('.nw-room input[type=checkbox]:not([disabled])').forEach(function(b){ b.checked=true; }); form.querySelectorAll('.nw-room input[type=number]:not([disabled])').forEach(function(i){ i.value=i.dataset.was; }); update(); return; }
+    var ids=chip.dataset.ids.split(' '), boxes=ids.map(function(i){ return form.querySelector('input[name="keep_'+i+'"]'); }).filter(function(b){ return b&&!b.disabled; });
+    var allIn=boxes.every(function(b){ return b.checked; }); boxes.forEach(function(b){ b.checked=!allIn; var d=b.closest('details'); if(d&&allIn) d.open=true; }); chip.classList.toggle('on', allIn); update(); });
+  update();
+})();
+</script>
 {% endblock %}
