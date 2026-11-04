@@ -1494,3 +1494,9 @@ tr.fam-row td{background:var(--surface-2);border-top:2px solid var(--line)}tr.fa
   .qi-saved tbody tr:has(td.qi-td-pic:empty){grid-template-columns:0 1fr auto;column-gap:0}.qi-saved tbody tr:has(td.qi-td-pic:empty) td:nth-child(n+4){padding-left:10px}
   .qi-saved tfoot tr{display:flex;justify-content:space-between;padding:10px 12px}.qi-saved tfoot td{display:block;padding:0;border:0}
 }
+/* a saved sheet's products on several lines: one quote or options (quotation.html #choices) */
+.mc-row{border-top:1px solid var(--line-2);padding:10px 0}.mc-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.mc-lines{display:grid;gap:6px;margin-top:6px}
+.mc-line{display:grid;grid-template-columns:44px 1fr minmax(120px,200px);gap:10px;align-items:center}
+.mc-line img,.mc-nopic{width:44px;height:44px;border-radius:8px;object-fit:cover;background:var(--line-2);display:block}
+@media(max-width:700px){.mc-line{grid-template-columns:44px 1fr}.mc-line>:last-child{grid-column:2}}

@@ -2485,3 +2485,76 @@ def apply_now(db: Session, p: Project, rows: list[dict], qtys: dict[int, float])
         st["removed"] = len(doomed)
     db.flush()
     return st
+
+
+# ---- lines of one product on a saved sheet: one quote, or options to choose ---------------------------------------------------
+def multi_line_products(q: Quotation) -> list[dict]:
+    """The products two or more of this sheet's lines quote: [{pid, title, lines, options (bool), quote (the combined one)}],
+    for the saved page's card that turns them into options to choose or back into one quote."""
+    by: dict[int, list[QuotationLine]] = {}
+    for ln in q.lines:
+        if ln.action in ("quote", "new") and ln.product_id:
+            by.setdefault(ln.product_id, []).append(ln)
+    out = []
+    for pid, lns in by.items():
+        if len(lns) < 2:
+            continue
+        opts = all(ln.quote is not None and ln.quote.option_label for ln in lns)
+        out.append(dict(pid=pid, title=(lns[0].product.title if lns[0].product else lns[0].name), lines=lns, options=opts,
+                        quote=None if opts else next((ln.quote for ln in lns if ln.quote is not None), None)))
+    return out
+
+
+def set_options(db: Session, p: Project, q: Quotation, product_id: int, on: bool, labels: dict[int, str] | None = None) -> tuple[str, list[str]]:
+    """The lines of this sheet on one product made options to choose (a quote each, named by `labels` = {line id: label},
+    else variant_label, else Option A, B…, with the line's picture) or back into one quote at the combined price. Refused
+    while rooms are bought from a quote that would go. Returns (what changed, warnings); raises ValueError."""
+    lns = [ln for ln in q.lines if ln.product_id == product_id and ln.action in ("quote", "new")]
+    if len(lns) < 2:
+        raise ValueError("Options need two lines or more on the product.")
+    if superseded(db, q) is not None:
+        raise ValueError("A later sheet from the shop revised this one: change that one.")
+    ours = sheet_quotes(q)
+    title = lns[0].product.title if lns[0].product else "the product"
+    if on:
+        old = {ln.quote for ln in lns if ln.quote is not None and not ln.quote.option_label}
+        for qu in old:
+            if _bought(db, qu):
+                raise ValueError(f"Rooms are bought from the combined quote of {title}: take them off it on the Buying page first.")
+        dicts = [line_dict(ln) for ln in lns]
+        names = option_labels(dicts, {ln.no: {"variant": (labels or {}).get(ln.id, "")} for ln in lns})
+        for ln in lns:
+            qu = Quote(project_id=p.id, product_id=product_id, option_label=names[ln.no])
+            buying.set_quote(qu, p, supplier=q.supplier, amount=ln.unit_price or 0, currency=q.currency)
+            db.add(qu)
+            db.flush()
+            if ln.photo_key:
+                data = storage.read_image(ln.photo_key)
+                if data:
+                    buying.set_quote_photo(qu, data, p)
+            ln.quote_id = qu.id
+            for x in q.lines:
+                if x.action == "merge" and x.into_id == ln.id:
+                    x.quote_id = qu.id
+        db.flush()
+        for qu in old:
+            if db.query(QuotationLine).filter(QuotationLine.quote_id == qu.id).first() is None:
+                buying.delete_quote(db, qu)
+        db.flush()
+        db.expire_all()
+        warns = reprice(db, p, q, {product_id}, ours)
+        return f"{title}: {len(lns)} options to choose ({', '.join(names[ln.no] for ln in lns)}).", warns
+    opts = {ln.quote for ln in lns if ln.quote is not None and ln.quote.option_label}
+    for qu in opts:
+        if _bought(db, qu):
+            raise ValueError(f"Rooms are bought from the option {qu.option_label} of {title}: take them off it on the Buying page first.")
+    for ln in q.lines:
+        if ln.quote_id in {qu.id for qu in opts}:
+            ln.quote_id = None
+    db.flush()
+    for qu in opts:
+        buying.delete_quote(db, qu)
+    db.flush()
+    db.expire_all()
+    warns = reprice(db, p, q, {product_id}, ours)
+    return f"{title}: back to one quote at the lines' combined price.", warns

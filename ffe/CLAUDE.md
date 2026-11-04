@@ -544,6 +544,11 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   and no-JS still open the page. Used on the Buying product page, order lines, the line picks and the quotation's
   variants card. The variants card shows a picture per variant (`families()` → `pic`: rooms' cover, else quote/line photo).
 
+- **Options on a saved sheet.** `quotations.multi_line_products(q)` feeds the page's `#choices` card; `set_options(db, p,
+  q, product_id, on, labels)` (`POST /quotations/<q>/options`) gives each line its own `Quote` with `option_label`
+  (`option_labels`, the line's picture via `set_quote_photo`, the combined quote deleted when no line points at it) or
+  deletes the options so `reprice` makes one combined quote again; ValueError while a quote that would go is bought from.
+
 - **What it comes to now.** The saved quotation page's `#now` form: `quotations.now_rows(db, p, q)` (per product the sheet
   quotes: its lines, the shop's unit price in the sheet's currency via `_sheet_price`, allowance, pack, the sheet's quantity
   and amount — options count the dearest — and the product's room lines with `locked` for a confirmed order),

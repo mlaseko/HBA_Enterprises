@@ -104,6 +104,30 @@
   <tfoot><tr><td colspan="5" class="num">Lines</td><td class="num"><b>{{ lines_total|money(2) }}</b></td><td></td></tr></tfoot>
 </table></div>
 
+{% if multi %}
+<div class="card mt" id="choices">
+  <h2 class="mb-0">Several lines on one product</h2>
+  <p class="small muted">Products this sheet quotes on two lines or more. <b>One quote</b> averages them (the shop's models of one thing); <b>options to choose</b> keeps a quote per line with its own price and picture, and you choose per room on the product's Buying page (two carpets for a room that rotates them).</p>
+  {% for m in multi %}
+  <form method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/options" class="mc-row">
+    <input type="hidden" name="product" value="{{ m.pid }}">
+    <div class="mc-head"><a href="/p/{{ p.id }}/buying/{{ m.pid }}{{ '#options' if m.options }}"><b>{{ m.title }}</b></a>
+      {% if m.options %}<span class="pill gold">{{ m.lines|length }} options</span>{% else %}<span class="pill">one quote{% if m.quote %} · {{ cur }} {{ m.quote.amount|money(2) }} average{% endif %}</span>{% endif %}</div>
+    <div class="mc-lines">
+      {% for ln in m.lines %}
+      <div class="mc-line">{% if ln.thumb %}<a href="/media/{{ ln.photo_key }}" target="_blank" data-caption="L{{ ln.no }} · {{ ln.name }}"><img src="/media/{{ ln.thumb }}" alt=""></a>{% else %}<span class="mc-nopic"></span>{% endif %}
+        <span><b>L{{ ln.no }}</b> {{ ln.size or ln.name }} <span class="muted">{{ cur }} {{ ln.unit_price|money(2) }}</span></span>
+        {% if m.options %}<span class="pill">{{ ln.quote.option_label if ln.quote else '' }}</span>{% elif not revised_by %}<input class="in sm" name="label_{{ ln.id }}" placeholder="Option {{ 'ABCDEFGHIJ'[loop.index0] if loop.index0 < 10 else loop.index }}" maxlength="56" aria-label="Option name for line {{ ln.no }}">{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% if not revised_by %}<div class="row mt">{% if m.options %}<button class="btn sm ghost" name="on" value="0" data-confirm="Back to one quote? The options go and the lines make one quote at their combined price. Refused while rooms are bought from an option.">Back to one quote</button>
+      {% else %}<button class="btn sm" name="on" value="1"><svg class="ic"><use href="#i-layout"/></svg>Make them options to choose</button><span class="small muted">Names are optional: empty boxes become Option A, B…</span>{% endif %}</div>{% endif %}
+  </form>
+  {% endfor %}
+</div>
+{% endif %}
+
 {% if families %}
 <div class="card mt" id="variants">
   <h2 class="mb-0">Products and variants</h2>
