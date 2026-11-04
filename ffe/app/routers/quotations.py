@@ -422,7 +422,25 @@ def quotation_page(request: Request, quotation_id: int, p: Project = Depends(get
                      rooms=[dict(id=x["id"], qty=x["qty"], price=x["price"]) for x in r["rooms"]]) for r in nrows]
     return render(request, "buying/quotation.html", p=p, q=q, gaps=gaps, counts=counts, ok=ok[:200], err=err[:300], warn=warn[:600], by_quote=by_quote,
                   revises=revises, revised_by=revised_by, cmp_cat=cmp_cat, families=qz.families(db, p, q), dropped=dropped, qty_fine=qty_fine,
-                  lines_total=round(sum(ln.amount or 0 for ln in q.lines), 2), now=now, now_amount=qz.now_amount, now_json=json.dumps(now_data))
+                  lines_total=round(sum(ln.amount or 0 for ln in q.lines), 2), multi=qz.multi_line_products(q), now=now, now_amount=qz.now_amount, now_json=json.dumps(now_data))
+
+
+@router.post("/p/{project_id}/quotations/{quotation_id}/options")
+async def quotation_options(request: Request, quotation_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """The lines of one product made options to choose (on=1, labels label_<line>) or back into one quote (on=0)."""
+    q = _quotation(db, p, quotation_id)
+    if q is None:
+        return redirect(f"/p/{p.id}/quotations")
+    form = await request.form()
+    labels = {int(k[6:]): v for k, v in form.items() if k.startswith("label_") and k[6:].isdigit()}
+    try:
+        msg, warns = qz.set_options(db, p, q, fint(form.get("product")) or 0, form.get("on") == "1", labels)
+    except ValueError as e:
+        db.rollback()
+        return redirect(f"/p/{p.id}/quotations/{q.id}?err=" + urlquote(str(e)) + "#choices")
+    bz.settle(db, p)
+    db.commit()
+    return redirect(f"/p/{p.id}/quotations/{q.id}?ok=" + urlquote(msg) + (("&warn=" + urlquote(" ".join(warns))) if warns else "") + "#choices")
 
 
 @router.post("/p/{project_id}/quotations/{quotation_id}/now")

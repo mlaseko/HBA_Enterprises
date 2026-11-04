@@ -2245,6 +2245,18 @@ def flow(c):
     r=c.post(f"/p/{pid_q}/quotations/{qdw}/now", data=tried, follow_redirects=False); loc=_unq(r.headers["location"]); assert "1 quantity changed, 1 room line removed" in loc and "USD 30.00 (was 60.00)" in loc, loc
     db=SessionLocal(); assert sorted(i.qty for i in db.query(_OI).filter(_OI.project_id==pid_q, _OI.name=="Wall lamp"))==[1, 2]; db.close()
     r=c.post(f"/p/{pid_q}/quotations/{qdw}/now", data={f"keep_{_wl[_acr[1][0]]}":"1", f"qty_{_wl[_acr[1][0]]}":"1", f"keep_{_wl[_acr[2][0]]}":"1", f"qty_{_wl[_acr[2][0]]}":"2"}, follow_redirects=False); assert "Nothing%20changed" in r.headers["location"]
+    # a sheet saved with two carpet lines averaged into one quote: made options to choose on the saved page, then back to one
+    locc2,_=upload_quote("Carpet options 2.xlsx", carpet_sheet()); keyc2b=_unq(locc2.split("key=")[1])
+    r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(formc, key=keyc2b, supplier_name="Carpet Two", vlabel_1="", **{f"split_{_cp_id}":""}), follow_redirects=False)
+    qdc2=int(r.headers["location"].split("/quotations/")[1].split("?")[0])
+    db=SessionLocal(); _sup2=db.get(_QD, qdc2).supplier_id; _mine=lambda: sorted((x.option_label, round(x.amount)) for x in db.get(_Pr, _cp_id).quotes if x.supplier_id==_sup2)
+    assert _mine()==[("", 360)], _mine(); _L2={ln.no: ln.id for ln in db.get(_QD, qdc2).lines}; db.close()
+    h=c.get(f"/p/{pid_q}/quotations/{qdc2}").text; assert 'id="choices"' in h and "Make them options to choose" in h and f'name="label_{_L2[1]}"' in h
+    r=c.post(f"/p/{pid_q}/quotations/{qdc2}/options", data={"product":str(_cp_id), "on":"1", f"label_{_L2[1]}":"Wool"}, follow_redirects=False); assert "2%20options%20to%20choose" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); assert _mine()==[("CP-2", 420), ("Wool", 300)], _mine(); assert all(ln.quote is not None and ln.quote.option_label for ln in db.get(_QD, qdc2).lines if ln.no in (1, 2)); db.close()
+    assert "Back to one quote" in c.get(f"/p/{pid_q}/quotations/{qdc2}").text
+    r=c.post(f"/p/{pid_q}/quotations/{qdc2}/options", data={"product":str(_cp_id), "on":"0"}, follow_redirects=False); assert "back%20to%20one%20quote" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); assert _mine()==[("", 360)], _mine(); db.close()
     print("quotations ok")
 
     # what differs from the design: decided once per product and difference, for the quotation alone or into the items as well

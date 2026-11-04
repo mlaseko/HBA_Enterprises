@@ -305,6 +305,10 @@ name** (or set the Kind by hand): every existing entry starts as a room.
   quote (`buying.follow_renames`); the generic product left without rooms, quotes or purchases is removed. The document
   page's "Products and variants" card (`POST /quotations/<q>/variants`: `label_<product>`, `var_<item>`) renames
   variants and moves room lines between them; the preview's quantities table groups a family's variants under one row.
+- Options on a saved sheet (`quotations.multi_line_products`, `set_options`): the quotation page's `#choices` card lists the
+  products two or more lines quote; `POST /quotations/<q>/options` (`product`, `on` = 1 | 0, `label_<line>`) makes them a
+  quote per line with `option_label` (the combined quote deleted) or back into one quote, then `reprice`; refused while a
+  quote that would go has purchases.
 - What a saved sheet comes to now (`quotations.now_rows`, `now_amount`, `now_chips`, `tried_quantities`, `revised_lines`,
   `revised_workbook`, `apply_now`): the quotation page's `#now` card compares the sheet's amount with the shop's unit prices ×
   today's design quantities (allowance and packs as Buying) and lets the page's script try leaving rooms out (`keep_<item>`)
