@@ -278,13 +278,20 @@ async def add_quote(request: Request, product_id: int, p: Project = Depends(get_
     if form.get("buy") == "open" and q.unit_price:
         g = bz.group_of(p, prod)
         lines = [i for i in (g.lines if g else []) if not i.purchase_id]
+        before = od.loose_ids(db, p)
         if lines and bz.buy(db, p, prod, q, lines):
-            msg = f"Quote from {sup.name} added, and bought for {len(lines)} room{'s' if len(lines) != 1 else ''}."
+            msg = f"Quote from {sup.name} added, and chosen for {len(lines)} room{'s' if len(lines) != 1 else ''}." + _placed(db, p, before)
     elif form.get("buy") == "open":
         msg += " Not bought yet: add its price first."
     bz.settle(db, p)
     db.commit()
     return _back(p, prod, "#quotes", ok=msg)
+
+
+def _placed(db: Session, p: Project, before: set[int]) -> str:
+    """After a shop is chosen: its new purchases go onto its draft order (ordering.follow_choice). The words for the message."""
+    os_ = od.follow_choice(db, p, before, get_settings(db).warehouse)
+    return (" On draft order " + ", ".join(od.ref(o) for o in os_) + ".") if os_ else ""
 
 
 def _quote(db: Session, prod: Product, quote_id: int) -> Quote | None:
@@ -344,7 +351,9 @@ async def buy_from_quote(request: Request, product_id: int, quote_id: int, p: Pr
         lines = _lines_from_form(g, form.getlist("line"))
         pu = next((x for x in g.purchases if x.quote_id == q.id), None)
         if pu is not None:
+            before = od.loose_ids(db, p)
             bz.set_rooms(db, p, pu, lines, g.lines)
+            _placed(db, p, before)
             bz.settle(db, p)
             db.commit()
             if not lines:
@@ -354,13 +363,15 @@ async def buy_from_quote(request: Request, product_id: int, quote_id: int, p: Pr
         lines = [i for i in g.lines if not i.purchase_id]
     if not lines:
         return _back(p, prod, f"#quote-{q.id}", err="Tick at least one room to buy for.")
+    before = od.loose_ids(db, p)
     bz.buy(db, p, prod, q, lines)
+    placed = _placed(db, p, before)
     bz.settle(db, p)
     db.commit()
     nxt = safe_next(form.get("next", ""), "")
     if nxt:  # from the compare grid: back to it
-        return redirect(f"{nxt}{'&' if '?' in nxt else '?'}ok=" + urlquote(f"Buying {g.name} from {who} for {len(lines)} room{'s' if len(lines) != 1 else ''}."))
-    return _back(p, prod, "#buying-from", ok=f"Buying from {who} for {len(lines)} room{'s' if len(lines) != 1 else ''}.")
+        return redirect(f"{nxt}{'&' if '?' in nxt else '?'}ok=" + urlquote(f"Buying {g.name} from {who} for {len(lines)} room{'s' if len(lines) != 1 else ''}.{placed}"))
+    return _back(p, prod, "#buying-from", ok=f"Buying from {who} for {len(lines)} room{'s' if len(lines) != 1 else ''}.{placed}")
 
 
 @router.post("/p/{project_id}/buying/{product_id}/options")
@@ -379,10 +390,12 @@ async def choose_options(request: Request, product_id: int, p: Project = Depends
         picks = {rid: [fint(form.get("all"))] for rid in rids}
     else:
         picks = {rid: [x for x in (fint(v) for v in form.getlist(f"pick_{rid}")) if x in priced] for rid in rids}
+    before = od.loose_ids(db, p)
     st = bz.choose_options(db, p, prod, g, picks)
+    placed = _placed(db, p, before)
     bz.settle(db, p)
     db.commit()
-    msg = [f"Options saved: {st['chosen']} room{'s' if st['chosen'] != 1 else ''} chosen."]
+    msg = [f"Options saved: {st['chosen']} room{'s' if st['chosen'] != 1 else ''} chosen.{placed}"]
     if st["added"]:
         msg.append(f"{st['added']} room{'s take' if st['added'] != 1 else ' takes'} a second option: a line was added for each.")
     if st["removed"]:
@@ -409,6 +422,7 @@ async def edit_purchase(request: Request, product_id: int, purchase_id: int, p: 
         lines = _lines_from_form(g, form.getlist("line"))
         puid = pu.id
         bz.set_rooms(db, p, pu, lines, g.lines)
+        od.tidy_drafts(db, p)
         bz.settle(db, p)
         db.commit()
         if not lines:
@@ -429,6 +443,7 @@ def delete_purchase(product_id: int, purchase_id: int, p: Project = Depends(get_
     pu = _purchase(db, prod, purchase_id) if prod is not None else None
     if pu is not None:
         bz.remove_purchase(db, p, pu)
+        od.tidy_drafts(db, p)
         bz.settle(db, p)
         db.commit()
     return _back(p, prod, "#buying-from", ok="Purchase removed: those rooms have no shop again.") if prod is not None else redirect(f"/p/{p.id}/buying")

@@ -1559,3 +1559,60 @@ body:not(.selecting) td.sel,body:not(.selecting) th.sel{padding:0;width:0}
 .qi-folded>.ic{color:var(--green);flex:none}.qi-folded .txt{flex:1;font-size:.9rem}
 body.qi-walking .qi-folded,body.qi-walking .qi-diffs{display:none!important}
 .home-grid h2 .h-note{display:inline;margin:0 0 0 6px}
+/* ---------- the product page (buying/product.html): the rooms beside the design, the quotes in one table ---------- */
+.bu-rooms{max-height:320px;overflow:auto}
+.bu-rooms td{padding-top:7px;padding-bottom:7px}
+.bu-calc-line{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;font-size:.88rem;color:var(--ink-2);padding-top:10px;border-top:1px solid var(--line-2)}
+.bu-calc-line b{font-variant-numeric:tabular-nums;color:var(--ink)}
+.bu-calc-line .op{color:var(--muted)}
+.bu-calc-line .res{background:var(--ink);color:#fff;border-radius:999px;padding:2px 12px}.bu-calc-line .res b{color:#fff}
+.bu-qtable{padding:0;overflow-x:auto}
+table.qcmp{width:100%;border-collapse:collapse;font-size:.9rem}
+table.qcmp th{text-align:left;font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:12px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.qcmp th.num,table.qcmp td.num{text-align:right}
+table.qcmp td{padding:12px 14px;vertical-align:top}
+table.qcmp tbody.qtr+tbody.qtr .qt-row td{border-top:1px solid var(--line)}
+table.qcmp tbody.qtr.best .qt-row td{background:#F4F9F5}
+table.qcmp tbody.qtr.chosen .qt-row td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+table.qcmp td.who{display:flex;gap:12px;align-items:flex-start;min-width:220px}
+table.qcmp .pic{flex:none;width:46px;height:46px;border-radius:10px;overflow:hidden;background:var(--surface-3);border:1px solid var(--line-2);display:flex;align-items:center;justify-content:center;color:var(--muted)}
+table.qcmp .pic img{width:100%;height:100%;object-fit:cover;display:block}
+table.qcmp .shop{font-weight:700;line-height:1.25}
+table.qcmp .who .m{font-size:.78rem;color:var(--muted);margin-top:2px}
+table.qcmp .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+table.qcmp .price .v{display:block;font-family:var(--serif);font-size:1.35rem;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap}
+table.qcmp .price .v.none{font-size:.95rem;color:var(--muted)}
+table.qcmp .price .alt{display:block;font-size:.76rem;color:var(--muted);white-space:nowrap}
+table.qcmp td.tot b{font-variant-numeric:tabular-nums;white-space:nowrap}
+table.qcmp td.act{text-align:right;white-space:nowrap}
+table.qcmp .chosen-txt{color:var(--accent-ink)}
+table.qcmp .qt-more td{padding-top:0;padding-bottom:12px}
+table.qcmp .qt-tools{gap:14px}
+table.qcmp .qt-tools details[open]{flex-basis:100%}
+@media(max-width:820px){  /* the phone: one card per quote */
+  table.qcmp thead{display:none}
+  table.qcmp,table.qcmp tbody,table.qcmp tr,table.qcmp td{display:block;width:100%}
+  table.qcmp tbody.qtr{border-top:1px solid var(--line);padding:10px 0}
+  table.qcmp tbody.qtr:first-of-type{border-top:0}
+  table.qcmp tbody.qtr+tbody.qtr .qt-row td{border-top:0}
+  table.qcmp td{padding:4px 14px}
+  table.qcmp td.num{text-align:left}
+  table.qcmp td[data-l]:not(.who)::before{content:attr(data-l);display:block;font-size:.64rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  table.qcmp td.act{text-align:left;padding-top:8px}
+  table.qcmp td.act .btn{width:100%;justify-content:center}
+}
+.status-auto{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:40px}
+.status-hand>summary{cursor:pointer;color:var(--accent-ink);margin:4px 0}
+.status-hand[open]>summary{margin-bottom:6px}
+/* quotation check: 1 Upload · 2 Review the lines · 3 Check and save (the preview's script adds body.qi-wiz; without it the page is one) */
+.qi-steps{display:flex;gap:6px;list-style:none;margin:0 0 14px;padding:0;flex-wrap:wrap}
+.qi-steps li a,.qi-steps li button{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font:inherit;font-size:.86rem;font-weight:600;color:var(--muted);cursor:pointer}
+.qi-steps li a:hover{text-decoration:none}
+.qi-steps .n{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--surface-3);font-size:.72rem}
+.qi-steps li.on button{background:var(--ink);border-color:var(--ink);color:#fff}.qi-steps li.on .n{background:rgba(255,255,255,.2)}
+.qi-steps li.done a,.qi-steps li.done button{color:var(--green);border-color:#cfe6d7}.qi-steps li.done .n{background:var(--green-soft)}
+body:not(.qi-wiz) .qi-steps,body:not(.qi-wiz) #qi-next,body:not(.qi-wiz) #qi-back{display:none}
+body.qi-wiz:not(.qi-step3) #qi-sim,body.qi-wiz:not(.qi-step3) #document,body.qi-wiz:not(.qi-step3) #qi-save,body.qi-wiz:not(.qi-step3) #qi-back,body.qi-wiz:not(.qi-step3) .qi-bar-note{display:none}
+body.qi-step3 .qi-summary,body.qi-step3 #qi-diffs,body.qi-step3 .qi-views,body.qi-step3 #qi-folded,body.qi-step3 #lines,body.qi-step3 #qi-byprod,body.qi-step3 #qi-splits,body.qi-step3 #qi-next,body.qi-step3 #qi-walkbar{display:none!important}
+body.qi-step3 #qi-form{display:flex;flex-direction:column}body.qi-step3 #document{order:-1}  /* the shop and the date first, then what saving makes */
+.qi-todo ul{max-height:9.5em;overflow:auto}

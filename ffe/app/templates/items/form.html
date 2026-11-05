@@ -50,8 +50,12 @@
       <div class="span2 help">The name, size and colour/finish together tell one product from another, so keep the size and colour out of the name.</div>
       <div class="span2"><label for="f-spec">Must-have spec <span class="muted small">(what the supplier must deliver)</span></label><textarea class="in" id="f-spec" name="spec">{{ it.spec if it else '' }}</textarea></div>
       <div><label for="f-brand">Preferred brand <span class="muted small">(only if the design asks for one)</span></label><input class="in" id="f-brand" type="text" name="brand" value="{{ it.brand if it else '' }}" list="dl-brand" autocomplete="off" placeholder="Any brand that meets the spec"></div>
-      <div><label for="f-status">Status</label><select name="status" id="f-status" class="in">{% for st in STATUSES %}<option value="{{ st }}" {{ 'selected' if it and it.status == st }}>{{ st|status_label }}</option>{% endfor %}</select>
-        <div class="help">Orders and boxes move it on by themselves.</div></div>
+      <div><label for="f-status">Status</label>
+        {% if it %}<div class="status-auto"><span class="badge" style="--c:{{ STATUS_COLORS[it.status] }}">{{ it.status|status_label }}</span> <span class="small muted">moves by itself with its shop, order and boxes</span></div>
+        <details class="status-hand"><summary class="small">Set it by hand</summary>
+          <select name="status" id="f-status" class="in">{% for st in STATUSES %}<option value="{{ st }}" {{ 'selected' if it.status == st }}>{{ st|status_label }}</option>{% endfor %}</select>
+          <div class="help">For a line no order or box follows, such as one bought before orders were in the app. Its order or boxes may set it again.</div></details>
+        {% else %}<input type="hidden" name="status" value="To buy" id="f-status"><div class="status-auto small muted">To buy: it moves on by itself once a shop is chosen.</div>{% endif %}</div>
       <div class="span2"><label class="check"><input type="checkbox" name="optional" {{ 'checked' if it and it.optional }}> Optional item <span class="muted small">(shown separately in totals)</span></label></div>
       <div class="span2"><label for="f-notes">Notes</label><textarea class="in" id="f-notes" name="notes">{{ it.notes if it else '' }}</textarea></div>
       <div class="span2"><label for="f-url">Picture from a web link <span class="muted small">(supplier site, Pinterest, Taobao…)</span></label>

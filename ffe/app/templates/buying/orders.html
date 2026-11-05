@@ -5,12 +5,9 @@
 {% set rate = p.rate or 1 %}
 <div class="page-head">
   <div>
-    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/buying">Buying</a></div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
     <h1>Orders <span class="h-note">{{ ovs|length }} order{{ 's' if ovs|length != 1 }}{% if money.ordered %} · {{ money.ordered|cur }} confirmed{% endif %}</span></h1>
     <p class="sub">Your orders by shop, from draft to paid.</p>
-  </div>
-  <div class="actions">
-    <a class="btn sec" href="/p/{{ p.id }}/payments"><svg class="ic"><use href="#i-card"/></svg>Payments</a>
   </div>
 </div>
 {{ tabs(p, 'orders') }}
@@ -25,9 +22,9 @@
   <div class="kpi gold"><svg class="ic"><use href="#i-file"/></svg><div class="v">{{ money.drafts|cur }}</div><div class="l">In draft orders</div><div class="d">{% set nd = ovs|rejectattr('o.confirmed')|list|length %}{{ nd }} draft{{ 's' if nd != 1 }} to confirm</div></div>
 </div>
 
+{% if ready %}
 <section class="bu-sec" id="ready">
-  <div class="bu-sec-head"><div><h2>Ready to order <span class="n">{{ ready|length }}</span></h2><p class="small muted">Bought from a shop on the Buying page, not on an order yet. One order per shop: start it, or add to the shop's draft.</p></div></div>
-  {% if ready %}
+  <div class="bu-sec-head"><div><h2>Ready to order <span class="n">{{ ready|length }}</span></h2><p class="small muted">Chosen before orders were made by themselves, or taken off an order. Put them on the shop's draft, or start one.</p></div></div>
   <div class="od-ready">
     {% for e in ready %}
     <article class="card od-shop">
@@ -53,10 +50,8 @@
     </article>
     {% endfor %}
   </div>
-  {% else %}
-  <div class="card bu-none"><svg class="ic"><use href="#i-check"/></svg><div><b>Nothing waiting.</b> <span class="muted">{% if ovs %}Everything bought is on an order.{% else %}Buy from a shop on the Products tab first: what you buy from a shop waits here for its order.{% endif %}</span></div></div>
-  {% endif %}
 </section>
+{% endif %}
 
 {% for st, group in by_stage %}{% if group %}
 <section class="bu-sec">

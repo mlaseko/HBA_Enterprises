@@ -15,6 +15,11 @@
   </div>
 </div>
 {{ tabs(p, 'quotations') }}
+<ol class="qi-steps" id="qi-steps" aria-label="Steps">
+  <li class="done"><a href="/p/{{ p.id }}/quotations"><span class="n">&#10003;</span> Upload</a></li>
+  <li class="on" data-step="2"><button type="button" data-goto="2"><span class="n">2</span> Review the lines</button></li>
+  <li data-step="3"><button type="button" data-goto="3"><span class="n">3</span> Check and save</button></li>
+</ol>
 
 {% if err %}<div class="alert err">{{ err }}</div>{% endif %}
 {% if draft_at %}<div class="alert info">A draft saved {{ draft_at|replace('T', ' ') }}: your choices are as you left them. Nothing is posted until you press Save the quotation.</div>{% endif %}
@@ -224,10 +229,12 @@
 
 <div class="card tight qi-bar">
   <div class="row between">
-    <span class="small muted hide-m">Lines that quote the same product are combined into one quote (total amount over total quantity). Confirmed matches are remembered for this shop's next sheet.</span>
+    <span class="small muted hide-m qi-bar-note">Lines that quote the same product are combined into one quote (total amount over total quantity). Confirmed matches are remembered for this shop's next sheet.</span>
     <div class="row">
       <button type="button" class="btn sm gold qi-decide" id="qi-decide" hidden><svg class="ic"><use href="#i-chevron-right"/></svg><span>0 to decide</span></button>
+      <button type="button" class="btn sec lg" id="qi-back" data-goto="2"><svg class="ic"><use href="#i-arrow-left"/></svg>Back to the lines</button>
       <button class="btn sec lg" id="qi-draft" formaction="/p/{{ p.id }}/quotations/draft" formnovalidate><svg class="ic"><use href="#i-clock"/></svg>Save as draft</button>
+      <button type="button" class="btn accent lg" id="qi-next" data-goto="3">Next: check and save<svg class="ic"><use href="#i-chevron-right"/></svg></button>
       <button class="btn accent lg" id="qi-save"><svg class="ic"><use href="#i-check"/></svg>Save the quotation</button>
     </div>
   </div>
@@ -358,7 +365,7 @@
   function setAct(lines, a){ lines.forEach(function(o){ o.querySelector('.qi-act').value=a; show(o); next(o); }); todo(); simulate(); }
   document.getElementById('qi-skip-none').addEventListener('click',function(){ var ls=Array.prototype.filter.call(form.querySelectorAll('.qi-line'),function(o){ return o.querySelector('.qi-act').value==='quote'&&!o.querySelector('.qi-prod').value; }); if(!ls.length){ appAlert('Every line that quotes a product has one picked.'); return; } setAct(ls,'skip'); });
   form.addEventListener('click',function(e){ var b=e.target.closest('.sec-skip'); if(!b) return; var ls=Array.prototype.filter.call(form.querySelectorAll('.qi-line'),function(o){ return (o.dataset.section||'')===b.dataset.section; }); setAct(ls,'skip'); b.textContent='Skipped'; b.disabled=true; });
-  document.querySelectorAll('.qi-decide').forEach(function(b){ b.addEventListener('click',function(){ var first=form.querySelector('.qi-line.needs'); if(first){ setFilter(filter==='open'?'open':'all'); } jump('.qi-line.needs'); }); });
+  document.querySelectorAll('.qi-decide').forEach(function(b){ b.addEventListener('click',function(){ if(document.body.classList.contains('qi-step3')) step(2); var first=form.querySelector('.qi-line.needs'); if(first){ setFilter(filter==='open'?'open':'all'); } jump('.qi-line.needs'); }); });
   var docCard=document.getElementById('document'); if(docCard&&location.hash==='#document') docCard.open=true;
   form.addEventListener('click',function(e){ var chip=e.target.closest('.qi-chip.opt'); if(!chip) return; var line=chip.closest('.qi-line'), act=line.querySelector('.qi-act');
     if(chip.dataset.kind==='quote'){ pick(line, chip.dataset.id); }
@@ -519,7 +526,7 @@
     var d=cur.querySelector('.qi-more'); if(d&&cur.querySelector('.qi-act').value==='quote') d.open=false; cur.scrollIntoView({block:'start'}); window.scrollBy(0,-70); }
   function walkStart(){ var ls=Array.prototype.filter.call(form.querySelectorAll('.qi-line'),function(l){ return l.classList.contains('needs'); }); if(!ls.length){ appAlert('Nothing is left to check: every line has a decision.', {title:'All checked'}); return; }
     walk={lines:ls, i:0}; filter='all'; setView('lines'); document.body.classList.add('qi-walking'); walkbar.hidden=false; walkShow(); }
-  function walkEnd(finished){ walk=null; document.body.classList.remove('qi-walking'); walkbar.hidden=true; setFilter('open'); if(finished){ var box=document.getElementById('qi-todo'); (box.hidden?document.querySelector('.qi-bar'):box).scrollIntoView({behavior:'smooth',block:'center'}); appAlert(box.hidden?'Every line is decided. Check the document and press Save the quotation.':'The lines are checked; "Before you save" still lists what needs a decision.', {title:'Done'}); } }
+  function walkEnd(finished){ walk=null; document.body.classList.remove('qi-walking'); walkbar.hidden=true; setFilter('open'); if(finished){ var box=document.getElementById('qi-todo'); if(box.hidden){ step(3); appAlert('Every line is decided. Check the shop and the date, then press Save the quotation.', {title:'Done'}); } else { box.scrollIntoView({behavior:'smooth',block:'center'}); appAlert('The lines are checked; "Before you save" still lists what needs a decision.', {title:'Done'}); } } }
   document.getElementById('qi-walk').addEventListener('click', walkStart);
   document.getElementById('qi-walk-skip').addEventListener('click',function(){ if(!walk) return; walk.i++; if(walk.i>=walk.lines.length){ walkEnd(true); return; } walkShow(); });
   document.getElementById('qi-walk-exit').addEventListener('click',function(){ walkEnd(false); });
@@ -583,6 +590,12 @@
   form.addEventListener('input',function(e){ var line=e.target.closest('.qi-line'); if(line&&/^(name|cat)_/.test(e.target.name||'')){ next(line); todo(); } });
   form.addEventListener('click',function(e){ var chip=e.target.closest('.pick-chip'); var line=chip&&chip.closest('.qi-line'); if(line) setTimeout(function(){ split(line); next(line); },0); });
   form.querySelectorAll('.qi-line').forEach(function(line){ same(line); next(line); optChips(line); }); todo(); if(view==='products') setView('products');
+  function step(n){ var three=n===3; if(three&&walk) walkEnd(false); document.body.classList.toggle('qi-step3', three);
+    document.querySelectorAll('#qi-steps li[data-step]').forEach(function(li){ var s=parseInt(li.dataset.step,10); li.classList.toggle('on', s===n); li.classList.toggle('done', s<n); });
+    if(three){ if(docCard) docCard.open=true; simulate(); } window.scrollTo({top:0, behavior:'smooth'}); }
+  document.body.classList.add('qi-wiz');
+  document.querySelectorAll('[data-goto]').forEach(function(b){ b.addEventListener('click',function(){ step(parseInt(b.dataset.goto,10)); }); });
+  if({{ 'true' if err else 'false' }}) step(3);
   (function(){ var k='qi.walked.'+((form.querySelector('[name=key]')||{}).value||''); var seen=false; try{ seen=!!sessionStorage.getItem(k); sessionStorage.setItem(k,'1'); }catch(e){}
     if(!seen&&window.matchMedia&&matchMedia('(max-width: 700px)').matches&&form.querySelector('.qi-line.needs')) walkStart(); })();
   form.addEventListener('change',function(e){ var line=e.target.closest('.qi-line'); if(line&&(e.target.classList.contains('qi-prod')||e.target.classList.contains('qi-act'))) optChips(line); });

@@ -502,7 +502,7 @@ def flow(c):
     # the same product into a second room: no shop there until it is bought for it; buying from the same quote widens its purchase
     r=c.post(f"/p/{pid}/items/{usd_id}", data={"room_id":room.id,"category":"Lighting","name":"Brass reading light","qty":"2","unit":"pcs","status":"Quoted","add_room_ids":[str(r2.id)]}, follow_redirects=False)
     db=SessionLocal(); copies=[i for i in db.query(Item).filter(Item.project_id==int(pid), Item.name=="Brass reading light").all() if i.id!=usd_id]; assert len(copies)==1 and copies[0].unit_price==0 and copies[0].purchase_id is None; cid=copies[0].id; db.close()
-    r=c.get(f"/p/{pid}/buying/{prod_id}"); assert "Part sourced" in r.text and "Buy for the room without a shop" in r.text
+    r=c.get(f"/p/{pid}/buying/{prod_id}"); assert "Part sourced" in r.text and "Choose for the room without a shop" in r.text
     r=c.post(f"/p/{pid}/buying/{prod_id}/quotes/{q1}/buy", follow_redirects=False); assert r.status_code==303 and "#buying-from" in r.headers["location"]
     db=SessionLocal(); assert db.get(Item, cid).unit_price==852.0 and db.get(Item, cid).purchase_id==db.get(Item, usd_id).purchase_id and db.query(Purchase).filter(Purchase.product_id==prod_id).count()==1; db.close()
     # a corrected quote reaches every room bought from it; back to CNY drops the USD memory everywhere
@@ -1539,29 +1539,33 @@ def flow(c):
     c.post(f"/p/{pid_o}/items/new", data={"room_ids":[str(orr["BED"])],"category":"Furniture","name":"Bed","qty":"1","unit":"pcs","status":"To buy"}, follow_redirects=False)
     c.post(f"/p/{pid_o}/items/new", data={"room_ids":[str(orr["LIV"])],"category":"Lighting","name":"Floor lamp","qty":"2","unit":"pcs","status":"To buy"}, follow_redirects=False)
     db=SessionLocal(); oi={(i.name, i.room.code):i.id for i in db.query(Item).filter(Item.project_id==pid_o)}; db.close()
-    p_tile,q_tile=buy(c, pid_o, oi[("Floor tile","LIV")], "Tile Shop", 80, pack_size="1.44")
-    p_bed,_=buy(c, pid_o, oi[("Bed","BED")], "Tile Shop", 3000)
+    db=SessionLocal(); s_=_S(name="Tile Shop", payment_terms="40% deposit, 60% before loading"); db.add(s_); db.commit(); ts=s_.id; db.close()
+    def _sid(name):
+        db=SessionLocal(); x=db.query(_S).filter(_S.name==name).one().id; db.close(); return x
+    def draft_of(pid, sid):  # choosing a shop puts its rooms on its draft order: the one it has, else a new one
+        db=SessionLocal(); o_=db.query(_O).filter(_O.project_id==pid, _O.supplier_id==sid, _O.confirmed_on.is_(None)).one(); db.close(); return o_.id
+    p_tile,q_tile=buy(c, pid_o, oi[("Floor tile","LIV")], ts, 80, pack_size="1.44")
+    p_bed,_=buy(c, pid_o, oi[("Bed","BED")], ts, 3000)
     p_lamp,_=buy(c, pid_o, oi[("Floor lamp","LIV")], "Lamp Shop", 400)
-    db=SessionLocal(); ts=db.query(_S).filter(_S.name=="Tile Shop").one().id; ls=db.query(_S).filter(_S.name=="Lamp Shop").one().id
-    db.get(_S, ts).payment_terms="40% deposit, 60% before loading"; db.commit(); db.close()
+    db=SessionLocal(); ls=db.query(_S).filter(_S.name=="Lamp Shop").one().id; db.close()
     tile_bed=[oi[("Floor tile","LIV")], oi[("Floor tile","KIT")], oi[("Bed","BED")]]
     def _sts(ids):
         db=SessionLocal(); out=[db.get(Item,x).status for x in ids]; db.close(); return out
     assert _od.initials("Kilimani House")=="KH" and _od.initials("")=="PO" and _od.deposit_from_terms("30% deposit, 70% before loading")==30 and _od.deposit_from_terms("Deposit 50%, rest on loading")==50 and _od.deposit_from_terms("Full payment on order")==100 and _od.deposit_from_terms("Net 30")is None
-    # what is bought waits under Ready to order; Start an order makes a numbered draft for the shop with the warehouse
+    # choosing a shop made a numbered draft for it, with the warehouse; the shop's next product joined that draft
     h=c.get(f"/p/{pid_o}/orders").text
-    assert 'data-key="orders"' in h and "Ready to order" in h and "Tile Shop" in h and "Lamp Shop" in h and "Start an order" in h and f'href="/p/{pid_o}/orders" class="on"' in h and 'href="#help"' not in h
+    assert 'data-key="orders"' in h and 'id="ready"' not in h and "KH-001" in h and "KH-002" in h and "Tile Shop" in h and "Lamp Shop" in h and f'href="/p/{pid_o}/orders" class="on"' in h and 'href="#help"' not in h
     h=c.get(f"/p/{pid_e}/orders").text; assert "No orders yet" in h and 'href="#help"' in h  # the empty state points at the help
-    r=c.post(f"/p/{pid_o}/orders/new", data={"supplier_id":str(ts)}, follow_redirects=False); assert "ok=" in r.headers["location"]
-    oid=int(r.headers["location"].split("/orders/")[1].split("?")[0])
+    oid=draft_of(pid_o, ts)
     db=SessionLocal(); o=db.get(_O,oid)
     assert o.number==1 and _od.ref(o)=="KH-001" and o.deposit_pct==40 and o.terms.startswith("40%") and o.deliver_to.startswith("Baiyun Warehouse\nUnit 8") and not o.confirmed and len(o.purchases)==2
     led=_bz.Ledger(db.get(_P,pid_o)); assert led.total[oid]==6571.2 and led.state(o.purchases[0])=="bought", led.total; db.close()  # 44.64 m² of tile (31 boxes) + the bed
     assert _sts(tile_bed)==["Quoted"]*3  # a draft changes no status
     r=c.post(f"/p/{pid_o}/orders/new", data={"supplier_id":str(ts)}, follow_redirects=False); assert "err=" in r.headers["location"]  # nothing left waiting from that shop
-    lamp=oi[("Floor lamp","LIV")]; c.post(f"/p/{pid_o}/items/{lamp}/status", data={"status":"Ordered"})  # set by hand before the order
-    r=c.post(f"/p/{pid_o}/orders/new", data={"supplier_id":str(ls)}, follow_redirects=False); oid2=int(r.headers["location"].split("/orders/")[1].split("?")[0])
+    lamp=oi[("Floor lamp","LIV")]; c.post(f"/p/{pid_o}/items/{lamp}/status", data={"status":"Ordered"})  # set by hand, the draft not confirmed
+    oid2=draft_of(pid_o, ls)
     db=SessionLocal(); assert _od.ref(db.get(_O,oid2))=="KH-002" and db.get(_O,oid2).deposit_pct==30; db.close()
+    c.post(f"/p/{pid_o}/orders/{oid2}", data={"notes":"call first","deposit_pct":"30"}, follow_redirects=False)  # anything settling the project
     assert _sts([lamp])==["Ordered"]  # a draft never lowers a status
     h=c.get(f"/p/{pid_o}/orders/{oid}").text; wc=h.split('id="wechat-text">')[1].split("</pre>")[0]
     assert 'data-key="order"' in h and "Order KH-001" in h and "¥6,571.20" in h and "Confirm the order" in h and "Deposit 40%" in h and "due once confirmed" in h and "Baiyun Warehouse" in h
@@ -1610,6 +1614,8 @@ def flow(c):
     h=c.get(f"/p/{pid_o}/items?view=table").text
     assert 'aria-label="Design"' in h and 'class="btn sec sm sel-toggle"' in h and "Shop chosen" in h and ">Quoted</span>" not in h and 'value="Quoted"' in h  # the filter still sends the stored value
     assert 'aria-label="Orders"' in c.get(f"/p/{pid_o}/payments").text and 'aria-label="Sourcing"' in c.get(f"/p/{pid_o}/buying").text
+    h=c.get(f"/p/{pid_o}/payments").text; assert 'id="due"' in h and f'/orders/{oid}#payments' in h and 'id="record"' in h  # what is owed, order by order; the form folded
+    h=c.get(f"/p/{pid_o}/items/{oi[('Bed','BED')]}").text; assert 'class="status-hand"' in h and 'moves by itself' in h  # the status is read; set by hand only on purpose
     c.post(f"/p/{pid_o}/orders/{oid}/confirm", data={"confirmed_on":"2026-10-01"}, follow_redirects=False)
     db=SessionLocal(); o=db.get(_O,oid); assert o.confirmed_total==6794.4 and o.confirmed_on==_dt.date(2026,10,1); db.close()
     assert "Changed since it was confirmed" not in c.get(f"/p/{pid_o}/orders/{oid}").text
@@ -1649,6 +1655,10 @@ def flow(c):
     assert c.get(f"/p/{pid_b}/orders/{oid3}", follow_redirects=False).headers["location"]==f"/p/{pid_b}/orders"
     c.post(f"/suppliers/{ls}/delete", follow_redirects=False)
     db=SessionLocal(); assert db.get(_O,oid3) is None and db.query(_O).filter(_O.project_id==pid_o).count()==0; db.close()
+    # a room moved to another shop leaves the first shop's draft empty: it goes, when nothing was typed or paid on it
+    buy(c, pid_o, lamp, "Shop A", 300); oa=draft_of(pid_o, _sid("Shop A"))
+    buy(c, pid_o, lamp, "Shop B", 280, lines=[lamp]); ob=draft_of(pid_o, _sid("Shop B"))
+    db=SessionLocal(); assert db.get(_O,oa) is None and _od.ref(db.get(_O,ob))=="KH-005" and db.query(_O).filter(_O.project_id==pid_o).count()==1; db.close()
     print("orders ok")
     # ---- Shipping: boxes to the warehouse, into a shipment, to site; the rooms follow their boxes ----
     from app import shipping as _sh
@@ -1662,7 +1672,7 @@ def flow(c):
     db=SessionLocal(); si={(i.name, i.room.code):i for i in db.query(Item).filter(Item.project_id==pid_s)}; t_liv, t_kit, sofa=(si[k].id for k in (("Floor tile","LIV"),("Floor tile","KIT"),("Sofa","LIV"))); codes={x.id:x.code for x in si.values()}; db.close()
     buy(c, pid_s, t_liv, "Ship Tiles", 60); buy(c, pid_s, sofa, "Ship Tiles", 4000)
     db=SessionLocal(); sts=db.query(_S).filter(_S.name=="Ship Tiles").one().id; db.close()
-    r=c.post(f"/p/{pid_s}/orders/new", data={"supplier_id":str(sts)}, follow_redirects=False); soid=int(r.headers["location"].split("/orders/")[1].split("?")[0])
+    soid=draft_of(pid_s, sts)
     c.post(f"/p/{pid_s}/orders/{soid}/confirm", data={"confirmed_on":"2026-09-01","ready_date":"2026-09-20"}, follow_redirects=False)
     assert _sts([t_liv, t_kit, sofa])==["Ordered"]*3
     assert _sh.fits(None, 0.65, 300)=="LCL" and _sh.fits(None, 20, 3000)=="1 x 20ft" and _sh.fits(None, 60, 9000)=="1 x 40ft HC" and _sh.fits(None, 150, 1000)=="3 x 40ft HC" and _sh.capacity(None, "LCL")==(None, None)
@@ -1940,6 +1950,7 @@ def flow(c):
     r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(base, supplier_id="", act_1="skip"), follow_redirects=False); assert "err=" in r.headers["location"] and "preview?key=" in r.headers["location"] and "choices%20are%20kept" in r.headers["location"]
     qkey2=_unq(r.headers["location"].split("key=")[1].split("&")[0]); assert qkey2!=qkey and _st.read_image(qkey) is None  # the choices made so far wait under a new key
     assert 'data-f="open"' in c.get(f"/p/{pid_q}/quotations/preview?key={qkey2}").text and 'id="qi-folded"' in c.get(f"/p/{pid_q}/quotations/preview?key={qkey2}").text  # opens on Needs you, the rest folded
+    _pv=c.get(f"/p/{pid_q}/quotations/preview?key={qkey2}").text; assert 'id="qi-steps"' in _pv and 'id="qi-next"' in _pv and 'id="qi-save"' in _pv  # 1 Upload · 2 Review · 3 Check and save; Save stays in the form
     h=c.get(f"/p/{pid_q}/quotations/preview?key={qkey2}").text; assert re.search(r'name="act_1"[^>]*>(?:(?!</select>).)*value="skip" selected', h, re.S) and 'id="document" open' in h
     qkey=qkey2; base["key"]=qkey
     r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(base, supplier_id="__new__", supplier_name="Foshan Ceramics", supplier_city="Foshan"), follow_redirects=False)
@@ -2252,7 +2263,7 @@ def flow(c):
     locw,_=upload_quote("Lamp quotation.xlsx", lamp_sheet()); keyw=_unq(locw.split("key=")[1])
     r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(key=keyw, supplier_id="__new__", supplier_name="Lamp Shop", title="Lamps", currency="USD", total="60", discount="0", charges="0", terms="", notes="", sales="", quote_date="", valid_until="", lead_time="", act_1="quote", prod_1=str(_wlp)), follow_redirects=False)
     qdw=int(r.headers["location"].split("/quotations/")[1].split("?")[0])
-    h=c.get(f"/p/{pid_q}/quotations/{qdw}").text; assert 'id="now"' in h and "What it comes to now" in h and f'name="keep_{_wl[_acr[0][0]]}"' in h and 'id="nw-data"' in h and "USD 60.00" in h
+    h=c.get(f"/p/{pid_q}/quotations/{qdw}").text; assert 'id="now"' in h and 'id="advanced"' in h and "What it comes to now" in h and f'name="keep_{_wl[_acr[0][0]]}"' in h and 'id="nw-data"' in h and "USD 60.00" in h
     tried={f"keep_{_wl[_acr[1][0]]}":"1", f"qty_{_wl[_acr[1][0]]}":"1", f"keep_{_wl[_acr[2][0]]}":"1", f"qty_{_wl[_acr[2][0]]}":"2", f"qty_{_wl[_acr[0][0]]}":"2"}  # room 1 left out, room 2 down to 1
     r=c.post(f"/p/{pid_q}/quotations/{qdw}/revised.xlsx", data=tried); assert r.status_code==200 and r.headers["content-type"].startswith("application/vnd.openxml")
     _wb=openpyxl.load_workbook(io.BytesIO(r.content)); _ws=_wb.active; _row=[c_.value for c_ in _ws[5]]; assert _row[0]==1 and _row[6]==6 and _row[7]==3 and _row[9]==30 and "left out" in _row[10] and "less in" in _row[10], _row
@@ -2388,7 +2399,7 @@ def flow(c):
     r=c.post(f"/p/{pid_q}/edit", data={"client_name":"X","name":"Quotes house","rate":"7.1","budget_usd":"100000","show_currency":"USD"}, follow_redirects=False); assert r.status_code==303
     db=SessionLocal(); assert db.get(_P, pid_q).show_currency=="USD"; db.close()
     h=c.get(f"/p/{pid_q}/buying/tracker").text; _money=h[h.index('class="card tr-money"'):h.index('id="sourcing"')]; assert "$100,000" in _money and "¥710,000" in _money  # USD first, CNY under it
-    h=c.get(f"/p/{pid_q}/buying/{big_id}").text; assert "$" in h[h.index('class="price"'):h.index('class="price"')+400]
+    h=c.get(f"/p/{pid_q}/buying/{big_id}").text; assert "$" in h[h.index('class="num price"'):h.index('class="num price"')+400]
     assert "Show amounts in" in c.get(f"/p/{pid_q}/edit").text
     c.post(f"/p/{pid_q}/edit", data={"client_name":"X","name":"Quotes house","rate":"7.1","budget_usd":"0","show_currency":"CNY"}, follow_redirects=False)
     print("quotation amendments ok")

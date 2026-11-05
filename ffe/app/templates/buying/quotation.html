@@ -33,6 +33,44 @@
 </div>
 
 
+
+<div class="tbl"><table class="qi-doc qi-saved">
+  <thead><tr><th></th><th>Line</th><th>As written</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Amount</th><th>Became</th></tr></thead>
+  <tbody>
+  {% set ns = namespace(section=none) %}
+  {% for ln in q.lines %}
+  {% if ln.section != ns.section %}{% set ns.section = ln.section %}{% if ln.section %}<tr class="qi-sec"><td colspan="7">{{ ln.section }}</td></tr>{% endif %}{% endif %}
+  <tr class="act-{{ ln.action }}" id="line-{{ ln.id }}">
+    <td class="qi-td-pic">{% if ln.thumb %}<a href="/media/{{ ln.photo_key }}" target="_blank" data-caption="Line {{ ln.no }} · {{ ln.name }}"><img src="/media/{{ ln.thumb }}" alt=""></a>{% endif %}</td>
+    <td class="small muted nowrap">L{{ ln.no }}{% if ln.ref %}<div><b>{{ ln.ref }}</b></div>{% endif %}</td>
+    <td><div>{{ ln.name }}</div>{% if ln.size %}<div class="small muted">{{ ln.size }}</div>{% endif %}{% if ln.detail %}<details class="qi-detail"><summary class="small">Description</summary><div class="small">{{ ln.detail }}</div></details>{% endif %}</td>
+    <td class="num nowrap">{{ ln.qty|num(2) }} {{ ln.unit }}</td>
+    <td class="num nowrap">{{ ln.unit_price|num(2) }}</td>
+    <td class="num nowrap">{{ ln.amount|money(2) }}</td>
+    <td class="qi-became">
+      {% if ln.action in ('quote', 'new') and ln.product %}
+        <a href="/p/{{ p.id }}/buying/{{ ln.product.id }}#quote-{{ ln.quote_id }}" class="pill green">{{ 'New item · ' if ln.action == 'new' }}{{ ln.product.title|truncate(60) }}</a>
+        {% if ln.product_id in dropped %}<div><span class="pill red">No rooms left in the design</span></div>{% endif %}
+        {% if ln.quote %}<div class="small muted">{{ ln.quote.unit_price|cur(2) }} per unit{% if by_quote[ln.quote_id]|length > 1 %} · combined with {{ by_quote[ln.quote_id]|length - 1 }} other line{{ 's' if by_quote[ln.quote_id]|length > 2 }}{% endif %}</div>{% endif %}
+      {% elif ln.action == 'merge' %}<span class="pill gold">Part of L{{ (q.lines|selectattr('id', 'equalto', ln.into_id)|map(attribute='no')|list or ['?'])[0] }}</span>
+      {% elif ln.action == 'extra' %}<span class="pill">Extra charge</span>
+      {% else %}<span class="pill">Skipped</span>{% endif %}
+      {% if ln.also %}<div class="small">Also prices {% for a in ln.also %}<a href="/p/{{ p.id }}/buying/{{ a.product_id }}">{{ (a.product.title if a.product else '')|truncate(50) }}</a>{{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
+      {% if not revised_by %}<a class="small qi-change" href="/p/{{ p.id }}/quotations/{{ q.id }}/lines/{{ ln.id }}">Change…</a>{% endif %}
+      {% if ln.notes %}<div class="small qi-notes">{% for f in ln.notes.split('; ') if not (ln.id in qty_fine and f.startswith('quantity ')) %}{% if '(accepted' in f %}<span class="pill green">&#10003; {{ f }}</span>{% else %}<span class="pill {{ 'red' if f.startswith(('thickness', 'anti-slip', 'slip', 'finish', 'material')) else 'gold' }}">&#9888; {{ f }}</span>{% endif %} {% endfor %}</div>{% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+  <tfoot><tr><td colspan="5" class="num">Lines</td><td class="num"><b>{{ lines_total|money(2) }}</b></td><td></td></tr></tfoot>
+</table></div>
+
+
+
+{% if now.rows or multi or families %}
+<details class="card fold mt" id="advanced">
+  <summary><h2 class="mb-0">Advanced</h2><span class="small muted">{{ [('what it comes to now' if now.rows else ''), ('options to choose' if multi else ''), ('products and variants' if families else '')]|select|join(', ')|capitalize }}.</span></summary>
+<div class="adv-body mt">
 {% if now.rows %}{% set diff = now.today - now.sheet %}
 <form method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/now" class="card nw" id="now" data-cur="{{ cur }}">
   <div class="row between top"><div><h2 class="mb-0">What it comes to now</h2>
@@ -72,38 +110,6 @@
   <script type="application/json" id="nw-data">{{ now_json|safe }}</script>
 </form>
 {% endif %}
-
-<div class="tbl"><table class="qi-doc qi-saved">
-  <thead><tr><th></th><th>Line</th><th>As written</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Amount</th><th>Became</th></tr></thead>
-  <tbody>
-  {% set ns = namespace(section=none) %}
-  {% for ln in q.lines %}
-  {% if ln.section != ns.section %}{% set ns.section = ln.section %}{% if ln.section %}<tr class="qi-sec"><td colspan="7">{{ ln.section }}</td></tr>{% endif %}{% endif %}
-  <tr class="act-{{ ln.action }}" id="line-{{ ln.id }}">
-    <td class="qi-td-pic">{% if ln.thumb %}<a href="/media/{{ ln.photo_key }}" target="_blank" data-caption="Line {{ ln.no }} · {{ ln.name }}"><img src="/media/{{ ln.thumb }}" alt=""></a>{% endif %}</td>
-    <td class="small muted nowrap">L{{ ln.no }}{% if ln.ref %}<div><b>{{ ln.ref }}</b></div>{% endif %}</td>
-    <td><div>{{ ln.name }}</div>{% if ln.size %}<div class="small muted">{{ ln.size }}</div>{% endif %}{% if ln.detail %}<details class="qi-detail"><summary class="small">Description</summary><div class="small">{{ ln.detail }}</div></details>{% endif %}</td>
-    <td class="num nowrap">{{ ln.qty|num(2) }} {{ ln.unit }}</td>
-    <td class="num nowrap">{{ ln.unit_price|num(2) }}</td>
-    <td class="num nowrap">{{ ln.amount|money(2) }}</td>
-    <td class="qi-became">
-      {% if ln.action in ('quote', 'new') and ln.product %}
-        <a href="/p/{{ p.id }}/buying/{{ ln.product.id }}#quote-{{ ln.quote_id }}" class="pill green">{{ 'New item · ' if ln.action == 'new' }}{{ ln.product.title|truncate(60) }}</a>
-        {% if ln.product_id in dropped %}<div><span class="pill red">No rooms left in the design</span></div>{% endif %}
-        {% if ln.quote %}<div class="small muted">{{ ln.quote.unit_price|cur(2) }} per unit{% if by_quote[ln.quote_id]|length > 1 %} · combined with {{ by_quote[ln.quote_id]|length - 1 }} other line{{ 's' if by_quote[ln.quote_id]|length > 2 }}{% endif %}</div>{% endif %}
-      {% elif ln.action == 'merge' %}<span class="pill gold">Part of L{{ (q.lines|selectattr('id', 'equalto', ln.into_id)|map(attribute='no')|list or ['?'])[0] }}</span>
-      {% elif ln.action == 'extra' %}<span class="pill">Extra charge</span>
-      {% else %}<span class="pill">Skipped</span>{% endif %}
-      {% if ln.also %}<div class="small">Also prices {% for a in ln.also %}<a href="/p/{{ p.id }}/buying/{{ a.product_id }}">{{ (a.product.title if a.product else '')|truncate(50) }}</a>{{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
-      {% if not revised_by %}<a class="small qi-change" href="/p/{{ p.id }}/quotations/{{ q.id }}/lines/{{ ln.id }}">Change…</a>{% endif %}
-      {% if ln.notes %}<div class="small qi-notes">{% for f in ln.notes.split('; ') if not (ln.id in qty_fine and f.startswith('quantity ')) %}{% if '(accepted' in f %}<span class="pill green">&#10003; {{ f }}</span>{% else %}<span class="pill {{ 'red' if f.startswith(('thickness', 'anti-slip', 'slip', 'finish', 'material')) else 'gold' }}">&#9888; {{ f }}</span>{% endif %} {% endfor %}</div>{% endif %}
-    </td>
-  </tr>
-  {% endfor %}
-  </tbody>
-  <tfoot><tr><td colspan="5" class="num">Lines</td><td class="num"><b>{{ lines_total|money(2) }}</b></td><td></td></tr></tfoot>
-</table></div>
-
 {% if multi %}
 <div class="card mt" id="choices">
   <h2 class="mb-0">Several lines on one product</h2>
@@ -127,7 +133,6 @@
   {% endfor %}
 </div>
 {% endif %}
-
 {% if families %}
 <div class="card mt" id="variants">
   <h2 class="mb-0">Products and variants</h2>
@@ -145,6 +150,9 @@
   <div class="row mt"><button class="btn sm accent"><svg class="ic"><use href="#i-check"/></svg>Save the variants</button><span class="small muted">Renaming a variant renames the size on its room lines; a room moved to another variant takes that variant's size. Two variants given the same name become one product.</span></div>
   </form>
 </div>
+{% endif %}
+</div>
+</details>
 {% endif %}
 
 <div class="grid g2 mt">
@@ -168,6 +176,13 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+(function () {  // a link or a redirect to a card under Advanced opens it
+  function open_() { var t = location.hash && document.getElementById(location.hash.slice(1)); var d = document.getElementById('advanced');
+    if (t && d && d.contains(t)) { d.open = true; t.scrollIntoView({block: 'start'}); } }
+  window.addEventListener('hashchange', open_); open_();
+})();
+</script>
 <script>
 (function(){
   var form=document.getElementById('now'); if(!form) return; var rows=[]; try{ rows=JSON.parse(document.getElementById('nw-data').textContent); }catch(e){ return; }
