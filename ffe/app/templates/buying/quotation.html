@@ -18,9 +18,9 @@
 </div>
 {{ tabs(p, 'quotations') }}
 
-{% if ok %}<div class="alert">{{ ok }}</div>{% endif %}
+{% if at != 'choices' %}{% if ok %}<div class="alert">{{ ok }}</div>{% endif %}
 {% if err %}<div class="alert err">{{ err }}</div>{% endif %}
-{% if warn %}<div class="alert info">{{ warn }}</div>{% endif %}
+{% if warn %}<div class="alert info">{{ warn }}</div>{% endif %}{% endif %}
 {% if dropped %}<div class="alert info">{{ dropped|length }} product{{ 's' if dropped|length != 1 }} this sheet priced {{ 'are' if dropped|length != 1 else 'is' }} no longer in any room: marked <b>No rooms left in the design</b> below. The sheet keeps its price as the shop sent it; the Buy list leaves it out.</div>{% endif %}
 {% if revised_by %}<div class="alert info">Revised by <a href="/p/{{ p.id }}/quotations/{{ revised_by.id }}"><b>{{ revised_by.title or revised_by.filename }}</b></a>{% if revised_by.quote_date %} of {{ revised_by.quote_date.isoformat() }}{% endif %}: the quotes on the Buying page carry that sheet's prices now; this one is kept as it was sent.</div>{% endif %}
 {% if revises %}<div class="alert info">A revision of <a href="/p/{{ p.id }}/quotations/{{ revises.id }}"><b>{{ revises.title or revises.filename }}</b></a>{% if revises.quote_date %} of {{ revises.quote_date.isoformat() }}{% endif %}: its quotes were corrected to these prices.</div>{% endif %}
@@ -70,14 +70,17 @@
 {% if multi %}
 <section class="card qc" id="choices">
   <div class="qc-head"><div><h2 class="mb-0">Choose per room <span class="n">{{ multi|length }}</span></h2>
-    <p class="small muted">This sheet quotes {{ 'a product' if multi|length == 1 else 'some products' }} on two lines or more. Tick the line each room takes (both for a room that rotates them) and save; the rooms go on this shop's draft order.</p></div></div>
-  {% for m in multi %}{% set rooms = choice.get(m.pid, []) %}{% set ln_ids = m.lines|map(attribute='id')|list %}
-  <form method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/choose" class="qc-prod" data-lines="{{ ln_ids|join(' ') }}">
+    <p class="small muted">This sheet quotes {{ 'a product' if multi|length == 1 else 'these products' }} on two lines or more. Tap the line each room takes (both for a room that rotates them), then save them all at once; the rooms go on this shop's draft order.</p></div></div>
+  {% if at == 'choices' %}{% if ok %}<div class="alert mt">{{ ok }}</div>{% endif %}{% if err %}<div class="alert err mt">{{ err }}</div>{% endif %}{% if warn %}<div class="alert info mt">{{ warn }}</div>{% endif %}{% endif %}
+  <form method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/choose" id="qc-form">
+  {% for m in multi %}{% set rooms = choice.get(m.pid, []) %}
+  <div class="qc-prod" data-pid="{{ m.pid }}">
     <input type="hidden" name="product" value="{{ m.pid }}">
     <div class="qc-ph"><a href="/p/{{ p.id }}/buying/{{ m.pid }}{{ '#options' if m.options }}"><b>{{ m.title }}</b></a>
       {% if m.options %}<span class="pill gold">{{ m.lines|length }} options to choose</span>{% else %}<span class="pill">now one quote{% if m.quote %} at the average, {{ cur }} {{ m.quote.amount|money(2) }}{% endif %}</span>{% endif %}
-      {% set open_ = rooms|rejectattr('chosen')|rejectattr('average')|rejectattr('other')|list|length %}{% if open_ %}<span class="pill accent">{{ open_ }} room{{ 's' if open_ != 1 }} to choose</span>{% endif %}</div>
-    <div class="qc-grid" style="--n:{{ m.lines|length }}">
+      {% set open_ = rooms|rejectattr('chosen')|rejectattr('average')|rejectattr('other')|list|length %}{% if open_ %}<span class="pill accent">{{ open_ }} room{{ 's' if open_ != 1 }} to choose</span>{% else %}<span class="pill green">all chosen</span>{% endif %}
+      <span class="qc-changed pill accent" hidden>changed</span></div>
+    <div class="qc-scroll"><div class="qc-grid" style="--n:{{ m.lines|length }}">
       <div class="qc-corner small muted">Room</div>
       {% for ln in m.lines %}{% set letter = 'ABCDEFGHIJ'[loop.index0] if loop.index0 < 10 else loop.index %}
       <div class="qc-opt">
@@ -92,18 +95,22 @@
       <div class="qc-room{{ ' locked' if r.locked }}"><b>{{ r.room.code if r.room else 'Whole house' }}</b> <span class="small">{{ r.room.name if r.room else '' }}</span>
         <div class="small muted">{{ r.qty|num(2) }} {{ r.unit }}{% if r.locked %} · on a confirmed order{% elif r.average %} · bought at the average{% elif r.other %} · bought from {{ r.other.supplier.name if r.other.supplier else 'another quote' }}{% endif %}</div></div>
       {% for ln in m.lines %}
-      <label class="qc-cell"><input type="checkbox" name="pick_{{ r.rid }}" value="{{ ln.id }}"{{ ' checked' if ln.id in r.chosen }}{{ ' disabled' if r.locked or revised_by or not ln.unit_price }} aria-label="{{ r.room.code if r.room else 'Whole house' }} takes line {{ ln.no }}"><span class="qc-tick"><svg class="ic"><use href="#i-check"/></svg></span></label>
+      <label class="qc-cell"><input type="checkbox" name="pick_{{ m.pid }}_{{ r.rid }}" value="{{ ln.id }}"{{ ' checked' if ln.id in r.chosen }}{{ ' disabled' if r.locked or revised_by or not ln.unit_price }} aria-label="{{ r.room.code if r.room else 'Whole house' }} takes line {{ ln.no }}"><span class="qc-tick"><svg class="ic"><use href="#i-check"/></svg></span></label>
       {% endfor %}
       {% endfor %}
-    </div>
+    </div></div>
     {% if not rooms %}<p class="small muted">No room of the design has this product any more.</p>{% endif %}
     {% if not revised_by %}<div class="row qc-acts">
-      {% if rooms %}<button class="btn accent"><svg class="ic"><use href="#i-check"/></svg>Save the choice</button>{% endif %}
-      {% if m.options %}<button class="btn ghost sm" formaction="/p/{{ p.id }}/quotations/{{ q.id }}/options" name="on" value="0" data-confirm="Back to one quote? The options go and the lines make one quote at their combined price. Refused while rooms are bought from an option.">Back to one quote</button>
-      {% else %}<button class="btn ghost sm" formaction="/p/{{ p.id }}/quotations/{{ q.id }}/options" name="on" value="1" title="A quote per line, chosen later per room on the product's Buying page">Make them options to choose</button>{% endif %}
+      {% if m.options %}<button class="btn ghost sm" formaction="/p/{{ p.id }}/quotations/{{ q.id }}/options" name="opt" value="{{ m.pid }}:0" data-confirm="Back to one quote? The options go and the lines make one quote at their combined price. Refused while rooms are bought from an option.">Back to one quote</button>
+      {% else %}<button class="btn ghost sm" formaction="/p/{{ p.id }}/quotations/{{ q.id }}/options" name="opt" value="{{ m.pid }}:1" title="A quote per line, chosen later per room on the product's Buying page">Make them options to choose</button>{% endif %}
     </div>{% endif %}
-  </form>
+  </div>
   {% endfor %}
+  {% if not revised_by %}<div class="qc-bar">
+    <span class="qc-bar-n small" id="qc-n">Tap the boxes, then save every product at once.</span>
+    <button class="btn accent" id="qc-save"><svg class="ic"><use href="#i-check"/></svg><span>Save all choices</span></button>
+  </div>{% endif %}
+  </form>
 </section>
 {% endif %}
 {% if now.rows or families %}
@@ -172,16 +179,16 @@
 {% endif %}
 
 <div class="grid g2 mt">
-  <div class="card" id="gaps">
-    <h2 class="mb-0">Not quoted</h2>
-    <p class="small muted">Products in the same categories that got no price from {{ q.supplier.name if q.supplier else 'this shop' }}: ask for them, or they stay to be sourced elsewhere.{% if not revised_by %} If the sheet has one under another name, pick its line: <b>Also price</b> keeps the line as it is and prices this product from it too, <b>Move here</b> makes the line quote this product instead.{% endif %}</p>
+  <details class="card fold qg" id="gaps">
+    <summary><h2 class="mb-0">Not quoted <span class="n">{{ gaps|length }}</span></h2><span class="small muted">{% if gaps %}product{{ 's' if gaps|length != 1 }} of these categories with no price from {{ q.supplier.name if q.supplier else 'this shop' }}{% else %}every product of these categories is priced{% endif %}</span></summary>
+    <p class="small muted mt">Products in the same categories that got no price from {{ q.supplier.name if q.supplier else 'this shop' }}: ask for them, or they stay to be sourced elsewhere.{% if not revised_by %} If the sheet has one under another name, pick its line: <b>Also price</b> keeps the line as it is and prices this product from it too, <b>Move here</b> makes the line quote this product instead.{% endif %}</p>
     {% if gaps %}<ul class="qi-gaps mt">{% for c in gaps %}<li><a href="/p/{{ p.id }}/buying/{{ c.id }}">{{ c.title }}</a> <span class="small muted">· {{ c.qty|num(2) }} {{ c.unit }} · {{ c.rooms_text }}</span>
       {% if not revised_by %}<form class="qi-assign" method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/assign"><input type="hidden" name="product" value="{{ c.id }}">
         <select class="in sm" name="line" aria-label="The line of the sheet for {{ c.title }}"><option value="">— the line on the sheet —</option>{% for ln in q.lines %}<option value="{{ ln.id }}">L{{ ln.no }} {{ ln.name|truncate(36) }}{% if ln.size %} · {{ ln.size|truncate(20) }}{% endif %} · {{ cur }} {{ ln.unit_price|num(2) }}</option>{% endfor %}</select>
         <div class="row"><button class="btn sm sec" name="mode" value="also">Also price from it</button><button class="btn sm ghost" name="mode" value="move">Move it here</button></div></form>{% endif %}
       </li>{% endfor %}</ul>
     {% else %}<p class="small mt">Every product of these categories has a quote from this shop.</p>{% endif %}
-  </div>
+  </details>
   <div class="card">
     <h2 class="mb-0">Terms as written</h2>
     {% if q.terms %}<pre class="qi-terms">{{ q.terms }}</pre>{% else %}<p class="small muted">The sheet carried no terms.</p>{% endif %}
@@ -203,12 +210,20 @@
     if (pn) { show(pn.dataset.tab); box.scrollIntoView({block: 'start'}); return true; } return false; }
   window.addEventListener('hashchange', fromHash); if (!fromHash() && tabs.length) show(tabs[0].dataset.tab);
 })();
-(function () {  // Choose per room: "Every room" ticks that line in every room (and unticks the others)
-  document.querySelectorAll('.qc-prod').forEach(function (f) {
-    f.addEventListener('click', function (e) { var b = e.target.closest('.qc-all'); if (!b) return;
-      f.querySelectorAll('.qc-cell input[type=checkbox]:not([disabled])').forEach(function (c) { c.checked = c.value === b.dataset.line; }); f.classList.add('dirty'); });
-    f.addEventListener('change', function () { f.classList.add('dirty'); });
-  });
+(function () {  // Choose per room: one form for every product; a product whose ticks changed is marked and saved, the others left as they are
+  var f = document.getElementById('qc-form'); if (!f) return; var n = document.getElementById('qc-n'), save = document.getElementById('qc-save');
+  function key(b) { return Array.prototype.map.call(b.querySelectorAll('.qc-cell input'), function (c) { return c.checked ? '1' : '0'; }).join(''); }
+  var blocks = f.querySelectorAll('.qc-prod'); blocks.forEach(function (b) { b.dataset.was = key(b); });
+  function count() { var k = 0; blocks.forEach(function (b) { var ch = key(b) !== b.dataset.was;
+      b.classList.toggle('dirty', ch); var t = b.querySelector('.qc-changed'); if (t) t.hidden = !ch; var h = b.querySelector('input[name="touched"]');
+      if (ch && !h) { h = document.createElement('input'); h.type = 'hidden'; h.name = 'touched'; h.value = b.dataset.pid; b.appendChild(h); } else if (!ch && h) h.remove(); if (ch) k++; });
+    if (n) n.innerHTML = k ? '<b>' + k + ' product' + (k === 1 ? '' : 's') + ' changed</b> · nothing is saved until you press Save' : 'Tap the boxes, then save every product at once.';
+    if (save) { save.querySelector('span').textContent = k ? 'Save ' + k + ' choice' + (k === 1 ? '' : 's') : 'Save all choices'; } f.classList.toggle('has-changes', k > 0); }
+  f.addEventListener('click', function (e) { var b = e.target.closest('.qc-all'); if (!b) return; var blk = b.closest('.qc-prod');
+    blk.querySelectorAll('.qc-cell input[type=checkbox]:not([disabled])').forEach(function (c) { c.checked = c.value === b.dataset.line; }); count(); });
+  f.addEventListener('change', count); f.addEventListener('input', count); count();
+  f.addEventListener('submit', function (e) { var sub = e.submitter; if (sub && sub.hasAttribute('formaction')) return;
+    if (!f.querySelector('input[name="touched"]')) { e.preventDefault(); if (window.appAlert) appAlert('Nothing changed yet: tap a box under the line a room takes, then save.', {title: 'Nothing to save'}); } });
 })();
 </script>
 <script>

@@ -262,11 +262,15 @@ name** (or set the Kind by hand): every existing entry starts as a room.
   phone the header shrinks to the title and the steps.
 - The saved quotation page (`buying/quotation.html`): **Choose per room** (`#choices`, shown whenever
   `multi_line_products(q)` has a product): a grid of the product's rooms (`quotations.choice_rooms(p, m)`: chosen line ids,
-  bought at the average, from another quote, locked) against the sheet's lines, posting `pick_<room id>` = line ids to
-  `POST /quotations/<q>/choose` → `quotations.choose_lines()` (the lines made options first through `set_options`, then
+  bought at the average, from another quote, locked) against the sheet's lines, one form for every product, posting `product` per
+  product, `pick_<product>_<room id>` = line ids and `touched` (the products whose ticks changed; the page script adds
+  them and refuses to post with none) to `POST /quotations/<q>/choose` → `quotations.choose_lines()` per touched product (the lines made options first through `set_options`, then
   `buying.choose_options` with the option quotes; a room with nothing of this sheet ticked keeps another sheet's option)
   + `_placed` (the shop's draft order) + `settle`. **Adjust this quotation** (`#advanced`) holds What it comes to now
-  (`#now`) and Products and variants (`#variants`) as tabs (`.qa-tab` / `.qa-panel`; `#now` or `#variants` in the address
+  (`#now`) and Products and variants (`#variants`) as tabs; Not quoted (`#gaps`) is a folded `details`. The choose and
+  options routes redirect with `at=choices`, and the page then shows the result inside the card (where `#choices` lands)
+  instead of at the top. The options buttons post `opt=<product>:<0|1>` (the old `product` + `on` still work). The cells'
+  checkboxes cover the whole cell (a hidden input with `pointer-events:none` missed taps on iPhone Safari). (`.qa-tab` / `.qa-panel`; `#now` or `#variants` in the address
   opens that tab; without JavaScript both show).
 - Matching ranks the shortlist on the uncapped score (`score(line, c, raw=True)`): two products may both reach
   `MAX_SCORE` on words and size, and the one whose whole name the line carries must come first; `hall` (corridor, lobby)

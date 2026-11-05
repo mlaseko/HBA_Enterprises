@@ -389,7 +389,7 @@ def inquiry_sheet(p: Project = Depends(get_project), db: Session = Depends(get_d
 
 # ---- one document --------------------------------------------------------------------------------------------------------------
 @router.get("/p/{project_id}/quotations/{quotation_id}")
-def quotation_page(request: Request, quotation_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), ok: str = "", err: str = "", warn: str = ""):
+def quotation_page(request: Request, quotation_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), ok: str = "", err: str = "", warn: str = "", at: str = ""):
     q = _quotation(db, p, quotation_id)
     if q is None:
         return redirect(f"/p/{p.id}/quotations")
@@ -425,7 +425,7 @@ def quotation_page(request: Request, quotation_id: int, p: Project = Depends(get
     choice = {m["pid"]: qz.choice_rooms(p, m) for m in multi}
     return render(request, "buying/quotation.html", p=p, q=q, gaps=gaps, counts=counts, ok=ok[:200], err=err[:300], warn=warn[:600], by_quote=by_quote,
                   revises=revises, revised_by=revised_by, cmp_cat=cmp_cat, families=qz.families(db, p, q), dropped=dropped, qty_fine=qty_fine,
-                  lines_total=round(sum(ln.amount or 0 for ln in q.lines), 2), multi=multi, choice=choice, now=now, now_amount=qz.now_amount, now_json=json.dumps(now_data))
+                  lines_total=round(sum(ln.amount or 0 for ln in q.lines), 2), multi=multi, choice=choice, at=at if at == "choices" and multi else "", now=now, now_amount=qz.now_amount, now_json=json.dumps(now_data))
 
 
 @router.post("/p/{project_id}/quotations/{quotation_id}/options")
@@ -436,49 +436,80 @@ async def quotation_options(request: Request, quotation_id: int, p: Project = De
         return redirect(f"/p/{p.id}/quotations")
     form = await request.form()
     labels = {int(k[6:]): v for k, v in form.items() if k.startswith("label_") and k[6:].isdigit()}
+    opt = str(form.get("opt") or "")
+    pid, on = (fint(opt.split(":")[0]) or 0, opt.endswith(":1")) if ":" in opt else (fint(form.get("product")) or 0, form.get("on") == "1")
     try:
-        msg, warns = qz.set_options(db, p, q, fint(form.get("product")) or 0, form.get("on") == "1", labels)
+        msg, warns = qz.set_options(db, p, q, pid, on, labels)
     except ValueError as e:
         db.rollback()
-        return redirect(f"/p/{p.id}/quotations/{q.id}?err=" + urlquote(str(e)) + "#choices")
+        return redirect(f"/p/{p.id}/quotations/{q.id}?at=choices&err=" + urlquote(str(e)) + "#choices")
     bz.settle(db, p)
     db.commit()
-    return redirect(f"/p/{p.id}/quotations/{q.id}?ok=" + urlquote(msg) + (("&warn=" + urlquote(" ".join(warns))) if warns else "") + "#choices")
+    return redirect(f"/p/{p.id}/quotations/{q.id}?at=choices&ok=" + urlquote(msg) + (("&warn=" + urlquote(" ".join(warns))) if warns else "") + "#choices")
 
 
 @router.post("/p/{project_id}/quotations/{quotation_id}/choose")
 async def quotation_choose(request: Request, quotation_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
-    """Choose per room between the lines of this sheet on one product (product, pick_<room id> = line ids, label_<line>
-    = the option's name when the lines are not options yet)."""
+    """Choose per room between the lines of this sheet, for every product of the card at once: `product` (one per
+    product on the card), pick_<product>_<room id> = line ids (pick_<room id> when the form has one product),
+    label_<line> = the option's name when the lines are not options yet, `touched` = the products whose ticks changed
+    (the page script adds them; without it every product with a tick, or already options, is saved)."""
     from .buy import _placed
     q = _quotation(db, p, quotation_id)
     if q is None:
         return redirect(f"/p/{p.id}/quotations")
     form = await request.form()
+    back = f"/p/{p.id}/quotations/{q.id}"
     labels = {int(k[6:]): v for k, v in form.items() if k.startswith("label_") and k[6:].isdigit()}
-    picks: dict[int, list[int]] = {}
-    for k in form.keys():
-        if k.startswith("pick_") and k[5:].isdigit():
-            picks[int(k[5:])] = [x for x in (fint(v) for v in form.getlist(k)) if x]
+    pids = [x for x in (fint(v) for v in form.getlist("product")) if x]
+    touched = {x for x in (fint(v) for v in form.getlist("touched")) if x}
+    multi = {m["pid"]: m for m in qz.multi_line_products(q)}
     before = od.loose_ids(db, p)
-    try:
-        st, warns = qz.choose_lines(db, p, q, fint(form.get("product")) or 0, picks, labels)
-    except ValueError as e:
-        db.rollback()
-        return redirect(f"/p/{p.id}/quotations/{q.id}?err=" + urlquote(str(e)) + "#choices")
-    placed = _placed(db, p, before)
+    done, errs, warns = [], [], []
+    for pid in pids:
+        picks: dict[int, list[int]] = {}
+        pre = f"pick_{pid}_"
+        for k in form.keys():
+            rid = k[len(pre):] if k.startswith(pre) else (k[5:] if len(pids) == 1 and k.startswith("pick_") and k[5:].isdigit() else None)
+            if rid is not None and rid.isdigit():
+                picks[int(rid)] = [x for x in (fint(v) for v in form.getlist(k)) if x]
+        m = multi.get(pid)
+        if m is None:
+            continue
+        if touched:
+            if pid not in touched:
+                continue
+        elif not any(picks.values()) and not m["options"]:
+            continue
+        try:
+            st, w = qz.choose_lines(db, p, q, pid, picks, labels)
+        except ValueError as e:
+            errs.append(f"{m['title']}: {e}")
+            continue
+        warns += w
+        bits = [f"{m['title']}: {st['chosen']} room{'s' if st['chosen'] != 1 else ''} chosen"]
+        if st["added"]:
+            bits.append(f"{st['added']} room{'s take' if st['added'] != 1 else ' takes'} both (a line added)")
+        if st["removed"]:
+            bits.append(f"{st['removed']} second line{'s' if st['removed'] != 1 else ''} removed")
+        if st["locked"]:
+            bits.append(f"{st['locked']} on a confirmed order left as {'they were' if st['locked'] != 1 else 'it was'}")
+        done.append(", ".join(bits))
+        q = db.get(Quotation, q.id)
+        multi = {mm["pid"]: mm for mm in qz.multi_line_products(q)}
+    if not done and not errs:
+        return redirect(back + "?at=choices&ok=" + urlquote("Nothing changed: tap a box under the line a room takes, then save.") + "#choices")
+    placed = _placed(db, p, before) if done else ""
     bz.settle(db, p)
     db.commit()
-    msg = [f"Choice saved: {st['chosen']} room{'s' if st['chosen'] != 1 else ''} chosen.{placed}"]
-    if st.get("made_options"):
-        msg.append("The lines are options to choose now, a quote each.")
-    if st["added"]:
-        msg.append(f"{st['added']} room{'s take' if st['added'] != 1 else ' takes'} both: a line was added for each.")
-    if st["removed"]:
-        msg.append(f"{st['removed']} second line{'s' if st['removed'] != 1 else ''} removed.")
-    if st["locked"]:
-        msg.append(f"{st['locked']} room{'s' if st['locked'] != 1 else ''} on a confirmed order left as {'they were' if st['locked'] != 1 else 'it was'}.")
-    return redirect(f"/p/{p.id}/quotations/{q.id}?ok=" + urlquote(" ".join(msg)) + (("&warn=" + urlquote(" ".join(warns))) if warns else "") + "#choices")
+    url = back + "?at=choices"
+    if done:
+        url += "&ok=" + urlquote("Choices saved. " + "; ".join(done) + "." + placed)
+    if errs:
+        url += "&err=" + urlquote(" ".join(errs))
+    if warns:
+        url += "&warn=" + urlquote(" ".join(warns))
+    return redirect(url + "#choices")
 
 
 @router.post("/p/{project_id}/quotations/{quotation_id}/now")

@@ -1927,3 +1927,14 @@ body.qi-walking .qi-line{grid-template-columns:56px minmax(0,1fr)}body.qi-walkin
   .qc-grid>*{padding:8px}
   .qa-head{align-items:flex-start}
 }
+/* Choose per room, round 2: the whole cell is the tap target (iPhone Safari ignored taps on a hidden input), one save bar for every product */
+.qc-cell input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;pointer-events:auto;cursor:pointer;z-index:1}
+.qc-cell input:disabled{cursor:not-allowed}
+.qc-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.qc-prod.dirty{background:linear-gradient(90deg,var(--accent-soft),transparent 40%);margin-left:-18px;margin-right:-18px;padding-left:18px;padding-right:18px}
+.qc-bar{position:sticky;bottom:12px;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;padding:10px 14px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh-2)}
+#qc-form.has-changes .qc-bar{border-color:var(--accent)}
+.qg>summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer}
+.qg>summary h2 .n{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--surface-3);color:var(--ink-2);font-size:.72rem;margin-left:6px;vertical-align:2px}
+@media (max-width:700px){.qc-bar{bottom:76px;flex-direction:column;align-items:stretch}.qc-bar .btn{justify-content:center}.qc-grid{overflow-x:visible}}
+.qc-changed[hidden]{display:none!important}
