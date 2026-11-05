@@ -568,7 +568,9 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   → `buying.choose_options(db, p, product, g, picks)`: each room's ticked options are bought through `buy()` one line
   each; an extra option adds a line in the room (`SHARED_FIELDS`, the first line's qty, `next_code`), an option unticked
   deletes its line (photos released; Shipped / Received lines are only uncovered), nothing ticked leaves one open line;
-  rooms with a line on a confirmed order are skipped and counted (`locked`). The Tracker estimates open rooms at
+  rooms with a line on a confirmed order are skipped and counted (`locked`). A line bought from an option shows the option's
+  picture: `Item.option_cover` (a `models.OptionPicture` with file_key / thumb / caption from the Quote) comes first in
+  `Item.cover`, so every list, PDF and the client page follow; `Purchase.quote` is joined for it. The Tracker estimates open rooms at
   `Group.estimate_quote` (the dearest option while options exist, else the lowest quote) and lists the products with
   rooms to choose (→ `/buying?options=1`); the Buying list card shows the price range and a "to choose" pill.
 

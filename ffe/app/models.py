@@ -459,7 +459,20 @@ class Item(Base):
         return services.photos_of(self)
 
     @property
+    def option_cover(self) -> "OptionPicture | None":
+        """The supplier's picture of the option this room line was chosen with (Buying › options to choose), if it has one."""
+        pu = self.purchase
+        q = pu.quote if pu is not None else None
+        if q is not None and q.option_label and (q.thumb_key or q.photo_key):
+            return OptionPicture(q)
+        return None
+
+    @property
     def cover(self):
+        """The picture that stands for the line: the chosen option's supplier picture, else the product's first photo."""
+        oc = self.option_cover
+        if oc is not None:
+            return oc
         ps = self.all_photos
         return ps[0] if ps else None
 
@@ -471,6 +484,16 @@ class Item(Base):
     def price_amount(self) -> float:
         """The unit price as the designer typed it: in USD when entered in USD, else the CNY value."""
         return self.price_entry.amount if self.price_entry else (self.unit_price or 0.0)
+
+
+class OptionPicture:
+    """A chosen option's picture (its Quote's photo) in the shape the pages and PDFs read a cover in: file_key, thumb, caption."""
+
+    def __init__(self, q: "Quote"):
+        self.file_key = q.photo_key or q.thumb_key
+        self.thumb = q.thumb_key or q.photo_key
+        self.caption = " · ".join(x for x in (q.option_label, q.supplier.name if q.supplier else "") if x)
+        self.id = None
 
 
 class ItemPrice(Base):
@@ -583,7 +606,7 @@ class Purchase(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     product: Mapped["Product"] = relationship(back_populates="purchases")
     supplier: Mapped["Supplier | None"] = relationship(lazy="joined")
-    quote: Mapped["Quote | None"] = relationship()
+    quote: Mapped["Quote | None"] = relationship(lazy="joined")  # joined: a line's cover may be its chosen option's picture
     lines: Mapped[list["Item"]] = relationship(back_populates="purchase")
     order: Mapped["Order | None"] = relationship(back_populates="purchases")
 

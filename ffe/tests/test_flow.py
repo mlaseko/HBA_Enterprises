@@ -2209,6 +2209,12 @@ def flow(c):
     # Grey wool for every room
     r=c.post(f"/p/{pid_q}/buying/{_cp_id}/options", data={"all":str(_oa)}, follow_redirects=False); assert "3%20rooms%20chosen" in r.headers["location"], r.headers["location"]
     db=SessionLocal(); _cl=db.query(_OI).filter(_OI.project_id==pid_q, _OI.name=="Carpet").all(); assert len(_cl)==3 and {i.purchase.quote_id for i in _cl}=={_oa}; db.close()
+    # the chosen option's supplier picture stands for the line (lists, quick view, PDFs), the design photos stay with the product
+    db=SessionLocal(); db.get(_OQ, _oa).photo_key, db.get(_OQ, _oa).thumb_key = "p1/quotes/optpic.jpg", "p1/quotes/optpic_t.jpg"; db.commit()
+    _c0=db.query(_OI).filter(_OI.project_id==pid_q, _OI.name=="Carpet").first(); assert _c0.cover is not None and _c0.cover.thumb=="p1/quotes/optpic_t.jpg" and "Grey wool" in _c0.cover.caption; _c0id=_c0.id; db.close()
+    h=c.get(f"/p/{pid_q}/items/{_c0id}/quick").text; assert "Chosen: Grey wool" in h and "optpic_t.jpg" in h
+    assert "Chosen option: Grey wool" in c.get(f"/p/{pid_q}/items/{_c0id}").text
+    db=SessionLocal(); db.get(_OQ, _oa).photo_key, db.get(_OQ, _oa).thumb_key = "", ""; db.commit(); db.close()
     # the first room rotates both: a second line there, the quantity up by one
     picks={f"pick_{_acr[0][0]}":[str(_oa), str(_ob)], f"pick_{_acr[1][0]}":str(_oa), f"pick_{_acr[2][0]}":str(_oa)}
     r=c.post(f"/p/{pid_q}/buying/{_cp_id}/options", data=picks, follow_redirects=False); assert "a%20second%20option" in r.headers["location"], r.headers["location"]

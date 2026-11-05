@@ -1500,3 +1500,5 @@ tr.fam-row td{background:var(--surface-2);border-top:2px solid var(--line)}tr.fa
 .mc-line{display:grid;grid-template-columns:44px 1fr minmax(120px,200px);gap:10px;align-items:center}
 .mc-line img,.mc-nopic{width:44px;height:44px;border-radius:8px;object-fit:cover;background:var(--line-2);display:block}
 @media(max-width:700px){.mc-line{grid-template-columns:44px 1fr}.mc-line>:last-child{grid-column:2}}
+.opt-chosen{display:flex;gap:12px;align-items:center;padding:10px;border:1px solid var(--gold);background:var(--gold-soft);border-radius:12px;margin-bottom:12px}
+.opt-chosen img{width:72px;height:72px;object-fit:cover;border-radius:10px;display:block}.qv-opt{margin-bottom:6px}
