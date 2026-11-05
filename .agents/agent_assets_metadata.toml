@@ -14,3 +14,17 @@ mtime_ms = 1793906940048
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:6c774abc-2191-4c3f-876f-673aeaf77bf6/40aaf30b-216c-44d0-a169-39f0a5ed3583/577e06d0-ebb9-46ea-b4aa-1a986510b9db"
 storage_version_token = "1793906959208872"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "qQl90bonk8A8jmTvnIpkS"
+uri = "file://generated-artifacts/database-backups/ffe-both-databases-20261105.zip"
+type = "unspecified"
+title = "Both database backups and restore instructions"
+description = "Private ZIP containing separate production and workspace PostgreSQL backups, SHA-256 checksums and restore instructions. Both archives passed readability checks; photos and uploaded files are not included."
+logical_id = "ce36ab30-9c60-446c-8128-c0e7d73da75c"
+content_hash = "sha256:b76f1100d5432bbefd6fac3052c9d053c58a296654530cac638237e1bc7b07ac"
+size = 138478
+mtime_ms = 1793907208291
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:6c774abc-2191-4c3f-876f-673aeaf77bf6/ce36ab30-9c60-446c-8128-c0e7d73da75c/332939ce-0b44-4e88-a769-ed2023db485e"
+storage_version_token = "1793907240304490"
+content_type = "application/octet-stream"
