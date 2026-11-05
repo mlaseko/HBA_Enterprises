@@ -88,6 +88,53 @@ def add(db: Session, o: Order, purchases: list[Purchase]) -> int:
     return n
 
 
+def loose_ids(db: Session, p: Project) -> set[int]:
+    """The purchases of the project on no order: taken before a choice, so follow_choice() knows which ones it made."""
+    db.flush()
+    return {i for (i,) in db.query(Purchase.id).filter(Purchase.project_id == p.id, Purchase.order_id.is_(None))}
+
+
+def follow_choice(db: Session, p: Project, before: set[int], warehouse: str = "") -> list[Order]:
+    """Choosing a shop puts its rooms on an order. The purchases the last change made (on no order, and not on no order
+    before it: `before` = loose_ids() taken first) join their shop's draft order, or a new draft when the shop has none.
+    Purchases already waiting (an order deleted, a product taken off) stay under Ready to order. A draft left empty by the
+    change (its rooms moved to another shop) goes when nothing was typed on it and nothing was paid against it; its number
+    is not given again. Returns the orders that received purchases."""
+    db.flush()
+    new = [pu for pu in db.query(Purchase).filter(Purchase.project_id == p.id, Purchase.order_id.is_(None)).order_by(Purchase.id)
+           if pu.id not in before and pu.supplier_id]
+    touched: list[Order] = []
+    by_sup: dict[int, list[Purchase]] = {}
+    for pu in new:
+        by_sup.setdefault(pu.supplier_id, []).append(pu)
+    for sid, pus in by_sup.items():
+        draft = (db.query(Order).filter(Order.project_id == p.id, Order.supplier_id == sid, Order.confirmed_on.is_(None))
+                 .order_by(Order.number.desc()).first())
+        if draft is not None:
+            add(db, draft, pus)
+        else:
+            draft = new_order(db, p, pus[0].supplier, pus, warehouse)
+        touched.append(draft)
+    tidy_drafts(db, p, keep={o.id for o in touched})
+    return touched
+
+
+def tidy_drafts(db: Session, p: Project, keep: set[int] | None = None) -> int:
+    """Drafts with no purchases left, nothing typed on them (ready date, shop's reference, notes) and no payments go."""
+    db.flush()
+    used = {i for (i,) in db.query(Purchase.order_id).filter(Purchase.project_id == p.id, Purchase.order_id.isnot(None))}
+    paid = {i for (i,) in db.query(Payment.order_id).filter(Payment.project_id == p.id, Payment.order_id.isnot(None))}
+    gone = 0
+    for o in db.query(Order).filter(Order.project_id == p.id, Order.confirmed_on.is_(None)).all():
+        if o.id in used or o.id in paid or o.id in (keep or set()) or o.ready_date or (o.supplier_ref or "").strip() or (o.notes or "").strip():
+            continue
+        db.delete(o)
+        gone += 1
+    if gone:
+        db.flush()
+    return gone
+
+
 def take_off(db: Session, o: Order, pu: Purchase) -> None:
     """A purchase comes off the order (its rooms keep their shop; they go back to Quoted)."""
     if pu.order_id == o.id:

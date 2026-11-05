@@ -6,7 +6,7 @@
 {% macro packs(n, word) %}{{ n }} {{ word }}{{ ('es' if word[-1:] in 'xs' else 's') if n != 1 }}{% endmacro %}
 <div class="page-head">
   <div>
-    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/buying">Buying</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/orders">Orders</a></div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/orders">Orders</a></div>
     <h1>Order {{ ov.ref }} <span class="h-note">{{ shop }}</span></h1>
     <p class="sub">{{ ov.lines|length }} product{{ 's' if ov.lines|length != 1 }} for {{ ov.rooms|length }} room line{{ 's' if ov.rooms|length != 1 }}{% if o.confirmed_on %} · confirmed on {{ o.confirmed_on.strftime('%d %B %Y') }}{% else %} · a draft, not confirmed with the shop yet{% endif %}{% if o.supplier_ref %} · their ref {{ o.supplier_ref }}{% endif %}</p>
   </div>

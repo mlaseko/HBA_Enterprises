@@ -234,6 +234,8 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
   quote. After anything that changes lines' name / size / finish, call `buying.follow_renames(db, p, before)` with
   `before = buying.keys(p)` taken first; after deleting lines, `buying.prune(db, p)`. The session does not autoflush:
   the buying helpers flush before they query. Readers keep reading `item.supplier` / `unit_price` / `lead_time`.
+- **Choosing a shop orders it.** A route that makes purchases takes `ordering.loose_ids()` first and ends with
+  `ordering.follow_choice()` (via `routers/buy._placed`) before `buying.settle`, so the new purchases sit on their shop's draft.
 - **Statuses follow the orders.** On a line whose purchase is on a confirmed order, To buy / Quoted / Ordered / Paid
   (`buying.AUTO_STATUSES`) are the order's: Ordered, or Paid once paid in full; a draft only lifts To buy to Quoted, so
   a status set by hand before the order (older projects) stays until it is confirmed. Back to a draft
@@ -910,8 +912,25 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   `table.it-list` / `.it-table` drop secondary columns on a phone. The quotation preview opens on the **Needs you** filter
   (`setFilter('open')`: the lines that need a decision when the page opened, `isOpen()`, plus any that need a check now);
   sure matches, extra charges and skipped lines fold under `#qi-folded`; on a phone Walk me through starts by itself once per
-  sheet (sessionStorage `qi.walked.<key>`). Inputs are white. Page intros are one sentence. Phases 2 (choosing a shop puts
-  it on an order, automatic statuses, the quotation wizard) and 3 (the product as a record of its own) are next.
+  sheet (sessionStorage `qi.walked.<key>`). Inputs are white. Page intros are one sentence. Phase 2 followed (below); phase 3 (the product
+  as a record of its own) is next.
+
+- **Usability, phase 2.** Choosing a shop puts its rooms on an order: every route that makes a purchase (a quote added
+  with "choose it now", `buy_from_quote`, the options grid, a purchase's rooms) takes `od.loose_ids()` first and calls
+  `routers/buy._placed()` → `ordering.follow_choice(db, p, before, warehouse)`: the purchases the change made join their
+  shop's draft (the latest unconfirmed order of that supplier) or a new draft (`new_order`, the studio's warehouse);
+  purchases already loose before (taken off an order, a deleted order's) stay under Ready to order, which the Orders page
+  shows only when something waits. `ordering.tidy_drafts()` (also after a purchase's rooms change or it is deleted) removes
+  drafts with no purchases, no payments and nothing typed (ready date, shop's reference, notes); numbers stay used.
+  The product page (`buying/product.html`) has the rooms table at the top beside the design, with what to order under it,
+  and the quotes as one comparison table (`table.qcmp`, a `tbody.qtr` per quote with `id="quote-<id>"`, its Rooms / Edit
+  folds in `tr.qt-more`; cards on a phone); the buttons say Choose. The item's status is a badge with "Set it by hand"
+  (`details.status-hand`) holding the select; a new item posts To buy. Payments (`payments.html`) is a report: To pay,
+  order by order (`#due`, linking to `/orders/<o>#payments`), by supplier, all payments, and the free-standing form folded
+  (`#record`). The quotation preview is a wizard (`#qi-steps`; `step(n)` in its script, `body.qi-wiz` / `body.qi-step3`):
+  step 2 the lines, step 3 The document (first, `order:-1`), the simulation and Save; an `err` opens it on step 3; no
+  JavaScript = one page as before. The saved quotation folds What it comes to now, the options card and Products and
+  variants under `details#advanced` (a hash inside it opens it). Breadcrumbs say Sourcing for the Buying pages.
 
 ## Backlog (in priority order)
 

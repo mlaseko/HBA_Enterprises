@@ -546,8 +546,18 @@ def seed() -> dict:
         day = lambda n: (datetime.date.today() + datetime.timedelta(days=n)).isoformat()  # noqa: E731
         ids["orders"] = {}
         for sup, confirmed, ready, ref, pays in ORDERS:
-            r = c.post(f"/p/{pid}/orders/new", data={"supplier_id": str(sups[sup])}, follow_redirects=False)
-            oid = int(r.headers["location"].split("/orders/")[1].split("?")[0])
+            # choosing the shop already put its rooms on a draft order; the warehouse came after, so the draft gets it now
+            db = SessionLocal()
+            from app.models import Settings
+            o = db.query(Order).filter(Order.project_id == pid, Order.supplier_id == sups[sup], Order.confirmed_on.is_(None)).order_by(Order.number).first()
+            if o is not None and not o.deliver_to:
+                o.deliver_to = db.query(Settings).first().warehouse
+                db.commit()
+            oid = o.id if o is not None else None
+            db.close()
+            if oid is None:
+                r = c.post(f"/p/{pid}/orders/new", data={"supplier_id": str(sups[sup])}, follow_redirects=False)
+                oid = int(r.headers["location"].split("/orders/")[1].split("?")[0])
             ids["orders"][sup] = oid
             if confirmed is not None:
                 c.post(f"/p/{pid}/orders/{oid}/confirm", data={"confirmed_on": day(confirmed), "ready_date": day(ready)}, follow_redirects=False)

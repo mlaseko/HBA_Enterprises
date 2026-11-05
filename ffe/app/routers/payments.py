@@ -18,7 +18,7 @@ def payments(request: Request, p: Project = Depends(get_project), db: Session = 
     led = buying.Ledger(p)
     ovs = ordering.views(p, led)
     return render(request, "payments.html", p=p, s=s, pays=pays, suppliers=suppliers, today=date.today().isoformat(), ovs=ovs,
-                  refs={ov.o.id: ov.ref for ov in ovs})
+                  refs={ov.o.id: ov.ref for ov in ovs}, ORDER_COLORS=ordering.STAGE_COLORS)
 
 
 @router.post("/p/{project_id}/payments")

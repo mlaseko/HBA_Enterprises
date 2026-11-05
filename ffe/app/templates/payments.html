@@ -1,28 +1,8 @@
 {% extends "base.html" %}
 {% from "_sections.html" import section_tabs %}
-{% block title %}Payments · {{ p.name }} · {{ APP_NAME }}{% endblock %}
-{% block content %}
-<div class="page-head">
-  <div>
-    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
-    <h1>Payments <span class="h-note">{{ pays|length }} recorded</span></h1>
-    <p class="sub">Deposits and balances paid to the shops.</p>
-  </div>
-  <div class="actions">
-    <a class="btn sec sm" href="/p/{{ p.id }}/orders"><svg class="ic"><use href="#i-file"/></svg>Orders</a>
-    <a class="btn sec sm" href="/p/{{ p.id }}/suppliers"><svg class="ic"><use href="#i-users"/></svg>Suppliers</a>
-  </div>
-</div>
-{{ section_tabs(p, 'orders', 'payments') }}
-
-<div class="grid g3">
-  <div class="kpi"><div class="v">{{ s.ordered|cur }}</div><div class="l">on confirmed orders</div><svg class="ic"><use href="#i-file"/></svg></div>
-  <div class="kpi"><div class="v">{{ s.paid|cur }}</div><div class="l">paid · {{ s.paid|cur_other }}</div><svg class="ic"><use href="#i-check"/></svg></div>
-  <div class="kpi accent"><div class="v">{{ s.to_pay|cur }}</div><div class="l">still to pay on orders</div><svg class="ic"><use href="#i-card"/></svg></div>
-</div>
-
-<form method="post" enctype="multipart/form-data" class="card mt">
-  <h2>Record a payment</h2>
+{% block title %}Payments · {{ p.name }} · {{ APP_NAME }}<details class="card fold" id="record"{{ ' open' if not ovs }}>
+  <summary><h2 class="mb-0">Record a payment here</h2><span class="small muted">For a payment to a shop on no order, or to pick the order from a list.</span></summary>
+<form method="post" enctype="multipart/form-data" class="mt">
   <div class="grid stack g3">
     <div><label>Order</label><select name="order_id" class="in"><option value="">No order: to the supplier below</option>{% for ov in ovs|selectattr('o.confirmed') %}<option value="{{ ov.o.id }}">{{ ov.ref }} · {{ ov.o.supplier.name if ov.o.supplier else 'Shop' }} · to pay {{ ([ov.balance, 0]|max)|cur }}</option>{% endfor %}{% for ov in ovs|rejectattr('o.confirmed') %}<option value="{{ ov.o.id }}">{{ ov.ref }} (draft) · {{ ov.o.supplier.name if ov.o.supplier else 'Shop' }}</option>{% endfor %}</select>
       <div class="help">Paying an order counts toward it: its rooms become Paid once it is paid in full.</div></div>
@@ -37,6 +17,46 @@
     <div class="btn-cell"><button class="btn"><svg class="ic"><use href="#i-check"/></svg>Record payment</button></div>
   </div>
 </form>
+</details>
+{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
+    <h1>Payments <span class="h-note">{{ pays|length }} recorded</span></h1>
+    <p class="sub">What is paid and what is still owed. Record a payment on its order.</p>
+  </div>
+</div>
+{{ section_tabs(p, 'orders', 'payments') }}
+
+<div class="grid g3">
+  <div class="kpi"><div class="v">{{ s.ordered|cur }}</div><div class="l">on confirmed orders</div><svg class="ic"><use href="#i-file"/></svg></div>
+  <div class="kpi"><div class="v">{{ s.paid|cur }}</div><div class="l">paid · {{ s.paid|cur_other }}</div><svg class="ic"><use href="#i-check"/></svg></div>
+  <div class="kpi accent"><div class="v">{{ s.to_pay|cur }}</div><div class="l">still to pay on orders</div><svg class="ic"><use href="#i-card"/></svg></div>
+</div>
+
+{% set due = ovs|selectattr('o.confirmed')|selectattr('balance', 'gt', 0)|list %}
+<div class="card mt" id="due">
+  <h2>To pay, order by order <span class="h-note">{{ due|length }}</span></h2>
+  {% if due %}
+  <div class="tbl"><table>
+    <thead><tr><th>Order</th><th>Shop</th><th>Stage</th><th>Ready by</th><th class="num">To pay</th><th></th></tr></thead>
+    <tbody>
+    {% for ov in due %}
+    <tr>
+      <td class="nowrap"><a class="b" href="/p/{{ p.id }}/orders/{{ ov.o.id }}">{{ ov.ref }}</a></td>
+      <td>{{ ov.o.supplier.name if ov.o.supplier else 'Shop not known' }}</td>
+      <td><span class="badge" style="--c:{{ ORDER_COLORS[ov.stage] }}">{{ ov.stage }}</span></td>
+      <td class="small nowrap{{ ' red' if ov.late }}">{{ ov.o.ready_date.strftime('%d %b %Y') if ov.o.ready_date else '—' }}</td>
+      <td class="num b">{{ ov.balance|cur(2) }}</td>
+      <td class="right"><a class="btn sm" href="/p/{{ p.id }}/orders/{{ ov.o.id }}#payments"><svg class="ic"><use href="#i-card"/></svg>Record a payment</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<p class="muted small mb-0">Nothing to pay on a confirmed order.</p>{% endif %}
+</div>
+
 
 <div class="card">
   <h2>By supplier</h2>
@@ -76,9 +96,27 @@
       <td><form method="post" action="/p/{{ p.id }}/payments/{{ pay.id }}/delete" data-confirm="Delete this payment? Its receipt is deleted and the paid total of the supplier{% if pay.order_id %} and of its order{% endif %} goes down."><button class="btn icon danger" title="Delete payment" aria-label="Delete payment"><svg class="ic"><use href="#i-trash"/></svg></button></form></td>
     </tr>
     {% else %}
-    <tr><td colspan="9" class="muted center">No payments recorded yet. Use the form above the first time you pay a deposit. <a href="#help">How payments work</a></td></tr>
+    <tr><td colspan="9" class="muted center">No payments recorded yet. Record each one on its order. <a href="#help">How payments work</a></td></tr>
     {% endfor %}
     </tbody>
   </table></div>
 </div>
+<details class="card fold" id="record"{{ ' open' if not ovs }}>
+  <summary><h2 class="mb-0">Record a payment here</h2><span class="small muted">For a payment to a shop on no order, or to pick the order from a list.</span></summary>
+<form method="post" enctype="multipart/form-data" class="mt">
+  <div class="grid stack g3">
+    <div><label>Order</label><select name="order_id" class="in"><option value="">No order: to the supplier below</option>{% for ov in ovs|selectattr('o.confirmed') %}<option value="{{ ov.o.id }}">{{ ov.ref }} · {{ ov.o.supplier.name if ov.o.supplier else 'Shop' }} · to pay {{ ([ov.balance, 0]|max)|cur }}</option>{% endfor %}{% for ov in ovs|rejectattr('o.confirmed') %}<option value="{{ ov.o.id }}">{{ ov.ref }} (draft) · {{ ov.o.supplier.name if ov.o.supplier else 'Shop' }}</option>{% endfor %}</select>
+      <div class="help">Paying an order counts toward it: its rooms become Paid once it is paid in full.</div></div>
+    <div><label>Supplier</label><select name="supplier_id" class="in"><option value="">—</option>{% for sp in suppliers %}<option value="{{ sp.id }}">{{ sp.name }}</option>{% endfor %}</select>
+      <div class="help">With an order chosen, its shop is used.</div></div>
+    <div><label>Date</label><input class="in" type="date" name="paid_on" value="{{ today }}"></div>
+    <div><label>Amount (CNY)</label><input class="in" type="number" step="0.01" name="amount" placeholder="0.00" required></div>
+    <div><label>Type</label><select name="kind" class="in">{% for k in PAYMENT_KINDS %}<option>{{ k }}</option>{% endfor %}</select></div>
+    <div><label>Reference</label><input class="in" type="text" name="reference" placeholder="Receipt no., bank ref"></div>
+    <div><label>Receipt photo</label><input type="file" name="receipt" accept="image/*" capture="environment"><div class="filehint help"></div></div>
+    <div class="span2"><label>Note</label><input class="in" type="text" name="note" placeholder="What this payment covers"></div>
+    <div class="btn-cell"><button class="btn"><svg class="ic"><use href="#i-check"/></svg>Record payment</button></div>
+  </div>
+</form>
+</details>
 {% endblock %}

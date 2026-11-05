@@ -11,7 +11,7 @@
 {% set by_quote = {} %}{% for v in views %}{% if v.purchase.quote_id %}{% set _ = by_quote.update({v.purchase.quote_id: v}) %}{% endif %}{% endfor %}
 <div class="page-head">
   <div>
-    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/buying">Buying</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/buying?category={{ g.category|urlencode }}">{{ g.category }}</a></div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/buying">Sourcing</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/buying?category={{ g.category|urlencode }}">{{ g.category }}</a></div>
     <h1>{{ g.name }}</h1>
     <p class="sub">{{ g.lines|length }} room line{{ 's' if g.lines|length != 1 }}: {{ g.codes[:8]|join(', ') }}{% if g.codes|length > 8 %} and {{ g.codes|length - 8 }} more{% endif %}</p>
   </div>
@@ -43,13 +43,27 @@
   </div>
 
   <div class="card bu-order" id="quantity">
-    <div class="row between"><div class="eyebrow">What to order</div>{% if prod.allowance is not none or prod.pack_size %}<span class="pill">set by hand</span>{% endif %}</div>
-    <div class="bu-calc">
-      <div><span class="v">{{ g.needed|num(2) }}</span><span class="u">{{ unit }}</span><span class="l">the rooms need</span></div>
-      <div class="op">+</div>
-      <div><span class="v">{{ (g.allowance * 100)|num(1) }}</span><span class="u">%</span><span class="l">allowance{{ ' · default' if prod.allowance is none }}</span></div>
-      <div class="op">=</div>
-      <div class="res"><span class="v">{{ o.qty|num(2) }}</span><span class="u">{{ unit }}</span><span class="l">{% if o.packs %}to order · {{ packs(o.packs, pack_word) }} of {{ o.pack|num(3) }}{% else %}to order{% endif %}</span></div>
+    <div class="row between"><div class="eyebrow">Rooms <span class="muted">· {{ g.lines|length }}</span></div><span class="small muted">{{ g.covered }} of {{ g.lines|length }} with a shop</span></div>
+    <div class="tbl bu-rooms mt"><table>
+      <thead><tr><th>Room</th><th class="num">Qty</th><th>Status</th><th>Shop</th></tr></thead>
+      <tbody>
+      {% for fl, ls in by_floor.items() %}
+        {% if by_floor|length > 1 %}<tr class="sub"><td colspan="4">{{ fl }}</td></tr>{% endif %}
+        {% for i in ls %}
+        <tr>
+          <td><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}" data-quick>{{ i.code }}</a> <span class="small">{{ i.room.name if i.room else 'Whole house' }}</span></td>
+          <td class="num nowrap">{{ i.qty|num(2) }} {{ i.unit }}</td>
+          <td><span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status|status_label }}</span></td>
+          <td class="small">{% if i.purchase %}{{ i.purchase.supplier.name if i.purchase.supplier else '—' }}{% else %}<span class="muted">no shop yet</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      {% endfor %}
+      </tbody>
+    </table></div>
+    <div class="bu-calc-line mt">
+      <span><b>{{ g.needed|num(2) }}</b> {{ unit }} the rooms need</span><span class="op">+</span><span><b>{{ (g.allowance * 100)|num(1) }}</b>% allowance{{ ' (default)' if prod.allowance is none }}</span><span class="op">=</span>
+      <span class="res"><b>{{ o.qty|num(2) }}</b> {{ unit }} to order{% if o.packs %} · {{ packs(o.packs, pack_word) }} of {{ o.pack|num(3) }}{% endif %}</span>
+      {% if prod.allowance is not none or prod.pack_size %}<span class="pill">set by hand</span>{% endif %}
     </div>
     {% if unit == 'mixed' %}<p class="small muted mt">The rooms give this product in different units: check them on the item before ordering.</p>{% endif %}
     {% if not o.packs and not g.pack_size and unit in ('m²', 'm', 'lm') %}<p class="small muted mt">Add the {{ pack_word }} size (from a quote or below) to round the order up to whole {{ pack_word }}{{ 'es' if pack_word[-1:] in 'xs' else 's' }}.</p>{% endif %}
@@ -105,53 +119,55 @@
 </section>
 {% endif %}
 
-{# ---- quotes ---- #}
+{# ---- quotes: one table to compare, a Choose button on each ---- #}
 <section class="bu-sec" id="quotes">
   <div class="bu-sec-head">
-    <div><h2>Quotes <span class="n">{{ quotes|length }}</span></h2><p class="small muted">What each shop offers for this product. Nothing is chosen until you press Buy.</p></div>
+    <div><h2>Quotes <span class="n">{{ quotes|length }}</span></h2><p class="small muted">Compare the shops, then choose one: its rooms go on that shop's draft order.</p></div>
     <a class="btn sm accent" href="#add-quote" data-open="add-quote"><svg class="ic"><use href="#i-plus"/></svg>Add a quote</a>
   </div>
   {% if quotes %}
-  <div class="bu-quotes">
+  <div class="card tight bu-qtable"><table class="qcmp">
+    <thead><tr><th>Shop</th><th class="num">Price {{ per }}</th><th>Brand · model</th><th>Pack · minimum · lead time</th><th class="num">For all rooms</th><th></th></tr></thead>
     {% for q in quotes %}{% set t = g.quote_total(q) %}{% set v = by_quote.get(q.id) %}{% set is_best = best and q.id == best.id and quotes|length > 1 %}
-    <article class="qt{{ ' best' if is_best }}{{ ' chosen' if v }}" id="quote-{{ q.id }}">
-      <header>
+    <tbody class="qtr{{ ' best' if is_best }}{{ ' chosen' if v }}" id="quote-{{ q.id }}">
+    <tr class="qt-row">
+      <td class="who" data-l="Shop">
         {% if q.thumb %}<a class="pic" href="/media/{{ q.photo_key }}" target="_blank" data-caption="{{ q.supplier.name if q.supplier else 'Quote' }} · {{ g.name }}"><img src="/media/{{ q.thumb }}" alt=""></a>
         {% else %}<span class="pic empty"><svg class="ic"><use href="#i-camera"/></svg></span>{% endif %}
-        <div class="who">
+        <div>
           <div class="shop">{{ q.supplier.name if q.supplier else 'Shop not known' }}</div>
           {% if q.supplier %}<div class="m">{{ [q.supplier.city, ('WeChat ' ~ q.supplier.wechat) if q.supplier.wechat else '']|select|join(' · ') }}{% if q.supplier.phone %}{% if q.supplier.city or q.supplier.wechat %} · {% endif %}<a href="tel:{{ q.supplier.phone|replace(' ', '') }}">{{ q.supplier.phone }}</a>{% endif %}</div>{% endif %}
           {% if v or is_best or q.option_label %}<div class="tags">{% if q.option_label %}<span class="pill gold" title="One of the options to choose (above)">Option: {{ q.option_label }}</span>{% endif %}{% if v %}<span class="pill accent"><svg class="ic sm"><use href="#i-check"/></svg>Buying for {{ v.lines|length }} room{{ 's' if v.lines|length != 1 }}</span>{% endif %}{% if is_best %}<span class="pill green">Lowest price</span>{% endif %}</div>{% endif %}
+          {% if from_doc and from_doc.get(q.id) %}{% set qd = from_doc[q.id] %}<div class="m">From <a href="/p/{{ p.id }}/quotations/{{ qd.id }}">{{ qd.title or qd.filename or 'quotation' }}</a>{% if qd.quote_date %} · {{ qd.quote_date.isoformat() }}{% endif %}{% if qd.expired %} <span class="pill red" title="Past its validity: ask the shop to confirm the price">expired</span>{% endif %}</div>{% endif %}
         </div>
-      </header>
-      <div class="price">
-        {% if q.unit_price %}<span class="v">{% if show_usd(p) and q.currency == 'USD' %}${{ q.amount|money(2) }}{% else %}{{ q.unit_price|cur(2) }}{% endif %}</span><span class="per">{{ per }}</span>
+      </td>
+      <td class="num price" data-l="Price {{ per }}">
+        {% if q.unit_price %}<span class="v">{% if show_usd(p) and q.currency == 'USD' %}${{ q.amount|money(2) }}{% else %}{{ q.unit_price|cur(2) }}{% endif %}</span>
           <span class="alt">{% if show_usd(p) %}{{ q.unit_price|cur_other(2) }}{% if q.currency != 'USD' %} as typed{% endif %}{% elif q.currency == 'USD' %}typed as ${{ q.amount|money(2) }}{% else %}${{ (q.unit_price / rate)|money(2) }}{% endif %}</span>
         {% else %}<span class="v none">No price yet</span>{% endif %}
-      </div>
-      <dl class="facts">
-        {% if q.brand or q.model %}<div><dt>Brand · model</dt><dd>{{ [q.brand, q.model]|select|join(' · ') }}</dd></div>{% endif %}
-        {% if q.pack_size %}<div><dt>Pack</dt><dd>{{ q.pack_size|num(3) }} {{ unit if unit not in ('pcs', 'mixed') else 'pcs' }} per {{ pack_word }}</dd></div>{% endif %}
-        {% if q.moq %}<div><dt>Minimum</dt><dd>{{ q.moq }}</dd></div>{% endif %}
-        {% if q.lead_time %}<div><dt>Lead time</dt><dd>{{ q.lead_time }}</dd></div>{% endif %}
-        {% if from_doc and from_doc.get(q.id) %}{% set qd = from_doc[q.id] %}<div><dt>From</dt><dd><a href="/p/{{ p.id }}/quotations/{{ qd.id }}">{{ qd.title or qd.filename or 'quotation' }}</a>{% if qd.quote_date %} · {{ qd.quote_date.isoformat() }}{% endif %}{% if qd.expired %} <span class="pill red" title="Past its validity: ask the shop to confirm the price">expired</span>{% endif %}</dd></div>{% endif %}
-      </dl>
-      {% if q.unit_price %}<div class="tot"><span>All rooms: {{ t.qty|num(2) }} {{ unit }}{% if t.packs %} · {{ packs(t.packs, pack_word) }}{% endif %}</span><b>{{ t.total|cur }}</b></div>{% endif %}
-      {% if q.notes %}<p class="notes">{{ q.notes }}</p>{% endif %}
-      {% if q.unit_price and open_lines %}
-      <footer>
-        <form method="post" action="/p/{{ p.id }}/buying/{{ prod.id }}/quotes/{{ q.id }}/buy"><button class="btn sm"><svg class="ic"><use href="#i-check"/></svg>Buy for {{ 'the ' ~ open_lines|length ~ ' rooms' if open_lines|length > 1 else 'the room' }} without a shop</button></form>
-      </footer>
-      {% endif %}
+      </td>
+      <td class="small" data-l="Brand · model">{{ [q.brand, q.model]|select|join(' · ') or '—' }}</td>
+      <td class="small" data-l="Pack · minimum · lead time">{% set facts = [] %}{% if q.pack_size %}{% set _ = facts.append(q.pack_size|num(3) ~ ' ' ~ (unit if unit not in ('pcs', 'mixed') else 'pcs') ~ ' per ' ~ pack_word) %}{% endif %}{% if q.moq %}{% set _ = facts.append('min. ' ~ q.moq) %}{% endif %}{% if q.lead_time %}{% set _ = facts.append(q.lead_time) %}{% endif %}{{ facts|join(' · ') or '—' }}</td>
+      <td class="num tot" data-l="For all rooms">{% if q.unit_price %}<b>{{ t.total|cur }}</b><div class="small muted">All rooms: {{ t.qty|num(2) }} {{ unit }}{% if t.packs %} · {{ packs(t.packs, pack_word) }}{% endif %}</div>{% endif %}</td>
+      <td class="act">
+        {% if q.unit_price and open_lines %}
+        <form method="post" action="/p/{{ p.id }}/buying/{{ prod.id }}/quotes/{{ q.id }}/buy"><button class="btn sm"><svg class="ic"><use href="#i-check"/></svg>Choose for {{ 'the ' ~ open_lines|length ~ ' rooms' if open_lines|length > 1 else 'the room' }} without a shop</button></form>
+        {% elif v %}<span class="small b chosen-txt"><svg class="ic sm"><use href="#i-check"/></svg> Chosen</span>
+        {% elif not q.unit_price %}<span class="small muted">Add its price to choose it</span>{% endif %}
+      </td>
+    </tr>
+    <tr class="qt-more"><td colspan="6">
+      {% if q.notes %}<p class="notes small">{{ q.notes }}</p>{% endif %}
+      <div class="row qt-tools">
       {% if q.unit_price %}
       <details class="bu-more"><summary><svg class="ic sm"><use href="#i-layout"/></svg>{{ 'Change the rooms bought here' if v else 'Choose the rooms to buy here' }}</summary>
         <form method="post" action="/p/{{ p.id }}/buying/{{ prod.id }}/quotes/{{ q.id }}/buy">
           <input type="hidden" name="rooms" value="1">
           {{ line_picks(by_floor, v.purchase.id if v else none, open_lines|length) }}
-          <div class="row mt"><button class="btn sm"><svg class="ic"><use href="#i-check"/></svg>{{ 'Save the rooms' if v else 'Buy for the ticked rooms' }}</button><span class="small muted">A room another shop supplied moves here.</span></div>
+          <div class="row mt"><button class="btn sm"><svg class="ic"><use href="#i-check"/></svg>{{ 'Save the rooms' if v else 'Choose for the ticked rooms' }}</button><span class="small muted">A room another shop supplied moves here.</span></div>
         </form>
       </details>
-      {% else %}<p class="small muted bu-hint">Add the price to buy from this shop.</p>{% endif %}
+      {% endif %}
       <details class="bu-more"><summary><svg class="ic sm"><use href="#i-edit"/></svg>Edit the quote</summary>
         <form method="post" action="/p/{{ p.id }}/buying/{{ prod.id }}/quotes/{{ q.id }}" enctype="multipart/form-data">
           {{ quote_fields(q, suppliers, unit, pack_word, rate, 'q' ~ q.id) }}
@@ -159,14 +175,16 @@
         </form>
         <form method="post" action="/p/{{ p.id }}/buying/{{ prod.id }}/quotes/{{ q.id }}/delete" class="bu-del" data-confirm="Delete this quote? {% if v %}What is already bought from it stays bought, with its price.{% else %}Its photo goes with it.{% endif %}"><button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete the quote</button></form>
       </details>
-    </article>
+      </div>
+    </td></tr>
+    </tbody>
     {% endfor %}
-  </div>
+  </table></div>
   {% else %}
   <div class="card empty bu-empty">
     <div class="ring"><svg class="ic"><use href="#i-users"/></svg></div>
     <h3>No quote yet</h3>
-    <p>In the shop, add what they offer: their price, brand, pack and a photo of the sample or the price tag. Compare, then buy.</p>
+    <p>Add what a shop offers: its price, brand, pack and a photo of the sample or the price tag. Then compare and choose.</p>
   </div>
   {% endif %}
 
@@ -174,8 +192,8 @@
     <summary><svg class="ic"><use href="#i-plus"/></svg>Add a quote</summary>
     <form method="post" action="/p/{{ p.id }}/buying/{{ prod.id }}/quotes" enctype="multipart/form-data">
       {{ quote_fields(none, suppliers, unit, pack_word, rate, 'new') }}
-      {% if open_lines %}<label class="check mt"><input type="checkbox" name="buy" value="open"> Buy from this shop now, for the {{ open_lines|length }} room{{ 's' if open_lines|length != 1 }} without a shop</label>{% endif %}
-      <div class="row mt"><button class="btn"><svg class="ic"><use href="#i-check"/></svg>Add the quote</button><span class="small muted">The shop, price and photo stay here to compare; the rooms get them once you buy.</span></div>
+      {% if open_lines %}<label class="check mt"><input type="checkbox" name="buy" value="open"> Choose this shop now, for the {{ open_lines|length }} room{{ 's' if open_lines|length != 1 }} without a shop</label>{% endif %}
+      <div class="row mt"><button class="btn"><svg class="ic"><use href="#i-check"/></svg>Add the quote</button><span class="small muted">The quote stays here to compare; the rooms get it once you choose it.</span></div>
     </form>
   </details>
 </section>
@@ -235,31 +253,9 @@
   {% else %}
   <div class="card bu-none">
     <svg class="ic"><use href="#i-info"/></svg>
-    <div><b>No shop chosen yet.</b> <span class="muted">{% if quotes %}Compare the quotes above and press Buy on the one you choose; to split, choose the rooms for each shop.{% else %}Add the quotes you get, then choose. Until then the rooms show no price, on the client link too.{% endif %}</span></div>
+    <div><b>No shop chosen yet.</b> <span class="muted">{% if quotes %}Compare the quotes above and press Choose on the one you want; to split, choose the rooms for each shop.{% else %}Add the quotes you get, then choose. Until then the rooms show no price, on the client link too.{% endif %}</span></div>
   </div>
   {% endfor %}
 </section>
 
-{# ---- rooms ---- #}
-<section class="bu-sec" id="rooms">
-  <div class="bu-sec-head"><div><h2>Rooms <span class="n">{{ g.lines|length }}</span></h2><p class="small muted">Where this product goes, with each line's status and shop.</p></div></div>
-  <div class="tbl"><table>
-    <thead><tr><th>Code</th><th>Room</th><th class="num">Qty</th><th>Status</th><th>Shop</th><th class="num">Price</th></tr></thead>
-    <tbody>
-    {% for fl, ls in by_floor.items() %}
-      {% if by_floor|length > 1 %}<tr class="sub"><td colspan="6">{{ fl }}</td></tr>{% endif %}
-      {% for i in ls %}
-      <tr>
-        <td class="nowrap"><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}" data-quick>{{ i.code }}</a></td>
-        <td>{{ i.room.name if i.room else 'Whole house' }}</td>
-        <td class="num">{{ i.qty|num(2) }} {{ i.unit }}</td>
-        <td><span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status|status_label }}</span></td>
-        <td class="small">{% if i.purchase %}{{ i.purchase.supplier.name if i.purchase.supplier else '—' }}{% else %}<span class="muted">no shop yet</span>{% endif %}</td>
-        <td class="num">{{ i.unit_price|cur(2) if i.unit_price else '' }}</td>
-      </tr>
-      {% endfor %}
-    {% endfor %}
-    </tbody>
-  </table></div>
-</section>
 {% endblock %}
