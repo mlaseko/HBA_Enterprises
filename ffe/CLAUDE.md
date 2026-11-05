@@ -964,7 +964,10 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   picks, labels)` behind `POST /quotations/<q>/choose` (picks = {room id: line ids}; averaged lines become options first via
   `set_options`; then `buying.choose_options`; rooms with nothing of this sheet keep another sheet's option ids); the route
   runs `od.loose_ids` / `routers.buy._placed` / `settle`. The `#choices` card is a `.qc-grid` (rooms × lines, `.qc-cell`
-  checkboxes, `.qc-all` = Every room); its secondary buttons post to `/options` with `formaction`. `#advanced` is a
+  checkboxes, `.qc-all` = Every room), one `form#qc-form` for every product (`pick_<product>_<room>`, `touched` per changed product,
+  `.qc-bar` Save all choices; the route saves only the touched products); its secondary buttons post `opt=<product>:<0|1>`
+  to `/options` with `formaction`. Both routes redirect with `at=choices` so the result shows inside the card. The cell's
+  checkbox covers the cell (iPhone Safari missed taps on a hidden input). Not quoted (`#gaps`) is a folded `details.qg`. `#advanced` is a
   `section.qa` with tabs (`.qa-tab[data-tab]`, `.qa-panel[data-tab]`; the page script shows one, a hash inside a panel opens it).
 - **Usability, phase 3.** A product's details are one for all its rooms without a schema change: `routers/items.update_item`
   copies to the product's other lines (`same_item_elsewhere`, taken before the save) the `SHARED_FIELDS` the save changed
