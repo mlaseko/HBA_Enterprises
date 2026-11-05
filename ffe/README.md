@@ -247,6 +247,22 @@ name** (or set the Kind by hand): every existing entry starts as a room.
   several tables on one sheet), the lines with section headings, item numbers, sizes (or width × height), packs, weights,
   pictures by row anchor, the extra charges, the total, an after-discount total and the terms. The file, its pictures and
   the preview's state wait in storage under `quotations/p<id>/` between the preview and apply, like the Excel import.
+- The page (`buying/quotations.html`): **Waiting for you** (the `QuotationUpload` rows not posted: drafts, ready to check,
+  reading, waiting for Claude, failed, stuck) first, then the upload form with a drop zone (`.qx-drop`: the file input
+  fills the dashed area, a dropped file is put on it) beside the inquiry sheet form, then **Received**: a card per shop
+  (`.qx-shopcard`) with its sheets as rows linking to the document page. The empty state shows only with nothing waiting.
+- The check (`buying/quotation_preview.html`), step 2: a count of the lines decided with a bar (`#qi-n-done`), the tabs
+  To check / All / Skipped (`.qi-filter` chips `data-f` open | all | skip; Not sure, New and Parts under **More tools**
+  with Next to check, Skip the lines without a product and the legend), the Split by model cards above the lines, and
+  each line as *on the shop's sheet → in your design* with Yes / Change… / Not this…. A line's `details.qi-more` opens
+  as a side panel (a bottom sheet on the phone; `body.qi-drawer` draws the backdrop; one open at a time; Esc, × or a tap
+  beside it closes it); it no longer opens by itself on load. Step 3 adds the sheet's total against its lines
+  (`#sim-total`) and **Prices** (`#sim-prices`, `prices()` in the page script: per product the price per unit after the
+  discount against this shop's earlier quote and the cheapest other shop, from the product option's `data-q`). On the
+  phone the header shrinks to the title and the steps.
+- Matching ranks the shortlist on the uncapped score (`score(line, c, raw=True)`): two products may both reach
+  `MAX_SCORE` on words and size, and the one whose whole name the line carries must come first; `hall` (corridor, lobby)
+  is a qualifier like kitchen, so a product named for a place the line does not name loses ground.
 - The upload (`quotations.start_upload`) keeps the file, makes a `quotation_uploads` row and reads the sheet on a thread
   (`process_upload`: stages saved → reading → pictures → matching → done, or error); the form posts with
   `Accept: application/json` to show the bytes going up, `/quotations/working/<id>` shows the stages (polling

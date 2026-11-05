@@ -1779,3 +1779,106 @@ label{color:var(--ink-2)}
 .qchart .tag{font-size:.68rem;font-weight:700;border-radius:5px;padding:1px 6px;background:var(--accent-soft);color:var(--accent-ink);margin-left:4px}
 .qchart .tag.low{background:var(--green-soft);color:var(--green)}
 .qchart .qkey{display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--accent);vertical-align:-1px}
+
+/* ── Quotation check, redesigned: progress + three tabs, the line as "on the sheet → in your design",
+   a line's details as a side panel (bottom sheet on the phone), a short header on the phone ───────────── */
+.qi-sumtop{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.qi-progress{flex:1 1 380px;min-width:0;display:flex;flex-direction:column;gap:6px}
+.qi-progress .meter{height:8px;border-radius:999px;background:var(--surface-3);overflow:hidden}
+.qi-progress .meter i{display:block;height:100%;background:var(--green);border-radius:999px;transition:width .3s}
+.qi-sumacts{display:flex;gap:8px;flex-wrap:wrap}
+.qi-tabs{margin-top:12px;padding-top:10px;border-top:1px solid var(--line-2);gap:6px;align-items:center}
+.qi-tabs>.pick-chip{border-radius:8px;padding:6px 12px;font-weight:600}
+.qi-tabs>.pick-chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.qi-tools{margin-left:auto}
+.qi-tools>summary{cursor:pointer;list-style:none;color:var(--ink-2);padding:6px 10px;border-radius:8px;border:1px solid var(--line)}
+.qi-tools>summary::-webkit-details-marker{display:none}
+.qi-tools[open]{flex-basis:100%;margin-left:0}
+.qi-tools[open]>summary{display:inline-block;margin-bottom:8px}
+.qi-tools-in{background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:10px 12px}
+.qi-tools-in .row{gap:6px;flex-wrap:wrap;align-items:center}
+.qi-cols{display:grid;grid-template-columns:56px minmax(0,1fr) minmax(0,1.25fr);gap:14px;padding:0 14px 6px 18px;font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.qi-line{grid-template-columns:56px minmax(0,1fr) minmax(0,1.25fr);gap:14px;padding:12px 14px;border-radius:10px;box-shadow:var(--sh-1)}
+.qi-line .qi-pic img,.qi-line .qi-pic .pic.empty{width:56px;height:56px}
+.qi-line .qi-pick{position:relative;padding-left:18px;border-left:1px dashed var(--line)}
+.qi-line .qi-pick::before{content:"\2192";position:absolute;left:-9px;top:2px;width:18px;height:18px;border-radius:50%;background:var(--surface);color:var(--muted);font-size:.8rem;line-height:18px;text-align:center;border:1px solid var(--line)}
+.qi-line .qi-name{font-weight:600}
+.qi-line .qi-acts{gap:6px;margin-top:8px}
+.qi-line .qi-acts .btn{min-height:34px}
+.qi-line .qi-acts .qi-yes{min-width:84px;justify-content:center}
+details.qi-more>summary .qm-open{display:none}
+details.qi-more>summary .qm-closed{color:var(--muted);font-size:.78rem;text-decoration:underline;text-underline-offset:2px}
+details.qi-more:not([open])>summary::before{content:none}
+details.qi-more .qm-line{display:none}
+/* the panel */
+details.qi-more[open]{position:fixed;z-index:90;top:0;right:0;bottom:0;width:min(480px,100vw);background:var(--surface);box-shadow:-20px 0 50px -20px rgba(16,24,40,.35);overflow:auto;padding:0 18px 28px;margin:0;animation:qmIn .18s ease-out}
+details.qi-more[open]>summary{position:sticky;top:0;z-index:1;background:var(--surface);margin:0 -18px 10px;padding:14px 18px;border-bottom:1px solid var(--line);font-size:.95rem;color:var(--ink)}
+details.qi-more[open]>summary::before{content:none}
+details.qi-more[open]>summary .qm-closed{display:none}
+details.qi-more[open]>summary .qm-open{display:flex;align-items:center;gap:6px}
+details.qi-more[open]>summary .qi-close{margin-left:auto}
+details.qi-more[open] .qm-line{display:block;margin-bottom:12px}
+details.qi-more[open] .qi-head{margin-bottom:10px}
+body.qi-drawer::after{content:"";position:fixed;inset:0;background:rgba(17,24,39,.32);z-index:89}
+@keyframes qmIn{from{transform:translateX(24px);opacity:.4}to{transform:none;opacity:1}}
+#qi-splits .qi-split-card{border-left:4px solid var(--gold)}
+.qi-folded .txt{color:var(--ink-2)}
+@media (max-width:760px){
+  .qi-line{grid-template-columns:48px minmax(0,1fr)}
+  .qi-line .qi-pic img,.qi-line .qi-pic .pic.empty{width:48px;height:48px}
+  .qi-line .qi-pick{padding-left:0;border-left:0;border-top:1px dashed var(--line);padding-top:10px}
+  .qi-line .qi-pick::before{left:50%;top:-10px;margin-left:-9px;content:"\2193"}
+  details.qi-more[open]{top:auto;left:0;width:100%;max-height:88vh;border-radius:16px 16px 0 0;box-shadow:0 -20px 50px -20px rgba(16,24,40,.4);animation:qmUp .18s ease-out}
+  .qi-tools{margin-left:0}
+  .qi-sumacts{width:100%}.qi-sumacts .btn{flex:1;justify-content:center}
+  /* the short header: the steps say where you are */
+  body.qi-wiz .page-head p.sub,body.qi-wiz .bu-tabs{display:none}
+  body.qi-wiz .page-head{flex-direction:row;align-items:center;flex-wrap:nowrap;gap:8px}
+  body.qi-wiz .page-head h1{font-size:1.35rem}
+  body.qi-wiz .page-head .crumbs{display:none}
+  body.qi-wiz .page-head .actions{flex:none;width:auto}
+  body.qi-wiz .page-head .actions .btn{min-height:38px;padding:6px 10px}
+  body.qi-wiz .qi-steps{flex-wrap:nowrap;overflow-x:auto;margin-bottom:10px}
+  body.qi-wiz .qi-steps li a,body.qi-wiz .qi-steps li button{padding:6px 10px;font-size:.8rem;white-space:nowrap}
+  body.qi-wiz .qi-steps li:not(.on) a,body.qi-wiz .qi-steps li:not(.on) button{font-size:0;gap:0;padding:6px}
+  body.qi-wiz .qi-steps li:not(.on) .n{font-size:.72rem}
+}
+@keyframes qmUp{from{transform:translateY(30px);opacity:.4}to{transform:none;opacity:1}}
+.qi-folded[hidden],.qi-todo[hidden],#qi-splits[hidden]{display:none!important}
+.qi-total{padding:10px 12px;border-radius:8px;font-size:.9rem;border:1px solid var(--line)}
+.qi-total.ok{background:var(--green-soft);border-color:#cfe6d7}.qi-total.bad{background:var(--gold-soft,#FBF3DE);border-color:#ecd9a5}
+.qi-prices-t td .pill{margin:1px 0}
+@media (max-width:700px){.qi-prices-t thead{display:none}.qi-prices-t tr{display:block;padding:8px 0;border-bottom:1px solid var(--line-2)}.qi-prices-t td{display:flex;justify-content:space-between;gap:10px;border:0;padding:2px 0}.qi-prices-t td[data-l]:not([data-l=""])::before{content:attr(data-l);color:var(--muted);font-size:.8rem}}
+body.qi-step3 .qi-cols,body.qi-walking .qi-cols,.qi-cols:has(+ #lines[hidden]){display:none!important}
+/* Quotations page: waiting uploads, a drop zone, received sheets by shop */
+.qx-wait{border-left:4px solid var(--accent)}
+.qx-wlist{display:flex;flex-direction:column;margin-top:8px}
+.qx-w{display:grid;grid-template-columns:36px minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line-2)}
+.qx-w:first-child{border-top:0}
+.qx-ic{width:36px;height:36px;border-radius:8px;background:var(--accent-soft);color:var(--accent-ink);display:flex;align-items:center;justify-content:center}
+.qx-wact{gap:6px;flex-wrap:nowrap}.qx-wact form{margin:0}
+.qx-top{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:14px;margin-top:12px}
+.qx-top>.card{margin:0}
+.qx-drop{position:relative;display:flex;align-items:center;gap:14px;margin-top:12px;padding:22px 18px;border:2px dashed var(--line);border-radius:12px;background:var(--surface-2);cursor:pointer;transition:border-color .15s,background .15s;flex-wrap:wrap}
+.qx-drop:hover,.qx-drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.qx-drop.has{border-style:solid;border-color:var(--green);background:var(--green-soft)}
+.qx-drop input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.qx-dic{width:48px;height:48px;border-radius:12px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--accent);flex:none}
+.qx-dt{display:flex;flex-direction:column;gap:2px;min-width:0}
+.qx-fname{flex-basis:100%;font-weight:600;color:var(--green)}
+.qx-fname::before{content:"\2713  "}
+.qx-shop{margin-top:12px}
+.qx-head{margin-top:22px}
+.qx-shops{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px}
+.qx-shopcard{margin:0;padding:0;overflow:hidden}
+.qx-sh{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line-2);background:var(--surface-2)}
+.qx-av{width:36px;height:36px;border-radius:50%;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex:none}
+.qx-shn{flex:1;min-width:0}
+.qx-doc{display:flex;justify-content:space-between;gap:12px;padding:12px 16px;border-top:1px solid var(--line-2);color:var(--ink)}
+.qx-doc:first-of-type{border-top:0}
+.qx-doc:hover{background:var(--surface-2);text-decoration:none}
+.qx-dm{min-width:0}.qx-dv{text-align:right;flex:none;font-variant-numeric:tabular-nums}
+@media (max-width:900px){.qx-top{grid-template-columns:minmax(0,1fr)}.qx-shops{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:560px){.qx-w{grid-template-columns:36px minmax(0,1fr) auto}.qx-wst{display:none}}
+.qx-wait h2 .n{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:var(--accent);color:#fff;font-size:.75rem;margin-left:6px;vertical-align:2px}
+body.qi-walking .qi-line{grid-template-columns:56px minmax(0,1fr)}body.qi-walking .qi-line .qi-pick{grid-column:1/-1;padding-left:0;border-left:0;border-top:1px dashed var(--line);padding-top:10px}body.qi-walking .qi-line .qi-pick::before{left:50%;top:-10px;margin-left:-9px;content:"\2193"}body.qi-walking .alert.info{display:none}

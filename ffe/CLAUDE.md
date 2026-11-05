@@ -952,6 +952,14 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   JavaScript = one page as before. The saved quotation folds What it comes to now, the options card and Products and
   variants under `details#advanced` (a hash inside it opens it). Breadcrumbs say Sourcing for the Buying pages.
 
+- **Redesign (design system A) and the quotation pages.** See "Look and feel". The Quotations page: Waiting for you,
+  the drop zone (`.qx-drop`), Received by shop (`.qx-shopcard`). The check's step 2: `#qi-n-done` count, tabs To check /
+  All / Skipped (`data-f` open | all | skip; the rest under `details.qi-tools`), `#qi-splits` above the lines, `.qi-cols`
+  heads, the line's `details.qi-more` as a side panel / bottom sheet (`body.qi-drawer`, closed by Esc, `.qi-close`, a tap
+  beside it; `show()` no longer opens it, the Not this buttons for New / Part do). Step 3: `#sim-total` and `#sim-prices`
+  (`prices(per, f)`: data-q of the product option = "shop id:currency amount;…"). Hidden `.qi-folded` / `.qi-todo` /
+  `#qi-splits` need `[hidden]{display:none!important}` because their rules set display. `shortlist` sorts on
+  `score(..., raw=True)` and caps afterwards (two products at `MAX_SCORE` were a coin toss); `hall` joined `QUALIFIERS`.
 - **Usability, phase 3.** A product's details are one for all its rooms without a schema change: `routers/items.update_item`
   copies to the product's other lines (`same_item_elsewhere`, taken before the save) the `SHARED_FIELDS` the save changed
   and the form carried (`was` vs after `apply_form`), so a typo fixed in one room fixes every room and `follow_renames`
