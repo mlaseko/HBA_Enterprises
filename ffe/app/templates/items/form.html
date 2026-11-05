@@ -37,7 +37,7 @@
       {{ room_picks(p.rooms, 'room_ids', [pre_room] if pre_room else []) }}
       <div class="help">Each room gets its own line and code. The quantity below is for each room.</div></div>
     {% endif %}
-    <div><label for="f-qty">Qty{{ ' for this room' if it and it.room else (' per room' if not it else '') }}</label><input class="in" id="f-qty" type="number" step="0.01" name="qty" value="{{ it.qty|num(2) if it else 1 }}" inputmode="decimal"></div>
+    {% if not (it and others) %}    <div><label for="f-qty">Qty{{ ' for this room' if it and it.room else (' per room' if not it else '') }}</label><input class="in" id="f-qty" type="number" step="0.01" name="qty" value="{{ it.qty|num(2) if it else 1 }}" inputmode="decimal"></div>{% endif %}
     {% set units_ = UNITS + ([it.unit] if it and it.unit and it.unit not in UNITS else []) %}<div><label for="f-unit">Unit <a class="small" href="/p/{{ p.id }}/lists#units">edit list</a></label><select name="unit" id="f-unit" class="in">{% for u in units_ %}<option {{ 'selected' if it and it.unit == u }}>{{ u }}</option>{% endfor %}</select></div>
   </div>
 
@@ -82,16 +82,30 @@
     <a class="btn sm sec" href="/p/{{ p.id }}/buying/item/{{ it.id }}">Open in Sourcing<svg class="ic"><use href="#i-chevron-right"/></svg></a>
   </div>
 
-  <details class="more-details"{{ ' open' if others and differs }}>
-    <summary><span class="b">Rooms with this item</span> <span class="muted small">{% if others %}this room and {{ others|length }} other{{ 's' if others|length != 1 }}{% else %}only in this room so far{% endif %}</span></summary>
+  <div class="item-rooms" id="rooms">
+    <div class="row between"><div class="eyebrow">In {{ others|length + 1 }} room{{ 's' if others else '' }}</div>{% if others %}<span class="small muted">Name, size, finish, spec, brand, unit and category are one for all of them</span>{% else %}<span class="small muted">only in this room so far</span>{% endif %}</div>
     {% if others %}
-    <label class="check mt"><input type="checkbox" name="apply_all" value="1"{{ ' checked' if not differs }}> Apply name, category, spec, size, finish, preferred brand and unit changes to the {{ others|length }} other room{{ 's' if others|length > 1 }} with this exact item</label>
-    <div class="help">{% if differs %}The other rooms differ in {% if differs|length > 1 %}{{ differs[:-1]|join(', ') }} and {% endif %}{{ differs[-1] }}: they were set up their own way, so this is not ticked. {% endif %}Quantity, status, notes and photos stay per room.</div>
+    <div class="tbl mt"><table class="ir-table">
+      <thead><tr><th>Room</th><th>Code</th><th class="num">Qty ({{ it.unit }})</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for o in ([it] + others) %}
+      <tr{% if o.id == it.id %} class="this"{% endif %}>
+        <td>{% if o.id == it.id %}<b>{{ o.room.name if o.room else 'Whole house' }}</b> <span class="pill">this line</span>{% else %}<a href="/p/{{ p.id }}/items/{{ o.id }}">{{ o.room.name if o.room else 'Whole house' }}</a>{% endif %}</td>
+        <td class="small muted nowrap">{{ o.code }}</td>
+        <td class="num"><input class="in ir-qty" type="number" step="0.01" min="0" name="{{ 'qty' if o.id == it.id else 'qty_' ~ o.id }}" value="{{ o.qty|num(2) }}" inputmode="decimal" aria-label="Quantity in {{ o.room.name if o.room else 'the whole house' }}"></td>
+        <td><span class="badge" style="--c:{{ STATUS_COLORS[o.status] }}">{{ o.status|status_label }}</span></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
     {% endif %}
-    <div class="help mt">Tick a room to put this item there too, untick one to take it out. This line's own room is locked: change it with Room above.</div>
-    <input type="hidden" name="rooms_form" value="1">
-    {{ room_picks(p.rooms, 'room_ids', checked=with_rooms, locked=[it.room_id] if it.room_id else [], links=room_links, removal='Remove this item from %n room(s)? The item\'s line there is deleted, with its plan dots; the photos stay with the item.') }}
-  </details>
+    <details class="more-details"><summary><span class="b">Add or remove rooms</span> <span class="muted small">tick a room to put this item there too, untick one to take it out</span></summary>
+      <div class="help mt">A new room gets a copy with its own code and the same quantity. A room taken out loses its line, with its plan dots; the photos stay with the item. This line's own room is locked: change it with Room above.</div>
+      <input type="hidden" name="rooms_form" value="1">
+      {{ room_picks(p.rooms, 'room_ids', checked=with_rooms, locked=[it.room_id] if it.room_id else [], links=room_links, removal='Remove this item from %n room(s)? The item\'s line there is deleted, with its plan dots; the photos stay with the item.') }}
+    </details>
+    {% if others %}<label class="check mt small"><input type="checkbox" name="only_here" value="1"> Save the changes to this room only <span class="muted">(a new name, size or finish then makes this room a product of its own)</span></label>{% endif %}
+  </div>
   {% endif %}
 
   <div class="form-actions">

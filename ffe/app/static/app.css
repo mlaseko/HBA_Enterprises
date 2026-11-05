@@ -1616,3 +1616,14 @@ body.qi-wiz:not(.qi-step3) #qi-sim,body.qi-wiz:not(.qi-step3) #document,body.qi-
 body.qi-step3 .qi-summary,body.qi-step3 #qi-diffs,body.qi-step3 .qi-views,body.qi-step3 #qi-folded,body.qi-step3 #lines,body.qi-step3 #qi-byprod,body.qi-step3 #qi-splits,body.qi-step3 #qi-next,body.qi-step3 #qi-walkbar{display:none!important}
 body.qi-step3 #qi-form{display:flex;flex-direction:column}body.qi-step3 #document{order:-1}  /* the shop and the date first, then what saving makes */
 .qi-todo ul{max-height:9.5em;overflow:auto}
+/* the item page's rooms: every room of the product with its own quantity (items/form.html) */
+.item-rooms{border-top:1px solid var(--line);margin-top:16px;padding-top:12px}
+.ir-table td{vertical-align:middle;padding-top:6px;padding-bottom:6px}
+.ir-table tr.this td{background:var(--surface-2)}
+.ir-table .ir-qty{width:96px;text-align:right;padding:6px 8px}
+/* Home: getting started, until the project's first order is confirmed */
+.setup-steps{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.setup-steps a{display:flex;gap:10px;align-items:center;padding:9px 12px;border:1px solid var(--line);border-radius:var(--r-sm);color:var(--ink);font-size:.88rem;font-weight:500;background:var(--surface)}
+.setup-steps a:hover{text-decoration:none;border-color:var(--accent)}
+.setup-steps .n{flex:none;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--surface-3);font-size:.76rem;font-weight:700;color:var(--muted)}
+.setup-steps li.ok a{color:var(--muted);background:var(--surface-2)}.setup-steps li.ok .n{background:var(--green-soft);color:var(--green)}

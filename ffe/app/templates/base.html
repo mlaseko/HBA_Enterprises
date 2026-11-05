@@ -59,7 +59,7 @@
   <a href="/p/{{ p.id }}/items" class="{{ 'on' if sec == 'design' }}">{{ ic('grid') }}Design{% if nav.drafts %}<span class="count" title="Drafts to name">{{ nav.drafts }}</span>{% endif %}</a>
   <a href="/p/{{ p.id }}/buying" class="{{ 'on' if sec == 'sourcing' }}">{{ ic('bag') }}Sourcing</a>
   <a href="/p/{{ p.id }}/orders" class="{{ 'on' if sec == 'orders' }}">{{ ic('receipt') }}Orders</a>
-  <a href="/p/{{ p.id }}/cartons" class="{{ 'on' if sec == 'delivery' }}">{{ ic('truck') }}Delivery</a>
+  {% if p.uses('delivery') or sec == 'delivery' %}<a href="/p/{{ p.id }}/cartons" class="{{ 'on' if sec == 'delivery' }}">{{ ic('truck') }}Delivery</a>{% endif %}
 {% endmacro %}
 {% macro project_menu(p, path) %}
   <a href="/p/{{ p.id }}#documents">{{ ic('file') }}Share &amp; print</a>

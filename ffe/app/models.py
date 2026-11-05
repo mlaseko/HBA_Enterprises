@@ -44,6 +44,7 @@ class Project(Base):
     tile_extra: Mapped[float] = mapped_column(Float, default=0.12)
     budget_usd: Mapped[float] = mapped_column(Float, default=0.0)
     show_currency: Mapped[str] = mapped_column(String(3), default="CNY")  # the designer's pages show amounts in USD or CNY (stored in CNY)
+    features_off: Mapped[str] = mapped_column(String(60), default="")  # parts of the app this project does not use: "plan", "delivery" (comma-separated)
     orders_made: Mapped[int] = mapped_column(Integer, default=0)  # the last order number given: numbers are never reused (ordering.py)
     shipments_made: Mapped[int] = mapped_column(Integer, default=0)  # the same for shipments (shipping.py)
     # Buying and shipping defaults of this project (lists.py, edited on the Lists page)
@@ -74,6 +75,12 @@ class Project(Base):
     # The project's own lists (lists.py): what the item form, the filters, the import and the PDFs offer.
     # One table for all four, so a page reads them in one query.
     list_rows: Mapped[list["ListEntry"]] = relationship(cascade="all, delete-orphan", order_by="ListEntry.sort")
+
+    FEATURES = ("plan", "delivery")  # the parts a project can switch off (Project settings)
+
+    def uses(self, feature: str) -> bool:
+        """Whether this project uses that part of the app: floor plans ("plan") or boxes and shipments ("delivery")."""
+        return feature not in (self.features_off or "").split(",")
 
     @property
     def live_items(self) -> list["Item"]:

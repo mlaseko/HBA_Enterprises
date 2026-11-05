@@ -13,6 +13,26 @@
   </div>
 </div>
 
+{# Getting started: the project's first steps, read from its data; the card goes once all are done #}
+{% set steps = [
+  ('Add the rooms and areas', p.rooms|rejectattr('code', 'equalto', 'ALL')|list|length > 0, '/p/' ~ p.id ~ '/rooms', 'layout'),
+  ('Add the items, or import your Excel list', s['items'] > 0, '/p/' ~ p.id ~ '/items/new', 'grid'),
+  ('Record a shop\'s quote, or upload its quotation', t.sourcing.quoted > 0, '/p/' ~ p.id ~ '/buying', 'upload'),
+  ('Choose a shop for some rooms', t.committed > 0, '/p/' ~ p.id ~ '/buying', 'bag'),
+  ('Confirm an order with the shop', t.ordered > 0, '/p/' ~ p.id ~ '/orders', 'receipt'),
+] %}
+{% set done = steps|selectattr(1)|list|length %}
+{% if done < steps|length %}
+<section class="card tight setup" aria-labelledby="setup-h">
+  <div class="row between"><h2 id="setup-h" class="mb-0">Getting started <span class="h-note">{{ done }} of {{ steps|length }}</span></h2><a class="small" href="/p/{{ p.id }}/edit">Turn off what this project does not use</a></div>
+  <ol class="setup-steps">
+    {% for title, ok, href, icon in steps %}
+    <li class="{{ 'ok' if ok }}"><a href="{{ href }}"><span class="n">{% if ok %}<svg class="ic sm"><use href="#i-check"/></svg>{% else %}{{ loop.index }}{% endif %}</span>{{ title }}</a></li>
+    {% endfor %}
+  </ol>
+</section>
+{% endif %}
+
 {# What needs you: the Tracker's attention lines (ordering.tracker), then the drafts to name and the client's new pictures #}
 {% set extra = [] %}
 {% if s.drafts %}{% set _ = extra.append(dict(tone='muted', icon='camera', title='Name ' ~ s.drafts ~ ' photo' ~ ('s' if s.drafts != 1 else '') ~ ' from Quick capture', detail='Drafts (' ~ s.drafts ~ ') · they count once they have a name', href='/p/' ~ p.id ~ '/drafts')) %}{% endif %}

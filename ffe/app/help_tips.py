@@ -125,7 +125,7 @@ TIPS = {
         what="Everything about this item: name, rooms and quantity first; the details, the shop it is bought from and the other rooms that use it below.",
         steps=["Edit and press <b>Save</b>. <b>More details</b> (its summary shows what is filled in) has the size, finish, spec, brand, status and notes. The status moves by itself; <b>Set it by hand</b> is for a line no order or box follows.",
                "The <b>Buying from</b> panel says which shop supplies this room and at what price. <b>Open in Sourcing</b> to add quotes or choose the shop.",
-               "<b>Rooms with this item</b> (folded): tick a room to copy the item there with its own code, untick one to take it out. With <b>Apply</b> ticked, changes to the name, size, finish, spec, brand and unit go to the other rooms too.",
+               "<b>In N rooms</b> lists every room with the item: change each room's <b>quantity</b> in the table. <b>Add or remove rooms</b> under it ticks the rooms that have it. What you change of the name, size, finish, spec, brand, unit or category goes to every room; tick <b>Save the changes to this room only</b> to keep it here.",
                "Add photos from the photo field; <b>Make cover</b> changes the cover. <b>Delete</b> asks whether to delete this room's line or the item in every room."],
         tips=["Quantity, status and notes stay per room. Photos are shared: a photo added or deleted on one room's line shows or goes on all of them.",
               "Codes are never reused or renumbered."]),

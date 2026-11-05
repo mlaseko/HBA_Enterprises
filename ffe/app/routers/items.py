@@ -197,8 +197,6 @@ SHARED_FIELDS = ("name", "category", "brand", "spec", "size", "finish", "unit")
 # editing one never touches the other and the Item list shows them as two lines. The brand is decided while buying.
 IDENTITY_FIELDS = ("name", "size", "finish")
 SUGGEST_FIELDS = ("name", "size", "finish", "brand")  # the fields with a list of the values already used
-# The shared fields outside the identity: where the other rooms' lines of a product may still have been set up differently.
-DIFF_LABELS = {"category": "category", "spec": "spec", "unit": "unit", "brand": "preferred brand"}
 # product_key(), _key() and _SIZE_SEP_RE live in services.py (the photo pools need them too) and are imported above.
 
 
@@ -208,18 +206,6 @@ def same_item_elsewhere(p: Project, item: Item) -> list[Item]:
     if not k:
         return []
     return [i for i in p.live_items if i.id != item.id and product_key(i) == k]
-
-
-def _same(a, b) -> bool:
-    if isinstance(a, float) or isinstance(b, float):
-        return round(a or 0, 2) == round(b or 0, 2)
-    return (a or "") == (b or "")
-
-
-def twin_differences(item: Item, others: list[Item]) -> list[str]:
-    """The shared fields, as words for the page, on which the other rooms' lines of this product differ from this line.
-    Empty = they still match, so "apply to the other rooms" is safe to pre-tick."""
-    return [label for f, label in DIFF_LABELS.items() if any(not _same(getattr(o, f), getattr(item, f)) for o in others)]
 
 
 def suggestions(db: Session, p: Project) -> dict[str, list[str]]:
@@ -327,7 +313,7 @@ def item_detail(request: Request, item_id: int, p: Project = Depends(get_project
     room_links = {o.room_id: (o.code, f"/p/{p.id}/items/{o.id}") for o in others if o.room_id}
     prod = None if item.draft else db.query(Product).filter(Product.project_id == p.id, Product.key == product_key(item)).first()
     return render(request, "items/form.html", p=p, item=item, pre_room=None, pre_cat="", err=err[:200],
-                  filled=filled[:200], others=others, differs=twin_differences(item, others), with_rooms=with_rooms, room_links=room_links,
+                  filled=filled[:200], others=others, with_rooms=with_rooms, room_links=room_links,
                   next=safe_next(next, ""), suggest=suggestions(db, p), quote_count=len(prod.quotes) if prod is not None else 0)
 
 
@@ -339,16 +325,31 @@ async def update_item(request: Request, item_id: int, p: Project = Depends(get_p
     form = await request.form()
     old_room, was_draft = item.room_id, item.draft
     siblings = same_item_elsewhere(p, item) if not was_draft else []  # the same product in other rooms, by its identity before this save
-    others = siblings if form.get("apply_all") == "1" else []
     before = buying.keys(p)  # the products' keys, so their quotes and purchases follow a rename
+    was = {f: getattr(item, f) for f in SHARED_FIELDS}
     apply_form(item, db, p, form)
+    # One product, every room: what this save changed of the product's details (name, size, finish, spec, brand, unit,
+    # category) goes to the product's other rooms too; what was not changed stays as each room has it. "Save to this
+    # room only" (only_here) keeps the change here, and a changed name, size or finish then makes this room a product of
+    # its own. apply_all=1 (older forms) copies every detail, as before.
+    if form.get("apply_all") == "1":
+        shared = list(SHARED_FIELDS)
+    elif form.get("only_here") == "1":
+        shared = []
+    else:
+        shared = [f for f in SHARED_FIELDS if f in form and getattr(item, f) != was[f]]
+    others = siblings if shared else []
     if item.room_id != old_room and not was_draft and not item.draft:
         item.code = next_code(db, p, item.room)
     if item.room_id != old_room:
         item.pins.clear()  # its dots sat in the old room's box: place it again from the new room's panel
-    for o in others:  # same product in other rooms: copy the product fields, keep their own room, qty, status, notes
-        for f in SHARED_FIELDS:
+    for o in others:  # same product in other rooms: the changed details, keeping their own room, qty, status, notes
+        for f in shared:
             setattr(o, f, getattr(item, f))
+    for o in siblings:  # the rooms table: each other room's quantity
+        q = form.get(f"qty_{o.id}")
+        if q not in (None, ""):
+            o.qty = max(0.0, ffloat(q, o.qty))
     copies, removed = [], []
     if not item.draft:
         have = {o.room_id: o for o in siblings if o.room_id}
