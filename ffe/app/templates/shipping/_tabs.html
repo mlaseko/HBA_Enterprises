@@ -1,7 +1,3 @@
-{# The Shipping section's tabs: the boxes, then the shipments that carry them. #}
-{% macro tabs(p, active) %}
-<nav class="bu-tabs noprint" aria-label="Shipping">
-  <a href="/p/{{ p.id }}/cartons" class="{{ 'on' if active == 'boxes' }}"><svg class="ic"><use href="#i-box"/></svg>Boxes{% if p.cartons %} <b>{{ p.cartons|length }}</b>{% endif %}</a>
-  <a href="/p/{{ p.id }}/shipments" class="{{ 'on' if active == 'shipments' }}"><svg class="ic"><use href="#i-truck"/></svg>Shipments{% if p.shipments %} <b>{{ p.shipments|length }}</b>{% endif %}</a>
-</nav>
-{% endmacro %}
+{# The Delivery section's tabs: the boxes, then the shipments that carry them (active: boxes | shipments). #}
+{% from "_sections.html" import section_tabs %}
+{% macro tabs(p, active) %}{{ section_tabs(p, 'delivery', active) }}{% endmacro %}

@@ -7,7 +7,7 @@
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/buying">Buying</a></div>
     <h1>Orders <span class="h-note">{{ ovs|length }} order{{ 's' if ovs|length != 1 }}{% if money.ordered %} · {{ money.ordered|cur }} confirmed{% endif %}</span></h1>
-    <p class="sub">What you bought, put together by shop into numbered orders. Confirm each with the shop, send it the purchase order, and record what you pay against it: the rooms' statuses follow.</p>
+    <p class="sub">Your orders by shop, from draft to paid.</p>
   </div>
   <div class="actions">
     <a class="btn sec" href="/p/{{ p.id }}/payments"><svg class="ic"><use href="#i-card"/></svg>Payments</a>

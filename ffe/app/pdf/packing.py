@@ -7,7 +7,7 @@ from html import escape
 from ..services import sort_items
 from .common import S, P, img_flowable, money, num, make_doc, footer_factory, base_table_style, today, NAVY, GREY, LINE, img_flowable_bytes
 from ..services import carton_positions, container_for
-from .. import drawings, storage
+from .. import config, drawings, storage
 
 
 def _hdr(cols):
@@ -141,7 +141,7 @@ def room_checklist(p, studio, room) -> bytes:
     for i in items:
         img = img_flowable(i.cover.thumb, widths[0] - 4, 30) if i.cover else ""
         rows.append([img, P(i.code), P(f"<b>{i.name}</b>"), P(i.spec), P(" / ".join(x for x in [i.size, i.finish] if x)),
-                     P(f"{num(i.qty)} {i.unit}"), P(i.supplier.name if i.supplier else ""), P(i.status), P("[  ]"), P("[  ]"), P("[  ]")])
+                     P(f"{num(i.qty)} {i.unit}"), P(i.supplier.name if i.supplier else ""), P(config.STATUS_LABELS.get(i.status, i.status)), P("[  ]"), P("[  ]"), P("[  ]")])
     t = Table(rows, colWidths=widths, repeatRows=1)
     t.setStyle(base_table_style())
     story.append(t)

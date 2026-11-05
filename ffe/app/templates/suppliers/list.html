@@ -1,19 +1,15 @@
 {% extends "base.html" %}
+{% from "_sections.html" import section_tabs %}
 {% block title %}Suppliers{% if p %} · {{ p.name }}{% endif %} · {{ APP_NAME }}{% endblock %}
 {% block content %}
 <div class="page-head">
   <div>
     {% if p %}<div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>{% endif %}
     <h1>Suppliers{% if p %} <span class="h-note">for {{ p.name }}</span>{% endif %}</h1>
-    <p class="sub">{% if p %}Who supplies what on this project, what has been ordered and paid, and each supplier's packing link.{% else %}Your studio's supplier book, shared by every project. Open a supplier inside a project to see money and packing links.{% endif %}</p>
+    <p class="sub">{% if p %}Who supplies what on this project, and what is owed.{% else %}Your supplier book, shared by every project.{% endif %}</p>
   </div>
-  {% if p %}
-  <div class="actions">
-    <a class="btn sec sm" href="/p/{{ p.id }}/payments"><svg class="ic"><use href="#i-card"/></svg>Payments</a>
-    <a class="btn sec sm" href="/p/{{ p.id }}/cartons"><svg class="ic"><use href="#i-box"/></svg>Packing</a>
-  </div>
-  {% endif %}
 </div>
+{% if p %}{{ section_tabs(p, 'orders', 'suppliers') }}{% endif %}
 
 <details class="card" {{ 'open' if not sups }}>
   <summary><svg class="ic"><use href="#i-plus"/></svg>Add supplier</summary>

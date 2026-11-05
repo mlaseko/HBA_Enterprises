@@ -6,7 +6,7 @@
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
     <h1>Import from Excel</h1>
-    <p class="sub">Add rooms and items in one go, or export the existing items, change them in Excel and import the file back: a row with an item's code updates that item.</p>
+    <p class="sub">Add rooms and items from Excel, or export them, edit and import back.</p>
   </div>
   <div class="actions">
     <a class="btn" href="/p/{{ p.id }}/import/template.xlsx"><svg class="ic"><use href="#i-download"/></svg>Download the template</a>
@@ -21,7 +21,7 @@
   <select name="category" class="in" aria-label="Category"><option value="">All categories</option>{% for c in CATEGORIES %}<option>{{ c }}</option>{% endfor %}</select>
   <select name="floor" class="in" aria-label="Floor"><option value="">All floors</option>{% for f in floors %}<option value="{{ f }}">{{ f|floor_title }}</option>{% endfor %}</select>
   <select name="room" class="in" aria-label="Room"><option value="">All rooms &amp; areas</option>{{ room_options(p.rooms, '') }}<option value="none">No room (whole house)</option></select>
-  <select name="status" class="in" aria-label="Status"><option value="">Any status</option>{% for st in STATUSES %}<option>{{ st }}</option>{% endfor %}</select>
+  <select name="status" class="in" aria-label="Status"><option value="">Any status</option>{% for st in STATUSES %}<option value="{{ st }}">{{ st|status_label }}</option>{% endfor %}</select>
   <button class="btn sm"><svg class="ic"><use href="#i-download"/></svg>Export</button>
   <span class="small muted">Nothing chosen = every item. The Items page exports what its filter shows, too.</span>
 </form>

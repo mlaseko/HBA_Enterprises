@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_sections.html" import section_tabs %}
 {% from "_macros.html" import room_options, room_pill %}
 {% block title %}Items · {{ p.name }}{% endblock %}
 {% block content %}
@@ -10,23 +11,25 @@
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
     <h1>Items <span class="h-note">{% if view == 'list' %}{{ rows|length }} item{{ 's' if rows|length != 1 }} · {{ items|length }} room line{{ 's' if items|length != 1 }}{% else %}{{ items|length }}{% endif %} · {{ total|cur }} · {{ (total)|cur_other }}</span></h1>
-    <p class="sub">{% if view == 'list' %}One line per item, whatever the rooms: the same product (same name, size and finish) in several rooms is counted once, with its rooms and the total quantity. Press a column heading to sort, again for the other way; change a status right here.{% elif view == 'table' %}One line per room, the compact sheet. Press a column heading to sort, again for the other way; change a status right here.{% else %}The schedule for {{ p.name }}, grouped by category. Change a status right here; open an item for the full sheet and its photos.{% endif %}</p>
+    <p class="sub">{% if view == 'list' %}One line per product, with its rooms and total.{% elif view == 'table' %}One line per room.{% else %}By category, with photos.{% endif %}</p>
   </div>
   <div class="actions">
     {% if qroom %}<a class="btn sec" href="/p/{{ p.id }}/plan?room={{ qroom }}" title="Show this room on the floor plan"><svg class="ic"><use href="#i-map"/></svg>On the plan</a>{% endif %}
-    <a class="btn accent" href="/p/{{ p.id }}/capture?room={{ qroom }}&amp;category={{ f.category }}"><svg class="ic"><use href="#i-camera"/></svg>Quick capture</a>
-    {% if drafts %}<a class="btn sec" href="/p/{{ p.id }}/drafts">Drafts ({{ drafts }})</a>{% endif %}
+    <a class="btn sec" href="/p/{{ p.id }}/capture?room={{ qroom }}&amp;category={{ f.category }}" title="Photos first, names later"><svg class="ic"><use href="#i-camera"/></svg><span class="hide-m">Quick capture</span></a>
     <a class="btn ghost" href="/p/{{ p.id }}/export/items.xlsx{% if qs %}?{{ qs }}{% endif %}" title="{{ 'Excel of the items this filter shows' if filtering else 'Excel of all items' }}, to edit and import back"><svg class="ic"><use href="#i-download"/></svg>Export{% if filtering %} these {{ items|length }}{% endif %}</a>
     <a class="btn" href="/p/{{ p.id }}/items/new?room={{ qroom }}&amp;category={{ f.category }}"><svg class="ic"><use href="#i-plus"/></svg>Add item</a>
   </div>
 </div>
+{{ section_tabs(p, 'design', 'items') }}
 
 {% if deleted %}<div class="alert">{{ deleted }} item{{ 's' if deleted != 1 }} deleted.</div>{% endif %}
-<form method="get" class="card filters">
+{% set nfilt = [f.floor, f.room, f.category, f.status, f.supplier]|select|list|length %}
+<form method="get" class="card filters{{ ' open' if nfilt }}" id="item-filters">
+  <button type="button" class="btn sec sm hide-d filt-toggle" aria-expanded="{{ 'true' if nfilt else 'false' }}" aria-controls="item-filters"><svg class="ic sm"><use href="#i-settings"/></svg>Filters{% if nfilt %} · {{ nfilt }}{% endif %}</button>
   {% if floors %}<select name="floor" class="in" aria-label="Floor"><option value="">All floors</option>{% for grp in ['Floors', 'Separate areas', 'Other'] %}{% set opts = floors|selectattr('group', 'equalto', grp)|list %}{% if opts %}<optgroup label="{{ grp }}">{% for o in opts %}<option value="{{ o.value }}" {{ 'selected' if f.floor and o.value|lower == f.floor|lower }}>{{ o.title }}</option>{% endfor %}</optgroup>{% endif %}{% endfor %}</select>{% endif %}
   <select name="room" class="in" aria-label="Room"><option value="">{{ 'All rooms & areas on ' ~ floor_name if f.floor and f.floor != NO_FLOOR else 'All rooms & areas' }}</option>{{ room_options(room_list, f.room) }}{% if not f.floor or f.floor == NO_FLOOR %}<option value="none" {{ 'selected' if f.room == 'none' }}>Unassigned</option>{% endif %}</select>
   <select name="category" class="in" aria-label="Category"><option value="">All categories</option>{% for c in CATEGORIES %}<option {{ 'selected' if f.category == c }}>{{ c }}</option>{% endfor %}</select>
-  <select name="status" class="in" aria-label="Status"><option value="">Any status</option>{% for st in STATUSES %}<option {{ 'selected' if f.status == st }}>{{ st }}</option>{% endfor %}</select>
+  <select name="status" class="in" aria-label="Status"><option value="">Any status</option>{% for st in STATUSES %}<option value="{{ st }}" {{ 'selected' if f.status == st }}>{{ st|status_label }}</option>{% endfor %}</select>
   <select name="supplier" class="in" aria-label="Supplier"><option value="">Any supplier</option>{% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if f.supplier == s.id|string }}>{{ s.name }}</option>{% endfor %}</select>
   <input type="hidden" name="q" id="live-q-hidden" value="{{ f.q }}">
   {% if view != 'list' %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
@@ -43,13 +46,14 @@
   <span class="search"><svg class="ic"><use href="#i-search"/></svg><input class="in" type="search" id="live-q" value="{{ f.q }}" placeholder="Search as you type: name, code, spec, brand, size, room, supplier, notes… ( * stands for anything )" aria-label="Search the list" autocomplete="off"></span>
   <span class="small muted ls-count" aria-live="polite">{% if f.q %}searched on the server · Enter again to refresh{% endif %}</span>
   <button type="button" class="btn ghost sm ls-clear"{% if not f.q %} hidden{% endif %}>Clear</button>
+  {% if items %}<button type="button" class="btn sec sm sel-toggle" aria-pressed="false" aria-controls="bulk">Select</button>{% endif %}
 </div>
 {% if items %}
 <form method="post" id="bulk" action="/p/{{ p.id }}/items/delete-selected" class="select-bar" data-confirm="Delete the ticked items? Their plan dots go with them. A photo stays with the same item in its other rooms and goes only when no room is left; everything not ticked stays.">
   {% for k in ['floor', 'room', 'category', 'status', 'supplier', 'q'] %}{% if f[k] %}<input type="hidden" name="{{ k }}" value="{{ f[k] }}">{% endif %}{% endfor %}
   {% if view != 'list' %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
   {% if view == 'cards' %}<label class="check"><input type="checkbox" class="sel-all" aria-label="Select all shown"> All shown</label>{% endif %}
-  <span class="count small muted">Tick the lines to delete, then press the button. A filter on its own never deletes anything.</span>
+  <span class="count small muted">Tick the lines to delete.</span>
   <button type="button" class="btn sm ghost unphoto" hidden>Untick the ones with photos</button>
   <button type="button" class="btn sm ghost clear" hidden>Clear</button>
   <button type="button" class="btn sm ghost by-codes" aria-expanded="false" title="Paste a list of item codes and tick those lines">Tick by codes</button>
@@ -91,11 +95,11 @@
 </div>
 
 {% elif view == 'table' %}
-<div class="tbl"><table class="sortable">
+<div class="tbl"><table class="sortable it-table">
   <thead><tr><th class="sel"><label><input type="checkbox" class="sel-all" aria-label="Select all shown" title="Select all shown"></label></th><th></th><th data-sort="text">Code</th><th data-sort="text">Item</th><th data-sort="text">Room</th><th data-sort="text">Category</th><th class="num" data-sort="num">Qty</th><th class="num" data-sort="num">Unit {{ 'USD' if show_usd(p) else 'CNY' }}</th><th class="num" data-sort="num">Total {{ 'USD' if show_usd(p) else 'CNY' }}</th><th data-sort="text">Supplier</th><th data-sort="num">Status</th></tr></thead>
   <tbody>
   {% for i in items %}
-  <tr id="item-{{ i.id }}" data-search="{{ i.code }} {{ i.name }} {{ i.spec[:300] }} {{ i.brand }} {{ i.brand_shown }} {{ i.size }} {{ i.finish }} {{ i.category }} {{ i.room.label if i.room else 'ALL whole house' }} {{ (i.room.floor|floor_title) if i.room and i.room.floor else '' }} {{ i.supplier.name if i.supplier else '' }} {{ i.status }} {{ i.unit }} {{ i.notes[:200] }}">
+  <tr id="item-{{ i.id }}" data-search="{{ i.code }} {{ i.name }} {{ i.spec[:300] }} {{ i.brand }} {{ i.brand_shown }} {{ i.size }} {{ i.finish }} {{ i.category }} {{ i.room.label if i.room else 'ALL whole house' }} {{ (i.room.floor|floor_title) if i.room and i.room.floor else '' }} {{ i.supplier.name if i.supplier else '' }} {{ i.status|status_label }} {{ i.unit }} {{ i.notes[:200] }}">
     <td class="sel"><label><input type="checkbox" class="sel-box" name="ids" value="{{ i.id }}" form="bulk"{% if i.photos %} data-photos="1"{% endif %} data-codes="{{ i.code }}" aria-label="Select {{ i.code }}"></label></td>
     <td>{% if i.cover %}<img class="thumb sm" src="/media/{{ i.cover.thumb }}" alt="{{ i.name }}" data-full="/media/{{ i.cover.file_key }}" data-caption="{{ i.code }} · {{ i.name }}">{% endif %}</td>
     <td class="small muted nowrap">{{ i.code }}</td>
@@ -106,14 +110,14 @@
     <td class="num" data-v="{{ i.unit_price if i.unit_price else '' }}">{{ i.unit_price|cur_num(2) if i.unit_price else '' }}</td>
     <td class="num" data-v="{{ i.total if i.unit_price else '' }}">{{ i.total|cur_num if i.unit_price else '' }}</td>
     <td class="small nowrap">{{ i.supplier.name if i.supplier else '' }}</td>
-    <td><select class="status-sel" data-url="/p/{{ p.id }}/items/{{ i.id }}/status" style="--c:{{ STATUS_COLORS[i.status] }}" aria-label="Status">{% for st in STATUSES %}<option {{ 'selected' if i.status == st }}>{{ st }}</option>{% endfor %}</select></td>
+    <td><span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status|status_label }}</span></td>
   </tr>
   {% endfor %}
   </tbody>
 </table></div>
 
 {% elif view == 'list' %}
-<div class="tbl"><table class="sortable">
+<div class="tbl"><table class="sortable it-list">
   <thead><tr><th class="sel"><label><input type="checkbox" class="sel-all" aria-label="Select all shown" title="Select all shown"></label></th><th></th><th data-sort="text">Item</th><th data-sort="text">Category</th><th data-sort="num">Rooms</th><th class="num" data-sort="num">Qty</th><th class="num" data-sort="num">Unit {{ 'USD' if show_usd(p) else 'CNY' }}</th><th class="num" data-sort="num">Total {{ 'USD' if show_usd(p) else 'CNY' }}</th><th data-sort="text">Supplier</th><th data-sort="num">Status</th></tr></thead>
   <tbody>
   {% for fam in fams %}{% if not fam.one %}{% set fr = [] %}{% for g in fam.members %}{% for r in g.rooms %}{% if r not in fr %}{% set _ = fr.append(r) %}{% endif %}{% endfor %}{% endfor %}
@@ -140,7 +144,7 @@
     <td class="num" data-v="{{ g.price_min if g.price_min else '' }}">{% if g.price_min %}{{ g.price_min|cur_num(2) }}{% if g.price_max != g.price_min %}–{{ g.price_max|cur_num(2) }}{% endif %}{% endif %}</td>
     <td class="num" data-v="{{ g.total if g.total else '' }}">{{ g.total|cur_num if g.total else '' }}</td>
     <td class="small nowrap">{% for s in g.suppliers %}{{ s.name }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
-    <td data-v="{{ g.status_rank }}" class="small nowrap">{% if g.rows|length == 1 %}<select class="status-sel" data-url="/p/{{ p.id }}/items/{{ i.id }}/status" style="--c:{{ STATUS_COLORS[i.status] }}" aria-label="Status">{% for st in STATUSES %}<option {{ 'selected' if i.status == st }}>{{ st }}</option>{% endfor %}</select>{% else %}{% for s, n in g.statuses|dictsort(by='value', reverse=true) %}<span class="badge" style="--c:{{ STATUS_COLORS[s] }}">{{ s }} · {{ n }}</span> {% endfor %}{% endif %}</td>
+    <td data-v="{{ g.status_rank }}" class="small nowrap">{% if g.rows|length == 1 %}<span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status|status_label }}</span>{% else %}{% for s, n in g.statuses|dictsort(by='value', reverse=true) %}<span class="badge" style="--c:{{ STATUS_COLORS[s] }}">{{ s|status_label }} · {{ n }}</span> {% endfor %}{% endif %}</td>
   </tr>
   {% endfor %}{% endfor %}
   </tbody>
@@ -158,7 +162,7 @@
     <div class="cards">
     {% set ns.last = grp %}{% set ns.open = true %}
   {% endif %}
-  <div class="item-card" id="item-{{ i.id }}" data-search="{{ i.code }} {{ i.name }} {{ i.spec[:300] }} {{ i.brand }} {{ i.brand_shown }} {{ i.size }} {{ i.finish }} {{ i.category }} {{ i.room.label if i.room else 'ALL whole house' }} {{ (i.room.floor|floor_title) if i.room and i.room.floor else '' }} {{ i.supplier.name if i.supplier else '' }} {{ i.status }} {{ i.unit }} {{ i.notes[:200] }}">
+  <div class="item-card" id="item-{{ i.id }}" data-search="{{ i.code }} {{ i.name }} {{ i.spec[:300] }} {{ i.brand }} {{ i.brand_shown }} {{ i.size }} {{ i.finish }} {{ i.category }} {{ i.room.label if i.room else 'ALL whole house' }} {{ (i.room.floor|floor_title) if i.room and i.room.floor else '' }} {{ i.supplier.name if i.supplier else '' }} {{ i.status|status_label }} {{ i.unit }} {{ i.notes[:200] }}">
     {% if i.cover %}<span class="pic"><img src="/media/{{ i.cover.thumb }}" alt="{{ i.name }}" data-full="/media/{{ i.cover.file_key }}" data-caption="{{ i.code }} · {{ i.name }}"></span>{% else %}<a class="pic empty" href="/p/{{ p.id }}/items/{{ i.id }}">no photo</a>{% endif %}
     <div class="body">
       <div class="t"><a href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a></div>
@@ -167,7 +171,7 @@
       {% if i.supplier %}<div class="m"><svg class="ic sm"><use href="#i-truck"/></svg> {{ i.supplier.name }}</div>{% endif %}
       {% if i.size or i.finish %}<div class="m">{{ i.size }}{% if i.size and i.finish %} · {% endif %}{{ i.finish }}</div>{% endif %}
       <div class="foot">
-        <select class="status-sel" data-url="/p/{{ p.id }}/items/{{ i.id }}/status" style="--c:{{ STATUS_COLORS[i.status] }}" aria-label="Status">{% for st in STATUSES %}<option {{ 'selected' if i.status == st }}>{{ st }}</option>{% endfor %}</select>
+        <span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status|status_label }}</span>
         {% if i.optional %}<span class="pill">optional</span>{% endif %}
         <label class="sel"><input type="checkbox" class="sel-box" name="ids" value="{{ i.id }}" form="bulk"{% if i.photos %} data-photos="1"{% endif %} data-codes="{{ i.code }}"> Select</label>
       </div>

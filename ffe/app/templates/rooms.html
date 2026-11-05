@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_sections.html" import section_tabs %}
 {% from "_macros.html" import room_pill, floor_select %}
 {% block title %}Rooms &amp; areas · {{ p.name }} · {{ APP_NAME }}{% endblock %}
 {% block content %}
@@ -6,7 +7,7 @@
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
     <h1>Rooms &amp; areas <span class="h-note">{{ count_label(groups|map(attribute='rooms')|sum(start=[]), groups|map(attribute='areas')|sum(start=[])) }}</span></h1>
-    <p class="sub">Every item and every box carries a code, so deliveries go straight to where they will be installed. A <b>room</b> is a space you furnish and finish; an <b>area</b> is a zone that still gets items (entrance, corridors, stairs, balconies, carport). Floor and wall areas are optional and help with tile quantities.</p>
+    <p class="sub">The rooms and areas of the house. Every item and box carries its room's code.</p>
     {% if p.rooms and n_areas == 0 %}<div class="alert info mt">Everything here is listed as a room. Press <b>Sort rooms &amp; areas by name</b> once: entrances, corridors, stairs, balconies, the carport and the whole-house entries move under Areas, and the counts become true. You can switch any entry back.</div>{% endif %}
   </div>
   <div class="actions">
@@ -14,6 +15,7 @@
     <a class="btn" href="/p/{{ p.id }}/plan"><svg class="ic"><use href="#i-map"/></svg>Open the plan</a>
   </div>
 </div>
+{{ section_tabs(p, 'design', 'rooms') }}
 
 {% if err %}<div class="alert err">{{ err }}</div>{% endif %}
 {% if ok %}<div class="alert info">{{ ok }}</div>{% endif %}

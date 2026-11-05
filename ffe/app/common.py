@@ -156,6 +156,7 @@ templates.env.filters["cur_num"] = jinja2.pass_context(lambda ctx, v, dec=0: fmt
 templates.env.filters["cur_other"] = jinja2.pass_context(lambda ctx, v, dec=0: fmt_other(ctx.get("p"), v, dec))
 templates.env.globals.update(show_usd=lambda p: show_usd(p))
 templates.env.filters["num"] = fnum
+templates.env.filters["status_label"] = lambda st: config.STATUS_LABELS.get(st, st)  # a status as people read it (stored values unchanged)
 templates.env.filters["plain"] = fplain
 templates.env.filters["floor_title"] = jinja2.pass_context(lambda ctx, s: drawings.floor_title(s, ctx.get("p")))  # the project's floor list decides the spelling and the kind
 templates.env.globals.update(order_ref=_order_ref)

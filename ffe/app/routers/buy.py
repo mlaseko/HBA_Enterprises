@@ -151,8 +151,8 @@ def purchase_schedule_pdf(request: Request, p: Project = Depends(get_project), d
     return Response(data, media_type="application/pdf", headers=content_disposition(f"{name}.pdf", inline=True))
 
 
-@router.get("/p/{project_id}/buying/tracker")
-def tracker(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+def tracker_figures(db: Session, p: Project):
+    """The Tracker's figures and the orders' views: the Tracker page and Home's to-do list read the same."""
     prods = bz.sync_products(db, p)
     db.commit()
     led = bz.Ledger(p)
@@ -160,7 +160,12 @@ def tracker(request: Request, p: Project = Depends(get_project), db: Session = D
     ovs = od.views(p, led)
     from ..models import QuotationUpload
     waiting = db.query(QuotationUpload).filter(QuotationUpload.project_id == p.id, QuotationUpload.stage == "done").order_by(QuotationUpload.id).all()
-    t = od.tracker(p, led, gs, ovs, waiting=waiting)
+    return od.tracker(p, led, gs, ovs, waiting=waiting), ovs
+
+
+@router.get("/p/{project_id}/buying/tracker")
+def tracker(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    t, ovs = tracker_figures(db, p)
     return render(request, "buying/tracker.html", p=p, t=t, ovs=ovs, STAGES=bz.STAGES, STAGE_COLORS=bz.STAGE_COLORS, STAGE_HELP=bz.STAGE_HELP,
                   ORDER_COLORS=od.STAGE_COLORS, SHIP_COLORS=sh.STAGE_COLORS)
 

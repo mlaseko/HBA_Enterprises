@@ -8,10 +8,10 @@
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg>{% if next %}<a href="{{ next }}">Plan</a>{% if it and it.room %}<svg class="ic"><use href="#i-chevron-right"/></svg><a href="{{ next }}">{{ it.room.name }}</a>{% endif %}{% else %}<a href="/p/{{ p.id }}/items">Items</a>{% endif %}</div>
     <h1>{{ (it.name or 'Draft item') if it else 'New item' }}{% if it and it.code %} <span class="h-note">{{ it.code }}</span>{% endif %}</h1>
     {% if it %}<p class="sub">{{ it.category }}{% if it.room %} · {{ it.room.label }}{% endif %}{% if it.supplier %} · {{ it.supplier.name }}{% endif %}</p>
-    {% else %}<p class="sub">Fill in what you know now. Everything can be edited later and photos can be added at any time.</p>{% endif %}
+    {% else %}<p class="sub">Fill in what you know now. Everything can be changed later.</p>{% endif %}
   </div>
   <div class="actions">
-    {% if it %}<span class="badge" style="--c:{{ STATUS_COLORS[it.status] }}">{{ it.status }}</span>{% if it.optional %}<span class="pill">optional</span>{% endif %}
+    {% if it %}<span class="badge" style="--c:{{ STATUS_COLORS[it.status] }}">{{ it.status|status_label }}</span>{% if it.optional %}<span class="pill">optional</span>{% endif %}
     {% if it.room and not it.draft %}<a class="btn sec sm" href="/p/{{ p.id }}/plan?{% if it.pins %}plan={{ it.pins[0].image_id }}&amp;{% endif %}room={{ it.room_id }}&amp;item={{ it.id }}" title="{{ 'Show where it goes on the floor plan' if it.pins else 'Open the room on the floor plan' }}"><svg class="ic"><use href="#i-map"/></svg>{{ 'On the plan' if it.pins else 'Plan' }}</a>{% endif %}{% endif %}
   </div>
 </div>
@@ -23,35 +23,43 @@
 {% if suggest %}{% for f in ['name', 'size', 'finish', 'brand'] %}<datalist id="dl-{{ f }}">{% for v in suggest[f] %}<option value="{{ v }}">{% endfor %}</datalist>{% endfor %}{% endif %}
 <form method="post" enctype="multipart/form-data" class="card" id="itemform">
   {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+  {# What everyone fills in: the name, a photo, the category, the rooms and how many. Everything else waits under More details. #}
   <div class="grid g2 stack">
+    <div class="span2"><label for="f-name">Name</label><input class="in" id="f-name" type="text" name="name" value="{{ it.name if it else '' }}" required list="dl-name" autocomplete="off" placeholder="Short and generic: Floor tiles, Wall-hung WC, Pendant light"{% if it and it.draft or not it %} autofocus{% endif %}></div>
+    <div class="span2"><label for="f-photos">{{ 'Add photos' if it else 'Photos' }}</label>
+      <input type="file" id="f-photos" name="photos" accept="image/*" multiple>{% if not it %}<div class="filehint help">Take a photo or choose several. The first is the cover.</div>{% endif %}</div>
+    {% set cats = CATEGORIES + ([it.category] if it and it.category and it.category not in CATEGORIES else []) %}
+    <div><label for="f-cat">Category <a class="small" href="/p/{{ p.id }}/lists#categories">edit list</a></label><select name="category" id="f-cat" class="in">{% for c in cats %}<option {{ 'selected' if (it and it.category == c) or (not it and pre_cat == c) }}>{{ c }}</option>{% endfor %}</select></div>
     {% if it %}
-    <div><label>Room or area</label><select name="room_id" class="in"><option value="">Whole house / not room-specific</option>{{ room_options(p.rooms, it.room_id) }}</select></div>
+    <div><label for="f-room">Room or area</label><select name="room_id" id="f-room" class="in"><option value="">Whole house / not room-specific</option>{{ room_options(p.rooms, it.room_id) }}</select></div>
     {% else %}
-    <div class="span2"><label>Rooms &amp; areas <span class="muted small">(tick every one that gets this item; none = whole house)</span></label>
+    <div class="span2"><label>Rooms &amp; areas <span class="muted small">(none = whole house)</span></label>
       {{ room_picks(p.rooms, 'room_ids', [pre_room] if pre_room else []) }}
-      <div class="help">Each ticked room gets its own line with its own code, status and quantity. Qty below is per room; adjust any room afterwards. The chips tick a whole group at once (all bedrooms, all bathrooms, a floor); press one again to untick.</div></div>
+      <div class="help">Each room gets its own line and code. The quantity below is for each room.</div></div>
     {% endif %}
-    {% set cats = CATEGORIES + ([it.category] if it and it.category and it.category not in CATEGORIES else []) %}<div><label>Category (schedule) <a class="small" href="/p/{{ p.id }}/lists#categories">edit list</a></label><select name="category" class="in">{% for c in cats %}<option {{ 'selected' if (it and it.category == c) or (not it and pre_cat == c) }}>{{ c }}</option>{% endfor %}</select></div>
-    <div class="span2"><label>Item / product name</label><input class="in" type="text" name="name" value="{{ it.name if it else '' }}" required list="dl-name" autocomplete="off" placeholder="e.g. Floor tiles · Wall-hung WC · Pendant light"{% if it and it.draft %} autofocus{% endif %}>
-      <div class="help">Short and generic: what it is. Size and colour/finish go in their own fields below; with the name they tell one product from another, so the same product in several rooms stays one line. The shop, the brand bought and the price come later, on the Buying page.</div></div>
-    <div class="span2"><label>Must-have spec (what the supplier must deliver)</label><textarea class="in" name="spec">{{ it.spec if it else '' }}</textarea></div>
+    <div><label for="f-qty">Qty{{ ' for this room' if it and it.room else (' per room' if not it else '') }}</label><input class="in" id="f-qty" type="number" step="0.01" name="qty" value="{{ it.qty|num(2) if it else 1 }}" inputmode="decimal"></div>
+    {% set units_ = UNITS + ([it.unit] if it and it.unit and it.unit not in UNITS else []) %}<div><label for="f-unit">Unit <a class="small" href="/p/{{ p.id }}/lists#units">edit list</a></label><select name="unit" id="f-unit" class="in">{% for u in units_ %}<option {{ 'selected' if it and it.unit == u }}>{{ u }}</option>{% endfor %}</select></div>
   </div>
 
-  <div class="divider"></div>
-  <div class="eyebrow">Specification</div>
-  <div class="grid stack g2">
-    <div><label>Size</label><input class="in" type="text" name="size" value="{{ it.size if it else '' }}" list="dl-size" autocomplete="off" placeholder="1200 x 600 mm"></div>
-    <div><label>Colour / finish</label><input class="in" type="text" name="finish" value="{{ it.finish if it else '' }}" list="dl-finish" autocomplete="off" placeholder="Ceramic, matt, cream"></div>
-    <div class="span2"><label>Preferred brand <span class="muted small">(only when the design asks for one)</span></label><input class="in" type="text" name="brand" value="{{ it.brand if it else '' }}" list="dl-brand" autocomplete="off" placeholder="Any brand that meets the spec">
-      <div class="help">Shown to the shops as a must-have. The brand actually bought is recorded with the shop's quote on the Buying page.</div></div>
-  </div>
+  {% set more_set = [] %}{% if it %}{% for v in [it.size, it.finish, it.brand] %}{% if v %}{% set _ = more_set.append(v) %}{% endif %}{% endfor %}{% if it.spec %}{% set _ = more_set.append('spec') %}{% endif %}{% if it.notes %}{% set _ = more_set.append('notes') %}{% endif %}{% endif %}
+  <details class="more-details"{{ ' open' if err or filled }}>
+    <summary><span class="b">More details</span> <span class="muted small">{% if more_set %}{{ more_set|join(' · ') }}{% else %}size, colour / finish, spec, brand, status, notes, web link{% endif %}</span></summary>
+    <div class="grid g2 stack mt">
+      <div><label for="f-size">Size</label><input class="in" id="f-size" type="text" name="size" value="{{ it.size if it else '' }}" list="dl-size" autocomplete="off" placeholder="1200 x 600 mm"></div>
+      <div><label for="f-finish">Colour / finish</label><input class="in" id="f-finish" type="text" name="finish" value="{{ it.finish if it else '' }}" list="dl-finish" autocomplete="off" placeholder="Ceramic, matt, cream"></div>
+      <div class="span2 help">The name, size and colour/finish together tell one product from another, so keep the size and colour out of the name.</div>
+      <div class="span2"><label for="f-spec">Must-have spec <span class="muted small">(what the supplier must deliver)</span></label><textarea class="in" id="f-spec" name="spec">{{ it.spec if it else '' }}</textarea></div>
+      <div><label for="f-brand">Preferred brand <span class="muted small">(only if the design asks for one)</span></label><input class="in" id="f-brand" type="text" name="brand" value="{{ it.brand if it else '' }}" list="dl-brand" autocomplete="off" placeholder="Any brand that meets the spec"></div>
+      <div><label for="f-status">Status</label><select name="status" id="f-status" class="in">{% for st in STATUSES %}<option value="{{ st }}" {{ 'selected' if it and it.status == st }}>{{ st|status_label }}</option>{% endfor %}</select>
+        <div class="help">Orders and boxes move it on by themselves.</div></div>
+      <div class="span2"><label class="check"><input type="checkbox" name="optional" {{ 'checked' if it and it.optional }}> Optional item <span class="muted small">(shown separately in totals)</span></label></div>
+      <div class="span2"><label for="f-notes">Notes</label><textarea class="in" id="f-notes" name="notes">{{ it.notes if it else '' }}</textarea></div>
+      <div class="span2"><label for="f-url">Picture from a web link <span class="muted small">(supplier site, Pinterest, Taobao…)</span></label>
+        <input class="in" id="f-url" type="url" name="photo_url" inputmode="url" placeholder="https://…" autocomplete="off">
+        <div class="help">Downloaded when you save. <a href="/clip">Set up the one-click Save from web button</a>.</div></div>
+    </div>
+  </details>
 
-  <div class="divider"></div>
-  <div class="eyebrow">Quantity</div>
-  <div class="grid stack g2">
-    <div><label>Qty{{ ' for this room' if it and it.room else '' }}</label><input class="in" type="number" step="0.01" name="qty" value="{{ it.qty|num(2) if it else 1 }}"></div>
-    {% set units_ = UNITS + ([it.unit] if it and it.unit and it.unit not in UNITS else []) %}<div><label>Unit <a class="small" href="/p/{{ p.id }}/lists#units">edit list</a></label><select name="unit" class="in">{% for u in units_ %}<option {{ 'selected' if it and it.unit == u }}>{{ u }}</option>{% endfor %}</select></div>
-  </div>
   {% if it and not it.draft %}
   <div class="bu-itemcard{{ ' on' if it.purchase }}">
     <svg class="ic"><use href="#i-bag"/></svg>
@@ -64,36 +72,22 @@
       {% else %}
       <div class="eyebrow">Buying</div>
       <div class="b">No shop chosen yet</div>
-      <div class="small muted">{% if quote_count %}{{ quote_count }} quote{{ 's' if quote_count != 1 }} recorded; choose one to give this room its shop and price.{% else %}Record the shops' quotes on the Buying page; the price shows here once a shop is chosen.{% endif %}</div>
+      <div class="small muted">{% if quote_count %}{{ quote_count }} quote{{ 's' if quote_count != 1 }} recorded: choose one to give this room its shop and price.{% else %}Add the shops' quotes in Sourcing.{% endif %}</div>
       {% endif %}
     </div>
-    <a class="btn sm sec" href="/p/{{ p.id }}/buying/item/{{ it.id }}">Open in Buying<svg class="ic"><use href="#i-chevron-right"/></svg></a>
-  </div>
-  {% endif %}
-
-  <div class="divider"></div>
-  <div class="eyebrow">Status, notes &amp; photos</div>
-  <div class="grid g2 stack">
-    <div><label>Status</label><select name="status" class="in">{% for st in STATUSES %}<option {{ 'selected' if it and it.status == st }}>{{ st }}</option>{% endfor %}</select></div>
-    <div><label>Options</label><label class="check"><input type="checkbox" name="optional" {{ 'checked' if it and it.optional }}> Optional item <span class="muted small">(shown separately in totals)</span></label></div>
-    <div class="span2"><label>Notes</label><textarea class="in" name="notes">{{ it.notes if it else '' }}</textarea></div>
-    <div class="span2"><label>{{ 'Add photos' if it else 'Photos of sample' }}</label>
-      <input type="file" name="photos" accept="image/*" multiple><div class="filehint help">Take a photo, or choose several from the gallery at once. The first one becomes the cover; the same item in its other rooms shows the same photos, wherever they were added.</div></div>
-    <div class="span2"><label>Or paste a web link (picture or product page: supplier site, Pinterest pin, Taobao…)</label>
-      <input class="in" type="url" name="photo_url" inputmode="url" placeholder="https://…" autocomplete="off">
-      <div class="help">The picture is downloaded and stored with the item when you save. <a href="/clip">Set up the one-click “Save from web” button</a>.</div></div>
+    <a class="btn sm sec" href="/p/{{ p.id }}/buying/item/{{ it.id }}">Open in Sourcing<svg class="ic"><use href="#i-chevron-right"/></svg></a>
   </div>
 
-  {% if it and not it.draft %}
-  <div class="divider"></div>
-  <div class="eyebrow">Rooms with this item</div>
-  {% if others %}
-  <label class="check"><input type="checkbox" name="apply_all" value="1"{{ ' checked' if not differs }}> Apply name, category, spec, size, finish, preferred brand and unit changes to the {{ others|length }} other room{{ 's' if others|length > 1 }} with this exact item</label>
-  <div class="help">{% if differs %}The other rooms differ in {% if differs|length > 1 %}{{ differs[:-1]|join(', ') }} and {% endif %}{{ differs[-1] }}: they were set up their own way, so this is not ticked. Tick it to make them all like this line. {% endif %}Quantity, status, notes and photos always stay per room; the shop and price come from the Buying page.</div>
-  {% else %}<p class="muted small">This item is only in this room so far.</p>{% endif %}
-  <div class="help mt">A room counts as having this item when its line has the same name, size and colour/finish. Tick a room to put this item there too: a copy with the same spec and quantity, status “To buy” and its own code, showing the same photos. Untick a room to take the item out of it: that room's line is deleted when you save, with its plan dots; the photos stay with the item. The chips tick a whole group at once. This line's own room is locked here: change it with the Room field above, or remove this line with Delete.</div>
-  <input type="hidden" name="rooms_form" value="1">
-  {{ room_picks(p.rooms, 'room_ids', checked=with_rooms, locked=[it.room_id] if it.room_id else [], links=room_links, removal='Remove this item from %n room(s)? The item\'s line there is deleted, with its plan dots; the photos stay with the item.') }}
+  <details class="more-details"{{ ' open' if others and differs }}>
+    <summary><span class="b">Rooms with this item</span> <span class="muted small">{% if others %}this room and {{ others|length }} other{{ 's' if others|length != 1 }}{% else %}only in this room so far{% endif %}</span></summary>
+    {% if others %}
+    <label class="check mt"><input type="checkbox" name="apply_all" value="1"{{ ' checked' if not differs }}> Apply name, category, spec, size, finish, preferred brand and unit changes to the {{ others|length }} other room{{ 's' if others|length > 1 }} with this exact item</label>
+    <div class="help">{% if differs %}The other rooms differ in {% if differs|length > 1 %}{{ differs[:-1]|join(', ') }} and {% endif %}{{ differs[-1] }}: they were set up their own way, so this is not ticked. {% endif %}Quantity, status, notes and photos stay per room.</div>
+    {% endif %}
+    <div class="help mt">Tick a room to put this item there too, untick one to take it out. This line's own room is locked: change it with Room above.</div>
+    <input type="hidden" name="rooms_form" value="1">
+    {{ room_picks(p.rooms, 'room_ids', checked=with_rooms, locked=[it.room_id] if it.room_id else [], links=room_links, removal='Remove this item from %n room(s)? The item\'s line there is deleted, with its plan dots; the photos stay with the item.') }}
+  </details>
   {% endif %}
 
   <div class="form-actions">

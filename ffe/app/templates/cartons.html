@@ -11,7 +11,7 @@
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
     <h1>Boxes <span class="h-note">{{ s.cartons }} boxes · {{ '%.2f'|format(s.cbm) }} CBM · {{ s.kg|num }} kg{% if s.container != '-' %} → {{ s.container }}{% endif %}</span></h1>
-    <p class="sub">One line per box. Each carries its room code and "Box n of N", so it lands in the right room. The shops list their boxes on their packing link (or you enter them here); then follow each box to the warehouse, into a shipment and to site.</p>
+    <p class="sub">One line per box, with its room code. Follow each box from the shop to site.</p>
   </div>
   <div class="actions">
     <a class="btn sec" href="/p/{{ p.id }}/export/packing.pdf{{ q }}" target="_blank"><svg class="ic"><use href="#i-download"/></svg>Packing list PDF</a>

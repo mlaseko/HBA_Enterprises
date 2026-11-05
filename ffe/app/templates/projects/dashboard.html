@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ p.name }} · {{ APP_NAME }}{% endblock %}
 {% block content %}
-{% set pct = (100 * s.received / s['items'])|int if s['items'] else 0 %}
 <div class="page-head">
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
@@ -9,74 +8,69 @@
     <p class="sub">{{ p.client_name }}{% if p.address %} · {{ p.address }}{% endif %} <span class="pill {{ 'green' if p.status == 'Active' else ('gold' if p.status == 'On hold' else 'sage') }}">{{ p.status }}</span></p>
   </div>
   <div class="actions">
-    <a class="btn ghost" href="/p/{{ p.id }}/edit"><svg class="ic"><use href="#i-edit"/></svg>Edit project</a>
-    {% if s.drafts %}<a class="btn sec" href="/p/{{ p.id }}/drafts">Drafts ({{ s.drafts }})</a>{% endif %}
-    <a class="btn accent" href="/p/{{ p.id }}/capture"><svg class="ic"><use href="#i-camera"/></svg>Quick capture</a>
+    <a class="btn sec" href="#documents" data-open-docs><svg class="ic"><use href="#i-file"/></svg>Share &amp; print</a>
+    <a class="btn" href="/p/{{ p.id }}/items/new"><svg class="ic"><use href="#i-plus"/></svg>Add item</a>
   </div>
 </div>
 
-<div class="grid g4 kpis">
-  <div class="kpi">
-    <div class="v">{{ s['items'] }}</div><div class="l">Items</div>
-    <div class="d">{{ s.priced }} priced{% if s.drafts %} · {{ s.drafts }} in drafts{% endif %}</div>
-    <svg class="ic"><use href="#i-grid"/></svg>
-  </div>
-  <div class="kpi ink">
-    <div class="v">¥{{ s.total|money }}</div><div class="l">Total CNY</div>
-    <div class="d">{% if s.must != s.total %}Must-have {{ s.must|cur }}{% else %}No optional items{% endif %}</div>
-    <svg class="ic"><use href="#i-tag"/></svg>
-  </div>
-  <div class="kpi">
-    <div class="v">${{ s.total_usd|money }}</div><div class="l">Total USD</div>
-    {% if s.budget_used is not none %}
-    <div class="d">{{ (s.budget_used * 100)|int }}% of ${{ p.budget_usd|money }} budget</div>
-    <div class="bar"><i style="width:{{ [100, (s.budget_used * 100)|int]|min }}%"></i></div>
-    {% else %}<div class="d">at {{ p.rate }} CNY per USD</div>{% endif %}
-    <svg class="ic"><use href="#i-card"/></svg>
-  </div>
-  <div class="kpi">
-    <div class="v">{{ s.paid|cur }}</div><div class="l">Paid</div>
-    <div class="d">{% if s.ordered %}{{ s.to_pay|cur }} still to pay on {{ s.ordered|cur }} ordered{% else %}Nothing on a confirmed order yet{% endif %}</div>
-    <svg class="ic"><use href="#i-check"/></svg>
-  </div>
-  <div class="kpi sage">
-    <div class="v">{{ s.received }}<span class="of">/{{ s['items'] }}</span></div><div class="l">Items received</div>
-    <div class="d">{{ pct }}% delivered</div>
-    <svg class="ic"><use href="#i-home"/></svg>
-  </div>
-  <div class="kpi">
-    <div class="v">{{ s.cartons_received }}<span class="of">/{{ s.cartons }}</span></div><div class="l">Boxes received</div>
-    <div class="d">{% if s.boxes_where.warehouse or s.boxes_where.shipment %}{{ s.boxes_where.warehouse }} at the warehouse · {{ s.boxes_where.shipment }} on shipments{% else %}{{ s.kg|num }} kg packed{% endif %}</div>
-    <svg class="ic"><use href="#i-box"/></svg>
-  </div>
-  <div class="kpi">
-    <div class="v">{{ '%.1f'|format(s.cbm) }}</div><div class="l">CBM packed</div>
-    <div class="d">{% if s.next_arrival %}<a href="/p/{{ p.id }}/shipments/{{ s.next_arrival.id }}">Shipment {{ s.next_arrival.number }}</a> arrives {{ s.next_arrival.eta.strftime('%d %b') }}{% elif s.container != '-' %}Fits {{ s.container }} container{% else %}No cartons measured yet{% endif %}</div>
-    <svg class="ic"><use href="#i-truck"/></svg>
-  </div>
-  <div class="kpi">
-    <div class="v">{{ s.by_status['To buy'] }}</div><div class="l">Still to buy</div>
-    <div class="d">{{ s.by_status['Quoted'] }} quoted · {{ s.by_status['Ordered'] }} ordered</div>
-    <svg class="ic"><use href="#i-clock"/></svg>
+{# What needs you: the Tracker's attention lines (ordering.tracker), then the drafts to name and the client's new pictures #}
+{% set extra = [] %}
+{% if s.drafts %}{% set _ = extra.append(dict(tone='muted', icon='camera', title='Name ' ~ s.drafts ~ ' photo' ~ ('s' if s.drafts != 1 else '') ~ ' from Quick capture', detail='Drafts (' ~ s.drafts ~ ') · they count once they have a name', href='/p/' ~ p.id ~ '/drafts')) %}{% endif %}
+{% if client_moods %}{% set _ = extra.append(dict(tone='muted', icon='image', title='The client added ' ~ client_moods|length ~ ' inspiration picture' ~ ('s' if client_moods|length != 1 else ''), detail='Through their link · on the mood board', href='/p/' ~ p.id ~ '/images#mood')) %}{% endif %}
+{% set todo = t.attention + extra %}
+<div class="home-grid">
+  <section class="card home-todo" aria-labelledby="todo-h">
+    <div class="row between"><h2 id="todo-h" class="mb-0">What needs you{% if todo %} <span class="h-note">{{ todo|length }}</span>{% endif %}</h2>{% if s['items'] %}<a class="small" href="/p/{{ p.id }}/buying/tracker">Tracker</a>{% endif %}</div>
+    {% if todo %}
+    <div class="att-list home-att">
+      {% for a in todo[:8] %}
+      <a class="att {{ a.tone }}" href="{{ a.href }}"><span class="tile"><svg class="ic"><use href="#i-{{ a.icon }}"/></svg></span><span class="txt"><span class="t">{{ a.title }}</span><span class="d">{{ a.detail }}</span></span><svg class="ic chev"><use href="#i-chevron-right"/></svg></a>
+      {% endfor %}
+    </div>
+    {% if todo|length > 8 %}<p class="small mb-0"><a href="/p/{{ p.id }}/buying/tracker">{{ todo|length - 8 }} more on the Tracker</a></p>{% endif %}
+    {% elif s['items'] %}
+    <div class="card bu-none mt mb-0"><svg class="ic"><use href="#i-check"/></svg><div><b>Nothing needs you right now.</b></div></div>
+    {% else %}
+    <div class="empty">
+      <div class="ring"><svg class="ic"><use href="#i-camera"/></svg></div>
+      <h3>No items yet</h3>
+      <p>Snap the first one, add it by hand, or import your Excel list.</p>
+      <div class="row">
+        <a class="btn accent" href="/p/{{ p.id }}/capture"><svg class="ic"><use href="#i-camera"/></svg>Quick capture</a>
+        <a class="btn sec" href="/p/{{ p.id }}/items/new"><svg class="ic"><use href="#i-plus"/></svg>Add an item</a>
+        <a class="btn ghost" href="/p/{{ p.id }}/import"><svg class="ic"><use href="#i-upload"/></svg>Import Excel</a>
+      </div>
+    </div>
+    {% endif %}
+  </section>
+
+  <div class="home-side">
+    <section class="card" aria-labelledby="prog-h">
+      <div class="row between"><h2 id="prog-h" class="mb-0">Progress <span class="h-note">{{ s['items'] }} room line{{ 's' if s['items'] != 1 }}</span></h2><a class="small" href="/p/{{ p.id }}/items?view=table">All lines</a></div>
+      {% if s['items'] %}
+      <div class="home-pipe" role="img" aria-label="Room lines by status">{% for st, n in s.by_status.items() %}{% if n %}<i style="flex:{{ n }};--c:{{ STATUS_COLORS[st] }}" title="{{ st|status_label }}: {{ n }}"></i>{% endif %}{% endfor %}</div>
+      <div class="home-legend">{% for st, n in s.by_status.items() %}<a href="/p/{{ p.id }}/items?view=table&amp;status={{ st|urlencode }}"><i style="--c:{{ STATUS_COLORS[st] }}"></i>{{ st|status_label }} <b>{{ n }}</b></a>{% endfor %}</div>
+      {% if s.cartons %}<p class="small muted mt mb-0">{{ s.cartons_received }} of {{ s.cartons }} boxes on site{% if s.boxes_where.warehouse or s.boxes_where.shipment %} · {{ s.boxes_where.warehouse }} at the warehouse · {{ s.boxes_where.shipment }} on shipments{% endif %}{% if s.next_arrival %} · <a href="/p/{{ p.id }}/shipments/{{ s.next_arrival.id }}">shipment {{ s.next_arrival.number }}</a> arrives {{ s.next_arrival.eta.strftime('%d %b') }}{% endif %}</p>{% endif %}
+      {% else %}<p class="small muted mt mb-0">Add items to follow them from To buy to on site.</p>{% endif %}
+    </section>
+
+    <section class="card" aria-labelledby="money-h">
+      <div class="row between"><h2 id="money-h" class="mb-0">Money</h2><a class="small" href="/p/{{ p.id }}/payments">Payments</a></div>
+      {% set used = (t.committed / t.budget) if t.budget else none %}
+      <div class="home-money mt">
+        <div><span class="l">Committed</span><span class="v">{{ t.committed|cur }}</span><span class="s">{{ t.committed|cur_other }}</span></div>
+        <div><span class="l">Budget</span><span class="v">{% if t.budget %}{{ t.budget|cur }}{% else %}—{% endif %}</span><span class="s">{% if used is not none %}{{ (used * 100)|int }}% committed{% else %}<a href="/p/{{ p.id }}/edit">set a budget</a>{% endif %}</span></div>
+        <div><span class="l">Paid</span><span class="v">{{ s.paid|cur }}</span><span class="s">{{ s.paid|cur_other }}</span></div>
+        <div><span class="l">Still to pay</span><span class="v">{{ s.to_pay|cur }}</span><span class="s">on confirmed orders</span></div>
+      </div>
+      {% if used is not none %}<div class="home-bar mt{{ ' over' if used > 1 }}"><i style="width:{{ [100, (used * 100)|int]|min }}%"></i></div>{% endif %}
+      <p class="small muted mt mb-0">{% if s.ordered %}{{ s.to_pay|cur }} still to pay on {{ s.ordered|cur }} ordered{% else %}Nothing on a confirmed order yet{% endif %}.</p>
+    </section>
   </div>
 </div>
 
-<div class="card tight mt">
-  <div class="row between">
-    <span class="eyebrow">Item status</span>
-    <a class="small" href="/p/{{ p.id }}/items">All items</a>
-  </div>
-  <div class="status-row mt">
-    {% for st, n in s.by_status.items() %}<a class="badge" style="--c:{{ STATUS_COLORS[st] }}" href="/p/{{ p.id }}/items?status={{ st|urlencode }}">{{ st }} · {{ n }}</a>{% endfor %}
-  </div>
-</div>
-
-{% if client_moods %}<div class="alert info"><svg class="ic sm"><use href="#i-image"/></svg> The client added {{ client_moods|length }} inspiration picture{{ 's' if client_moods|length != 1 }} through their link: {% for im in client_moods %}{% if loop.index <= 4 %}<a class="b" href="{% if im.mood.room %}/p/{{ p.id }}/items?room={{ im.mood.room_id }}{% else %}/p/{{ p.id }}/images#mood{% endif %}">{{ im.mood.room.name if im.mood.room else 'whole house' }}</a>{% if not loop.last and loop.index < 4 %}, {% endif %}{% endif %}{% endfor %}{% if client_moods|length > 4 %}…{% endif %}. <a href="/p/{{ p.id }}/images#mood">All on the mood board</a>.</div>{% endif %}
-<div class="card" id="documents">
-  <div class="row between top">
-    <div><h2 class="mb-0">Documents</h2><div class="small muted">Generated live from the current items, rooms and cartons.</div></div>
-    <a class="small" href="/p/{{ p.id }}/images">Images &amp; floor plans</a>
-  </div>
+<details class="card fold" id="documents">
+  <summary><h2 class="mb-0">Share &amp; print</h2><span class="small muted">The client schedule, packing lists, labels and the Excel export, made from today's data.</span></summary>
   <div class="docs mt">
     <a class="doc" href="/p/{{ p.id }}/export/schedule.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg><div><div class="t">Client schedule</div><div class="m">PDF · USD prices</div></div></a>
     <a class="doc" href="/p/{{ p.id }}/export/schedule.pdf?layout=floor" target="_blank"><svg class="ic"><use href="#i-layout"/></svg><div><div class="t">Client schedule by floor</div><div class="m">PDF · each floor plan, then its rooms</div></div></a>
@@ -88,9 +82,11 @@
     <a class="doc" href="/p/{{ p.id }}/export/labels.pdf" target="_blank"><svg class="ic"><use href="#i-tag"/></svg><div><div class="t">Box labels</div><div class="m">PDF · one per carton</div></div></a>
     <a class="doc" href="/p/{{ p.id }}/export/items.xlsx"><svg class="ic"><use href="#i-download"/></svg><div><div class="t">Excel export</div><div class="m">XLSX · all items · edit and import back</div></div></a>
   </div>
-</div>
+</details>
 
-<div class="dash-grid">
+<details class="card fold" id="breakdown">
+  <summary><h2 class="mb-0">By room, category and supplier</h2><span class="small muted">The totals behind the numbers, and the latest changes.</span></summary>
+<div class="dash-grid mt">
   <div class="card">
     <div class="row between"><h2 class="mb-0">By room &amp; area</h2><span class="row"><a class="small b" href="/p/{{ p.id }}/plan"><svg class="ic sm"><use href="#i-map"/></svg> Plan view</a><span class="muted small">·</span><a class="small" href="/p/{{ p.id }}/rooms">Manage rooms</a></span></div>
     <div class="tbl mt"><table>
@@ -144,24 +140,21 @@
       <div class="body">
         <div class="t"><a href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a></div>
         <div class="m">{{ i.code }} · {{ i.room.name if i.room else 'Whole house' }} · {{ i.category }}</div>
-        <div class="foot"><span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status }}</span>{% if i.total %}<span class="small b">{{ i.total|cur }}</span>{% endif %}</div>
+        <div class="foot"><span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status|status_label }}</span>{% if i.total %}<span class="small b">{{ i.total|cur }}</span>{% endif %}</div>
       </div>
     </div>
     {% else %}
-    <div class="empty">
-      <div class="ring"><svg class="ic"><use href="#i-camera"/></svg></div>
-      <h3>No items yet</h3>
-      <p>Snap the first one with Quick capture, add it by hand, or import your Excel list.</p>
-      <div class="row">
-        <a class="btn accent" href="/p/{{ p.id }}/capture"><svg class="ic"><use href="#i-camera"/></svg>Quick capture</a>
-        <a class="btn sec" href="/p/{{ p.id }}/items/new"><svg class="ic"><use href="#i-plus"/></svg>Add an item</a>
-        <a class="btn ghost" href="/p/{{ p.id }}/import"><svg class="ic"><use href="#i-upload"/></svg>Import Excel</a>
-        <a class="btn ghost" href="#help"><svg class="ic"><use href="#i-help"/></svg>How this works</a>
-      </div>
-    </div>
+    <p class="muted small">No items yet.</p>
     {% endfor %}
     </div>
   </div>
 </div>
-<a href="/p/{{ p.id }}/items/new" class="btn fab hide-d"><svg class="ic"><use href="#i-plus"/></svg>Item</a>
+</details>
 {% endblock %}
+{% block scripts %}<script>
+(function () {  // "Share & print" (here or in the menu) opens the documents
+  function open_() { if (location.hash === '#documents') { var d = document.getElementById('documents'); if (d) { d.open = true; d.scrollIntoView({block: 'start'}); } } }
+  window.addEventListener('hashchange', open_); open_();
+  document.querySelectorAll('[data-open-docs]').forEach(function (a) { a.addEventListener('click', function () { var d = document.getElementById('documents'); if (d) d.open = true; }); });
+})();
+</script>{% endblock %}

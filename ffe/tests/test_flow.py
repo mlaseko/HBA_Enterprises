@@ -49,7 +49,7 @@ def flow(c):
     import re; print(re.search(r"Imported[^<]*", r.text).group(0))
     r=c.get(f"/p/{pid}"); assert "Kinondoni House" in r.text
     r=c.get(f"/p/{pid}/items"); assert "Floor - big porcelain slab" in r.text
-    r=c.get(f"/p/{pid}/items?view=table&category=Tiles"); assert "status-sel" in r.text
+    r=c.get(f"/p/{pid}/items?view=table&category=Tiles"); assert "status-sel" not in r.text and '<span class="badge"' in r.text  # a read-only badge: orders and boxes move the status
     # add supplier + item with photo
     r=c.post("/suppliers/new", data={"name":"Foshan Tile Co.","city":"Foshan","category":"Tiles","wechat":"li_tiles","payment_terms":"30/70","back":f"/p/{pid}/suppliers"}, follow_redirects=False)
     r=c.get(f"/p/{pid}/suppliers"); assert "Foshan Tile Co." in r.text
@@ -182,7 +182,7 @@ def flow(c):
     db=SessionLocal(); s=_summary(db, db.get(_P,int(pid))); db.close()
     assert s["items"]==before["items"] and s["total"]==before["total"] and s["drafts"]==2, (s["items"], before["items"], s["drafts"])
     r=c.get(f"/p/{pid}"); assert "Drafts (2)" in r.text and f'/items/{d1}"' not in r.text and f'/items/{d2id}"' not in r.text
-    r=c.get(f"/p/{pid}/items"); assert "Drafts (2)" in r.text and f'/items/{d1}"' not in r.text and d2key not in r.text
+    r=c.get(f"/p/{pid}/items"); assert "Drafts <b>2</b>" in r.text and f'/items/{d1}"' not in r.text and d2key not in r.text
     r=c.get(f"/p/{pid}/items?view=table"); assert d2key not in r.text
     r=c.get(f"/p/{pid}/export/items.xlsx"); assert sum(1 for row_ in load_workbook(io.BytesIO(r.content))["Shopping List"].iter_rows(min_row=2, values_only=True) if row_[0])==before["items"]  # one filled row per item (the sheet carries styled blank rows too)
     r=c2.get(f"/c/{ctok}"); assert d2key not in r.text and f">{before['items']}<" in r.text
@@ -837,13 +837,13 @@ def flow(c):
     db=SessionLocal(); _rl=db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Reading light").first().id; db.close()
     buy(c, pid_p, _rl, "Lamp Street Co", 150)  # one quote, bought for the three bedrooms: To buy → Quoted
     r=c.get(f"/p/{pid_p}/items?view=table&category=Lighting"); h=r.text
-    assert '<table class="sortable">' in h and '<th data-sort="text">Code</th>' in h and '<th class="num" data-sort="num">Total CNY</th>' in h and '<th data-sort="num">Status</th>' in h
+    assert '<table class="sortable it-table">' in h and '<th data-sort="text">Code</th>' in h and '<th class="num" data-sort="num">Total CNY</th>' in h and '<th data-sort="num">Status</th>' in h
     assert h.count('data-v="Reading light"')==3 and 'data-v="150.0"' in h and f'href="/p/{pid_p}/items?category=Lighting&amp;view=list"' in h and 'aria-current="page" title="One line per room' in h and f'href="/p/{pid_p}/items?view=table">Clear</a>' in h
     r=c.get(f"/p/{pid_p}/items?view=list&q=Reading"); h=r.text
-    assert h.count('<tr id="item-')==1 and re.search(r'data-items="\d+ \d+ \d+"', h) and '>3 rooms</a>' in h and '6 pcs</td>' in h and 'data-v="900.0">900</td>' in h and "1 item · 3 room lines" in h and 'Quoted · 3</span>' in h and '<th data-sort="num">Rooms</th>' in h
-    assert "status-sel" not in h and "Press a column heading to sort" in h and c.get(f"/p/{pid_p}/items?view=list").text.count('<tr id="item-')>=5
+    assert h.count('<tr id="item-')==1 and re.search(r'data-items="\d+ \d+ \d+"', h) and '>3 rooms</a>' in h and '6 pcs</td>' in h and 'data-v="900.0">900</td>' in h and "1 item · 3 room lines" in h and 'Shop chosen · 3</span>' in h and '<th data-sort="num">Rooms</th>' in h
+    assert "status-sel" not in h and "One line per product" in h and c.get(f"/p/{pid_p}/items?view=list").text.count('<tr id="item-')>=5
     h=c.get(f"/p/{pid_p}/items").text; assert 'aria-current="page" title="One line per item' in h and h.count('<tr id="item-')>=5 and 'name="view"' not in h  # the Item list is the default view
-    h=c.get(f"/p/{pid_p}/items?q=Bedside lamp").text; assert h.count('<tr id="item-')==1 and 'class="status-sel"' in h  # one room: the status dropdown right there
+    h=c.get(f"/p/{pid_p}/items?q=Bedside lamp").text; assert h.count('<tr id="item-')==1 and 'class="status-sel"' not in h and '<span class="badge" style="--c:' in h  # one room: its status as a read-only badge
     db=SessionLocal(); prp=db.get(_P,int(pid_p)); gs={g["item"].name:g for g in _gi(_si(list(prp.live_items), prp))}; db.close()
     assert len(gs["Reading light"]["rows"])==3 and gs["Reading light"]["qty"]==6 and gs["Reading light"]["total"]==900 and gs["Reading light"]["status_text"]=="Quoted" and gs["Reading light"]["unit"]=="pcs" and len(gs["Reading light"]["rooms"])==3
     assert len(gs["Bedside lamp"]["rows"])==1 and gs["Bedside lamp"]["rooms"][0].code=="FF-MBR" and gs["Bedside lamp"]["codes"]=="FF-MBR-01"
@@ -851,7 +851,7 @@ def flow(c):
     c.post(f"/p/{pid_p}/items/{rl_id}/status", data={"status":"Ordered"}, headers={"Accept":"application/json"})
     db=SessionLocal(); prp=db.get(_P,int(pid_p)); g=[g for g in _gi(_si(list(prp.live_items), prp)) if g["item"].name=="Reading light"][0]; db.close()
     assert g["status_text"]=="2 Quoted, 1 Ordered" and g["status_rank"]==1 and g["price_min"]==g["price_max"]==150
-    h=c.get(f"/p/{pid_p}/items?view=list&q=Reading").text; assert 'Quoted · 2</span>' in h and 'Ordered · 1</span>' in h and '<td data-v="1" class="small nowrap">' in h  and "status-sel" not in h  # sorts by the least advanced status
+    h=c.get(f"/p/{pid_p}/items?view=list&q=Reading").text; assert 'Shop chosen · 2</span>' in h and 'Ordered · 1</span>' in h and '<td data-v="1" class="small nowrap">' in h  and "status-sel" not in h  # sorts by the least advanced status
     print("item list + sorting ok")
     # the item page: a checklist of the rooms that have this item; untick = that room's line goes, tick = a copy there
     db=SessionLocal(); rls=sorted(db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Reading light"), key=lambda i: i.id); rl=rls[0]; own=rl.room_id; others_=[i.room_id for i in rls[1:]]
@@ -1602,6 +1602,14 @@ def flow(c):
     c.post(f"/p/{pid_o}/buying/{p_tile}/quotes/{q_tile}", data={"supplier_id":str(ts),"amount":"85","currency":"CNY","pack_size":"1.44"}, follow_redirects=False)
     h=c.get(f"/p/{pid_o}/orders/{oid}").text; assert "Changed since it was confirmed" in h and "¥6,794.40" in h and "The shop agreed" in h
     assert "KH-001 changed after it was confirmed" in c.get(f"/p/{pid_o}/buying/tracker").text
+    # Home: the Tracker's attention lines are its to-do list; the five places are the project's menu; the status shows as people read it
+    h=c.get(f"/p/{pid_o}").text
+    assert "What needs you" in h and "KH-001 changed after it was confirmed" in h and 'id="documents"' in h and "Share &amp; print" in h
+    nav=h.split('<aside class="side">')[1].split("</aside>")[0]
+    assert all(f">{w}</a>" in nav or f">{w}<span" in nav for w in ("Home", "Design", "Sourcing", "Orders", "Delivery")) and ">Payments</a>" not in nav and "Project settings" in nav
+    h=c.get(f"/p/{pid_o}/items?view=table").text
+    assert 'aria-label="Design"' in h and 'class="btn sec sm sel-toggle"' in h and "Shop chosen" in h and ">Quoted</span>" not in h and 'value="Quoted"' in h  # the filter still sends the stored value
+    assert 'aria-label="Orders"' in c.get(f"/p/{pid_o}/payments").text and 'aria-label="Sourcing"' in c.get(f"/p/{pid_o}/buying").text
     c.post(f"/p/{pid_o}/orders/{oid}/confirm", data={"confirmed_on":"2026-10-01"}, follow_redirects=False)
     db=SessionLocal(); o=db.get(_O,oid); assert o.confirmed_total==6794.4 and o.confirmed_on==_dt.date(2026,10,1); db.close()
     assert "Changed since it was confirmed" not in c.get(f"/p/{pid_o}/orders/{oid}").text
@@ -1931,6 +1939,7 @@ def flow(c):
           "act_1":"quote","prod_1":str(big_id),"act_2":"quote","prod_2":str(bath_id),"act_3":"skip","act_4":"new","name_4":"Stair handrail with glass","cat_4":"Hardware","rooms_4":str(_sta),"act_5":"merge","into_5":"4"}
     r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(base, supplier_id="", act_1="skip"), follow_redirects=False); assert "err=" in r.headers["location"] and "preview?key=" in r.headers["location"] and "choices%20are%20kept" in r.headers["location"]
     qkey2=_unq(r.headers["location"].split("key=")[1].split("&")[0]); assert qkey2!=qkey and _st.read_image(qkey) is None  # the choices made so far wait under a new key
+    assert 'data-f="open"' in c.get(f"/p/{pid_q}/quotations/preview?key={qkey2}").text and 'id="qi-folded"' in c.get(f"/p/{pid_q}/quotations/preview?key={qkey2}").text  # opens on Needs you, the rest folded
     h=c.get(f"/p/{pid_q}/quotations/preview?key={qkey2}").text; assert re.search(r'name="act_1"[^>]*>(?:(?!</select>).)*value="skip" selected', h, re.S) and 'id="document" open' in h
     qkey=qkey2; base["key"]=qkey
     r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(base, supplier_id="__new__", supplier_name="Foshan Ceramics", supplier_city="Foshan"), follow_redirects=False)

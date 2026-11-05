@@ -184,17 +184,26 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
   The shell shows the glyph unless a studio logo is uploaded in Settings.
 - Icons: inline `<svg class="ic"><use href="#i-NAME"/></svg>` from the sprite in base.html. Add new symbols
   there, never an icon font or CDN.
-- Yellow (`class="in"`) still means "the user types here". Use `.grid .g2/.g3/.g4` + `.span2…` instead of
+- `class="in"` marks the fields the user types in; they are white now (a form of yellow boxes read as warnings). Use `.grid .g2/.g3/.g4` + `.span2…` instead of
   inline `grid-column`. The reusable `.fab` sits above the bottom tab bar (phone only: add `hide-d`).
 - The app top bar is styled as `header.top`, never bare `.top`: `.row.top` is a layout helper and would pick it up.
-- Navigation: sidebar/bottom bar/sheet are generated in base.html from the URL path; when you add a section,
-  add it to the `project_links` or `studio_links` macro once and it appears everywhere.
+- Navigation: a project has five places, **Home** (`/p/<id>`), **Design** (Items, Drafts, Rooms, Plan, Images & plans),
+  **Sourcing** (`/buying`: Products, Quotations, Tracker, Purchase schedule), **Orders** (Orders, Payments, Suppliers) and
+  **Delivery** (Boxes, Shipments), plus the project menu (Share & print, Import & export, Lists, Project settings).
+  base.html builds the sidebar, the phone tab bar (Home, Design, Capture, Sourcing, Orders, More) and the More sheet from
+  `nav_section(p, path)` (which place a URL belongs to), `project_links` and `project_menu`; the tabs inside a place are
+  `_sections.html` → `section_tabs(p, section, active)` (`buying/_tabs.html` and `shipping/_tabs.html` call it). A new page
+  goes into one place: its URL in `nav_section`, its tab in `section_tabs`. URLs did not change when the places came in.
 
 ## Conventions (keep them)
 
 - Pages are plain HTML forms + redirects. JavaScript only where it removes a round trip (status dropdown,
   photo compression, copy link). No frontend framework, no build step.
-- Yellow inputs (`class="in"`) = the user types; everything else is calculated.
+- Inputs with `class="in"` = the user types; everything else is calculated.
+- Statuses: the stored value stays (`config.STATUSES`, the Excel sheet, the import); what a page shows goes through the
+  `status_label` filter (`config.STATUS_LABELS`: "Quoted" shows as "Shop chosen"). Lists show a read-only badge; the status
+  can be set by hand on the item (More details) and in the plan's room panel (`status-sel`).
+- Page text: at most one sentence under a title (`p.sub`); the steps belong in `help_tips.py` (the ? drawer), not on the page.
 - **One product, many rooms.** A product used in several rooms is one `Item` row per room. What makes rows the same product is
   `services.product_key`: name + size + finish (`IDENTITY_FIELDS`; case, spacing and the x of a size normalised). The
   preferred brand (`Item.brand`) is shared by the twins but is not identity. Keep names short and generic ("Floor tiles")
@@ -890,6 +899,19 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   Finding a product on a line: `.qi-find` search box (words, room code, our code: `data-s` on the options = codes, rooms, spec),
   chips of the hits; `data-same` (item number + unit, else name + size + unit) drives the "Also for L…" chip. Memory: `remember()`
   writes the shop's row and a supplier-less row by wording (`memory()` returns both, the shop's first; shortlist 0.9 / 0.85).
+
+- **Usability, phase 1.** Users found the app hard to follow. The project's 14 menu entries became five places (see
+  Navigation above), Home (`projects/dashboard.html`) became a to-do list (`routers/buy.tracker_figures` = the Tracker's
+  `ordering.tracker`, attention lines first, plus drafts to name and the client's pictures), with Progress (room lines by
+  status) and Money, Share & print and the breakdown folded (`details.card.fold`). The item form shows name, photos,
+  category, rooms, qty and unit; size, finish, spec, brand, status, notes and the web link sit under `details.more-details`,
+  Rooms with this item too. The Items page lost its status dropdowns (badges; `status_label`), shows the Delete selected
+  bar only after **Select** (`body.selecting`, app.js) and folds its filters behind **Filters** on a phone (`.filters.open`);
+  `table.it-list` / `.it-table` drop secondary columns on a phone. The quotation preview opens on the **Needs you** filter
+  (`setFilter('open')`: the lines that need a decision when the page opened, `isOpen()`, plus any that need a check now);
+  sure matches, extra charges and skipped lines fold under `#qi-folded`; on a phone Walk me through starts by itself once per
+  sheet (sessionStorage `qi.walked.<key>`). Inputs are white. Page intros are one sentence. Phases 2 (choosing a shop puts
+  it on an order, automatic statuses, the quotation wizard) and 3 (the product as a record of its own) are next.
 
 ## Backlog (in priority order)
 
