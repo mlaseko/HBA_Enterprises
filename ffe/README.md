@@ -322,7 +322,8 @@ name** (or set the Kind by hand): every existing entry starts as a room.
   product page's `#options` grid (`POST /p/<id>/buying/<product>/options`: `pick_<room id>` = option quote ids, or `all`)
   buys each room from the options ticked; a second option adds a line in the room with the same quantity, dropping it
   deletes that line, rooms on a confirmed order are kept. `Group.estimate_quote` (the dearest option while options are
-  open) is what the Tracker estimates with; `Group.rooms_open` drives the Tracker's attention line and `/buying?options=1`.
+  open) is what the Tracker estimates with; a line bought from an option shows the option's supplier picture (`Item.option_cover`
+  first in `Item.cover`); `Group.rooms_open` drives the Tracker's attention line and `/buying?options=1`.
 - A sheet with a summary table and its breakdown: `_parse_sheet` numbers the tables (`line["table"]`) and `_mark_breakdowns`
   sets `summary_of` / `part_of` when one table's lines add up to a line of another; `suggest` merges the parts into the
   summary line and `apply` / the preview count their amounts once (`is_breakdown`). `Quotation.replaces_id` (column via

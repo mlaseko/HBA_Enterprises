@@ -6,6 +6,7 @@
   <button type="button" class="btn icon ghost" data-qv-close aria-label="Close"><svg class="ic"><use href="#i-x"/></svg></button>
 </div>
 <div class="qv-body">
+  {% set oc = it.option_cover %}{% if oc %}<div class="qv-opt small"><span class="pill gold">Chosen: {{ oc.caption }}</span></div>{% set ph = [oc] + ph %}{% endif %}
   {% if ph %}<div class="qv-pics" data-lb-group>{% for x in ph[:8] %}<a href="/media/{{ x.file_key }}" data-caption="{{ it.name }}"><img src="/media/{{ x.thumb }}" alt="{{ it.name }}" loading="lazy"></a>{% endfor %}</div>
   {% else %}<div class="qv-nopic small muted"><svg class="ic lg"><use href="#i-image"/></svg>No photo yet</div>{% endif %}
   <dl class="qv-spec">
