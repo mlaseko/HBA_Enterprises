@@ -5,19 +5,19 @@
 {% block content %}
 {% set qroom = f.room if f.room not in ('', 'none') else '' %}
 {% set filtering = f.floor or f.room or f.category or f.status or f.supplier or f.q %}
-{% set view = f.view if f.view in ('cards', 'table') else 'list' %}
+{% set view = f.view if f.view in ('cards', 'table', 'list') else 'grid' %}
 {% set qs_ = qs ~ '&' if qs else '' %}
 <div class="page-head">
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
-    <h1>Items <span class="h-note">{% if view == 'list' %}{{ rows|length }} item{{ 's' if rows|length != 1 }} · {{ items|length }} room line{{ 's' if items|length != 1 }}{% else %}{{ items|length }}{% endif %} · {{ total|cur }} · {{ (total)|cur_other }}</span></h1>
-    <p class="sub">{% if view == 'list' %}One line per product, with its rooms and total.{% elif view == 'table' %}One line per room.{% else %}By category, with photos.{% endif %}</p>
+    <h1>Items <span class="h-note">{% if view in ('list', 'grid') %}{{ rows|length }} item{{ 's' if rows|length != 1 }} · {{ items|length }} room line{{ 's' if items|length != 1 }}{% else %}{{ items|length }}{% endif %} · {{ total|cur }} · {{ (total)|cur_other }}</span></h1>
+    <p class="sub hide-m">{% if view == 'list' %}One line per product, with its rooms and total.{% elif view == 'table' %}One line per room.{% elif view == 'grid' %}A card per product, whatever its rooms, by category.{% else %}By category, with photos.{% endif %}</p>
   </div>
   <div class="actions">
     {% if qroom %}<a class="btn sec" href="/p/{{ p.id }}/plan?room={{ qroom }}" title="Show this room on the floor plan"><svg class="ic"><use href="#i-map"/></svg>On the plan</a>{% endif %}
-    <a class="btn sec" href="/p/{{ p.id }}/capture?room={{ qroom }}&amp;category={{ f.category }}" title="Photos first, names later"><svg class="ic"><use href="#i-camera"/></svg><span class="hide-m">Quick capture</span></a>
-    <a class="btn ghost" href="/p/{{ p.id }}/export/items.xlsx{% if qs %}?{{ qs }}{% endif %}" title="{{ 'Excel of the items this filter shows' if filtering else 'Excel of all items' }}, to edit and import back"><svg class="ic"><use href="#i-download"/></svg>Export{% if filtering %} these {{ items|length }}{% endif %}</a>
-    <a class="btn" href="/p/{{ p.id }}/items/new?room={{ qroom }}&amp;category={{ f.category }}"><svg class="ic"><use href="#i-plus"/></svg>Add item</a>
+    <a class="btn sec hide-m" href="/p/{{ p.id }}/capture?room={{ qroom }}&amp;category={{ f.category }}" title="Photos first, names later"><svg class="ic"><use href="#i-camera"/></svg><span class="hide-m">Quick capture</span></a>
+    <a class="btn ghost hide-m" href="/p/{{ p.id }}/export/items.xlsx{% if qs %}?{{ qs }}{% endif %}" title="{{ 'Excel of the items this filter shows' if filtering else 'Excel of all items' }}, to edit and import back"><svg class="ic"><use href="#i-download"/></svg>Export{% if filtering %} these {{ items|length }}{% endif %}</a>
+    <a class="btn hide-m" href="/p/{{ p.id }}/items/new?room={{ qroom }}&amp;category={{ f.category }}"><svg class="ic"><use href="#i-plus"/></svg>Add item</a>
   </div>
 </div>
 {{ section_tabs(p, 'design', 'items') }}
@@ -32,14 +32,14 @@
   <select name="status" class="in" aria-label="Status"><option value="">Any status</option>{% for st in STATUSES %}<option value="{{ st }}" {{ 'selected' if f.status == st }}>{{ st|status_label }}</option>{% endfor %}</select>
   <select name="supplier" class="in" aria-label="Supplier"><option value="">Any supplier</option>{% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if f.supplier == s.id|string }}>{{ s.name }}</option>{% endfor %}</select>
   <input type="hidden" name="q" id="live-q-hidden" value="{{ f.q }}">
-  {% if view != 'list' %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
+  {% if view != 'grid' %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
   <noscript><button class="btn sm">Filter</button></noscript>
-  {% if filtering %}<a class="btn ghost sm" href="/p/{{ p.id }}/items{% if view != 'list' %}?view={{ view }}{% endif %}">Clear</a>{% endif %}
+  {% if filtering %}<a class="btn ghost sm" href="/p/{{ p.id }}/items{% if view != 'grid' %}?view={{ view }}{% endif %}">Clear</a>{% endif %}
   <span class="sp"></span>
   <nav class="seg" aria-label="View">
-    <a href="/p/{{ p.id }}/items?{{ qs_ }}view=cards" class="{{ 'on' if view == 'cards' }}"{% if view == 'cards' %} aria-current="page"{% endif %} title="Cards grouped by category"><svg class="ic"><use href="#i-grid"/></svg>Cards</a>
+    <a href="/p/{{ p.id }}/items{% if qs %}?{{ qs }}{% endif %}" class="{{ 'on' if view in ('grid', 'cards') }}"{% if view in ('grid', 'cards') %} aria-current="page"{% endif %} title="A card per product, with its photo"><svg class="ic"><use href="#i-grid"/></svg>Grid</a>
     <a href="/p/{{ p.id }}/items?{{ qs_ }}view=table" class="{{ 'on' if view == 'table' }}"{% if view == 'table' %} aria-current="page"{% endif %} title="One line per room, sortable"><svg class="ic"><use href="#i-layout"/></svg>Table</a>
-    <a href="/p/{{ p.id }}/items?{{ qs_ }}view=list" class="{{ 'on' if view == 'list' }}"{% if view == 'list' %} aria-current="page"{% endif %} title="One line per item across its rooms"><svg class="ic"><use href="#i-tag"/></svg>Item list</a>
+    <a href="/p/{{ p.id }}/items?{{ qs_ }}view=list" class="{{ 'on' if view == 'list' }}"{% if view == 'list' %} aria-current="page"{% endif %} title="One line per item across its rooms"><svg class="ic"><use href="#i-tag"/></svg>List</a>
   </nav>
 </form>
 <div class="card livesearch{{ ' active' if f.q }}">
@@ -51,7 +51,7 @@
 {% if items %}
 <form method="post" id="bulk" action="/p/{{ p.id }}/items/delete-selected" class="select-bar" data-confirm="Delete the ticked items? Their plan dots go with them. A photo stays with the same item in its other rooms and goes only when no room is left; everything not ticked stays.">
   {% for k in ['floor', 'room', 'category', 'status', 'supplier', 'q'] %}{% if f[k] %}<input type="hidden" name="{{ k }}" value="{{ f[k] }}">{% endif %}{% endfor %}
-  {% if view != 'list' %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
+  {% if view != 'grid' %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
   {% if view == 'cards' %}<label class="check"><input type="checkbox" class="sel-all" aria-label="Select all shown"> All shown</label>{% endif %}
   <span class="count small muted">Tick the lines to delete.</span>
   <button type="button" class="btn sm ghost unphoto" hidden>Untick the ones with photos</button>
@@ -115,6 +115,32 @@
   {% endfor %}
   </tbody>
 </table></div>
+
+{% elif view == 'grid' %}
+{# The photo grid: a card per product (its rooms together), by category; a family's variants are cards of their own #}
+{% set ns = namespace(cat=none) %}
+{% for fam in fams %}{% for g in fam.members %}{% set i = g.item %}
+  {% if i.category != ns.cat %}{% if ns.cat is not none %}</div>{% endif %}{% set ns.cat = i.category %}
+  <div class="group-title"><h2>{{ i.category }}</h2></div>
+  <div class="cards pgrid">
+  {% endif %}
+  {% set with_photos = g.rows|selectattr('photos')|list|length %}
+  <article class="item-card pcard" id="item-{{ i.id }}" data-items="{% for r in g.rows %}{{ r.id }}{% if not loop.last %} {% endif %}{% endfor %}" data-search="{{ g.codes }} {{ i.name }} {{ i.spec[:300] }} {{ i.brand }} {{ i.brand_shown }} {{ i.size }} {{ i.finish }} {{ i.category }} {% for r in g.rooms %}{{ r.label if r else 'ALL whole house' }} {{ (r.floor|floor_title) if r and r.floor else '' }} {% endfor %}{% for s in g.suppliers %}{{ s.name }} {% endfor %}{{ g.statuses.keys()|join(' ') }} {{ g.unit }} {{ i.notes[:200] }}">
+    <label class="sel pc-sel"><input type="checkbox" class="sel-box" name="ids" value="{% for r in g.rows %}{{ r.id }}{% if not loop.last %} {% endif %}{% endfor %}" form="bulk"{% if with_photos %} data-photos="{{ with_photos }}"{% endif %} data-codes="{% for r in g.rows %}{{ r.code }}{% if not loop.last %} {% endif %}{% endfor %}" aria-label="Select {{ i.name }}"></label>
+    <a class="pc-pic" href="/p/{{ p.id }}/items/{{ i.id }}" aria-label="{{ i.name }}">{% if g.cover %}<img src="/media/{{ g.cover.thumb }}" alt="" loading="lazy">{% else %}<span class="ph">{{ (i.category or '?')[:1] }}</span>{% endif %}
+      {% if not fam.one %}<span class="pc-var">{{ i.size or 'generic' }}</span>{% endif %}</a>
+    <div class="pc-body">
+      <a class="pc-name" href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.name }}</a>{% if i.optional %} <span class="pill">optional</span>{% endif %}
+      <div class="pc-sub">{{ [i.size, i.finish, i.brand_shown]|select|join(' · ') or '—' }}</div>
+      <div class="pc-meta"><span>{% if g.rooms|length == 1 %}{{ g.rooms[0].name if g.rooms[0] else 'Whole house' }}{% else %}{{ g.rooms|length }} rooms{% endif %}</span><span class="q">{{ g.qty|num }} {{ g.unit }}</span></div>
+      <div class="pc-foot">
+        <span class="pc-st">{% for s, n in g.statuses|dictsort(by='value', reverse=true) %}{% if loop.index <= 2 %}<span class="badge" style="--c:{{ STATUS_COLORS[s] }}">{{ s|status_label }}{% if g.rows|length > 1 %} · {{ n }}{% endif %}</span>{% endif %}{% endfor %}</span>
+        {% if g.total %}<b class="pc-price">{{ g.total|cur }}</b>{% endif %}
+      </div>
+    </div>
+  </article>
+{% endfor %}{% endfor %}
+{% if ns.cat is not none %}</div>{% endif %}
 
 {% elif view == 'list' %}
 <div class="tbl"><table class="sortable it-list">

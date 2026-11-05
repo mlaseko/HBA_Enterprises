@@ -843,8 +843,10 @@ def flow(c):
     r=c.get(f"/p/{pid_p}/items?view=list&q=Reading"); h=r.text
     assert h.count('<tr id="item-')==1 and re.search(r'data-items="\d+ \d+ \d+"', h) and '>3 rooms</a>' in h and '6 pcs</td>' in h and 'data-v="900.0">900</td>' in h and "1 item · 3 room lines" in h and 'Shop chosen · 3</span>' in h and '<th data-sort="num">Rooms</th>' in h
     assert "status-sel" not in h and "One line per product" in h and c.get(f"/p/{pid_p}/items?view=list").text.count('<tr id="item-')>=5
-    h=c.get(f"/p/{pid_p}/items").text; assert 'aria-current="page" title="One line per item' in h and h.count('<tr id="item-')>=5 and 'name="view"' not in h  # the Item list is the default view
-    h=c.get(f"/p/{pid_p}/items?q=Bedside lamp").text; assert h.count('<tr id="item-')==1 and 'class="status-sel"' not in h and '<span class="badge" style="--c:' in h  # one room: its status as a read-only badge
+    h=c.get(f"/p/{pid_p}/items?view=list").text; assert 'aria-current="page" title="One line per item' in h and h.count('<tr id="item-')>=5
+    h=c.get(f"/p/{pid_p}/items").text; assert 'aria-current="page" title="A card per product' in h and 'class="cards pgrid"' in h and h.count('<article class="item-card pcard"')>=5 and '<tr id="item-' not in h and 'name="view"' not in h  # the photo grid is the default view
+    h=c.get(f"/p/{pid_p}/items?q=Reading").text; assert h.count('<article class="item-card pcard"')==1 and '3 rooms' in h and 'Shop chosen' in h  # one card for the three bedrooms
+    h=c.get(f"/p/{pid_p}/items?view=list&q=Bedside lamp").text; assert h.count('<tr id="item-')==1 and 'class="status-sel"' not in h and '<span class="badge" style="--c:' in h  # one room: its status as a read-only badge
     db=SessionLocal(); prp=db.get(_P,int(pid_p)); gs={g["item"].name:g for g in _gi(_si(list(prp.live_items), prp))}; db.close()
     assert len(gs["Reading light"]["rows"])==3 and gs["Reading light"]["qty"]==6 and gs["Reading light"]["total"]==900 and gs["Reading light"]["status_text"]=="Quoted" and gs["Reading light"]["unit"]=="pcs" and len(gs["Reading light"]["rooms"])==3
     assert len(gs["Bedside lamp"]["rows"])==1 and gs["Bedside lamp"]["rooms"][0].code=="FF-MBR" and gs["Bedside lamp"]["codes"]=="FF-MBR-01"
@@ -1608,7 +1610,7 @@ def flow(c):
     # money: summary, Overview, Payments, the supplier page and its list
     db=SessionLocal(); s=_summary(db, db.get(_P,pid_o)); db.close()
     assert s["ordered"]==6571.2 and s["paid"]==2628.48 and s["to_pay"]==3942.72 and s["orders"]==2 and {r_["label"]:r_["bought"] for r_ in s["by_sup"]}=={"Tile Shop":6571.2,"Lamp Shop":800}
-    assert "¥3,943 still to pay on ¥6,571 ordered" in c.get(f"/p/{pid_o}").text
+    h=c.get(f"/p/{pid_o}").text; assert 'class="dash-stats"' in h and "Still to pay" in h and "¥3,943" in h and "on ¥6,571 ordered" in h
     h=c.get(f"/suppliers/{ts}?project={pid_o}").text; assert 'id="orders"' in h and "KH-001" in h and f"/p/{pid_o}/orders/{oid}/po.pdf" in h and "on confirmed orders" in h
     assert "to pay ¥3,943" in c.get(f"/p/{pid_o}/suppliers").text
     assert c.get(f"/p/{pid_o}/export/po/{ts}.pdf").status_code==200  # every item from the shop, as before

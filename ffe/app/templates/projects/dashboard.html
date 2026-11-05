@@ -33,6 +33,30 @@
 </section>
 {% endif %}
 
+{# The figures that matter, big: what the chosen shops cost against the budget, paid, still to pay, on site #}
+{% set used = (t.committed / t.budget) if t.budget else none %}
+{% set onsite = ((100 * s.received / s['items'])|round|int) if s['items'] else 0 %}
+<div class="dash-stats">
+  <div class="stat">
+    <span class="l">Committed</span><span class="v">{{ t.committed|cur }}</span>
+    <span class="s">{% if used is not none %}{{ (used * 100)|int }}% of the {{ t.budget|cur }} budget{% else %}<a href="/p/{{ p.id }}/edit">Set a budget</a> to follow it{% endif %}</span>
+    {% if used is not none %}<div class="meter{{ ' over' if used > 1 }}" role="img" aria-label="{{ (used * 100)|int }}% of the budget committed"><i style="width:{{ [100, (used * 100)|int]|min }}%"></i></div>{% endif %}
+  </div>
+  <div class="stat">
+    <span class="l">Paid</span><span class="v">{{ s.paid|cur }}</span>
+    <span class="s">{{ s.paid|cur_other }}{% if s.ordered %} · {{ ((100 * s.paid / s.ordered)|round|int) }}% of what is ordered{% endif %}</span>
+  </div>
+  <div class="stat{{ ' due' if s.to_pay > 0 }}">
+    <span class="l">Still to pay</span><span class="v">{{ s.to_pay|cur }}</span>
+    <span class="s">{% if s.ordered %}on {{ s.ordered|cur }} ordered{% else %}Nothing on a confirmed order yet{% endif %}</span>
+  </div>
+  <div class="stat">
+    <span class="l">On site</span><span class="v">{{ onsite }}<small>%</small></span>
+    <span class="s">{{ s.received }} of {{ s['items'] }} room line{{ 's' if s['items'] != 1 }} received</span>
+    <div class="meter sage" role="img" aria-label="{{ onsite }}% of the room lines on site"><i style="width:{{ onsite }}%"></i></div>
+  </div>
+</div>
+
 {# What needs you: the Tracker's attention lines (ordering.tracker), then the drafts to name and the client's new pictures #}
 {% set extra = [] %}
 {% if s.drafts %}{% set _ = extra.append(dict(tone='muted', icon='camera', title='Name ' ~ s.drafts ~ ' photo' ~ ('s' if s.drafts != 1 else '') ~ ' from Quick capture', detail='Drafts (' ~ s.drafts ~ ') · they count once they have a name', href='/p/' ~ p.id ~ '/drafts')) %}{% endif %}
@@ -74,17 +98,20 @@
       {% else %}<p class="small muted mt mb-0">Add items to follow them from To buy to on site.</p>{% endif %}
     </section>
 
-    <section class="card" aria-labelledby="money-h">
-      <div class="row between"><h2 id="money-h" class="mb-0">Money</h2><a class="small" href="/p/{{ p.id }}/payments">Payments</a></div>
-      {% set used = (t.committed / t.budget) if t.budget else none %}
-      <div class="home-money mt">
-        <div><span class="l">Committed</span><span class="v">{{ t.committed|cur }}</span><span class="s">{{ t.committed|cur_other }}</span></div>
-        <div><span class="l">Budget</span><span class="v">{% if t.budget %}{{ t.budget|cur }}{% else %}—{% endif %}</span><span class="s">{% if used is not none %}{{ (used * 100)|int }}% committed{% else %}<a href="/p/{{ p.id }}/edit">set a budget</a>{% endif %}</span></div>
-        <div><span class="l">Paid</span><span class="v">{{ s.paid|cur }}</span><span class="s">{{ s.paid|cur_other }}</span></div>
-        <div><span class="l">Still to pay</span><span class="v">{{ s.to_pay|cur }}</span><span class="s">on confirmed orders</span></div>
+    {% set cats = s.by_cat|selectattr('total')|sort(attribute='total', reverse=true)|list %}
+    <section class="card" aria-labelledby="spend-h">
+      <div class="row between"><h2 id="spend-h" class="mb-0">Spend by category</h2><a class="small" href="/p/{{ p.id }}/buying/tracker">Tracker</a></div>
+      {% if cats %}
+      {% set top = cats[0].total %}{% set shown = cats[:7] %}{% set rest = cats[7:]|sum(attribute='total') %}
+      <div class="hbars mt" role="list">
+        {% for r in shown %}
+        <a class="hbar" role="listitem" href="/p/{{ p.id }}/items?category={{ r.label|urlencode }}" title="{{ r.label }}: {{ r.total|cur }} · {{ r.count }} room line{{ 's' if r.count != 1 }}">
+          <span class="k">{{ r.label }}</span><span class="track"><i style="width:{{ [2, (100 * r.total / top)|round(1)]|max }}%"></i></span><span class="n">{{ r.total|cur }}</span></a>
+        {% endfor %}
+        {% if rest %}<div class="hbar other" role="listitem" title="{{ cats|length - 7 }} more categories: {{ rest|cur }}"><span class="k">{{ cats|length - 7 }} more</span><span class="track"><i style="width:{{ [2, (100 * rest / top)|round(1)]|max }}%"></i></span><span class="n">{{ rest|cur }}</span></div>{% endif %}
       </div>
-      {% if used is not none %}<div class="home-bar mt{{ ' over' if used > 1 }}"><i style="width:{{ [100, (used * 100)|int]|min }}%"></i></div>{% endif %}
-      <p class="small muted mt mb-0">{% if s.ordered %}{{ s.to_pay|cur }} still to pay on {{ s.ordered|cur }} ordered{% else %}Nothing on a confirmed order yet{% endif %}.</p>
+      <p class="small muted mt mb-0">The chosen shops' prices for the rooms' quantities. A product with no shop counts nothing yet.</p>
+      {% else %}<p class="small muted mt mb-0">Nothing priced yet: choose a shop for some rooms in Sourcing.</p>{% endif %}
     </section>
   </div>
 </div>

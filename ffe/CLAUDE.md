@@ -168,8 +168,17 @@ samples/               Kinondoni procurement Excel used by the import test
 
 ## Look and feel (keep it consistent)
 
-Warm, editorial, interior-design studio: linen background, white cards, terracotta/gold accents, serif page
-titles (system serif stack), sans body. Everything lives in `app/static/app.css`; no external fonts or assets.
+Design system A, "clean workspace": a dark sidebar (`--side*` tokens), a neutral grey canvas (`--bg`), white flat cards
+with a hairline border, one accent (terracotta `--accent`), system sans everywhere (`--serif` is an alias of `--sans` so
+old rules keep working), 8px buttons and inputs (44px tall and 16px text on the phone), compact tables. The tokens are the
+`:root` block at the top of `app/static/app.css`; the "Design system A" section at its end restyles the shell and the
+components. No external fonts or assets.
+- Layouts built for it: Home opens with four figures (`.dash-stats > .stat`, `.meter` bar) and a **Spend by category**
+  bar list (`.hbars > a.hbar`: `.k` label, `.track > i` bar, `.n` value; one colour, a hover title, the rest folded into
+  one `.other` line); the Items page opens on the **Grid** (`view=grid`, the default: `.cards.pgrid > article.pcard`, a
+  photo card per product from `group_items`, `.pc-sel` checkbox carrying every room line id); the product page has
+  `.pstats` under the hero and a `.qchart` (an `hbar` per priced quote, `.best` green, `.chosen` accent) when two quotes
+  or more are priced. Charts follow the dataviz rules: one series in one colour, no legend for one series, text in ink.
 - Every designer page starts with `.page-head`: `.crumbs` (Projects › project › section), `h1` (+ `.h-note`
   for counts), optional `p.sub`, and `.actions` (buttons). Public share pages use `{% block pubctx %}` and
   `{% block pubactions %}` instead.

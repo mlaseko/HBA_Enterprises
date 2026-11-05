@@ -104,7 +104,7 @@ TIPS = {
         what="The schedule itself: one line per product, with its rooms, quantity and status. The shop and the price come from Sourcing.",
         steps=["Press <b>Add item</b> to type one in, or <b>Quick capture</b> to shoot samples first and name them later.",
                "Filter by <b>floor</b>, room, category, status or supplier: the list updates as soon as you pick (on a phone, press <b>Filters</b> first). The <b>search box</b> searches as you type in every field; each word must appear somewhere, in any order, and * stands for anything (tile*600). Enter makes the words part of the filter, so Export follows.",
-               "The page opens on the <b>Item list</b> (one line per product across its rooms); switch to the <b>Table</b> (one line per room) or <b>Cards</b> (with photos) at the right of the filters. Press a <b>column heading</b> to sort.",
+               "The page opens on the <b>Grid</b>: a card per product, with its photo, whatever its rooms; switch to the <b>Table</b> (one line per room) or the <b>List</b> (one line per product, sortable) at the right of the filters. Press a <b>column heading</b> to sort.",
                "<b>Export</b> gives the Excel of what the filter shows, ready to edit and import back.",
                "To delete several at once, press <b>Select</b>, tick the lines and press <b>Delete selected</b>; you confirm before anything goes. <b>Tick by codes</b> in the same bar ticks the lines whose codes you paste."],
         tips=["The status moves by itself: Shop chosen when a shop is chosen in Sourcing, then Ordered and Paid with the order, Shipped and Received with the boxes. Set it by hand on the item, under More details, or in the plan's room panel.",
