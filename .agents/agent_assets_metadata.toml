@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "h8LdIRoc5IAjJgu734rU6"
+uri = "file://generated-artifacts/database-backups/ffe-development-20261105T192859Z.dump"
+type = "unspecified"
+title = "Workspace database backup"
+description = "PostgreSQL custom-format backup of the workspace database, including schema and data. Archive contents were validated; keep this file private."
+logical_id = "40aaf30b-216c-44d0-a169-39f0a5ed3583"
+content_hash = "sha256:2060855a427e9eda84dc2ce7af80acdc2966887cfc89b878dde630435539a58f"
+size = 101220
+mtime_ms = 1793906940048
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:6c774abc-2191-4c3f-876f-673aeaf77bf6/40aaf30b-216c-44d0-a169-39f0a5ed3583/577e06d0-ebb9-46ea-b4aa-1a986510b9db"
+storage_version_token = "1793906959208872"
+content_type = "application/octet-stream"
