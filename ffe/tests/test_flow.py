@@ -970,7 +970,7 @@ def flow(c):
         cn.execute(_text("INSERT INTO rooms (code, name) VALUES ('X', 'Old room')"))
         cn.execute(_text("INSERT INTO project_images (kind) VALUES ('floorplan')"))
         cn.execute(_text("INSERT INTO item_photos (file_key) VALUES ('p1/old.jpg')"))
-    assert _migrate(_eng)==["items.draft", "rooms.kind", "project_images.layer", "item_photos.thumb_key", "item_photos.source", "item_photos.digest", "items.purchase_id"] and _migrate(_eng)==[]
+    assert _migrate(_eng)==["items.draft", "rooms.kind", "project_images.layer", "item_photos.thumb_key", "item_photos.source", "item_photos.digest", "items.purchase_id", "items.product_id"] and _migrate(_eng)==[]
     with _eng.begin() as cn: cn.execute(_text("INSERT INTO project_images (kind, layer) VALUES ('floorplan', 'furniture')")); cn.execute(_text("INSERT INTO project_images (kind, layer) VALUES ('floorplan', 'furnishing')"))
     assert _migrate(_eng)==["project_images.layer: 1 rows relabelled"] and _migrate(_eng)==[]  # the old name of the main plan; a furniture layout stays
     with _eng.connect() as cn: assert sorted(r[0] for r in cn.execute(_text("SELECT layer FROM project_images")))==["furnishing", "main", "main"]
@@ -1524,6 +1524,16 @@ def flow(c):
     q_=db.get(_Pu,b_.purchase_id).quote; assert q_.supplier_id==rsid and "before quotes existed" in q_.notes
     assert d_.unit_price==0 and d_.status=="To buy" and e_.unit_price==0 and "Price noted at capture: ¥30.00" in e_.notes; db.close()
     db=SessionLocal(); assert _bz.upgrade(db)=={}; db.close()  # once only
+    # products by id: a project from before (lines not linked, its product keyed by what it read as) is linked once at
+    # start; the product keeps its id, quotes and purchases, takes its details, and a line renamed in every room stays on it
+    db=SessionLocal(); P=db.get(_P,pid_b); _ln=[i for i in P.live_items if i.product_id==tp]; assert len(_ln)>=2
+    _ck=_bz.content_key(_ln[0]); _nq=len(db.get(_Pr,tp).quotes); assert _nq>=1
+    for i in _ln: i.product_id=None
+    pr=db.get(_Pr,tp); pr.key, pr.name, pr.size, pr.finish = _ck, "", "", ""
+    db.query(_SM).filter(_SM.key==_bz.PRODUCTS_MARK).delete(); db.commit(); db.close()
+    db=SessionLocal(); assert _bz.link_products(db)>=1 and _bz.link_products(db)==0; db.close()  # once
+    db=SessionLocal(); pr=db.get(_Pr,tp); assert pr.key==f"#p{tp}" and _bz.content_key(pr)==_ck and len(pr.quotes)==_nq
+    assert all(db.get(Item,i.id).product_id==tp for i in _ln) and db.query(_SM).filter(_SM.key==_bz.PRODUCTS_MARK).count()==1; db.close()
     print("buying ok")
     # ---- Orders: what was bought, on numbered orders per shop; confirming, paying, the statuses that follow, the tracker ----
     import datetime as _dt
@@ -2176,7 +2186,7 @@ def flow(c):
     r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(form8, key=key8b, **{f"split_{_acp_id}":"1"}), follow_redirects=False); assert r.status_code==303 and "2%20quotes%20from%20George%20Appliances%20added" in r.headers["location"], r.headers["location"]
     qd8=int(r.headers["location"].split("/quotations/")[1].split("?")[0])
     db=SessionLocal(); _its={i.room_id: i for i in db.query(Item).filter(Item.project_id==pid_q, Item.name=="Air conditioner")}; assert {k: v.size for k, v in _its.items()}=={_acr[0][0]:"2.5 HP", _acr[1][0]:"1 HP", _acr[2][0]:"1 HP"}, {k: v.size for k, v in _its.items()}
-    assert db.query(_Pr).filter(_Pr.project_id==pid_q, _Pr.key=="air conditioner||").count()==0  # the generic product, left with no room and no quote, is gone (SQLite may reuse its id)
+    assert not any(_bz.content_key(x)=="air conditioner||" for x in db.query(_Pr).filter(_Pr.project_id==pid_q))  # no generic product left: every room is on a variant
     _q8=db.get(_QD, qd8); _v={ln.no: ln.product for ln in _q8.lines}; assert _v[1].title=="Air conditioner · 2.5 HP" and _v[2].title=="Air conditioner · 1 HP" and _v[2].id==_v[3].id and _v[1].id!=_v[2].id
     assert len(_v[1].quotes)==1 and _v[1].quotes[0].model=="GWC24" and round(_v[1].quotes[0].amount)==890 and _v[2].quotes[0].model=="GWC09" and round(_v[2].quotes[0].amount)==508
     _p1, _p2 = _v[1].id, _v[2].id; _it0=_its[_acr[0][0]].id; db.close()
@@ -2311,7 +2321,7 @@ def flow(c):
     qd9=int(loc.split("/quotations/")[1].split("?")[0])
     db=SessionLocal(); its=[db.get(Item,i) for i in big_lines]
     assert all(i.size=="1200 x 2400 mm, matt finish" and "Finish matt accepted from Foshan Ceramics, quotation Tiles from Cathy of 2026-10-26; was satin." in i.notes for i in its), [(i.size, i.notes) for i in its]
-    pr9=db.get(_Pr, big_id); assert pr9 is not None and "mattfinish" in pr9.key and pr9.quotes, pr9.key if pr9 else None  # the product followed its lines, its quotes with it
+    pr9=db.get(_Pr, big_id); assert pr9 is not None and pr9.key==f"#p{big_id}" and "mattfinish" in _bz.content_key(pr9) and pr9.quotes, (pr9.key, _bz.content_key(pr9)) if pr9 else None  # the product followed its lines, its quotes with it
     assert {i.id: i.spec for i in db.query(Item).filter(Item.id.in_(list(bath_spec)))}==bath_spec  # asked, not accepted: the items stay
     ls9={ln.no: ln for ln in db.get(_QD, qd9).lines}; assert ls9[1].product_id==big_id
     assert "finish matt offered vs satin asked (accepted: the design now says matt)" in ls9[1].notes and "anti-slip R11 asked, not stated in the offer (asked the shop)" in ls9[2].notes, (ls9[1].notes, ls9[2].notes)

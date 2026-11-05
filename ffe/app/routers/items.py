@@ -112,6 +112,9 @@ def list_items(request: Request, p: Project = Depends(get_project), db: Session 
                category: str = "", status: str = "", supplier: str = "", q: str = "", view: str = "", deleted: int = 0,
                floor: str = ""):
     floor = floor.strip()
+    if any(not i.product_id for i in p.live_items):  # lines not linked to their product yet (from before, or the import's)
+        buying.sync_products(db, p)
+        db.commit()
     if floor and room:  # a room from another floor would leave nothing: picking a floor lets go of it
         if (room == "none" and floor != NO_FLOOR) or (room != "none" and not on_floor(next((r for r in p.rooms if str(r.id) == room), None), floor)):
             room = ""
@@ -275,6 +278,7 @@ async def create_item(request: Request, p: Project = Depends(get_project), db: S
         apply_form(item, db, p, {**dict(form), "room_id": room.id} if room else form)
         db.add(item)
         created.append(item)
+    buying.sync_products(db, p)  # the new lines join their product (one for all the rooms ticked, or the one already reading the same)
     db.commit()
     photos = [await f.read() for f in form.getlist("photos") if hasattr(f, "read")]
     web, err = _fetch_url(form.get("photo_url", ""))
@@ -308,6 +312,9 @@ def item_detail(request: Request, item_id: int, p: Project = Depends(get_project
     item = db.get(Item, item_id)
     if not item or item.project_id != p.id:
         return redirect(f"/p/{p.id}/items")
+    if not item.draft and not item.product_id:  # a line from before products had ids, or the import's: linked first
+        buying.sync_products(db, p)
+        db.commit()
     others = sorted(same_item_elsewhere(p, item), key=lambda i: i.code)
     with_rooms = [o.room_id for o in others if o.room_id]  # the checklist: rooms that have this item (its own room is locked)
     room_links = {o.room_id: (o.code, f"/p/{p.id}/items/{o.id}") for o in others if o.room_id}
@@ -370,6 +377,8 @@ async def update_item(request: Request, item_id: int, p: Project = Depends(get_p
         db.delete(o)
     if not was_draft:
         buying.follow_renames(db, p, before)  # also drops a purchase whose rooms were all taken out
+    elif not item.draft:
+        buying.sync_products(db, p)  # a draft given its name joins its product
     db.commit()
     nxt = safe_next(form.get("next"), "")
     if err:
@@ -504,5 +513,6 @@ def duplicate_item(item_id: int, p: Project = Depends(get_project), db: Session 
                size=src.size, finish=src.finish, qty=src.qty, unit=src.unit, status="To buy", optional=src.optional, notes=src.notes)
     new.code = next_code(db, p, src.room)  # a copy to tweak: no shop or price until it is bought (Buying)
     db.add(new)
+    buying.sync_products(db, p)
     db.commit()
     return redirect(f"/p/{p.id}/items/{new.id}")

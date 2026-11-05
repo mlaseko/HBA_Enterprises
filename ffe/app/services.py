@@ -13,11 +13,20 @@ def _key(s: str) -> str:
     return " ".join((s or "").lower().split())
 
 
-def product_key(item: Item) -> str:
-    """The identity of a product: name + size + finish, ignoring case, spacing and how the x of a size is written. The brand
-    is not part of it: the item is the generic requirement, the brand bought is decided on the Buying page (buying.py)."""
+def content_key(item) -> str:
+    """What a product reads as: name + size + finish, ignoring case, spacing and how the x of a size is written. The brand
+    is not part of it: the item is the generic requirement, the brand bought is decided on the Buying page (buying.py).
+    Lines that read the same are one product (buying.sync_products), and the quotation memory remembers products by it
+    (QuoteMatch.product_key), so a match learnt on one project serves the next."""
     k = _key(item.name)
     return f"{k}|{_SIZE_SEP_RE.sub('x', _key(item.size)).replace(' ', '')}|{_key(item.finish)}" if k else ""
+
+
+def product_key(item: Item) -> str:
+    """The identity of a line's product: "#p<products.id>" once buying.sync_products has linked it (Item.product_id), else
+    what it reads as (content_key), which is how a new line finds its product. Every grouping by product goes through here."""
+    pid = getattr(item, "product_id", None)
+    return f"#p{pid}" if pid else content_key(item)
 
 
 def family_key(name: str, finish: str) -> str:
