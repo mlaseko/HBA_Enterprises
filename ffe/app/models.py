@@ -444,6 +444,9 @@ class Item(Base):
     price_entry: Mapped["ItemPrice | None"] = relationship(back_populates="item", cascade="all, delete-orphan", uselist=False)
     # The purchase that supplies this room line (buying.py). The line's supplier, unit price and lead time are written from
     # it and are never typed on the item; None = no supplier chosen yet. Added by db.COLUMN_MIGRATIONS.
+    # The product this room line is one room of (products.id; buying.sync_products links it). A plain indexed column, no
+    # database foreign key: products and lines are deleted in either order with a project, and a merge moves lines first.
+    product_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     purchase_id: Mapped[int | None] = mapped_column(ForeignKey("purchases.id"), nullable=True)
     purchase: Mapped["Purchase | None"] = relationship(back_populates="lines", lazy="joined")
 
@@ -539,15 +542,24 @@ class ItemPhoto(Base):
 
 
 class Product(Base):
-    """A product being bought for a house: the room lines with the same product key (services.product_key: name, size and
-    finish) are its rooms. What belongs to the buying and not to a room lives here: the allowance on top of the rooms'
-    quantities and the pack it is sold in. Created on the Buying page; its key follows renames (buying.follow_renames)."""
+    """A product of the house: its rooms are the room lines that point here (Item.product_id). It holds the details that are
+    one for all its rooms (name, size, finish, spec, brand, category, unit) and what belongs to the buying: the allowance on
+    top of the rooms' quantities and the pack it is sold in. buying.sync_products links new lines, splits off a line given
+    another name, size or finish of its own, merges two products that come to read the same, and keeps the details."""
     __tablename__ = "products"
     __table_args__ = (UniqueConstraint("project_id", "key", name="uq_products_project_key"),)
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
-    key: Mapped[str] = mapped_column(String(600))
+    key: Mapped[str] = mapped_column(String(600))  # "#p<id>": the product's identity (services.product_key of its lines)
     title: Mapped[str] = mapped_column(String(400), default="")  # name · size · finish when last seen, for a product left without rooms
+    # The product's own details, one for all its rooms (the lines carry a copy that every page reads; sync_products keeps it)
+    name: Mapped[str] = mapped_column(String(200), default="")
+    size: Mapped[str] = mapped_column(String(160), default="")
+    finish: Mapped[str] = mapped_column(String(160), default="")
+    spec: Mapped[str] = mapped_column(Text, default="")
+    brand: Mapped[str] = mapped_column(String(120), default="")
+    category: Mapped[str] = mapped_column(String(60), default="")
+    unit: Mapped[str] = mapped_column(String(10), default="")
     allowance: Mapped[float | None] = mapped_column(Float, nullable=True)  # 0.10 = 10 % extra; None = the category's default
     pack_size: Mapped[float] = mapped_column(Float, default=0.0)  # units per pack (m² per box, m per box); 0 = sold by the unit
     pack_name: Mapped[str] = mapped_column(String(20), default="")  # "box", "roll"…; '' = the default for the unit

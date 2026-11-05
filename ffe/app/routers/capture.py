@@ -11,7 +11,7 @@ from ..models import Project, Item, ItemPhoto, Room
 from ..common import render, redirect, require_login, get_project, ffloat, fint
 from ..services import next_code
 from .items import suggestions
-from .. import storage, lists
+from .. import buying, storage, lists
 
 router = APIRouter(dependencies=[Depends(require_login)])
 
@@ -82,6 +82,7 @@ async def complete_draft(request: Request, item_id: int, p: Project = Depends(ge
         return redirect(f"/p/{p.id}/drafts?err={item.id}")
     item.draft = False
     item.code = next_code(db, p, room)
+    buying.sync_products(db, p)  # named: it joins its product
     db.commit()
     return redirect(f"/p/{p.id}/drafts?saved={item.code}")
 

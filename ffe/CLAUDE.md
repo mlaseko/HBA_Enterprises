@@ -204,8 +204,19 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
   `status_label` filter (`config.STATUS_LABELS`: "Quoted" shows as "Shop chosen"). Lists show a read-only badge; the status
   can be set by hand on the item (More details) and in the plan's room panel (`status-sel`).
 - Page text: at most one sentence under a title (`p.sub`); the steps belong in `help_tips.py` (the ? drawer), not on the page.
-- **One product, many rooms.** A product used in several rooms is one `Item` row per room. What makes rows the same product is
-  `services.product_key`: name + size + finish (`IDENTITY_FIELDS`; case, spacing and the x of a size normalised). The
+- **One product, many rooms.** A product used in several rooms is one `Product` row and one `Item` row per room, the item
+  pointing to it (`Item.product_id`, a plain indexed column). `services.product_key(item)` = `"#p<product id>"` once linked
+  (`Product.key` is the same string), else `services.content_key(item)`: what it reads as, name + size + finish
+  (`IDENTITY_FIELDS`; case, spacing and the x of a size normalised). `buying.sync_products(db, p)` is the one place that
+  links and keeps products: a new or unlinked line joins the product whose lines read the same (or a product from before
+  keyed by that reading), else a new one; a line given its own name, size or finish leaves for the product that reads like
+  it and is uncovered; two products that come to read the same merge (the one whose own details already read so keeps its
+  id: `_merge_product` moves rooms, quotes, purchases, quotation lines); a product renamed in every room keeps its id. The
+  product's `name/size/finish/spec/brand/category/unit` are its first line's; the lines keep their copies, which every page
+  reads. Call it (or `follow_renames`, which now just calls it and `prune`) after anything that creates, names or renames
+  lines; the Items list and item page link stray lines on GET. An explicit move (the variants card) sets `product_id`
+  itself. The quotation memory keeps `content_key` (`Candidate.key`; `Candidate.gkey` is the identity) so a match learnt
+  on one project serves the next. `buying.link_products` ran once at start (`SchemaMark` "products.v2"). The
   preferred brand (`Item.brand`) is shared by the twins but is not identity. Keep names short and generic ("Floor tiles")
   and the variation in size / finish; never fold the size or colour into the name. `same_item_elsewhere` (the rooms a product's changes go to, the rooms table and checklist) and `group_items` (the Item list) must keep using
   that one rule. The name, size, finish and brand inputs carry `<datalist>` suggestions from `items.suggestions` so values are
@@ -939,9 +950,9 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   to this room only") keeps the change on the line (a new name, size or finish then splits it off); `apply_all=1` still
   copies every shared field (older forms, the tests). `twin_differences` / `DIFF_LABELS` are gone. The item page shows
   `#rooms`: every line of the product with its code, status and a quantity input (`qty` for this line, `qty_<line id>` for
-  the others, read in `update_item`), and the room checklist folded under "Add or remove rooms". Product identity stays
-  `services.product_key` (name + size + finish): the quotation memory (`QuoteMatch.product_key`) and the variants
-  (`split_products`, families) work by it across projects, so an id-based product was not worth rewriting them.
+  the others, read in `update_item`), and the room checklist folded under "Add or remove rooms". Then the products became
+  records of their own (see "One product, many rooms" in the conventions): `Item.product_id`, the product's own details,
+  `sync_products` as the reconciliation, `link_products` once at start; the quotation memory keeps `content_key`.
   `Project.features_off` (column via `COLUMN_MIGRATIONS`; `Project.FEATURES` = plan, delivery; `p.uses(name)`), set by the
   "This project uses" boxes on Project settings (`features_form=1`, `use_<feature>`): Delivery leaves the sidebar / More
   sheet and Plan leaves the Design tabs (the pages still open by URL; nothing is deleted). Home's **Getting started**

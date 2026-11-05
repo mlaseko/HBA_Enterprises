@@ -36,7 +36,7 @@ from sqlalchemy.orm import Session, object_session
 from . import ai, buying, config, drawings, lists, storage
 from .models import Item, Product, Project, Purchase, Quotation, QuotationLine, QuotationLineAlso, QuotationUpload, Quote, QuoteMatch, Supplier
 from .refs import tokens as ref_tokens
-from .services import next_code, product_key
+from .services import content_key, next_code, product_key
 
 # ---- reading the sheet ---------------------------------------------------------------------------------------------------
 EXTENSIONS = ("xlsx", "xlsm", "xls")
@@ -575,7 +575,8 @@ class Candidate:
     def __init__(self, g, product: Product):
         self.g, self.product = g, product
         self.id = product.id
-        self.key = g.key
+        self.gkey = g.key  # the product's identity (buying.groups)
+        self.key = content_key(g.item)  # what it reads as: the memory (QuoteMatch.product_key) remembers products by it, across projects
         self.name, self.size, self.finish, self.category = g.item.name or "", g.item.size or "", g.item.finish or "", g.category or ""
         self.spec = g.item.spec or ""
         self.unit = g.unit if g.unit != "mixed" else (g.item.unit or "")
@@ -1380,6 +1381,7 @@ def set_variants(db: Session, p: Project, labels: dict[int, str], moves: dict[in
         if it.purchase is not None and it.purchase.product_id != pid:
             buying.uncover(it)
         it.size = size_of[pid]
+        it.product_id = pid  # moved: the line is one room of that variant now (the one it left keeps its quotes)
         changed += 1
     db.flush()
     buying.sync_products(db, p)

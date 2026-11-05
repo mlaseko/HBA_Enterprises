@@ -199,8 +199,10 @@ name** (or set the Kind by hand): every existing entry starts as a room.
 
 ## Buying, prices and currency
 
-- An item is the generic requirement (what, where, how many, the preferred brand). The room lines with the same
-  `services.product_key` (name + size + finish) are one **product**; `buying.py` holds its buying data: `Product`
+- An item is the generic requirement (what, where, how many, the preferred brand). The room lines of one **product**
+  point to it (`Item.product_id`); the product keeps the details that are one for all its rooms (name, size, finish, spec,
+  brand, category, unit) and lines that read the same (`services.content_key`: name + size + finish) are linked to the same
+  product by `buying.sync_products`; `buying.py` holds its buying data: `Product`
   (allowance, pack size and name, notes), `Quote` (one shop's offer) and `Purchase` (what is bought from one shop; the
   room lines it supplies point to it with `items.purchase_id`). A line is always bought whole from one shop.
 - `Item.unit_price` stays CNY and is written **only by a purchase** (`buying.cover`): the line takes the purchase's
@@ -213,8 +215,10 @@ name** (or set the Kind by hand): every existing entry starts as a room.
 - **What to order** = the rooms' quantity × (1 + allowance), rounded up to whole packs when the pack size is known,
   else to whole pieces for pcs/set/box/roll (`buying.order_qty`); a purchase can carry a quantity set by hand.
   Committed = what to order × the shop's price, per purchase.
-- Renames keep the buying data: `buying.follow_renames` re-keys (or merges) a product whose lines all moved to one new
-  key, and uncovers a line that left its product alone. Purchases without lines are pruned.
+- Renames keep the buying data: a product's identity is its id, so a product renamed in every room keeps its quotes and
+  purchases; a line renamed alone leaves for the product that reads like it and loses its old product's shop; two products
+  that come to read the same merge (`buying.sync_products`, which `follow_renames` calls). Purchases without lines are pruned.
+  Existing projects were linked once at start (`buying.link_products`).
 - The client schedule and link show no price for a line until a shop is chosen for it.
 - **Orders** (`ordering.py`): `Order` = purchases of one shop (`purchases.order_id`), numbered per project
   (`Project.orders_made` keeps the last number so a deleted order's number is never given again), a draft until

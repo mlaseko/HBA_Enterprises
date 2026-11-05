@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session, object_session
 
 from . import config, drawings, lists, storage
 from .models import Item, ItemPrice, Payment, Carton, Order, Product, Project, Purchase, Quote, SchemaMark, Supplier, SupplierLink, QuotationLine
-from .services import product_key, sort_items
+from .services import content_key, product_key, sort_items
 
 STAGES = ["To source", "Quoting", "Part sourced", "Sourced", "Ordered", "Paid"]
 STAGE_HELP = {"To source": "no quote yet", "Quoting": "quotes in, no shop chosen", "Part sourced": "a shop chosen for some rooms",
@@ -42,6 +42,8 @@ STAGE_COLORS = {"To source": "#9CA3AF", "Quoting": "#F59E0B", "Part sourced": "#
 AUTO_STATUSES = ("To buy", "Quoted", "Ordered", "Paid")  # the statuses buying and the orders set; Shipped and Received stay the designer's
 PACK_NAMES = {"m²": "box", "m": "box", "lm": "box"}  # what a pack is called by default; other units are bought one by one
 UPGRADE_MARK = "buying.v1"
+PRODUCTS_MARK = "products.v2"  # every room line linked to its product (Item.product_id), products keyed "#p<id>"
+SHARED = ("name", "size", "finish", "spec", "brand", "category", "unit")  # one for all the rooms of a product
 
 
 # ---- quantities -----------------------------------------------------------------------------------------------------------
@@ -333,24 +335,126 @@ def groups(p: Project, products: dict | None = None, ledger: Ledger | None = Non
     return [Group(k, lines, products.get(k), ledger) for k, lines in by_key.items()]
 
 
+def _reads(pr: Product) -> str:
+    """What a product's own details read as ('' before they were first written)."""
+    return content_key(pr) if pr.name else ""
+
+
+def _merge_product(db: Session, src: Product, dst: Product, prods: dict, lines: list[Item]) -> None:
+    """src came to read like dst (renamed onto it): one product, with the rooms, quotes and purchases of both."""
+    from .models import QuotationLineAlso
+    for q in list(src.quotes):
+        q.product = dst
+    for pu in list(src.purchases):
+        pu.product = dst
+    db.query(QuotationLine).filter(QuotationLine.product_id == src.id).update({"product_id": dst.id})  # the sheets' lines follow
+    db.query(QuotationLineAlso).filter(QuotationLineAlso.product_id == src.id).update({"product_id": dst.id})
+    for i in lines:
+        if i.product_id == src.id:
+            i.product_id = dst.id
+    db.flush()
+    prods.pop(src.id, None)
+    proj = src.project
+    if proj is not None and src in proj.products:
+        proj.products.remove(src)  # delete-orphan: it goes with the flush
+    else:
+        db.delete(src)
+    db.flush()
+
+
 def sync_products(db: Session, p: Project) -> dict[str, Product]:
-    """A Product row for every product of the project (made the first time the Buying pages see it), titles refreshed."""
-    have = {pr.key: pr for pr in p.products}
-    made = False
-    for g in groups(p, have):
-        title = " · ".join(x for x in (g.item.name, g.item.size, g.item.finish) if x)[:400]
-        pr = have.get(g.key)
-        if pr is None:
-            pr = Product(project_id=p.id, key=g.key[:600], title=title)
-            p.products.append(pr)
-            have[g.key] = pr
-            made = True
-        elif pr.title != title:
-            pr.title = title
-            made = True
-    if made:
+    """Every live room line linked to its product (Item.product_id), the products' details kept, keyed by product_key.
+
+    A product's identity is its id, so renaming all its rooms keeps its quotes, purchases and orders. What a line reads as
+    (services.content_key: name + size + finish) still decides where it belongs, as it always has:
+    - a new line, or one from before lines were linked, joins the product whose lines read the same (or the product made
+      for that reading before, keyed by it), else a new product;
+    - a line given a name, size or finish of its own leaves its product for the one that reads like it (or a new one) and
+      loses the shop chosen for its old product; the lines that kept the product's own details keep the product;
+    - two products that come to read the same (one renamed onto the other) become one: the one whose own details already
+      read so keeps its id and takes the other's rooms, quotes, purchases and quotation lines.
+    The product's details (name, size, finish, spec, brand, category, unit) are its first line's."""
+    db.flush()
+    prods = {pr.id: pr for pr in p.products}
+    lines = sorted((i for i in p.live_items if i.id), key=lambda i: i.id)
+    legacy = {pr.key: pr for pr in prods.values() if pr.key and not pr.key.startswith("#p")}  # keyed by what they read as
+    reads = {i.id: content_key(i) or f"#{i.id}" for i in lines}
+    by_prod: dict[int, list[Item]] = defaultdict(list)
+    for i in lines:
+        if i.product_id in prods:
+            by_prod[i.product_id].append(i)
+    home: dict[int, str] = {}  # what each product reads as: its own details when lines still read so, else most of its lines
+    for pid, ls in by_prod.items():
+        ks = [reads[i.id] for i in ls]
+        own = _reads(prods[pid])
+        home[pid] = own if own and own in ks else max(dict.fromkeys(ks), key=ks.count)
+    owner: dict[str, Product] = {}
+    for pid in sorted(home, key=lambda x: (0 if _reads(prods[x]) == home[x] else 1, x)):
+        k = home[pid]
+        if k in owner:
+            _merge_product(db, prods[pid], owner[k], prods, lines)
+        else:
+            owner[k] = prods[pid]
+    changed = False
+    for i in lines:
+        k = reads[i.id]
+        cur = prods.get(i.product_id)
+        if cur is not None and owner.get(k) is cur:
+            continue
+        target = owner.get(k) or legacy.get(k)
+        if target is None:
+            from uuid import uuid4
+            target = Product(project_id=p.id, key=f"#n{uuid4().hex}")
+            p.products.append(target)
+            db.flush()
+            target.key = f"#p{target.id}"
+            prods[target.id] = target
+        owner[k] = target
+        if cur is not None and i.purchase is not None and i.purchase.product_id != target.id:
+            uncover(i)  # it left its product: the shop chosen for that product is not this one's
+        i.product_id = target.id
+        changed = True
+    first: dict[int, Item] = {}
+    for i in lines:
+        first.setdefault(i.product_id, i)
+    for pr in prods.values():
+        src = first.get(pr.id)
+        if src is not None:
+            for f in SHARED:
+                v = getattr(src, f) or ""
+                if (getattr(pr, f) or "") != v:
+                    setattr(pr, f, v)
+                    changed = True
+            title = " · ".join(x for x in (src.name, src.size, src.finish) if x)[:400]
+            if pr.title != title:
+                pr.title, changed = title, True
+        elif not pr.name and pr.title:  # a product from before, left without rooms: its title is what it read as
+            pr.name, changed = pr.title.split(" · ")[0][:200], True
+        if not (pr.key or "").startswith("#p"):
+            pr.key, changed = f"#p{pr.id}", True
+    if changed:
         db.flush()
-    return have
+    return {pr.key: pr for pr in prods.values()}
+
+
+def link_products(db: Session) -> int:
+    """Once, when this version first starts: every project's room lines linked to their products, as they were grouped
+    (by name, size and finish), the products keyed by id and given their details. The mark goes first, so a second
+    instance starting at the same moment stops at its unique key. Returns the projects done."""
+    if db.get(SchemaMark, PRODUCTS_MARK) is not None:
+        return 0
+    try:
+        db.add(SchemaMark(key=PRODUCTS_MARK))
+        db.flush()
+        n = 0
+        for p in db.query(Project).all():
+            sync_products(db, p)
+            n += 1
+        db.commit()
+        return n
+    except IntegrityError:  # another instance is doing it, or did it a moment ago
+        db.rollback()
+        return 0
 
 
 def group_of(p: Project, product: Product, ledger: Ledger | None = None) -> Group | None:
@@ -652,50 +756,11 @@ def keys(p: Project) -> dict[int, str]:
     return {i.id: product_key(i) for i in p.live_items if i.id}
 
 
-def follow_renames(db: Session, p: Project, before: dict[int, str]) -> None:
-    """After lines changed their name, size or finish: a product whose lines all moved to one new key takes the new key
-    (merging into the product already there), so its quotes and purchases stay; a line that left its product alone loses
-    the purchase of that product."""
-    db.flush()
-    lines = {i.id: i for i in p.live_items}
-    after = {iid: product_key(i) for iid, i in lines.items()}
-    prods = {pr.key: pr for pr in p.products}
-    moved, stayed = defaultdict(set), defaultdict(int)
-    for iid, old in before.items():
-        new = after.get(iid)
-        if new is None:
-            continue
-        if new != old:
-            moved[old].add(new)
-        else:
-            stayed[old] += 1
-    for old, news in moved.items():
-        prod = prods.get(old)
-        if prod is None:
-            continue
-        if not stayed.get(old) and len(news) == 1:
-            new = next(iter(news))
-            target = prods.get(new)
-            if target is None:
-                prod.key = new[:600]
-                prods[new] = prod
-            else:  # renamed onto a product that already exists: one product, with the quotes and purchases of both
-                for q in list(prod.quotes):
-                    q.product = target
-                for pu in list(prod.purchases):
-                    pu.product = target
-                from .models import QuotationLine  # the sheets' lines that became this product follow it too
-                db.query(QuotationLine).filter(QuotationLine.product_id == prod.id).update({"product_id": target.id})
-                from .models import QuotationLineAlso  # and the lines that also price it
-                db.query(QuotationLineAlso).filter(QuotationLineAlso.product_id == prod.id).update({"product_id": target.id})
-                db.flush()
-                db.delete(prod)
-            prods.pop(old, None)
-        else:
-            for iid, old_k in before.items():
-                i = lines.get(iid)
-                if old_k == old and i is not None and after.get(iid) != old and i.purchase is not None and i.purchase.product_id == prod.id:
-                    uncover(i)
+def follow_renames(db: Session, p: Project, before: dict[int, str] | None = None) -> None:
+    """After lines changed their name, size or finish: the products follow (sync_products: a product renamed in every room
+    keeps its id, quotes and purchases; a line renamed alone leaves for the product that reads like it and loses its old
+    product's shop; two products that now read the same become one). `before` (keys()) is no longer needed."""
+    sync_products(db, p)
     prune(db, p)
 
 
@@ -736,7 +801,7 @@ def upgrade(db: Session) -> dict:
             if groups_:
                 prods = sync_products(db, p)
                 for (key, sid, price, cur, amt, lead), lines in groups_.items():
-                    prod = prods[key]
+                    prod = prods[product_key(lines[0])]  # linked by sync_products: the product's id now
                     q = Quote(project_id=p.id, product=prod, supplier_id=sid, brand=lines[0].brand or "", unit_price=price, currency=cur,
                               amount=amt, lead_time=lead, notes="From the price and supplier typed on the item before quotes existed.")
                     db.add(q)

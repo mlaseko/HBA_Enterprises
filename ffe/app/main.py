@@ -51,6 +51,8 @@ def startup():
     with SessionLocal() as db:
         buying.upgrade(db)  # once: prices and suppliers typed on items become quotes and purchases (buying.py)
     with SessionLocal() as db:
+        buying.link_products(db)  # once: every room line linked to its product by id (Item.product_id)
+    with SessionLocal() as db:
         lists.upgrade(db)  # once: every project gets its own lists (categories, units, payment types, containers)
     with SessionLocal() as db:
         quotations_mod.mark_stale(db)  # a quotation upload the old server was reading becomes an error to discard

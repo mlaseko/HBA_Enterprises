@@ -59,6 +59,14 @@ COLUMN_MIGRATIONS = [
     ("settings", "warehouse_address", "TEXT NOT NULL DEFAULT ''"),
     ("settings", "warehouse_contact", "VARCHAR(160) NOT NULL DEFAULT ''"),
     ("quotations", "replaces_id", "INTEGER"),                      # a revised sheet: the earlier document it corrected
+    ("items", "product_id", "INTEGER"),                             # the product the room line is one room of (products.id)
+    ("products", "name", "VARCHAR(200) NOT NULL DEFAULT ''"),       # the product's own details, one for all its rooms
+    ("products", "size", "VARCHAR(160) NOT NULL DEFAULT ''"),
+    ("products", "finish", "VARCHAR(160) NOT NULL DEFAULT ''"),
+    ("products", "spec", "TEXT NOT NULL DEFAULT ''"),
+    ("products", "brand", "VARCHAR(120) NOT NULL DEFAULT ''"),
+    ("products", "category", "VARCHAR(60) NOT NULL DEFAULT ''"),
+    ("products", "unit", "VARCHAR(10) NOT NULL DEFAULT ''"),
 ]
 
 # Data fixes for rows written by an older version. Each must be idempotent (safe to run at every start, by several instances):
