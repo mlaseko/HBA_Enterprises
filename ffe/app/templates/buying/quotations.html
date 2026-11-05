@@ -113,7 +113,7 @@
       <div class="qx-dm"><b>{{ q.title or q.filename or ('Quotation ' ~ q.id) }}</b>{% if r.revises %} <span class="pill gold" title="A revised sheet: it corrected the quotes of the earlier document">revision</span>{% endif %}
         <div class="small muted">{{ q.quote_date.isoformat() if q.quote_date else 'no date' }} · {{ r.lines }} line{{ 's' if r.lines != 1 }}{% if r.skipped %} ({{ r.skipped }} skipped){% endif %} · {{ r.quotes }} quote{{ 's' if r.quotes != 1 }}{% if r.new %} · {{ r.new }} new item{{ 's' if r.new != 1 }}{% endif %}{% if q.sales %} · {{ q.sales }}{% endif %}</div>
         {% if r.revises %}<div class="small muted">revises {{ r.revises.title or r.revises.filename }}{% if r.revises.quote_date %} of {{ r.revises.quote_date.isoformat() }}{% endif %}</div>{% endif %}</div>
-      <div class="qx-dv"><b>{{ q.currency }} {{ q.net|money(2) }}</b>{% if q.discount %}<div class="small muted">after {{ q.discount|money(2) }} off</div>{% endif %}
+      <div class="qx-dv">{% if r.status %}<span class="pill {{ r.status[1] }} qx-st">{{ r.status[0] }}</span>{% endif %}<b>{{ q.currency }} {{ q.net|money(2) }}</b>{% if q.discount %}<div class="small muted">after {{ q.discount|money(2) }} off</div>{% endif %}
         <div class="small">{% if q.expired %}<span class="pill red" title="Past its validity: ask the shop to confirm the prices before ordering">expired</span>{% elif q.valid_until %}<span class="muted">valid until {{ q.valid_until }}</span>{% endif %}</div></div>
     </a>
     {% endfor %}

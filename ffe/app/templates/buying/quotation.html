@@ -7,13 +7,17 @@
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/quotations">Quotations</a></div>
     <h1>{{ q.title or q.filename or 'Quotation' }} <span class="h-note">{{ q.supplier.name if q.supplier else 'no shop' }}</span></h1>
-    <p class="sub">{{ q.lines|length }} line{{ 's' if q.lines|length != 1 }}: {{ counts.quote + counts.new }} quoting a product, {{ counts.merge }} merged, {{ counts.extra }} extra, {{ counts.skip }} skipped.</p>
+    <p class="sub qn-facts"><b>{{ cur }} {{ q.net|money }}</b>{% if q.discount %} after {{ q.discount|money(2) }} off{% endif %} · {{ q.lines|length }} line{{ 's' if q.lines|length != 1 }}, {{ by_quote|length }} quote{{ 's' if by_quote|length != 1 }} made{% if q.quote_date %} · {{ q.quote_date.isoformat() }}{% endif %}{% if q.valid_until %} · valid until {{ q.valid_until }}{% endif %}{% if q.lead_time %} · lead time {{ q.lead_time }}{% endif %}</p>
   </div>
   <div class="actions">
-    {% if q.file_key %}<a class="btn sec" href="/p/{{ p.id }}/quotations/{{ q.id }}/file"><svg class="ic"><use href="#i-download"/></svg>Original file</a>{% endif %}
-    {% if q.supplier %}<a class="btn sec" href="/suppliers/{{ q.supplier.id }}"><svg class="ic"><use href="#i-users"/></svg>{{ q.supplier.name }}</a>
-    <a class="btn accent" href="/p/{{ p.id }}/quotations?supplier={{ q.supplier.id }}#upload"><svg class="ic"><use href="#i-upload"/></svg>Upload a revised sheet</a>{% endif %}
     <a class="btn sec" href="/p/{{ p.id }}/quotations/compare{% if cmp_cat %}?category={{ cmp_cat|urlencode }}{% endif %}"><svg class="ic"><use href="#i-chart"/></svg>Compare shops</a>
+    <details class="qn-menu"><summary class="btn ghost" aria-label="More"><span aria-hidden="true">&#8943;</span><span class="hide-m"> More</span></summary>
+      <div class="qn-menu-in">
+        {% if q.file_key %}<a href="/p/{{ p.id }}/quotations/{{ q.id }}/file"><svg class="ic"><use href="#i-download"/></svg>Original file</a>{% endif %}
+        {% if q.supplier %}<a href="/suppliers/{{ q.supplier.id }}?project={{ p.id }}"><svg class="ic"><use href="#i-users"/></svg>{{ q.supplier.name }}</a>
+        <a href="/p/{{ p.id }}/quotations?supplier={{ q.supplier.id }}#upload"><svg class="ic"><use href="#i-upload"/></svg>Upload a revised sheet</a>{% endif %}
+        <a href="#terms"><svg class="ic"><use href="#i-file"/></svg>Terms and notes</a>
+      </div></details>
   </div>
 </div>
 {{ tabs(p, 'quotations') }}
@@ -25,52 +29,54 @@
 {% if revised_by %}<div class="alert info">Revised by <a href="/p/{{ p.id }}/quotations/{{ revised_by.id }}"><b>{{ revised_by.title or revised_by.filename }}</b></a>{% if revised_by.quote_date %} of {{ revised_by.quote_date.isoformat() }}{% endif %}: the quotes on the Buying page carry that sheet's prices now; this one is kept as it was sent.</div>{% endif %}
 {% if revises %}<div class="alert info">A revision of <a href="/p/{{ p.id }}/quotations/{{ revises.id }}"><b>{{ revises.title or revises.filename }}</b></a>{% if revises.quote_date %} of {{ revises.quote_date.isoformat() }}{% endif %}: its quotes were corrected to these prices.</div>{% endif %}
 
-<div class="grid g4 kpis bu-kpis">
-  <div class="kpi"><svg class="ic"><use href="#i-file"/></svg><div class="v">{{ cur }} {{ q.net|money }}</div><div class="l">Quoted</div><div class="d">{% if q.discount %}{{ q.total|money(2) }} less {{ q.discount|money(2) }} discount{% else %}total on the sheet{% endif %}{% if q.charges %} · extras {{ q.charges|money(2) }}{% endif %}</div></div>
-  <div class="kpi sage"><svg class="ic"><use href="#i-check"/></svg><div class="v">{{ by_quote|length }}</div><div class="l">Quotes made</div><div class="d">on the Buying page, from {{ counts.quote + counts.new }} line{{ 's' if counts.quote + counts.new != 1 }}</div></div>
-  <div class="kpi gold"><svg class="ic"><use href="#i-clock"/></svg><div class="v">{{ q.quote_date.isoformat() if q.quote_date else '—' }}</div><div class="l">Quote date</div><div class="d">{% if q.valid_until %}valid until {{ q.valid_until }}{% if q.expired %} · <b class="red">expired{% if q.expires %} {{ q.expires.isoformat() }}{% endif %}: ask the shop to confirm the prices</b>{% endif %}{% else %}no validity given{% endif %}</div></div>
-  <div class="kpi ink"><svg class="ic"><use href="#i-truck"/></svg><div class="v">{{ q.lead_time or '—' }}</div><div class="l">Lead time</div><div class="d">{{ q.sales or (q.supplier.contact if q.supplier else '') or 'as written on the sheet' }}</div></div>
-</div>
-
-
-
-<div class="tbl"><table class="qi-doc qi-saved">
-  <thead><tr><th></th><th>Line</th><th>As written</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Amount</th><th>Became</th></tr></thead>
-  <tbody>
-  {% set ns = namespace(section=none) %}
-  {% for ln in q.lines %}
-  {% if ln.section != ns.section %}{% set ns.section = ln.section %}{% if ln.section %}<tr class="qi-sec"><td colspan="7">{{ ln.section }}</td></tr>{% endif %}{% endif %}
-  <tr class="act-{{ ln.action }}" id="line-{{ ln.id }}">
-    <td class="qi-td-pic">{% if ln.thumb %}<a href="/media/{{ ln.photo_key }}" target="_blank" data-caption="Line {{ ln.no }} · {{ ln.name }}"><img src="/media/{{ ln.thumb }}" alt=""></a>{% endif %}</td>
-    <td class="small muted nowrap">L{{ ln.no }}{% if ln.ref %}<div><b>{{ ln.ref }}</b></div>{% endif %}</td>
-    <td><div>{{ ln.name }}</div>{% if ln.size %}<div class="small muted">{{ ln.size }}</div>{% endif %}{% if ln.detail %}<details class="qi-detail"><summary class="small">Description</summary><div class="small">{{ ln.detail }}</div></details>{% endif %}</td>
-    <td class="num nowrap">{{ ln.qty|num(2) }} {{ ln.unit }}</td>
-    <td class="num nowrap">{{ ln.unit_price|num(2) }}</td>
-    <td class="num nowrap">{{ ln.amount|money(2) }}</td>
-    <td class="qi-became">
-      {% if ln.action in ('quote', 'new') and ln.product %}
-        <a href="/p/{{ p.id }}/buying/{{ ln.product.id }}#quote-{{ ln.quote_id }}" class="pill green">{{ 'New item · ' if ln.action == 'new' }}{{ ln.product.title|truncate(60) }}</a>
-        {% if ln.product_id in dropped %}<div><span class="pill red">No rooms left in the design</span></div>{% endif %}
-        {% if ln.quote %}<div class="small muted">{{ ln.quote.unit_price|cur(2) }} per unit{% if by_quote[ln.quote_id]|length > 1 %} · combined with {{ by_quote[ln.quote_id]|length - 1 }} other line{{ 's' if by_quote[ln.quote_id]|length > 2 }}{% endif %}</div>{% endif %}
-      {% elif ln.action == 'merge' %}<span class="pill gold">Part of L{{ (q.lines|selectattr('id', 'equalto', ln.into_id)|map(attribute='no')|list or ['?'])[0] }}</span>
-      {% elif ln.action == 'extra' %}<span class="pill">Extra charge</span>
-      {% else %}<span class="pill">Skipped</span>{% endif %}
-      {% if ln.also %}<div class="small">Also prices {% for a in ln.also %}<a href="/p/{{ p.id }}/buying/{{ a.product_id }}">{{ (a.product.title if a.product else '')|truncate(50) }}</a>{{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
-      {% if ln.product_id in choice and ln.action in ('quote', 'new') %}<a class="small b" href="#choices">Choose per room ↓</a> {% endif %}{% if not revised_by %}<a class="small qi-change" href="/p/{{ p.id }}/quotations/{{ q.id }}/lines/{{ ln.id }}">Change…</a>{% endif %}
-      {% if ln.notes %}<div class="small qi-notes">{% for f in ln.notes.split('; ') if not (ln.id in qty_fine and f.startswith('quantity ')) %}{% if '(accepted' in f %}<span class="pill green">&#10003; {{ f }}</span>{% else %}<span class="pill {{ 'red' if f.startswith(('thickness', 'anti-slip', 'slip', 'finish', 'material')) else 'gold' }}">&#9888; {{ f }}</span>{% endif %} {% endfor %}</div>{% endif %}
-    </td>
-  </tr>
+<section class="card qn" id="next" aria-label="What's next">
+  <div class="qn-h"><h2 class="mb-0">What's next</h2></div>
+  <ol class="qn-steps">
+  {% set ns_n = namespace(any=false) %}
+  {% if plan.rooms and not revised_by %}{% set ns_n.any = true %}
+    <li class="qn-step main"><span class="qn-ic"><svg class="ic"><use href="#i-receipt"/></svg></span>
+      <div class="qn-t"><b>Order everything from this sheet</b><div class="small muted">{{ plan.products }} product{{ 's' if plan.products != 1 }}, {{ plan.rooms }} room line{{ 's' if plan.rooms != 1 }} with no shop yet, at this sheet's prices{% if plan.other %} · {{ plan.other }} bought elsewhere stay{% endif %}{% if plan.choose %} · {{ plan.choose }} to choose per room below{% endif %}</div></div>
+      <form method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/order-all" data-confirm="Order everything from this sheet? {{ plan.rooms }} room line{{ 's' if plan.rooms != 1 }} of {{ plan.products }} product{{ 's' if plan.products != 1 }} get {{ q.supplier.name if q.supplier else 'this shop' }} and go on its draft order. Rooms already bought from another shop stay as they are; nothing is sent to the shop." data-confirm-ok="Order them"><button class="btn accent"><svg class="ic"><use href="#i-check"/></svg>Order all</button></form></li>
+  {% endif %}
+  {% if multi and open_choice %}{% set ns_n.any = true %}
+    <li class="qn-step"><span class="qn-ic gold"><svg class="ic"><use href="#i-layout"/></svg></span>
+      <div class="qn-t"><b>{{ open_choice }} room{{ 's' if open_choice != 1 }} to choose between lines</b><div class="small muted">{{ multi|length }} product{{ 's' if multi|length != 1 }} quoted on two lines or more</div></div>
+      <a class="btn sec sm" href="#choices">Choose per room</a></li>
+  {% endif %}
+  {% for o in drafts_open %}{% set ns_n.any = true %}
+    <li class="qn-step"><span class="qn-ic"><svg class="ic"><use href="#i-file"/></svg></span>
+      <div class="qn-t"><b>Draft order {{ order_ref(o) }} with {{ q.supplier.name }}</b><div class="small muted">send it to the shop, then confirm it when they agree</div></div>
+      <a class="btn sec sm" href="/p/{{ p.id }}/orders/{{ o.id }}">Open the order</a></li>
   {% endfor %}
-  </tbody>
-  <tfoot><tr><td colspan="5" class="num">Lines</td><td class="num"><b>{{ lines_total|money(2) }}</b></td><td></td></tr></tfoot>
-</table></div>
-
-
+  {% if asks %}{% set ns_n.any = true %}
+    <li class="qn-step"><span class="qn-ic gold"><svg class="ic"><use href="#i-users"/></svg></span>
+      <div class="qn-t"><b>{{ asks|length }} question{{ 's' if asks|length != 1 }} for the shop</b><div class="small muted">differences you chose to ask about</div>
+        <pre class="wechat qn-ask" id="qn-ask">Hello, about your quotation{% if q.title %} "{{ q.title }}"{% endif %}:
+{% for ln, fs in asks %}{{ loop.index }}. L{{ ln.no }}{% if ln.ref %} ({{ ln.ref }}){% endif %}, {{ ln.name }}: {% for f in fs %}{{ f.replace(' (asked the shop)', '') }}{{ '; ' if not loop.last }}{% endfor %}. Please confirm.
+{% endfor %}Thank you.</pre></div>
+      <button type="button" class="btn sec sm" data-copy="qn-ask"><svg class="ic"><use href="#i-copy"/></svg>Copy</button></li>
+  {% endif %}
+  {% if q.expired and not revised_by %}{% set ns_n.any = true %}
+    <li class="qn-step"><span class="qn-ic red"><svg class="ic"><use href="#i-clock"/></svg></span>
+      <div class="qn-t"><b>Expired{% if q.expires %} on {{ q.expires.isoformat() }}{% endif %}</b><div class="small muted">ask the shop to confirm the prices before you confirm an order</div></div></li>
+  {% endif %}
+  {% if gaps %}{% set ns_n.any = true %}
+    <li class="qn-step"><span class="qn-ic"><svg class="ic"><use href="#i-search"/></svg></span>
+      <div class="qn-t"><b>{{ gaps|length }} product{{ 's' if gaps|length != 1 }} not quoted</b><div class="small muted">same categories, no price from this shop</div></div>
+      <a class="btn ghost sm" href="#gaps" data-open="gaps">See them</a></li>
+  {% endif %}
+  {% if not ns_n.any %}
+    <li class="qn-step done"><span class="qn-ic green"><svg class="ic"><use href="#i-check"/></svg></span>
+      <div class="qn-t"><b>Nothing left to do on this sheet</b><div class="small muted">every room of its products has a shop{% if plan.done %} · {{ plan.done }} room line{{ 's' if plan.done != 1 }} bought from it{% endif %}</div></div></li>
+  {% endif %}
+  </ol>
+  {% if next_up %}<a class="qn-nextup" href="{{ next_up.url }}"><span class="small muted">Next sheet waiting</span> <b>{{ next_up.name }}</b> <svg class="ic"><use href="#i-chevron-right"/></svg></a>{% endif %}
+</section>
 
 {% if multi %}
-<section class="card qc" id="choices">
+<section class="card qc mb" id="choices">
   <div class="qc-head"><div><h2 class="mb-0">Choose per room <span class="n">{{ multi|length }}</span></h2>
-    <p class="small muted">This sheet quotes {{ 'a product' if multi|length == 1 else 'these products' }} on two lines or more. Tap the line each room takes (both for a room that rotates them), then save them all at once; the rooms go on this shop's draft order.</p></div></div>
+    <p class="small muted">Tap the line each room takes (both for a room that rotates them), then save once.</p></div></div>
   {% if at == 'choices' %}{% if ok %}<div class="alert mt">{{ ok }}</div>{% endif %}{% if err %}<div class="alert err mt">{{ err }}</div>{% endif %}{% if warn %}<div class="alert info mt">{{ warn }}</div>{% endif %}{% endif %}
   <form method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/choose" id="qc-form">
   {% for m in multi %}{% set rooms = choice.get(m.pid, []) %}
@@ -113,6 +119,42 @@
   </form>
 </section>
 {% endif %}
+
+<div class="tbl"><table class="qi-doc qi-saved">
+  <thead><tr><th></th><th>Line</th><th>As written</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Amount</th><th>Became</th></tr></thead>
+  <tbody>
+  {% set ns = namespace(section=none) %}
+  {% for ln in q.lines %}
+  {% if ln.section != ns.section %}{% set ns.section = ln.section %}{% if ln.section %}<tr class="qi-sec"><td colspan="7">{{ ln.section }}</td></tr>{% endif %}{% endif %}
+  <tr class="act-{{ ln.action }}" id="line-{{ ln.id }}">
+    <td class="qi-td-pic">{% if ln.thumb %}<a href="/media/{{ ln.photo_key }}" target="_blank" data-caption="Line {{ ln.no }} · {{ ln.name }}"><img src="/media/{{ ln.thumb }}" alt=""></a>{% endif %}</td>
+    <td class="small muted nowrap">L{{ ln.no }}{% if ln.ref %}<div><b>{{ ln.ref }}</b></div>{% endif %}</td>
+    <td><div>{{ ln.name }}</div>{% if ln.size %}<div class="small muted">{{ ln.size }}</div>{% endif %}{% if ln.detail %}<details class="qi-detail"><summary class="small">Description</summary><div class="small">{{ ln.detail }}</div></details>{% endif %}</td>
+    <td class="num nowrap">{{ ln.qty|num(2) }} {{ ln.unit }}</td>
+    <td class="num nowrap">{{ ln.unit_price|num(2) }}</td>
+    <td class="num nowrap">{{ ln.amount|money(2) }}</td>
+    <td class="qi-became">
+      {% if ln.action in ('quote', 'new') and ln.product %}
+        <a href="/p/{{ p.id }}/buying/{{ ln.product.id }}#quote-{{ ln.quote_id }}" class="pill green">{{ 'New item · ' if ln.action == 'new' }}{{ ln.product.title|truncate(60) }}</a>
+        {% if ln.product_id in dropped %}<div><span class="pill red">No rooms left in the design</span></div>{% endif %}
+        {% if ln.quote %}<div class="small muted">{{ ln.quote.unit_price|cur(2) }} per unit{% if by_quote[ln.quote_id]|length > 1 %} · combined with {{ by_quote[ln.quote_id]|length - 1 }} other line{{ 's' if by_quote[ln.quote_id]|length > 2 }}{% endif %}</div>{% endif %}
+      {% elif ln.action == 'merge' %}<span class="pill gold">Part of L{{ (q.lines|selectattr('id', 'equalto', ln.into_id)|map(attribute='no')|list or ['?'])[0] }}</span>
+      {% elif ln.action == 'extra' %}<span class="pill">Extra charge</span>
+      {% else %}<span class="pill">Skipped</span>{% endif %}
+      {% if ln.also %}<div class="small">Also prices {% for a in ln.also %}<a href="/p/{{ p.id }}/buying/{{ a.product_id }}">{{ (a.product.title if a.product else '')|truncate(50) }}</a>{{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
+      {% if ln.product_id in choice and ln.action in ('quote', 'new') %}<a class="small b" href="#choices">Choose per room ↑</a> {% endif %}{% if not revised_by %}<a class="small qi-change" href="/p/{{ p.id }}/quotations/{{ q.id }}/lines/{{ ln.id }}">Change…</a>{% endif %}
+      {% if ln.notes %}{% set ns_w = namespace(n=0, shown=[]) %}{% for f in ln.notes.split('; ') if f and not (ln.id in qty_fine and f.startswith('quantity ')) %}{% set ns_w.shown = ns_w.shown + [f] %}{% if '(accepted' not in f %}{% set ns_w.n = ns_w.n + 1 %}{% endif %}{% endfor %}
+      {% if ns_w.shown %}<details class="qi-flags small"><summary>{% if ns_w.n %}<span class="pill gold">&#9888; {{ ns_w.n }} note{{ 's' if ns_w.n != 1 }}</span>{% else %}<span class="pill green">&#10003; accepted</span>{% endif %}</summary>
+        <div class="qi-notes">{% for f in ns_w.shown %}{% if '(accepted' in f %}<span class="pill green">&#10003; {{ f }}</span>{% else %}<span class="pill {{ 'red' if f.startswith(('thickness', 'anti-slip', 'slip', 'finish', 'material')) else 'gold' }}">&#9888; {{ f }}</span>{% endif %} {% endfor %}</div></details>{% endif %}{% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+  <tfoot><tr><td colspan="5" class="num">Lines</td><td class="num"><b>{{ lines_total|money(2) }}</b></td><td></td></tr></tfoot>
+</table></div>
+
+
+
 {% if now.rows or families %}
 <section class="card qa mt" id="advanced">
   <div class="qa-head"><h2 class="mb-0">Adjust this quotation</h2>
@@ -189,7 +231,7 @@
       </li>{% endfor %}</ul>
     {% else %}<p class="small mt">Every product of these categories has a quote from this shop.</p>{% endif %}
   </details>
-  <div class="card">
+  <div class="card" id="terms">
     <h2 class="mb-0">Terms as written</h2>
     {% if q.terms %}<pre class="qi-terms">{{ q.terms }}</pre>{% else %}<p class="small muted">The sheet carried no terms.</p>{% endif %}
     {% if q.notes %}<div class="eyebrow mt">Your notes</div><p class="small">{{ q.notes }}</p>{% endif %}
