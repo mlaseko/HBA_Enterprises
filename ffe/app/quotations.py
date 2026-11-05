@@ -2510,12 +2510,53 @@ def multi_line_products(q: Quotation) -> list[dict]:
     return out
 
 
-def choice_rooms(p: Project, m: dict) -> list[dict]:
+def order_plan(p: Project, q: Quotation, gs: dict | None = None) -> dict:
+    """What "Order everything from this sheet" would do: per product the sheet quotes on one line (or on lines kept as one
+    quote), the rooms with no shop yet, bought from this sheet's quote. Products on two lines or more wait for Choose per
+    room; rooms bought elsewhere are left as they are. Returns {rows: [{product, quote, open (lines), done, other}],
+    products, rooms, done (rooms already bought from this sheet), other (rooms bought from another quote), choose (products
+    for Choose per room)}."""
+    multi = {m["pid"] for m in multi_line_products(q)}
+    seen: dict[int, Quote] = {}
+    for ln in q.lines:
+        if ln.action in ("quote", "new") and ln.product_id and ln.quote is not None and ln.product_id not in multi:
+            seen.setdefault(ln.product_id, ln.quote)
+    if gs is None:
+        gs = {g.key: g for g in buying.groups(p)}  # once: group_of would rebuild every product's group per call
+    rows = []
+    for pid, qu in seen.items():
+        prod = qu.product
+        g = gs.get(prod.key) if prod is not None else None
+        if g is None or not g.lines:
+            continue
+        open_ = [i for i in g.lines if i.purchase_id is None]
+        done = [i for i in g.lines if i.purchase is not None and i.purchase.quote_id == qu.id]
+        other = [i for i in g.lines if i.purchase is not None and i.purchase.quote_id != qu.id]
+        rows.append(dict(product=prod, quote=qu, open=open_, done=done, other=other))
+    return dict(rows=rows, products=sum(1 for r in rows if r["open"]), rooms=sum(len(r["open"]) for r in rows),
+                done=sum(len(r["done"]) for r in rows), other=sum(len(r["other"]) for r in rows), choose=len(multi))
+
+
+def order_all(db: Session, p: Project, q: Quotation) -> dict:
+    """Order everything from this sheet: every room of the products in order_plan() with no shop yet is bought from this
+    sheet's quote (buying.buy), so it lands on the shop's draft order (the route calls routers.buy._placed). Returns the
+    plan's counts as they were before."""
+    if superseded(db, q) is not None:
+        raise ValueError("A later sheet from the shop revised this one: order from that one.")
+    plan = order_plan(p, q)
+    for r in plan["rows"]:
+        if r["open"]:
+            buying.buy(db, p, r["product"], r["quote"], r["open"])
+    db.flush()
+    return plan
+
+
+def choice_rooms(p: Project, m: dict, gs: dict | None = None) -> list[dict]:
     """For the saved page's "Choose per room" card: the rooms of a product two or more of the sheet's lines quote, with the
     lines chosen in each: [{rid, room, qty, unit, chosen (line ids), average (bought from the combined quote), other (a
     purchase from something else: another shop or sheet), locked (on a confirmed order)}], in schedule order."""
     prod = m["lines"][0].product if m["lines"] else None
-    g = buying.group_of(p, prod) if prod is not None else None
+    g = ((gs.get(prod.key) if gs is not None else buying.group_of(p, prod)) if prod is not None else None)
     if g is None:
         return []
     by_quote: dict[int, list[int]] = {}
@@ -2632,3 +2673,22 @@ def set_options(db: Session, p: Project, q: Quotation, product_id: int, on: bool
     db.expire_all()
     warns = reprice(db, p, q, {product_id}, ours)
     return f"{title}: back to one quote at the lines' combined price.", warns
+
+
+def sheet_status(p: Project, q: Quotation, gs: dict) -> tuple[str, str]:
+    """A saved sheet's state for the Quotations page: (label, pill colour) — rooms still to order from it, rooms to choose
+    between its lines, its rooms on a draft order, ordered, or nothing left."""
+    plan = order_plan(p, q, gs)
+    multi = multi_line_products(q)
+    choose = sum(1 for m in multi for r in choice_rooms(p, m, gs) if not r["chosen"] and not r["average"] and not r["other"])
+    qids = {ln.quote_id for ln in q.lines if ln.quote_id}
+    pus = {i.purchase for g in gs.values() for i in g.lines if i.purchase is not None and i.purchase.quote_id in qids}
+    if plan["rooms"]:
+        return f"{plan['rooms']} room{'s' if plan['rooms'] != 1 else ''} to order", "accent"
+    if choose:
+        return f"{choose} room{'s' if choose != 1 else ''} to choose", "gold"
+    if any(pu.order is None or not pu.order.confirmed for pu in pus):
+        return "order to confirm", "gold"
+    if pus:
+        return "ordered", "green"
+    return "nothing to order", ""

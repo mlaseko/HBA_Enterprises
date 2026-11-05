@@ -8,7 +8,7 @@
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/quotations">Quotations</a></div>
     <h1>Check the quotation <span class="h-note">{{ lines|length }} line{{ 's' if lines|length != 1 }}</span></h1>
-    <p class="sub">{{ parsed.title or parsed.filename }}. Check the lines that need you, then save. Nothing changes until you do, and your items change only where you accept a difference.</p>
+    <p class="sub">{{ parsed.title or parsed.filename }} · nothing changes until you save.</p>
   </div>
   <div class="actions">
     <form method="post" action="/p/{{ p.id }}/quotations/cancel" data-confirm="Discard this upload? The file and its pictures are dropped; the project is not changed."><input type="hidden" name="key" value="{{ key }}"><button class="btn sec"><svg class="ic"><use href="#i-x"/></svg>Discard</button></form>
@@ -37,7 +37,6 @@
       <div class="small muted">{% if claude %}Claude suggested a product for each line from the words, sizes, rooms and pictures.{% else %}Suggested from the words and sizes only.{% if claude_note %} {{ claude_note }}{% endif %}{% endif %}</div>
     </div>
     <div class="qi-sumacts">
-      <button type="button" class="btn sm ok" id="qi-yes-all" title="Every green Sure line not confirmed yet gets its Yes; untick any on the line">&#10003; Yes to every sure line <b>0</b></button>
       <button type="button" class="btn sm gold" id="qi-walk" title="One line at a time: the lines to check, each with its buttons; the rest of the page waits">Walk me through</button>
     </div>
   </div>
@@ -63,18 +62,18 @@
       </div>
     </details>
   </div>
+  <div class="small muted qi-auto mt" id="qi-auto" hidden>&#10003; <b></b> accepted for you; they are under <b>All</b> if you want to look.</div>
   <div class="qi-todo mt" id="qi-todo" hidden><b>Before you save</b><ul id="qi-todo-list"></ul></div>
 </div>
 
 {% if diff_groups %}
-<div class="card tight qi-diffs" id="qi-diffs">
-  <div class="row between top"><div><b>What differs from your design</b> <span class="small muted">The sheet's words against your items' specification, grouped: decide once for every product with the same difference. Each line's card says what you chose.</span></div><span class="pill gold" id="qi-diffs-n"></span></div>
+<details class="card tight qi-diffs" id="qi-diffs">
+  <summary class="row between"><div><b>Differences from your design</b> <span class="small muted">decide on each line, or for all lines at once here</span></div><span class="pill gold" id="qi-diffs-n"></span></summary>
   <details class="qi-legend-wrap mt"><summary class="small">What the choices do</summary>
   <div class="qi-legend small mt">
-    <div><b>Accept for this quotation</b>: the quote and the document record that you accept it from this shop. Your items stay as they are, so the next shop is still checked against what you asked.</div>
-    <div><b>Accept and update my items</b>: accepted, and on save every room line of the product says what the shop offers instead (each line's notes keep what it was); later sheets are checked against that. Offered only when the sheet names one thing on each side.</div>
-    <div><b>Ask the shop</b>: the question joins the message under this card, ready to copy into WeChat. The quote notes that you asked.</div>
-    <div><b>Leave open</b>: the quote notes the difference, nothing more.</div>
+    <div><b>Accept</b>: the quote and the document record that you accept it from this shop. Your items stay as they are, so the next shop is still checked against what you asked.</div>
+    <div><b>Accept + update my items</b>: accepted, and on save every room line of the product says what the shop offers instead (each line's notes keep what it was). Offered only when the sheet names one thing on each side.</div>
+    <div><b>Ask the shop</b>: the question joins the message under this card, ready to copy into WeChat. <b>Leave open</b>: the quote notes the difference, nothing more.</div>
   </div></details>
   {% for g in diff_groups %}
   <div class="qi-dg">
@@ -99,14 +98,13 @@
     <div class="row between"><b>Message to the shop</b><button type="button" class="btn sm" data-copy="qi-ask-text"><svg class="ic"><use href="#i-copy"/></svg>Copy the message</button></div>
     <pre class="wechat" id="qi-ask-text"></pre>
   </div>
-</div>
+</details>
 {% endif %}
 
 {% macro prod_option(c, sel) %}<option value="{{ c.id }}" data-q="{{ c.quoted_by }}" data-n="{{ c.codes|length }}" data-qty="{{ c.qty|plain }}" data-unit="{{ c.unit }}" data-allow="{{ (c.g.allowance or 0)|plain }}" data-dims="{{ c.dims|join('x') }}" data-cat="{{ c.category }}" data-fam="{{ c.name|lower|trim }}|{{ c.finish|lower|trim }}" data-rids="{{ c.rooms|map(attribute='id')|join(' ') }}" data-s="{{ c.codes|join(' ') }} {{ c.rooms_text }} {{ c.spec|truncate(120, true, '') }}" {{ 'selected' if sel }}>{{ c.title }} · {{ c.qty|num(2) }} {{ c.unit }}{% if c.rooms|length == 1 %} · {{ c.rooms[0].code }}{% elif c.rooms|length %} · {{ c.rooms|length }} rooms{% endif %}</option>{% endmacro %}
 <template id="qi-prod-tpl"><select>{% for cat, cs in by_cat.items() %}<optgroup label="{{ cat }}">{% for c in cs %}{{ prod_option(c, false) }}{% endfor %}</optgroup>{% endfor %}</select></template>
 <div id="qi-splits" hidden></div>
-<div class="row qi-views" role="group" aria-label="View"><span class="small muted">View:</span><button type="button" class="pick-chip on" data-view="lines">By line</button><button type="button" class="pick-chip" data-view="products">By product</button><span class="small muted qi-views-note">By product: what each product of yours gets from this sheet, with its lines under it.</span></div>
-<div class="qi-byprod" id="qi-byprod" hidden></div>
+<div class="row qi-views" role="group" aria-label="View" hidden><span class="small muted">View:</span><button type="button" class="pick-chip on" data-view="lines">By line</button><button type="button" class="pick-chip" data-view="products">By product</button><span class="small muted qi-views-note">By product: what each product of yours gets from this sheet, with its lines under it.</span></div>
 <div class="qi-walkbar" id="qi-walkbar" hidden><div class="row between"><b id="qi-walk-n">Line 1 of 7 to check</b><div class="row"><button type="button" class="btn sm sec" id="qi-walk-skip">Skip for now ›</button><button type="button" class="btn sm ghost" id="qi-walk-exit">Exit</button></div></div><div class="bar"><i id="qi-walk-bar" style="width:0%"></i></div></div>
 <div class="card tight qi-folded" id="qi-folded" hidden><svg class="ic"><use href="#i-check"/></svg><span class="txt"></span><button type="button" class="btn sm sec" id="qi-unfold">Show them</button></div>
 <div class="qi-cols hide-m" aria-hidden="true"><span></span><span>On the shop's sheet</span><span>In your design</span></div>
@@ -128,7 +126,7 @@
         <div class="qi-say"></div>
         <div class="qi-warns"></div>
         <div class="qi-acts row"></div>
-        <div class="qi-notthis row" hidden><span class="small muted">Then what is it?</span><button type="button" class="btn sm sec" data-act="new">A new item in the design</button><button type="button" class="btn sm sec" data-act="merge">A part of another line</button><button type="button" class="btn sm sec" data-act="extra">A charge (pallet, packing)</button><button type="button" class="btn sm ghost" data-act="skip">Not ours, skip it</button></div>
+        <div class="qi-notthis row" hidden><span class="small muted">Then it is:</span><button type="button" class="btn sm sec" data-act="new">A new item</button><button type="button" class="btn sm sec" data-act="merge">Part of another line</button><button type="button" class="btn sm sec" data-act="extra">A charge</button><button type="button" class="btn sm ghost" data-act="skip">Skip it</button></div>
         <input type="hidden" name="ok_{{ l.no }}" class="qi-ok" value="{{ '1' if s.ok else '' }}">
       </div>
       <details class="qi-more"><summary><span class="qm-closed">Details and other choices</span><span class="qm-open"><b>L{{ l.no }}</b> · {{ l.name|truncate(48) }}<button type="button" class="btn sm ghost qi-close" aria-label="Close"><svg class="ic"><use href="#i-x"/></svg></button></span></summary>
@@ -136,10 +134,10 @@
       <div class="row qi-head">
         <select class="in qi-act" name="act_{{ l.no }}" aria-label="What to do with line {{ l.no }}">
           <option value="quote" {{ 'selected' if s.action == 'quote' }}>Quotes a product</option>
-          <option value="new" {{ 'selected' if s.action == 'new' }}>New item in the design</option>
+          <option value="new" {{ 'selected' if s.action == 'new' }}>New item</option>
           <option value="merge" {{ 'selected' if s.action == 'merge' }}>Part of another line</option>
-          <option value="extra" {{ 'selected' if s.action == 'extra' }}>Extra charge</option>
-          <option value="skip" {{ 'selected' if s.action not in ('quote', 'new', 'merge', 'extra') }}>Skip (out of scope)</option>
+          <option value="extra" {{ 'selected' if s.action == 'extra' }}>Charge (pallet, packing)</option>
+          <option value="skip" {{ 'selected' if s.action not in ('quote', 'new', 'merge', 'extra') }}>Skip</option>
         </select>
         {% if s.action in ('quote', 'new', 'merge') or conf %}<span class="pill qi-conf {{ 'green' if conf >= 0.8 else ('gold' if conf >= 0.45 else '') }}" title="How sure the suggestion is: 80% and above is a confident match, 45–79% needs a look, below 45% is a guess. It says nothing about the price or the quantity.">{{ (conf * 100)|round|int }}% sure</span>{% endif %}
         <span class="qi-tag"></span>
@@ -185,23 +183,30 @@
 <script type="application/json" id="qi-roomnames">{{ rooms|tojson }}</script>
 <div class="card qi-sim" id="qi-sim" data-products="{{ totals.products }}" data-lines="{{ totals.lines }}" data-quoted="{{ totals.quoted }}" data-rate="{{ p.rate or 1 }}" data-cur="{{ cur }}">
   <div class="row between top">
-    <div><h2 class="mb-0">If you posted it now</h2><div class="small muted">A simulation from the choices below, updated as you change them. Nothing is posted until you press Save the quotation.</div></div>
+    <div><h2 class="mb-0">What saving makes</h2></div>
   </div>
+  <div class="qi-s3sum mt" id="sim-sum"></div>
+  <ul class="qi-s3warn" id="sim-warn" hidden></ul>
+  <details class="qi-s3more mt"><summary class="small">The figures: products, room lines, new items, amount</summary>
   <div class="grid g4 kpis bu-kpis mt">
     <div class="kpi sage"><div class="v" id="sim-products">0<span class="of">/{{ totals.products }}</span></div><div class="l">Products priced by this sheet</div><div class="d" id="sim-products-d"></div></div>
     <div class="kpi"><div class="v" id="sim-lines">0<span class="of">/{{ totals.lines }}</span></div><div class="l">Room lines covered</div><div class="bar"><i id="sim-bar" style="width:0%"></i></div><div class="d" id="sim-lines-d">0% of the design would have a price from this shop</div></div>
     <div class="kpi accent"><div class="v" id="sim-new">0</div><div class="l">New items</div><div class="d" id="sim-new-d">added to the design on posting</div></div>
     <div class="kpi ink"><div class="v" id="sim-amount">{{ cur }} 0</div><div class="l">Amount quoted</div><div class="d" id="sim-amount-d"></div></div>
   </div>
+  </details>
   <div class="qi-total mt" id="sim-total"></div>
-  <div class="qi-prices mt">
-    <div class="row between"><div><b>Prices: this sheet against what you have</b> <span class="small muted">per product, in {{ cur }} per unit after any discount; "before" is this shop's earlier quote, if any</span></div><span class="pill" id="sim-prices-n"></span></div>
+  <details class="qi-prices qi-s3more mt">
+    <summary class="row between"><div><b>Prices: this sheet against what you have</b> <span class="small muted">per product, in {{ cur }} per unit after any discount; "before" is this shop's earlier quote, if any</span></div><span class="pill" id="sim-prices-n"></span></summary>
     <div class="tbl mt"><table class="qi-prices-t"><thead><tr><th>Product</th><th class="num">This sheet</th><th class="num">Before, this shop</th><th class="num">Cheapest other shop</th><th>What it means</th></tr></thead><tbody id="sim-prices"></tbody></table></div>
-  </div>
-  <div class="qi-recon mt">
-    <div class="row between"><div><b>Quantities against the design</b> <span class="small muted">per product: what the sheet quotes, what the rooms need (plus the allowance for cuts where the category has one), and the gap</span></div><span class="pill" id="sim-recon-n"></span></div>
+  </details>
+  <details class="qi-recon qi-s3more mt">
+    <summary class="row between"><div><b>Quantities against the design</b> <span class="small muted">per product: what the sheet quotes, what the rooms need (plus the allowance for cuts where the category has one), and the gap</span></div><span class="pill" id="sim-recon-n"></span></summary>
     <div class="tbl mt"><table class="qi-recon-t"><thead><tr><th>Product</th><th class="num">Sheet</th><th class="num">Design needs</th><th class="num">Gap</th><th>Checks</th></tr></thead><tbody id="sim-recon"></tbody></table></div>
-  </div>
+  </details>
+  <details class="qi-s3more mt" id="qi-byprod-wrap"><summary><b>Per product, with their lines</b> <span class="small muted">what each product of yours gets from this sheet</span></summary>
+    <div class="qi-byprod" id="qi-byprod"></div>
+  </details>
   <div class="qi-left mt">
     <div class="row between"><div><b>After posting, across all shops</b> <span class="small muted" id="sim-all-d"></span></div><span class="pill" id="sim-left-n"></span></div>
     <div class="bar mt"><i id="sim-all-bar" style="width:0%"></i></div>
@@ -212,7 +217,7 @@
 <details class="card qi-doc-card" id="document" {{ 'open' if err or not supplier else '' }}>
   <summary><span class="h2">The document</span> <span class="small muted" id="qi-doc-sum">{{ supplier.name if supplier else (new_sup.name or 'shop not chosen') }} · {{ cur }} {{ doc.total|money(2) }}</span><span class="small muted qi-doc-open">Open to check the shop, the date, the total and the terms</span></summary>
   <div class="row between top mt">
-    <div><div class="small muted">Read from the sheet; correct what it got wrong. Prices below are in <b>{{ cur }}</b>; the quotes are stored in CNY at this project's rate ({{ p.rate|num(2) }}).</div></div>
+    <div><div class="small muted">Read from the sheet: correct what it got wrong. Prices in <b>{{ cur }}</b>, stored in CNY at {{ p.rate|num(2) }}.</div></div>
     <span class="pill">{{ parsed.sheet }}</span>
   </div>
   <div class="grid g3 mt">
@@ -224,10 +229,13 @@
       </select></div>
     <div class="qi-newsup"><label>New shop's name</label><input class="in" type="text" name="supplier_name" value="{{ new_sup.name or '' }}" placeholder="e.g. Foshan Sanitary Co." maxlength="160" autocomplete="off"></div>
     <div class="qi-newsup"><label>Market / city</label><input class="in" type="text" name="supplier_city" value="{{ new_sup.city or '' }}" placeholder="Foshan" maxlength="120"></div>
-    <div><label>What it quotes</label><input class="in" type="text" name="title" value="{{ doc.title }}" maxlength="200"></div>
-    <div><label>Sales person</label><input class="in" type="text" name="sales" value="{{ head.sales or '' }}" maxlength="120"></div>
     <div><label>Quote date</label><input class="in" type="date" name="quote_date" value="{{ head.quote_date or '' }}"></div>
     <div><label>Valid until</label><input class="in" type="text" name="valid_until" value="{{ head.valid_until or '' }}" placeholder="2026-11-24 or 15 days" maxlength="60"></div>
+  </div>
+  <details class="qi-docmore mt"{{ ' open' if err else '' }}><summary class="small"><b>More details</b>: what it quotes, sales person, currency, lead time, total, discount, charges, terms, notes</summary>
+  <div class="grid g3 mt">
+    <div><label>What it quotes</label><input class="in" type="text" name="title" value="{{ doc.title }}" maxlength="200"></div>
+    <div><label>Sales person</label><input class="in" type="text" name="sales" value="{{ head.sales or '' }}" maxlength="120"></div>
     <div><label>Currency</label><select class="in" name="currency"><option {{ 'selected' if doc.currency == 'USD' }}>USD</option><option {{ 'selected' if doc.currency == 'CNY' }}>CNY</option></select></div>
     <div><label>Lead time</label><input class="in" type="text" name="lead_time" value="{{ head.lead_time or '' }}" maxlength="120" placeholder="25-30 days after deposit"></div>
     <div><label>Total on the sheet</label><input class="in" type="number" step="0.01" min="0" name="total" value="{{ doc.total|plain }}" inputmode="decimal"><div class="help">Before any discount; the lines add up to {{ cur }} {{ (lines|sum(attribute='amount'))|money(2) }}.</div></div>
@@ -236,6 +244,7 @@
     <div class="span3"><label>Terms as written</label><textarea class="in" name="terms" rows="3">{{ terms }}</textarea></div>
     <div class="span3"><label>Your notes</label><input class="in" type="text" name="notes" value="{{ doc.notes }}" maxlength="500" placeholder="Anything to remember about this quotation"></div>
   </div>
+  </details>
 </details>
 
 <div class="card tight qi-bar">
@@ -293,7 +302,7 @@
     if(a==='quote'){ if(!sel.value){ t='<b>No product of yours matches this clearly.</b> Pick one, make it a new item, or skip it.'; }
       else { var parts=o.textContent.split(' · '), su=sure(line); t='This looks like your <b>'+esc(parts[0])+'</b> <span class="small muted">('+esc(parts.slice(1).join(' · '))+')</span> <span class="pill '+su[1]+'">'+su[0]+'</span>';
         line.querySelectorAll('.qi-why .pill').forEach(function(p){ var f=p.textContent.replace(/^\s*\u26a0\s*/,'').trim(); if(/^quantity /.test(f)) return; var m=f.match(/^([\w\- ]+?) (.+) offered vs (.+) asked$/), dv=decOf(p);
-          w.push({cls:dv&&dv!=='ask'?'done':(p.classList.contains('red')?'red':''), html:(m?'<b>They offer '+esc(m[2])+'. You asked for '+esc(m[3])+'.</b> <span class="muted">('+esc(m[1])+')</span>':'<b>'+esc(f.charAt(0).toUpperCase()+f.slice(1))+'.</b>')+(dv?' <span class="qi-dec-say">'+DEC_SAY[dv](p)+'</span>':'')}); });
+          w.push({dec:p.dataset.dec||'', cls:dv&&dv!=='ask'?'done':(p.classList.contains('red')?'red':''), html:(m?'<b>They offer '+esc(m[2])+'. You asked for '+esc(m[3])+'.</b> <span class="muted">('+esc(m[1])+')</span>':'<b>'+esc(f.charAt(0).toUpperCase()+f.slice(1))+'.</b>')+(dv?' <span class="qi-dec-say">'+DEC_SAY[dv](p)+'</span>':'')}); });
         var need=(parseFloat(o.dataset.qty)||0)*(1+(parseFloat(o.dataset.allow)||0)), pu=o.dataset.unit||'', sum=0, others=[];
         if(cu(u)===cu(pu)&&need&&q){ form.querySelectorAll('.qi-line').forEach(function(x){ if(x.querySelector('.qi-act').value!=='quote'||x.querySelector('.qi-prod').value!==sel.value||cu(x.dataset.unit)!==cu(pu)) return; sum+=parseFloat(x.dataset.qty)||0; if(x!==line) others.push(x.id.replace('line-','L')); });
           var pc=sum/need; if(others.length&&q<need*0.9) w.push({cls:'', html:'<b>This line is '+fmtq(q)+' of the '+fmtq(need)+' '+esc(pu)+' you need.</b> The rest is on '+others.join(', ')+': together '+fmtq(sum)+' '+esc(pu)+(pc<0.9?', still short.':(pc>1.25?', more than the rooms need.':', which fits.'))});
@@ -303,9 +312,14 @@
     else if(a==='merge'){ var into=line.querySelector('[name^=into_]').value, tg=into?form.querySelector('#line-'+into):null; t=into&&tg?'<b>A part of line L'+into+'</b> ('+esc(tg.querySelector('.qi-name').textContent.split('·')[0].trim())+'): its '+cur+' '+fmtq(amt)+' joins that line\u2019s price.':'<b>A part of another line.</b> Press Change to choose which one.'; }
     else if(a==='extra'){ t='<b>A charge on the document</b> (pallet, packing): '+cur+' '+fmtq(amt)+', no quote.'; }
     else { t='<b>Skipped.</b> Nothing is saved from this line.'; }
-    box.innerHTML=t; warns.innerHTML=w.map(function(x){ return '<div class="qi-warn'+(x.cls?' '+x.cls:'')+'">'+x.html+'</div>'; }).join('');
+    box.innerHTML=t; warns.innerHTML=w.map(function(x){ return '<div class="qi-warn'+(x.cls?' '+x.cls:'')+'">'+x.html+(x.dec?decBtns(x.dec):'')+'</div>'; }).join('');
     var ok=line.dataset.ok==='1'&&a==='quote'&&!!sel.value;
     acts.innerHTML=(a==='quote'&&sel.value?'<button type="button" class="btn sm ok'+(ok?' on':'')+' qi-yes">'+(ok?'\u2713 Confirmed':'\u2713 Yes')+'</button>':'')+'<button type="button" class="btn sm sec qi-change">'+(a==='quote'?(sel.value?'Change\u2026':'Pick the product\u2026'):(a==='new'?'Set up the item\u2026':'Change\u2026'))+'</button>'+(a!=='skip'?'<button type="button" class="btn sm ghost qi-not">Not this\u2026</button>':''); }
+  // the decision buttons under a red note: they set the same select as the card above (dec_<product>_<slug>)
+  var DEC_LBL={quote:'Accept', items:'Accept + update my items', ask:'Ask the shop', '':'Leave open'};
+  function decBtns(name){ var sel=form.querySelector('select[name="'+name+'"]'); if(!sel||sel.disabled) return ''; var cur=sel.value;
+    return '<div class="qi-decs" data-dec="'+esc(name)+'">'+Array.prototype.map.call(sel.options,function(o){ return '<button type="button" class="qi-chip'+(o.value===cur?' on':'')+'" data-v="'+esc(o.value)+'">'+esc(DEC_LBL[o.value]||o.textContent)+'</button>'; }).join('')+'</div>'; }
+  form.addEventListener('click',function(e){ var b=e.target.closest('.qi-decs [data-v]'); if(!b) return; var sel=form.querySelector('select[name="'+b.parentNode.dataset.dec+'"]'); if(!sel) return; sel.value=b.dataset.v; todo(); });
   function setOk(line, v){ line.dataset.ok=v?'1':''; var h=line.querySelector('.qi-ok'); if(h) h.value=v?'1':''; }
   // What differs from your design: one decision per product and difference (dec_<product>_<slug>). A product's row shows
   // while one of its lines still quotes it (a row hidden is disabled, so not posted); the "ask" rows make the message.
@@ -473,12 +487,12 @@
     if(none.length) html+=' <span class="pill gold">&#9888; '+none.join(', ')+' without a room: stays on the product as it is</span>'; var tw=Object.keys(twice); if(tw.length) html+=' <span class="pill gold">'+tw.map(roomName).map(esc).join(', ')+' on two models: a second room line is added there</span>';
     out.innerHTML=html; }
   function splits(per){ if(!splitsBox) return; var want={};
-    Object.keys(per).forEach(function(id){ var r=per[id], refs=Object.keys(r.refs); var mn=r.prices.length?Math.min.apply(null,r.prices):0, mx=r.prices.length?Math.max.apply(null,r.prices):0; var looks={}; r.lines.forEach(function(l){ looks[((l.dataset.vname||'')+'|'+(l.dataset.vsize||'')).toLowerCase()]=1; }); if(r.lines.length>1&&(refs.length>1||mx>mn*1.02||Object.keys(looks).length>1)) want[id]=r; });
+    Object.keys(per).forEach(function(id){ var r=per[id], refs=Object.keys(r.refs); var mn=r.prices.length?Math.min.apply(null,r.prices):0, mx=r.prices.length?Math.max.apply(null,r.prices):0; if(r.lines.length>1&&(refs.length>1||mx>mn*1.02)) want[id]=r; });
     Array.prototype.forEach.call(splitsBox.querySelectorAll('.qi-split-card'),function(card){ if(!want[card.dataset.pid]) card.remove(); });
     Object.keys(want).forEach(function(id){ var r=want[id], card=splitsBox.querySelector('.qi-split-card[data-pid="'+id+'"]'), sig=r.lines.map(function(l){ return no(l); }).join(',');
       var defs=vdefaults(r.lines); r.lines.forEach(function(l){ var v=vget(l); if(v.autoLabel&&v.label!==defs[no(l)]){ v.label=defs[no(l)]; card&&(card.dataset.sig=''); } });
       if(!card){ card=document.createElement('div'); card.className='card qi-split-card'; card.dataset.pid=id; var on=r.lines.some(function(l){ return l.dataset.split==='1'; }), op=!on&&r.lines.some(function(l){ return l.dataset.split==='opts'; }), nm0=esc(r.title.split(' · ')[0]);
-        card.innerHTML='<div class="qi-split-head"><b>'+nm0+': <span class="qi-split-n"></span></b></div><div class="qi-split-modes">'+
+        card.innerHTML='<div class="qi-split-head"><b>'+nm0+': <span class="qi-split-n"></span></b><div class="small muted">The same product of yours at different prices or models: how should it be saved?</div></div><div class="qi-split-modes">'+
           '<label><input type="radio" name="split_'+id+'" value=""'+(!on&&!op?' checked':'')+'> <span><b>Keep as one</b> <span class="small muted">· one quote at an average price</span></span></label>'+
           '<label><input type="radio" name="split_'+id+'" value="1"'+(on?' checked':'')+'> <span><b>Split by model</b> <span class="small muted">· each model becomes a product of its own (<b>'+nm0+' · <span class="qi-split-eg"></span></b>) in the rooms you tick, with its price; the rooms no line names stay on the product as it is</span></span></label>'+
           '<label><input type="radio" name="split_'+id+'" value="opts"'+(op?' checked':'')+'> <span><b>Options to choose from</b> <span class="small muted">· the rooms need one; each line stays a quote of its own with its price and picture, and you choose per room on the product\u2019s Buying page (two for a room that rotates them)</span></span></label></div>'+
@@ -506,7 +520,7 @@
   // items, the parts, the charges, the skipped lines and the lines not placed yet. Built from the same form; Edit jumps to the line.
   var lastPer={}, lastFams={order:[],members:{}}, view='lines', bp=document.getElementById('qi-byprod');
   try{ view=localStorage.getItem('qi.view')==='products'?'products':'lines'; }catch(e){}
-  function setView(v){ view=v; try{ localStorage.setItem('qi.view', v); }catch(e){} document.querySelectorAll('.qi-views .pick-chip').forEach(function(c){ c.classList.toggle('on', c.dataset.view===v); }); document.getElementById('lines').hidden=v==='products'; if(bp) bp.hidden=v!=='products'; if(v==='products') byProduct(); }
+  function setView(v){ view=v; try{ localStorage.setItem('qi.view', v); }catch(e){} document.querySelectorAll('.qi-views .pick-chip').forEach(function(c){ c.classList.toggle('on', c.dataset.view===v); }); document.getElementById('lines').hidden=v==='products'; byProduct(); }
   document.querySelectorAll('.qi-views .pick-chip').forEach(function(c){ c.addEventListener('click',function(){ setView(c.dataset.view); }); });
   function lineRow(line, extra){ var warns=Array.prototype.map.call(line.querySelectorAll('.qi-warn'),function(w){ return '<span class="pill '+(w.classList.contains('red')?'red':'gold')+'">'+esc(w.textContent.trim().slice(0,90))+(w.textContent.trim().length>90?'…':'')+'</span>'; }).join(' ');
     var q=parseFloat(line.dataset.qty)||0, pr=parseFloat(line.dataset.price)||0, nm=line.querySelector('.qi-name').textContent.split('·')[0].trim(), ok=line.dataset.ok==='1';
@@ -518,7 +532,7 @@
     return '<div class="card qi-pc" data-pid="'+id+'"><div class="row between top"><div><b>'+esc(r.title.split(' · ')[0])+'</b>'+(r.size?' <span class="muted">· '+esc(r.size)+'</span>':'')+'<div class="small muted">'+(o?esc((o.textContent.split(' · ').slice(2).join(' · '))||''):'')+(need?' · needs '+fmtq(need)+' '+esc(r.unit):'')+'</div></div><div class="row">'+pill+mixed+'</div></div>'+
       '<div class="tbl mt"><table class="qi-pc-t"><thead><tr><th>Line on the sheet</th><th>Their code</th><th class="num">Qty</th><th class="num">Price</th><th>Watch</th><th></th></tr></thead><tbody>'+r.lines.map(function(l){ return lineRow(l); }).join('')+parts.map(function(m){ return lineRow(m, '<span class="pill">part of L'+esc(m.querySelector('[name^=into_]').value)+'</span> '); }).join('')+
       (r.lines.length>1?'<tr class="qi-pc-sum"><td><b>Together</b></td><td></td><td class="num nowrap"><b>'+fmtq(r.qty)+' '+esc(r.unit)+'</b>'+(r.other?'<div class="small muted">+ '+fmtq(r.other)+' in another unit</div>':'')+'</td><td class="num nowrap">'+(r.prices.length>1&&Math.max.apply(null,r.prices)>Math.min.apply(null,r.prices)*1.02?'<span class="small muted">'+fmtq(Math.min.apply(null,r.prices))+'–'+fmtq(Math.max.apply(null,r.prices))+'</span>':'')+'</td><td colspan="2"><span class="small muted">one quote, total amount over total quantity</span></td></tr>':'')+'</tbody></table></div></div>'; }
-  function byProduct(){ if(!bp||view!=='products') return; var html='', per=lastPer, order=lastFams.order, fams=lastFams.members;
+  function byProduct(){ if(!bp) return; var html='', per=lastPer, order=lastFams.order, fams=lastFams.members;
     order.forEach(function(f){ var ids=fams[f]; if(ids.length<2){ html+=pcard(ids[0], per[ids[0]]); return; } var fq=0, fn=0; ids.forEach(function(id){ fq+=per[id].qty; fn+=per[id].need*(1+per[id].allow); });
       html+='<div class="qi-pfam"><div class="qi-pfam-h"><b>'+esc(per[ids[0]].title.split(' · ')[0])+'</b> <span class="pill">'+ids.length+' variants</span> <span class="small muted">sheet '+fmtq(fq)+' '+esc(per[ids[0]].unit)+' · needs '+fmtq(fn)+'</span></div>'+ids.map(function(id){ return pcard(id, per[id]); }).join('')+'</div>'; });
     var groups={new:[], extra:[], skip:[], none:[]}; form.querySelectorAll('.qi-line').forEach(function(l){ var a=l.querySelector('.qi-act').value; if(a==='quote'&&!l.querySelector('.qi-prod').value) groups.none.push(l); else if(a==='new'||a==='extra'||a==='skip') groups[a].push(l); else if(a==='merge'){ var into=l.querySelector('[name^=into_]').value, t=into?form.querySelector('#line-'+into):null; if(!(t&&t.querySelector('.qi-act').value==='quote'&&t.querySelector('.qi-prod').value)) groups.none.push(l); } });
@@ -528,7 +542,7 @@
     html+=sec('Charges on the document', 'Pallet, packing: added to the document\u2019s extras, no quote.', groups.extra);
     html+=sec('Skipped', 'Nothing is saved from these lines.', groups.skip);
     bp.innerHTML=html||'<div class="card empty"><p>No line is matched to a product yet.</p></div>'; }
-  form.addEventListener('click',function(e){ var b=e.target.closest('.qi-goto'); if(!b) return; setView('lines'); var line=form.querySelector('#line-'+b.dataset.n); if(!line) return; setFilter('all'); line.scrollIntoView({behavior:'smooth',block:'center'}); line.classList.add('flash'); setTimeout(function(){ line.classList.remove('flash'); },1200); var d=line.querySelector('.qi-more'); if(d) d.open=true; });
+  form.addEventListener('click',function(e){ var b=e.target.closest('.qi-goto'); if(!b) return; step(2); setView('lines'); var line=form.querySelector('#line-'+b.dataset.n); if(!line) return; setFilter('all'); line.scrollIntoView({behavior:'smooth',block:'center'}); line.classList.add('flash'); setTimeout(function(){ line.classList.remove('flash'); },1200); var d=line.querySelector('.qi-more'); if(d) d.open=true; });
   // Walk me through: the lines to check, one at a time (the phone, one thumb). A line that stops needing a check moves on.
   var walk=null, walkbar=document.getElementById('qi-walkbar');
   function walkShow(){ if(!walk) return; while(walk.i<walk.lines.length&&!walk.lines[walk.i].classList.contains('needs')) walk.i++;
@@ -563,6 +577,19 @@
       var ch=parseFloat((form.querySelector('[name=charges]')||{}).value||'0')||0, tot=parseFloat((form.querySelector('[name=total]')||{}).value||'0')||0, all=sum+ch, gap=tot-all, okT=!tot||Math.abs(gap)<=Math.max(1, tot*0.005);
       tb.className='qi-total mt '+(okT?'ok':'bad');
       tb.innerHTML=!tot?'<b>The sheet gives no total.</b> <span class="muted">The lines add up to '+cur+' '+f2(all)+(ch?' with '+cur+' '+f2(ch)+' of charges':'')+'.</span>':(okT?'<b>\u2713 The lines add up to the sheet\u2019s total</b> <span class="muted">('+cur+' '+f2(tot)+(ch?', charges included':'')+')</span>':'<b>\u26a0 The lines add up to '+cur+' '+f2(all)+', the sheet says '+cur+' '+f2(tot)+'</b> <span class="muted">('+(gap>0?'the sheet is '+cur+' '+f2(gap)+' more':'the lines are '+cur+' '+f2(-gap)+' more')+'). Check the total under The document, or a line the reader missed.</span>'); } }
+  // step 3 at a glance: what saving makes in one sentence, then only what needs a look (the price, quantity and total
+  // checks above, worst first); the tables stay folded under it
+  function summary(n, newItems, net, skipped){ var box=document.getElementById('sim-sum'), ul=document.getElementById('sim-warn'); if(!box) return;
+    var cur=sim.dataset.cur, f0=function(x){ return x.toLocaleString(undefined,{maximumFractionDigits:0}); }, warns=[];
+    document.querySelectorAll('#sim-prices .pill.red, #sim-prices .pill.gold').forEach(function(pl){ var tr=pl.closest('tr'); warns.push({r:pl.classList.contains('red')?0:1, t:'<b>'+esc(tr.cells[0].firstChild.textContent)+'</b>: '+esc(pl.textContent)}); });
+    document.querySelectorAll('#sim-recon tr').forEach(function(tr){ tr.querySelectorAll('.pill.red, .pill.gold').forEach(function(pl){ warns.push({r:pl.classList.contains('red')?0:2, t:'<b>'+esc(tr.cells[0].firstChild.textContent.trim())+'</b>: '+esc(pl.textContent.replace(/^\u26a0\s*/,''))}); }); });
+    var tot=document.getElementById('sim-total'); if(tot&&tot.classList.contains('bad')) warns.unshift({r:-1, t:tot.querySelector('b').innerHTML});
+    document.querySelectorAll('#qi-todo-list li').forEach(function(li){ warns.unshift({r:-2, t:'<b>To decide</b> '+li.innerHTML}); });
+    warns.sort(function(a,b){ return a.r-b.r; });
+    var ok=!warns.length;
+    box.className='qi-s3sum mt '+(ok?'ok':'look');
+    box.innerHTML='<div class="qi-s3big">Saves <b>'+(n+newItems)+' quote'+((n+newItems)===1?'':'s')+'</b>'+(newItems?' and <b>'+newItems+' new item'+(newItems===1?'':'s')+'</b>':'')+' · <b>'+cur+' '+f0(net)+'</b>'+(skipped?' · '+skipped+' line'+(skipped===1?'':'s')+' skipped':'')+'</div><div class="small">'+(ok?'\u2713 Nothing to check: the prices, quantities and total look right.':warns.length+' thing'+(warns.length===1?'':'s')+' to look at before you save:')+'</div>';
+    ul.hidden=ok; ul.innerHTML=warns.slice(0,8).map(function(w){ return '<li class="'+(w.r<=0?'red':'gold')+'">'+w.t+'</li>'; }).join('')+(warns.length>8?'<li class="small muted">and '+(warns.length-8)+' more in the tables below</li>':''); }
   function simulate(){ if(!sim) return; var prods={}, covered=0, newItems=0, skipped=0, amount=0, extra=0;
     form.querySelectorAll('.qi-line').forEach(function(line){ var a=line.querySelector('.qi-act').value; var amt=parseFloat(line.dataset.amount||'0')||0;
       if(a==='quote'){ var sel=line.querySelector('.qi-prod'); var o=sel.options[sel.selectedIndex]; if(sel.value){ if(!prods[sel.value]){ prods[sel.value]=1; covered+=parseInt(o.dataset.n||'0',10)||0; } amount+=amt; } else skipped++; }
@@ -602,6 +629,7 @@
     var vx=0, ox=0; Object.keys(per).forEach(function(id){ if(isSplit(id)) vx+=Math.max(0, vlabels(per[id].lines).length-1); if(isOpts(id)) ox+=Math.max(0, per[id].lines.length-1); }); if(vx||ox) document.getElementById('sim-products-d').textContent=(n+newItems+vx+ox)+' quotes would be made ('+[vx?vx+' from splitting by model':'', ox?ox+' as options to choose':''].filter(Boolean).join(', ')+') · '+skipped+' line'+(skipped===1?'':'s')+' skipped';
     lastPer=per; lastFams={order:famOrder, members:fams}; byProduct();
     document.getElementById('sim-recon').innerHTML=rows||'<tr><td colspan="5" class="small muted">No line is matched to a product yet.</td></tr>';
+    summary(n, newItems, net, skipped);
     document.getElementById('sim-recon-n').textContent=nIssues?nIssues+' to check':(rows?'all fit':'');
     // every product of the design: quoted by any shop already, by this sheet, or still to source
     if(!plist) return; var left={}, nLeft=0, linesLeft=0, have=0, linesHave=0;
@@ -621,7 +649,10 @@
     if(e.target.classList.contains('qi-prod')||e.target.classList.contains('qi-act')){ setOk(line,false); upd(line); same(line); reflag(line); } if(e.target.closest('.qi-rooms')) split(line); next(line); todo(); });
   form.addEventListener('input',function(e){ var line=e.target.closest('.qi-line'); if(line&&/^(name|cat)_/.test(e.target.name||'')){ next(line); todo(); } });
   form.addEventListener('click',function(e){ var chip=e.target.closest('.pick-chip'); var line=chip&&chip.closest('.qi-line'); if(line) setTimeout(function(){ split(line); next(line); },0); });
-  form.querySelectorAll('.qi-line').forEach(function(line){ same(line); next(line); optChips(line); }); todo(); if(view==='products') setView('products');
+  // sure matches (80 % and above, on the product suggested, nothing to fix) are accepted from the start; a draft keeps the designer's own yeses
+  var autoOk=0; if(!{{ 'true' if draft_at else 'false' }}){ sureOnes().forEach(function(l){ setOk(l,true); l.dataset.auto='1'; autoOk++; }); }
+  form.querySelectorAll('.qi-line').forEach(function(line){ same(line); next(line); optChips(line); }); todo(); setView('lines');
+  var autoNote=document.getElementById('qi-auto'); if(autoNote&&autoOk){ autoNote.hidden=false; autoNote.querySelector('b').textContent=autoOk+' sure match'+(autoOk===1?'':'es'); }
   function step(n){ var three=n===3; if(three&&walk) walkEnd(false); document.body.classList.toggle('qi-step3', three);
     document.querySelectorAll('#qi-steps li[data-step]').forEach(function(li){ var s=parseInt(li.dataset.step,10); li.classList.toggle('on', s===n); li.classList.toggle('done', s<n); });
     if(three){ if(docCard) docCard.open=true; simulate(); } window.scrollTo({top:0, behavior:'smooth'}); }

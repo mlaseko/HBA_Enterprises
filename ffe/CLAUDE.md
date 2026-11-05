@@ -969,6 +969,12 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   to `/options` with `formaction`. Both routes redirect with `at=choices` so the result shows inside the card. The cell's
   checkbox covers the cell (iPhone Safari missed taps on a hidden input). Not quoted (`#gaps`) is a folded `details.qg`. `#advanced` is a
   `section.qa` with tabs (`.qa-tab[data-tab]`, `.qa-panel[data-tab]`; the page script shows one, a hash inside a panel opens it).
+- **Quotation simplification.** Saved page: `#next` What's next (`quotations.order_plan` / `order_all` behind
+  `POST /quotations/<q>/order-all`; `sheet_status` for the Quotations page; pass `gs` = `{g.key: g for g in buying.groups(p)}`
+  to `order_plan` / `choice_rooms` instead of calling `group_of` in a loop), `#choices` above the lines, `.qn-menu` in the
+  header, line notes in `details.qi-flags`. Preview: sure lines accepted on load (not on a draft), `.qi-decs` under red
+  notes, `#qi-diffs` folded, `.qi-views` hidden (By product lives on step 3), `#sim-sum` / `#sim-warn` + folded
+  `details.qi-s3more`, `details.qi-docmore`. Hidden flex/pill elements need their own `[hidden]{display:none!important}`.
 - **Usability, phase 3.** A product's details are one for all its rooms without a schema change: `routers/items.update_item`
   copies to the product's other lines (`same_item_elsewhere`, taken before the save) the `SHARED_FIELDS` the save changed
   and the form carried (`was` vs after `apply_form`), so a typo fixed in one room fixes every room and `follow_renames`

@@ -76,6 +76,10 @@ def quotations_page(request: Request, p: Project = Depends(get_project), db: Ses
     rows = [r for r in rows if r["revised_by"] is None]
     cats = sorted({c.category for c in qz.candidates(db, p)}, key=lambda c: lists.category_order(p).get(c, 999))
     db.commit()  # product rows made by candidates()
+    if rows:
+        gs = {g.key: g for g in bz.groups(p)}
+        for r in rows:
+            r["status"] = qz.sheet_status(p, r["q"], gs)
     ups = db.query(QuotationUpload).filter(QuotationUpload.project_id == p.id).order_by(QuotationUpload.id.desc()).all()
     import datetime as _dt
     stale_before = _dt.datetime.now() - _dt.timedelta(minutes=10)
@@ -422,10 +426,21 @@ def quotation_page(request: Request, quotation_id: int, p: Project = Depends(get
     now_data = [dict(pid=r["pid"], unit=r["unit"], price=r["price"], allow=r["allow"], pack=r["pack"], whole=r["whole"], options=r["options"],
                      rooms=[dict(id=x["id"], qty=x["qty"], price=x["price"]) for x in r["rooms"]]) for r in nrows]
     multi = qz.multi_line_products(q)
-    choice = {m["pid"]: qz.choice_rooms(p, m) for m in multi}
+    gs = {g.key: g for g in bz.groups(p)}
+    choice = {m["pid"]: qz.choice_rooms(p, m, gs) for m in multi}
+    plan = qz.order_plan(p, q, gs)
+    open_choice = sum(1 for m in multi for r in choice.get(m["pid"], []) if not r["chosen"] and not r["average"] and not r["other"])
+    orders = {}
+    if q.supplier_id:
+        for o in p.orders:
+            if o.supplier_id == q.supplier_id and not o.confirmed:
+                orders[o.id] = o
+    asks = [(ln, [f for f in ln.notes.split("; ") if f.endswith("(asked the shop)")]) for ln in q.lines if ln.notes and "(asked the shop)" in ln.notes]
+    nxt = next((u for u in db.query(QuotationUpload).filter(QuotationUpload.project_id == p.id).order_by(QuotationUpload.id).all() if u.stage == "done"), None)
+    next_up = dict(name=nxt.filename, url=f"/p/{p.id}/quotations/preview?key={urlquote(nxt.state_key)}") if nxt is not None else None
     return render(request, "buying/quotation.html", p=p, q=q, gaps=gaps, counts=counts, ok=ok[:200], err=err[:300], warn=warn[:600], by_quote=by_quote,
                   revises=revises, revised_by=revised_by, cmp_cat=cmp_cat, families=qz.families(db, p, q), dropped=dropped, qty_fine=qty_fine,
-                  lines_total=round(sum(ln.amount or 0 for ln in q.lines), 2), multi=multi, choice=choice, at=at if at == "choices" and multi else "", now=now, now_amount=qz.now_amount, now_json=json.dumps(now_data))
+                  lines_total=round(sum(ln.amount or 0 for ln in q.lines), 2), multi=multi, choice=choice, plan=plan, open_choice=open_choice, drafts_open=list(orders.values()), asks=asks, next_up=next_up, at=at if at == "choices" and multi else "", now=now, now_amount=qz.now_amount, now_json=json.dumps(now_data))
 
 
 @router.post("/p/{project_id}/quotations/{quotation_id}/options")
@@ -446,6 +461,33 @@ async def quotation_options(request: Request, quotation_id: int, p: Project = De
     bz.settle(db, p)
     db.commit()
     return redirect(f"/p/{p.id}/quotations/{q.id}?at=choices&ok=" + urlquote(msg) + (("&warn=" + urlquote(" ".join(warns))) if warns else "") + "#choices")
+
+
+@router.post("/p/{project_id}/quotations/{quotation_id}/order-all")
+def quotation_order_all(quotation_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """Order everything from this sheet: the rooms with no shop yet, of every product it quotes on one line, bought from
+    it and put on the shop's draft order."""
+    from .buy import _placed
+    q = _quotation(db, p, quotation_id)
+    if q is None:
+        return redirect(f"/p/{p.id}/quotations")
+    before = od.loose_ids(db, p)
+    try:
+        plan = qz.order_all(db, p, q)
+    except ValueError as e:
+        db.rollback()
+        return redirect(f"/p/{p.id}/quotations/{q.id}?err=" + urlquote(str(e)))
+    if not plan["rooms"]:
+        return redirect(f"/p/{p.id}/quotations/{q.id}?ok=" + urlquote("Nothing to order: every room of these products already has a shop."))
+    placed = _placed(db, p, before)
+    bz.settle(db, p)
+    db.commit()
+    msg = [f"Ordered from {q.supplier.name if q.supplier else 'this shop'}: {plan['products']} product{'s' if plan['products'] != 1 else ''}, {plan['rooms']} room line{'s' if plan['rooms'] != 1 else ''}.{placed}"]
+    if plan["other"]:
+        msg.append(f"{plan['other']} room line{'s' if plan['other'] != 1 else ''} bought from another shop left as {'they were' if plan['other'] != 1 else 'it was'}.")
+    if plan["choose"]:
+        msg.append(f"{plan['choose']} product{'s' if plan['choose'] != 1 else ''} on two lines or more: choose per room below.")
+    return redirect(f"/p/{p.id}/quotations/{q.id}?ok=" + urlquote(" ".join(msg)))
 
 
 @router.post("/p/{project_id}/quotations/{quotation_id}/choose")

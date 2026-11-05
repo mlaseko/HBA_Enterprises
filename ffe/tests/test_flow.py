@@ -2342,9 +2342,9 @@ def flow(c):
     os.environ["ANTHROPIC_API_KEY"]="test-key"; ai._call=fake_quote_call  # L1 the big slab, L2 the bathroom floor
     loc9,st=upload_quote("Tile quotation v9.xlsx", quote_sheet()); key9=_unq(loc9.split("key=")[1])
     h=c.get(loc9).text; fin=f"dec_{big_id}_finish-matt"; slip=f"dec_{bath_id}_slip-none"
-    assert 'id="qi-diffs"' in h and "What differs from your design" in h and "They offer matt. You asked for satin." in h and "Anti-slip R11 asked, not stated in the offer." in h and 'id="qi-ask-text"' in h and 'id="qi-yes-all"' in h
+    assert 'id="qi-diffs"' in h and "Differences from your design" in h and "They offer matt. You asked for satin." in h and "Anti-slip R11 asked, not stated in the offer." in h and 'id="qi-ask-text"' in h and 'id="qi-auto"' in h
     assert re.search(r'name="%s"(?:(?!</select>).)*value="items"' % fin, h, re.S) and not re.search(r'name="%s"(?:(?!</select>).)*value="items"' % slip, h, re.S)  # nothing offered on the slip rating: nothing to write into the items
-    assert f'data-dec="{fin}" data-offered="matt"' in h and "we need anti-slip R11; the offer does not say. Please confirm it is R11." in h and "only where you accept a difference" in h
+    assert f'data-dec="{fin}" data-offered="matt"' in h and "we need anti-slip R11; the offer does not say. Please confirm it is R11." in h and "nothing changes until you save" in h
     form9=dict(base, key=key9, supplier_id="__new__", supplier_name="Foshan Ceramics", discount="0", notes="third round", act_4="skip", act_5="skip", **{fin:"items", slip:"ask"})
     r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(form9, supplier_id="", supplier_name=""), follow_redirects=False); key9=_unq(r.headers["location"].split("key=")[1].split("&")[0]); form9["key"]=key9
     h=c.get(f"/p/{pid_q}/quotations/preview?key={key9}").text  # the choices kept, the decisions with them
@@ -2455,6 +2455,15 @@ def flow(c):
     h=c.get(f"/p/{pid_q}/buying/{big_id}").text; assert "$" in h[h.index('class="num price"'):h.index('class="num price"')+400]
     assert "Show amounts in" in c.get(f"/p/{pid_q}/edit").text
     c.post(f"/p/{pid_q}/edit", data={"client_name":"X","name":"Quotes house","rate":"7.1","budget_usd":"0","show_currency":"CNY"}, follow_redirects=False)
+    # Order everything from this sheet: every room with no shop of the products it quotes on one line, on the shop's draft order
+    db=SessionLocal(); _pq=db.get(_P, pid_q); _cand=[(x.id, _qz.order_plan(_pq, x)) for x in _pq.quotations if _qz.superseded(db, x) is None]
+    _qo, _plan = next(((i, pl) for i, pl in _cand if pl["rooms"]), (None, None)); assert _qo, [(i, pl["rooms"]) for i, pl in _cand]
+    _open_ids=[i.id for r_ in _plan["rows"] for i in r_["open"]]; _qids={r_["product"].id: r_["quote"].id for r_ in _plan["rows"]}; _n=_plan["rooms"]; db.close()
+    h=c.get(f"/p/{pid_q}/quotations/{_qo}").text; assert 'id="next"' in h and "What's next" in h and "Order everything from this sheet" in h and f'action="/p/{pid_q}/quotations/{_qo}/order-all"' in h and f"{_n} room line" in h
+    r=c.post(f"/p/{pid_q}/quotations/{_qo}/order-all", follow_redirects=False); loc=_unq(r.headers["location"]); assert "Ordered from" in loc and f"{_n} room line" in loc, loc
+    db=SessionLocal(); _its=[db.get(_OI, i) for i in _open_ids]; assert all(i.purchase is not None and i.purchase.quote_id==_qids[i.product_id] and i.purchase.order is not None and not i.purchase.order.confirmed for i in _its), [(i.code, i.purchase_id) for i in _its]; db.close()
+    h=c.get(f"/p/{pid_q}/quotations/{_qo}").text; assert f'/quotations/{_qo}/order-all"' not in h and "Draft order" in h and "Open the order" in h  # the button goes (the help drawer still names it)
+    r=c.post(f"/p/{pid_q}/quotations/{_qo}/order-all", follow_redirects=False); assert "Nothing%20to%20order" in r.headers["location"]
     print("quotation amendments ok")
 
 

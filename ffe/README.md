@@ -272,6 +272,22 @@ name** (or set the Kind by hand): every existing entry starts as a room.
   instead of at the top. The options buttons post `opt=<product>:<0|1>` (the old `product` + `on` still work). The cells'
   checkboxes cover the whole cell (a hidden input with `pointer-events:none` missed taps on iPhone Safari). (`.qa-tab` / `.qa-panel`; `#now` or `#variants` in the address
   opens that tab; without JavaScript both show).
+- **What's next** on a saved quotation (`#next`): `quotations.order_plan(p, q, gs)` (per product the sheet quotes on one
+  line, or lines kept as one quote: the rooms with no shop, the rooms already bought from it, those bought elsewhere;
+  products on two lines or more are left to Choose per room) feeds **Order everything from this sheet** →
+  `POST /quotations/<q>/order-all` → `quotations.order_all()` (`buying.buy` per product) + `_placed` (the shop's draft
+  order) + `settle`. The strip also lists the rooms to choose, the shop's draft orders, the lines whose difference was
+  "asked the shop" as a message to copy, an expired sheet, the products not quoted and the next upload waiting. The
+  Quotations page shows a status per sheet (`quotations.sheet_status`: rooms to order, rooms to choose, order to confirm,
+  ordered). `gs` = the product groups built once per request (`group_of` rebuilds them per call). The header keeps
+  Compare shops and puts the original file, the shop, Upload a revised sheet and the terms under **More**; a line's notes
+  fold behind a count pill.
+- The check, round 3: sure matches (`sureOnes()`) are accepted on load unless the preview is a draft (`#qi-auto` says how
+  many); a red difference note carries its decision buttons (`.qi-decs`, setting the `dec_<product>_<slug>` select of the
+  now folded `details#qi-diffs`); the split card shows only when the prices or the shop's codes differ; By product moved to
+  step 3 (`#qi-byprod` in `#qi-byprod-wrap`); step 3 opens on `#sim-sum` (one line) and `#sim-warn` (open decisions, the
+  total, dearer prices, short or over quantities) with the tiles and tables folded (`details.qi-s3more`); the document card
+  shows the shop and dates and folds the rest (`details.qi-docmore`).
 - Matching ranks the shortlist on the uncapped score (`score(line, c, raw=True)`): two products may both reach
   `MAX_SCORE` on words and size, and the one whose whole name the line carries must come first; `hall` (corridor, lobby)
   is a qualifier like kitchen, so a product named for a place the line does not name loses ground.

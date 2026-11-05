@@ -1938,3 +1938,51 @@ body.qi-walking .qi-line{grid-template-columns:56px minmax(0,1fr)}body.qi-walkin
 .qg>summary h2 .n{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--surface-3);color:var(--ink-2);font-size:.72rem;margin-left:6px;vertical-align:2px}
 @media (max-width:700px){.qc-bar{bottom:76px;flex-direction:column;align-items:stretch}.qc-bar .btn{justify-content:center}.qc-grid{overflow-x:visible}}
 .qc-changed[hidden]{display:none!important}
+/* saved quotation: What's next strip, the More menu, notes behind a count */
+.qn-facts b{color:var(--ink)}
+.qn{border-left:4px solid var(--ink)}
+.qn-steps{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column}
+.qn-step{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line-2)}
+.qn-step:first-child{border-top:0}
+.qn-step.main{background:var(--accent-soft);margin:0 -18px;padding:14px 18px;border-top:0;border-radius:0}
+.qn-ic{width:36px;height:36px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--surface-3);color:var(--ink-2)}
+.qn-step.main .qn-ic{background:var(--accent);color:#fff}
+.qn-ic.gold{background:var(--gold-soft,#FBF3DE);color:var(--gold)}.qn-ic.red{background:var(--red-soft);color:var(--red)}.qn-ic.green{background:var(--green-soft);color:var(--green)}
+.qn-t{flex:1;min-width:0}
+.qn-step form{margin:0}
+.qn-ask{margin:8px 0 0;max-height:7.5em;overflow:auto;font-size:.8rem}
+.qn-nextup{display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;border-radius:8px;background:var(--surface-2);border:1px dashed var(--line);color:var(--ink)}
+.qn-nextup:hover{text-decoration:none;border-color:var(--accent)}
+.qn-nextup .ic{margin-left:auto}
+.qn-menu{position:relative}
+.qn-menu>summary{list-style:none;cursor:pointer}.qn-menu>summary::-webkit-details-marker{display:none}
+.qn-menu-in{position:absolute;right:0;top:calc(100% + 6px);z-index:30;min-width:220px;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:var(--sh-2);padding:6px;display:flex;flex-direction:column}
+.qn-menu-in a{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;color:var(--ink)}
+.qn-menu-in a:hover{background:var(--surface-2);text-decoration:none}
+.qi-flags>summary{list-style:none;cursor:pointer;display:inline-block;margin-top:4px}.qi-flags>summary::-webkit-details-marker{display:none}
+.qi-flags[open] .qi-notes{margin-top:6px}
+@media (max-width:700px){.qn-step{flex-wrap:wrap}.qn-step .btn,.qn-step form{width:100%}.qn-step form .btn{width:100%;justify-content:center}.qn-step.main{margin:0 -14px;padding:14px}}
+.qx-st{display:block;width:max-content;margin:0 0 4px auto}
+/* review step, round 3: decisions under a red note, the differences card folded, step 3 summary first */
+.qi-decs{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.qi-decs .qi-chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+details.qi-diffs>summary{list-style:none;cursor:pointer}details.qi-diffs>summary::-webkit-details-marker{display:none}
+.qi-views[hidden]{display:none!important}
+details.qi-diffs>summary::after{content:none!important}
+.qi-auto{padding:6px 0 0}
+.qi-s3sum{padding:14px 16px;border-radius:10px;border:1px solid var(--line)}
+.qi-s3sum.ok{background:var(--green-soft);border-color:#cfe6d7}
+.qi-s3sum.look{background:var(--gold-soft,#FBF3DE);border-color:#ecd9a5}
+.qi-s3big{font-size:1.05rem;margin-bottom:2px}
+.qi-s3warn{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:4px}
+.qi-s3warn li{padding:8px 12px;border-radius:8px;background:var(--surface-2);border-left:3px solid var(--gold);font-size:.9rem}
+.qi-s3warn li.red{border-left-color:var(--red)}
+details.qi-s3more{border-top:1px solid var(--line-2);padding-top:10px}
+details.qi-s3more>summary{cursor:pointer;list-style:none}details.qi-s3more>summary::-webkit-details-marker{display:none}
+details.qi-s3more>summary::before{content:"\25B8";margin-right:6px;color:var(--muted)}details.qi-s3more[open]>summary::before{content:"\25BE"}
+details.qi-s3more>summary.row{display:flex}
+body.qi-step3 #qi-sim #qi-byprod{display:block!important}
+.qi-docmore>summary{cursor:pointer}
+details.qi-s3more>summary.row{display:flex;align-items:flex-start;gap:8px;flex-wrap:nowrap}
+details.qi-s3more>summary.row>div{flex:1;min-width:0}
+details.qi-s3more>summary.row::before{margin-top:2px}
