@@ -7,7 +7,7 @@
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/cartons">Shipping</a></div>
     <h1>Shipments <span class="h-note">{{ svs|length }} shipment{{ 's' if svs|length != 1 }}</span></h1>
-    <p class="sub">From the consolidation warehouse to site. A shipment is a container (or a share of one, or air freight): its boxes, how full it is, its dates and the loading list. Its rooms become Shipped once it is loaded and Received as its boxes reach site.</p>
+    <p class="sub">Shipments from the warehouse to site.</p>
   </div>
   <div class="actions">
     <form method="post" action="/p/{{ p.id }}/shipments/new"><button class="btn sec"><svg class="ic"><use href="#i-plus"/></svg>New shipment</button></form>

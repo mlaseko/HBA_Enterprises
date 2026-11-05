@@ -7,7 +7,7 @@
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/quotations">Quotations</a></div>
     <h1>{{ q.title or q.filename or 'Quotation' }} <span class="h-note">{{ q.supplier.name if q.supplier else 'no shop' }}</span></h1>
-    <p class="sub">The sheet as the supplier sent it, and what each line became. {{ q.lines|length }} line{{ 's' if q.lines|length != 1 }}: {{ counts.quote + counts.new }} quoting a product, {{ counts.merge }} merged, {{ counts.extra }} extra, {{ counts.skip }} skipped.{% if not revised_by %} <b>Change…</b> on a line re-matches it, corrects a number read wrong, or lets it price another product of yours too.{% endif %}</p>
+    <p class="sub">{{ q.lines|length }} line{{ 's' if q.lines|length != 1 }}: {{ counts.quote + counts.new }} quoting a product, {{ counts.merge }} merged, {{ counts.extra }} extra, {{ counts.skip }} skipped.</p>
   </div>
   <div class="actions">
     {% if q.file_key %}<a class="btn sec" href="/p/{{ p.id }}/quotations/{{ q.id }}/file"><svg class="ic"><use href="#i-download"/></svg>Original file</a>{% endif %}

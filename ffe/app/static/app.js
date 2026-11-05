@@ -749,3 +749,25 @@
   document.addEventListener('keydown', function () { lbOpen = !!document.querySelector('.lb:not([hidden])'); }, true);  // Esc in the picture viewer closes only the picture
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !lbOpen) close(); });
 })();
+
+// Items page: Select shows the boxes and the Delete selected bar; the phone's Filters button folds the filters
+(function () {
+  var t = document.querySelector('.sel-toggle');
+  if (t) {
+    var bar = document.getElementById('bulk');
+    var set = function (on) {
+      document.body.classList.toggle('selecting', on);
+      t.setAttribute('aria-pressed', on ? 'true' : 'false');
+      t.textContent = on ? 'Done' : 'Select';
+      if (!on && bar) { var c = bar.querySelector('button.clear'); if (c && !c.hidden) c.click(); }
+    };
+    t.addEventListener('click', function () { set(!document.body.classList.contains('selecting')); });
+    // boxes the browser restored (Back) keep the selection on screen
+    if (document.querySelector('input.sel-box:checked')) set(true);
+  }
+  var ft = document.querySelector('.filt-toggle');
+  if (ft) ft.addEventListener('click', function () {
+    var f = ft.closest('form'); var on = !f.classList.contains('open');
+    f.classList.toggle('open', on); ft.setAttribute('aria-expanded', on ? 'true' : 'false');
+  });
+})();

@@ -40,7 +40,7 @@
       <div class="body">
         <div class="t">{{ i.name }}</div>
         <div class="m">{{ i.qty|num }} {{ i.unit }}{% if i.brand_shown %} · {{ i.brand_shown }}{% endif %}{% if i.size %} · {{ i.size }}{% endif %}{% if i.finish %} · {{ i.finish }}{% endif %}{% if i.optional %} · optional{% endif %}</div>
-        <div class="m row">{% if i.unit_price %}<span class="b">${{ (i.total / usd)|money }}</span>{% endif %}<span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status }}</span></div>
+        <div class="m row">{% if i.unit_price %}<span class="b">${{ (i.total / usd)|money }}</span>{% endif %}<span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status|status_label }}</span></div>
       </div>
       {% if q %}<button type="button" class="btn ghost sm icon pinbtn" title="Show where it goes on the plan" aria-label="Show {{ i.name }} on the plan"><svg class="ic"><use href="#i-map"/></svg></button>{% endif %}
       {% else %}
@@ -51,7 +51,7 @@
         <div class="m">{{ i.code }} · {{ i.qty|num }} {{ i.unit }}{% if i.unit_price %} · {{ i.total|cur }}{% endif %}{% if i.supplier %} · {{ i.supplier.name }}{% endif %}{% if i.optional %} · optional{% endif %}</div>
       </div>
       <div class="pi-tools">
-        <select class="status-sel" data-url="/p/{{ p.id }}/items/{{ i.id }}/status" style="--c:{{ STATUS_COLORS[i.status] }}" aria-label="Status of {{ i.name }}">{% for s in STATUSES %}<option data-c="{{ STATUS_COLORS[s] }}" {{ 'selected' if i.status == s }}>{{ s }}</option>{% endfor %}</select>
+        <select class="status-sel" data-url="/p/{{ p.id }}/items/{{ i.id }}/status" style="--c:{{ STATUS_COLORS[i.status] }}" aria-label="Status of {{ i.name }}">{% for s in STATUSES %}<option value="{{ s }}" data-c="{{ STATUS_COLORS[s] }}" {{ 'selected' if i.status == s }}>{{ s|status_label }}</option>{% endfor %}</select>
         {% if plan %}<div class="pi-pins">
           <button type="button" class="btn ghost sm icon pinbtn" title="{{ 'Show where it goes on the plan' if q else 'Tap where it goes on the plan' }}" aria-label="{{ 'Show' if q else 'Place' }} {{ i.name }} on the plan"><svg class="ic"><use href="#i-map"/></svg></button>
           <button type="button" class="btn ghost sm icon pinrm" title="Remove its dot from the plan" aria-label="Remove {{ i.name }} from the plan"><svg class="ic"><use href="#i-x"/></svg></button>

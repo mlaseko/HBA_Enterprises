@@ -27,7 +27,7 @@
 <div class="card">
   <h2>The items it holds</h2>
   <ul class="box-holds">
-    {% for i in lines %}<li><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.code }}</a> {{ i.name }}{% if i.size %} <span class="muted">· {{ i.size }}</span>{% endif %} <span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status }}</span>
+    {% for i in lines %}<li><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}">{{ i.code }}</a> {{ i.name }}{% if i.size %} <span class="muted">· {{ i.size }}</span>{% endif %} <span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status|status_label }}</span>
       <span class="small muted">{% set others = bx.boxes_of[i.id]|length %}{{ 'its only box' if others == 1 else 'one of its ' ~ others ~ ' boxes' }}</span></li>{% endfor %}
   </ul>
   <p class="small muted mb-0">An item is Shipped once all its boxes are loaded, and Received once all are received on site.</p>

@@ -1,17 +1,19 @@
 {% extends "base.html" %}
+{% from "_sections.html" import section_tabs %}
 {% block title %}Payments · {{ p.name }} · {{ APP_NAME }}{% endblock %}
 {% block content %}
 <div class="page-head">
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
     <h1>Payments <span class="h-note">{{ pays|length }} recorded</span></h1>
-    <p class="sub">Deposits and balances, in CNY, against an order or to a supplier in general. Snap the receipt as you pay so the paper trail stays complete.</p>
+    <p class="sub">Deposits and balances paid to the shops.</p>
   </div>
   <div class="actions">
     <a class="btn sec sm" href="/p/{{ p.id }}/orders"><svg class="ic"><use href="#i-file"/></svg>Orders</a>
     <a class="btn sec sm" href="/p/{{ p.id }}/suppliers"><svg class="ic"><use href="#i-users"/></svg>Suppliers</a>
   </div>
 </div>
+{{ section_tabs(p, 'orders', 'payments') }}
 
 <div class="grid g3">
   <div class="kpi"><div class="v">{{ s.ordered|cur }}</div><div class="l">on confirmed orders</div><svg class="ic"><use href="#i-file"/></svg></div>

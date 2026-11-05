@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "buying/_tabs.html" import tabs %}
-{% block title %}Buying · {{ p.name }}{% endblock %}
+{% block title %}Sourcing · {{ p.name }}{% endblock %}
 {% block content %}
 {% set rate = p.rate or 1 %}
 {% set filtering = f.category or f.floor or f.stage or f.options %}
@@ -8,11 +8,8 @@
 <div class="page-head">
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
-    <h1>Buying <span class="h-note">{{ all.products }} product{{ 's' if all.products != 1 }} · {{ all.lines }} room line{{ 's' if all.lines != 1 }}</span></h1>
-    <p class="sub">Every product of the design once, whatever its rooms. Record each shop's quote on the spot, then choose the shop for whole rooms: its price, brand and lead time go onto those rooms.</p>
-  </div>
-  <div class="actions">
-    <a class="btn sec" href="/p/{{ p.id }}/orders"><svg class="ic"><use href="#i-receipt"/></svg>Orders</a>
+    <h1>Sourcing <span class="h-note">{{ all.products }} product{{ 's' if all.products != 1 }} · {{ all.lines }} room line{{ 's' if all.lines != 1 }}</span></h1>
+    <p class="sub">Every product once. Record the shops' quotes, then choose a shop for its rooms.</p>
   </div>
 </div>
 {{ tabs(p, 'products') }}

@@ -57,7 +57,7 @@
       <div class="t">{{ i.name }}</div>
       <div class="m">{{ i.room.name if i.room else 'Whole house' }} · {{ i.qty|num }} {{ i.unit }}{% if i.brand_shown %} · {{ i.brand_shown }}{% endif %}{% if i.size %} · {{ i.size }}{% endif %}{% if i.finish %} · {{ i.finish }}{% endif %}</div>
       {% if i.unit_price %}<div class="price">${{ (i.total/(p.rate or 1))|money }}</div>{% endif %}
-      <div class="foot"><span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status }}</span>{% if i.optional %}<span class="pill">optional</span>{% endif %}</div>
+      <div class="foot"><span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status|status_label }}</span>{% if i.optional %}<span class="pill">optional</span>{% endif %}</div>
     </div>
   </div>
   {% endfor %}

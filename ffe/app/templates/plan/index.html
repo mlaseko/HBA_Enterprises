@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_sections.html" import section_tabs %}
 {% from "_macros.html" import room_pill %}
 {% block title %}Plan · {{ p.name }} · {{ APP_NAME }}{% endblock %}
 {% block mainclass %}wrap plan-wrap{% endblock %}
@@ -9,7 +10,7 @@
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a>{% if marking %}<svg class="ic"><use href="#i-chevron-right"/></svg><a href="{{ base }}{% if plan %}?plan={{ plan.id }}{% endif %}">Plan</a>{% endif %}</div>
     <h1>{{ 'Mark rooms' if marking else 'Plan' }}{% if plan %} <span class="h-note">{{ plan_caption(plan) or 'Floor plan' }}</span>{% endif %}</h1>
-    <p class="sub">{% if marking %}Pick a room on the list, then drag a box over it on the plan. Drag a box to move it, pull its corner to resize it. Everything saves as you go.{% elif plan and plan.is_reference %}A reference sheet: drawings of the items, not the floor plan. Open a room from the list, tap the pin on an item and then its drawing; the drawing becomes the item's picture. Tap a dot to open its item. Or match the drawings by the references printed on the sheet.{% else %}Tap a room to see its items, change a status or open an item. Tap the pin on an item, then the spot on the plan where it goes. Pinch or use the zoom buttons to read the drawing.{% endif %}</p>
+    <p class="sub">{% if marking %}Pick a room, then drag a box over it on the plan.{% elif plan and plan.is_reference %}Drawings of the items. Tap an item's pin, then its drawing.{% else %}Tap a room to see its items.{% endif %}</p>
   </div>
   <div class="actions">
     {% if plan %}
@@ -21,6 +22,7 @@
     <a class="btn ghost" href="/p/{{ p.id }}/rooms"><svg class="ic"><use href="#i-layout"/></svg>Rooms</a>
   </div>
 </div>
+{{ section_tabs(p, 'design', 'plan') }}
 
 {% include "plan/_tabs.html" %}
 {% if err %}<div class="alert err">{{ err }}</div>{% endif %}

@@ -53,21 +53,19 @@
 </svg>
 {% set path = request.url.path %}
 {% macro ic(name, cls='ic') %}<svg class="{{ cls }}"><use href="#i-{{ name }}"/></svg>{% endmacro %}
-{% macro project_links(p, path, nav) %}
-  <a href="/p/{{ p.id }}" class="{{ 'on' if path == '/p/' ~ p.id }}">{{ ic('home') }}Overview</a>
-  <a href="/p/{{ p.id }}/items" class="{{ 'on' if '/items' in path }}">{{ ic('grid') }}Items</a>
-  <a href="/p/{{ p.id }}/buying" class="{{ 'on' if '/buying' in path or '/orders' in path }}">{{ ic('bag') }}Buying</a>
-  <a href="/p/{{ p.id }}/drafts" class="{{ 'on' if '/drafts' in path or '/capture' in path }}">{{ ic('clock') }}Drafts{% if nav.drafts %}<span class="count">{{ nav.drafts }}</span>{% endif %}</a>
-  <a href="/p/{{ p.id }}/plan" class="{{ 'on' if path.startswith('/p/' ~ p.id ~ '/plan') }}">{{ ic('map') }}Plan</a>
-  <a href="/p/{{ p.id }}/rooms" class="{{ 'on' if '/rooms' in path }}">{{ ic('layout') }}Rooms</a>
-  <a href="/p/{{ p.id }}/suppliers" class="{{ 'on' if '/suppliers' in path }}">{{ ic('users') }}Suppliers</a>
-  <a href="/p/{{ p.id }}/payments" class="{{ 'on' if '/payments' in path }}">{{ ic('card') }}Payments</a>
-  <a href="/p/{{ p.id }}/cartons" class="{{ 'on' if '/cartons' in path or '/shipments' in path }}">{{ ic('truck') }}Shipping</a>
-  <a href="/p/{{ p.id }}/images" class="{{ 'on' if '/images' in path }}">{{ ic('image') }}Images &amp; plans</a>
-  <a href="/p/{{ p.id }}#documents">{{ ic('file') }}Documents</a>
-  <a href="/p/{{ p.id }}/import" class="{{ 'on' if '/import' in path }}">{{ ic('upload') }}Import</a>
-  <a href="/p/{{ p.id }}/edit" class="{{ 'on' if path == '/p/' ~ p.id ~ '/edit' }}">{{ ic('edit') }}Project settings</a>
+{% macro nav_section(p, path) %}{% set base = '/p/' ~ p.id %}{% if path == base %}home{% elif '/items' in path or '/drafts' in path or '/capture' in path or '/rooms' in path or path.startswith(base ~ '/plan') or '/images' in path %}design{% elif '/buying' in path or '/quotations' in path %}sourcing{% elif '/orders' in path or '/payments' in path or '/suppliers' in path %}orders{% elif '/cartons' in path or '/shipments' in path %}delivery{% elif path in (base ~ '/edit', base ~ '/lists', base ~ '/import') or path.startswith(base ~ '/lists') or path.startswith(base ~ '/import') %}project{% endif %}{% endmacro %}
+{% macro project_links(p, path, nav) %}{% set sec = nav_section(p, path)|trim %}
+  <a href="/p/{{ p.id }}" class="{{ 'on' if sec == 'home' }}">{{ ic('home') }}Home</a>
+  <a href="/p/{{ p.id }}/items" class="{{ 'on' if sec == 'design' }}">{{ ic('grid') }}Design{% if nav.drafts %}<span class="count" title="Drafts to name">{{ nav.drafts }}</span>{% endif %}</a>
+  <a href="/p/{{ p.id }}/buying" class="{{ 'on' if sec == 'sourcing' }}">{{ ic('bag') }}Sourcing</a>
+  <a href="/p/{{ p.id }}/orders" class="{{ 'on' if sec == 'orders' }}">{{ ic('receipt') }}Orders</a>
+  <a href="/p/{{ p.id }}/cartons" class="{{ 'on' if sec == 'delivery' }}">{{ ic('truck') }}Delivery</a>
+{% endmacro %}
+{% macro project_menu(p, path) %}
+  <a href="/p/{{ p.id }}#documents">{{ ic('file') }}Share &amp; print</a>
+  <a href="/p/{{ p.id }}/import" class="{{ 'on' if '/import' in path }}">{{ ic('upload') }}Import &amp; export</a>
   <a href="/p/{{ p.id }}/lists" class="{{ 'on' if path.startswith('/p/' ~ p.id ~ '/lists') }}">{{ ic('tag') }}Lists</a>
+  <a href="/p/{{ p.id }}/edit" class="{{ 'on' if path == '/p/' ~ p.id ~ '/edit' }}">{{ ic('edit') }}Project settings</a>
 {% endmacro %}
 {% macro studio_links(path, p) %}
   <a href="/" class="{{ 'on' if path == '/' }}">{{ ic('folder') }}All projects</a>
@@ -102,6 +100,8 @@
   <div class="eyebrow sec">{{ p.client_name }}</div>
   <nav class="nav">{{ project_links(p, path, nav) }}</nav>
   <a class="cta" href="/p/{{ p.id }}/capture">{{ ic('camera') }}Quick capture</a>
+  <div class="eyebrow sec">Project</div>
+  <nav class="nav nav-small">{{ project_menu(p, path) }}</nav>
   {% endif %}
   <div class="eyebrow sec">Studio</div>
   <nav class="nav">{{ studio_links(path, p) }}</nav>
@@ -134,19 +134,19 @@
 {% if not public %}
 </div></div>
 <nav class="bottom">
-  {% if p %}
-  <a href="/p/{{ p.id }}" class="{{ 'on' if path == '/p/' ~ p.id }}">{{ ic('home') }}<span>Overview</span></a>
-  <a href="/p/{{ p.id }}/items" class="{{ 'on' if '/items' in path or '/drafts' in path }}">{{ ic('grid') }}<span>Items</span>{% if nav.drafts %}<span class="dot">{{ nav.drafts }}</span>{% endif %}</a>
+  {% if p %}{% set sec = nav_section(p, path)|trim %}
+  <a href="/p/{{ p.id }}" class="{{ 'on' if sec == 'home' }}">{{ ic('home') }}<span>Home</span></a>
+  <a href="/p/{{ p.id }}/items" class="{{ 'on' if sec == 'design' }}">{{ ic('grid') }}<span>Design</span>{% if nav.drafts %}<span class="dot">{{ nav.drafts }}</span>{% endif %}</a>
   <a href="/p/{{ p.id }}/capture" class="capture"><span class="ring">{{ ic('camera') }}</span><span>Capture</span></a>
-  <a href="/p/{{ p.id }}/plan" class="{{ 'on' if path.startswith('/p/' ~ p.id ~ '/plan') }}">{{ ic('map') }}<span>Plan</span></a>
-  <a href="/p/{{ p.id }}/buying" class="{{ 'on' if '/buying' in path or '/orders' in path }}">{{ ic('bag') }}<span>Buying</span></a>
+  <a href="/p/{{ p.id }}/buying" class="{{ 'on' if sec == 'sourcing' }}">{{ ic('bag') }}<span>Sourcing</span></a>
+  <a href="/p/{{ p.id }}/orders" class="{{ 'on' if sec == 'orders' }}">{{ ic('receipt') }}<span>Orders</span></a>
   {% else %}
   <a href="/" class="{{ 'on' if path == '/' }}">{{ ic('folder') }}<span>Projects</span></a>
   <a href="/suppliers" class="{{ 'on' if path.startswith('/suppliers') }}">{{ ic('users') }}<span>Suppliers</span></a>
   <a href="/projects/new" class="capture"><span class="ring">{{ ic('plus') }}</span><span>New</span></a>
   <a href="/settings" class="{{ 'on' if path == '/settings' }}">{{ ic('settings') }}<span>Settings</span></a>
   {% endif %}
-  {% if p %}{% set on_tab = path == '/p/' ~ p.id or '/items' in path or '/drafts' in path or '/capture' in path or path.startswith('/p/' ~ p.id ~ '/plan') or '/buying' in path or '/orders' in path %}{% else %}{% set on_tab = path == '/' or path.startswith('/suppliers') or path == '/projects/new' or path == '/settings' %}{% endif %}
+  {% if p %}{% set on_tab = nav_section(p, path)|trim in ('home', 'design', 'sourcing', 'orders') or '/capture' in path %}{% else %}{% set on_tab = path == '/' or path.startswith('/suppliers') or path == '/projects/new' or path == '/settings' %}{% endif %}
   <button type="button" class="{{ 'on' if not on_tab }}" onclick="toggleMore()">{{ ic('more') }}<span>More</span></button>
 </nav>
 <div class="sheet" id="more" aria-hidden="true">
@@ -156,6 +156,8 @@
     {% if p %}
     <div class="eyebrow sec">{{ p.name }}</div>
     <nav class="nav">{{ project_links(p, path, nav) }}</nav>
+    <div class="eyebrow sec">Project</div>
+    <nav class="nav">{{ project_menu(p, path) }}</nav>
     {% endif %}
     <div class="eyebrow sec">Studio</div>
     <nav class="nav">{{ studio_links(path, p) }}<a href="/logout">{{ ic('logout') }}Log out</a></nav>

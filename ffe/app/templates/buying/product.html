@@ -253,7 +253,7 @@
         <td class="nowrap"><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}" data-quick>{{ i.code }}</a></td>
         <td>{{ i.room.name if i.room else 'Whole house' }}</td>
         <td class="num">{{ i.qty|num(2) }} {{ i.unit }}</td>
-        <td><span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status }}</span></td>
+        <td><span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status|status_label }}</span></td>
         <td class="small">{% if i.purchase %}{{ i.purchase.supplier.name if i.purchase.supplier else '—' }}{% else %}<span class="muted">no shop yet</span>{% endif %}</td>
         <td class="num">{{ i.unit_price|cur(2) if i.unit_price else '' }}</td>
       </tr>

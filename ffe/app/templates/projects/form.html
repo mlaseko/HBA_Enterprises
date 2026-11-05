@@ -5,7 +5,7 @@
   <div>
     <div class="crumbs"><a href="/">Projects</a>{% if p %}<svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a>{% endif %}</div>
     <h1>{{ 'Edit project' if p else 'New project' }}</h1>
-    <p class="sub">{% if p %}Client details, exchange rate and budget. Changes apply to every schedule and label you print.{% else %}Start with the client and the home. You can add rooms and import the item list right after.{% endif %}</p>
+    <p class="sub">{% if p %}Client details, exchange rate and budget.{% else %}Start with the client and the home. Rooms and items come next.{% endif %}</p>
   </div>
   {% if p %}
   <div class="actions">

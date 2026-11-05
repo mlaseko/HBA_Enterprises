@@ -48,10 +48,12 @@ def create_project(request: Request, db: Session = Depends(get_db), client_name:
 
 @router.get("/p/{project_id}")
 def dashboard(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    from .buy import tracker_figures
+    t, _ = tracker_figures(db, p)  # first: it syncs the products and commits, then summary() reads the lines
     s = summary(db, p)
     # the six items changed last, from the lines summary() already loaded (a query here re-loaded their photos and pins)
     recent = sorted(p.live_items, key=lambda i: (i.updated_at or datetime.min, i.id), reverse=True)[:6]
-    return render(request, "projects/dashboard.html", p=p, s=s, recent=recent, client_moods=client_moods(p))
+    return render(request, "projects/dashboard.html", p=p, s=s, t=t, recent=recent, client_moods=client_moods(p))
 
 
 @router.get("/p/{project_id}/edit")

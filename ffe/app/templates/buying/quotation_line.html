@@ -8,7 +8,7 @@
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/quotations">Quotations</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/quotations/{{ q.id }}#line-{{ ln.id }}">{{ q.title or q.filename }}</a></div>
     <h1>Line L{{ ln.no }} <span class="h-note">{{ q.supplier.name if q.supplier else 'no shop' }}</span></h1>
-    <p class="sub">Change what this line became, correct a number the sheet was read wrong, or let it price another product of yours too. On save, this sheet's quotes on every product touched are made again from the lines now on them.</p>
+    <p class="sub">Change what this line became, or correct a number that was read wrong.</p>
   </div>
   <div class="actions"><a class="btn sec" href="/p/{{ p.id }}/quotations/{{ q.id }}#line-{{ ln.id }}"><svg class="ic"><use href="#i-x"/></svg>Back</a></div>
 </div>

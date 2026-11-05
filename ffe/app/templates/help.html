@@ -21,7 +21,8 @@
   <a href="#flow">The walkthrough, start to finish</a>
   <div class="eyebrow sub">Feature by feature</div>
   <a href="#start">Studio settings</a>
-  <a href="#project">Projects, Overview &amp; import</a>
+  <a href="#places">Finding your way: the five places</a>
+  <a href="#project">Projects, Home &amp; import</a>
   <a href="#lists">Lists: categories, units &amp; defaults</a>
   <a href="#rooms">Rooms &amp; areas</a>
   <a href="#plans">Floor plans &amp; PDF pages</a>
@@ -94,14 +95,14 @@
     <h3>Create the project</h3>
     <ol>
       <li>On <b>Projects</b>, press <b>New project</b>. Type the client's name, the project name (the house), the delivery address, the exchange rate and, if you like, a budget in USD. Press <b>Create project</b>.</li>
-      <li>You land on the project's <b>Overview</b>. The sidebar (or the <b>More</b> menu on a phone) now shows this project's pages.</li>
+      <li>You land on the project's <b>Home</b>. The sidebar (or the bar at the bottom of a phone) now shows the project's five places: <b>Home</b>, <b>Design</b>, <b>Sourcing</b>, <b>Orders</b> and <b>Delivery</b>; see <a href="#places">Finding your way</a>.</li>
       <li>Already have the list in Excel? Open <b>Import</b>, press <b>Download the template</b>, fill its Rooms and Shopping List sheets, choose the file and press <b>Import</b>. Rooms and items are created in one go. Otherwise carry on to stage 3 and add the rooms yourself.</li>
     </ol>
     <div class="shots">
       {{ shot('projects', 'Projects: one card per house, with items, total, received and boxes.') }}
-      {{ shot('overview', 'The Overview: counts and money at the top, then status, documents, and the breakdown by room, category and supplier.') }}
+      {{ shot('overview', 'Home: what needs you, the progress of the room lines and the money, then Share &amp; print and the breakdown.') }}
     </div>
-    <div class="result"><b>Done when:</b> the project has an Overview and, if you imported, its rooms and items.</div>
+    <div class="result"><b>Done when:</b> the project has a Home page and, if you imported, its rooms and items.</div>
   </div>
 
   <div class="stage" id="s3">
@@ -156,7 +157,7 @@
       {{ shot('phone-capture', 'Quick capture on the phone: tag the next photos if you like, then shoot.', 'phone') }}
       {{ shot('phone-drafts', 'Drafts: name it, pick the room, save. It gets a code and joins the schedule.', 'phone') }}
     </div>
-    <div class="result"><b>Done when:</b> every room lists what goes in it, the Overview shows the totals, and the client schedule PDF already prints.</div>
+    <div class="result"><b>Done when:</b> every room lists what goes in it, Home shows the totals, and the client schedule PDF already prints.</div>
   </div>
 
   <div class="stage" id="s6">
@@ -169,7 +170,7 @@
       <li><b>Quantities.</b> <b>What to order</b> adds an allowance to the rooms' quantities (10 % for tiles, nothing for the rest) and rounds up to whole boxes; change both per product. A purchase can also take a quantity set by hand.</li>
       <li><b>Review.</b> <b>Purchase schedule</b> shows every product in the look of the client schedule, with what to order, the shop, the brand bought and the price, by category. Its <b>PDF</b> is the internal version, with the shops and the money by shop: filter it by <b>market</b> first to take one market's list with you, or print it all to review with your team.</li>
       <li><b>Order.</b> What you bought from a shop waits on the <b>Orders</b> tab under <b>Ready to order</b>. Press <b>Start an order</b>: the shop's products go onto a numbered draft (MV-001: the project's initials and a number) with each room, what to order in whole boxes, the price and the total. Check it, set the shop's <b>ready date</b> and the deposit (read from the shop's payment terms), and send the shop the <b>Purchase order</b> PDF, or press <b>Send on WeChat</b> for the same order as a message with the Chinese for each heading. When the shop agrees, press <b>Confirm the order</b>: its rooms become <span class="badge" style="--c:{{ STATUS_COLORS['Ordered'] }}">Ordered</span> by themselves.</li>
-      <li><b>Pay.</b> Record each deposit and balance on the order (<b>Record a payment</b> comes filled in with what is due) or on <b>Payments</b>: date, amount in CNY, type, the bank or WeChat reference and a photo of the receipt. Once an order is paid in full, its rooms become <span class="badge" style="--c:{{ STATUS_COLORS['Paid'] }}">Paid</span>. What is still to pay, per order and per shop, shows on the order, the supplier, Payments and the Overview.</li>
+      <li><b>Pay.</b> Record each deposit and balance on the order (<b>Record a payment</b> comes filled in with what is due) or on <b>Payments</b>: date, amount in CNY, type, the bank or WeChat reference and a photo of the receipt. Once an order is paid in full, its rooms become <span class="badge" style="--c:{{ STATUS_COLORS['Paid'] }}">Paid</span>. What is still to pay, per order and per shop, shows on the order, the supplier, Payments and Home.</li>
       <li><b>Track.</b> While you are still getting prices, the Tracker's <b>Sourcing</b> card shows the products with a quote by category and what is left of the budget for the rest; <b>Needs attention</b> warns of quotations about to expire, quotations read but not saved and categories with no quote. The <b>Tracker</b> tab puts the money side by side (budget, estimated, committed, ordered, paid, to pay), lists what <b>needs attention</b> (orders past their ready date with money still to pay, deposits to pay, balances due before collection, drafts to confirm, products without a shop or a quote) and breaks the buying down by stage, shop and category.</li>
     </ol>
     {{ shot('buying', 'Buying: the totals, the products by stage (each tile is a filter), the search, and one card per product with what to order, the price and how many rooms have their shop.') }}
@@ -202,7 +203,7 @@
       <li><b>Labels.</b> The app numbers each box <b>Box n of N</b> for its room. Press <b>Print box labels</b> (six per page) and <b>Packing list PDF</b>; the shop has the same two buttons on its link.</li>
       <li><b>At the warehouse.</b> When a shop delivers, open <b>Shipping › Shipments</b> and press <b>Delivered to the warehouse</b> on its line (or tick the boxes on Boxes and press <b>At the warehouse</b>). They wait under <b>Waiting at the warehouse</b>, which says what they fit together: LCL below about 12 CBM, else a 20ft or a 40ft container.</li>
       <li><b>Ship.</b> Choose the container and press <b>Ship them: new shipment</b>: every waiting box goes on <b>Shipment 1</b>. The shipment shows the space and the weight used; write its container and seal numbers, the forwarder, the bill of lading and the dates under <b>Details</b>, and give the warehouse the <b>Loading list</b>.</li>
-      <li><b>Loaded, sailed, arrived.</b> Press <b>Loaded today</b> when the container leaves the warehouse: the items in its boxes become <span class="badge" style="--c:{{ STATUS_COLORS['Shipped'] }}">Shipped</span>. Then <b>Sailed today</b> and <b>Arrived today</b> (or on another day). The Overview says when the next shipment arrives, and the Tracker warns you when one is late.</li>
+      <li><b>Loaded, sailed, arrived.</b> Press <b>Loaded today</b> when the container leaves the warehouse: the items in its boxes become <span class="badge" style="--c:{{ STATUS_COLORS['Shipped'] }}">Shipped</span>. Then <b>Sailed today</b> and <b>Arrived today</b> (or on another day). Home says when the next shipment arrives, and the Tracker warns you when one is late.</li>
     </ol>
     {{ shot('shipments', 'Shipments: where the boxes are, what waits at the warehouse and what it fits, the shops still to deliver, then each shipment by stage with how full it is and when it arrives.') }}
     {{ shot('shipment', 'A shipment: its steps from loading to delivery, the boxes, volume and weight against the container, its dates and papers, then its boxes by room.') }}
@@ -218,12 +219,12 @@
     <div class="eyebrow">Stage 8</div>
     <h3>The schedule for the client</h3>
     <ol>
-      <li>On the Overview, under <b>Documents</b>, open <b>Client schedule</b>: a cover with the cover photo and your logo, an <b>At a glance</b> page (client, address, counts, total, your project note and a contents list with page numbers), the floor plans with the room boxes and codes drawn on, the mood board, one section per category with its items (photo, code, product and must-haves, brand · finish · size, room, lead time, quantity and price) and a summary by room and area. Suppliers, notes and CNY prices never appear, just as on the client link. Choose USD or CNY, with or without prices, with or without photos; <b>by floor</b> prints each floor's plan followed by that floor's rooms instead of the category sections.</li>
+      <li>On <b>Home</b>, under <b>Share &amp; print</b>, open <b>Client schedule</b>: a cover with the cover photo and your logo, an <b>At a glance</b> page (client, address, counts, total, your project note and a contents list with page numbers), the floor plans with the room boxes and codes drawn on, the mood board, one section per category with its items (photo, code, product and must-haves, brand · finish · size, room, lead time, quantity and price) and a summary by room and area. Suppliers, notes and CNY prices never appear, just as on the client link. Choose USD or CNY, with or without prices, with or without photos; <b>by floor</b> prints each floor's plan followed by that floor's rooms instead of the category sections.</li>
       <li>Pick the version you need: USD or CNY prices, <b>Schedule by floor</b> (each floor's plan, then its rooms), or <b>without prices</b> for the site team and suppliers.</li>
       <li>Open <b>Project settings</b>, press <b>Copy link</b> under <b>Client link</b> and send it to the client. They see the items with photos and USD prices (a room shows its price once a shop is chosen for it), the mood board, the plan with the dots, and a <b>Download PDF</b> button. They never see suppliers, notes or CNY prices.</li>
     </ol>
     <div class="shots">
-      {{ shot('documents', 'The Documents section of the Overview: every PDF and the Excel export, always up to date.') }}
+      {{ shot('documents', 'Share &amp; print on Home: every PDF and the Excel export, always up to date.') }}
       {{ shot('pdf-cover', 'The client schedule: the cover with your cover image.') }}
     </div>
     <div class="shots">
@@ -246,7 +247,7 @@
       {{ shot('pdf-checklist', 'Page one of a room checklist: the room zoomed in on its plan, its outline, and a dot carrying the number of each item code.') }}
       {{ shot('phone-receive', 'Receiving on the phone: the shipment\'s boxes by room, a square to tap as each one is checked, and Room received.', 'phone') }}
     </div>
-    <div class="result"><b>Done when:</b> the Overview shows every item and every box received. The client link shows the same.</div>
+    <div class="result"><b>Done when:</b> Home shows every item and every box received. The client link shows the same.</div>
   </div>
 </section>
 
@@ -263,29 +264,46 @@
   </ul>
 </section>
 
+<section class="card" id="places">
+  <h2>Finding your way: the five places</h2>
+  <p>Every project has the same five places, in the sidebar on a computer and in the bar at the bottom of a phone. Each place has tabs along the top for its pages.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Place</th><th>What you do there</th><th>Its tabs</th></tr></thead>
+    <tbody>
+      <tr><td><b>Home</b></td><td>See what needs you next, the progress and the money; print and share.</td><td>Share &amp; print, the breakdown by room, category and supplier</td></tr>
+      <tr><td><b>Design</b></td><td>Say what goes where: the items, the rooms, the floor plans and the mood board.</td><td>Items, Drafts, Rooms, Plan, Images &amp; plans</td></tr>
+      <tr><td><b>Sourcing</b></td><td>Get prices and choose the shops: quotes, the suppliers' quotation sheets, comparing shops.</td><td>Products, Quotations, Tracker, Purchase schedule</td></tr>
+      <tr><td><b>Orders</b></td><td>Confirm orders with the shops and pay them.</td><td>Orders, Payments, Suppliers</td></tr>
+      <tr><td><b>Delivery</b></td><td>Follow the boxes from the shops to the warehouse, onto a shipment and to site.</td><td>Boxes, Shipments</td></tr>
+    </tbody>
+  </table></div>
+  <p>The project menu under them (<b>More</b> on a phone) has <b>Share &amp; print</b>, <b>Import &amp; export</b>, <b>Lists</b> and <b>Project settings</b>. <b>Quick capture</b> is the camera button, always one tap away.</p>
+</section>
+
 <section class="card" id="project">
-  <h2>Projects, Overview &amp; import</h2>
+  <h2>Projects, Home &amp; import</h2>
   <p><b>What it is for:</b> one project per house. It holds the rooms, items, payments, boxes, images and documents of that house. Suppliers are the only thing shared between projects.</p>
   <h3>New project and Project settings</h3>
   <ul>
     <li>Client name and project name print on the schedule cover. The <b>delivery address</b> prints on every box label.</li>
     <li><b>Show amounts in</b> (Project settings) chooses USD or CNY for every amount on your pages, with the other currency underneath; the client link and the client schedule are always in USD. The <b>exchange rate</b> (CNY per 1 USD) drives every USD figure. Changing it later does not move prices, which are stored in CNY; only the USD figures change.</li>
-    <li>A <b>budget</b> in USD shows a bar on the Overview. <b>Status</b> (Active, On hold, Completed) is just a label on the project card.</li>
+    <li>A <b>budget</b> in USD shows a bar on Home. <b>Status</b> (Active, On hold, Completed) is just a label on the project card.</li>
     <li>A new project starts with one entry, <b>Whole house</b>, for items that belong to no particular room.</li>
     <li><b>Danger zone:</b> deleting a project removes everything in it. You have to type <i>delete</i> to confirm.</li>
   </ul>
-  <h3>The Overview</h3>
+  <h3>Home</h3>
   <ul>
-    <li>The tiles: items (and how many have a price), total in CNY and USD against the budget, paid and balance, items and boxes received, volume packed and the container it fits, and how many items are still to buy.</li>
-    <li><b>Item status</b> badges: tap one to list only those items.</li>
-    <li><b>Documents</b>: every PDF and the Excel export; see <a href="#documents">PDFs &amp; Excel</a>.</li>
-    <li><b>By room &amp; area</b> (tap a room to open it on the plan; the PDF button is its checklist), <b>By category</b>, <b>By supplier</b> with ordered, paid and balance, and the items you touched most recently.</li>
+    <li><b>What needs you</b>: what to do next, the most pressing first: orders late or with money due, deposits to pay, quotations to check, products with no quote or no shop, boxes to receive, photos from Quick capture to name, pictures the client added. Tap a line to deal with it. The <b>Tracker</b> has the full list and the figures behind it.</li>
+    <li><b>Progress</b>: the room lines by status, as one bar; tap a status to list those lines. Under it, where the boxes are and the next shipment.</li>
+    <li><b>Money</b>: committed (the shops chosen, allowance and whole boxes included) against the budget, paid, and what is still to pay on confirmed orders.</li>
+    <li><b>Share &amp; print</b> (also in the project menu): every PDF and the Excel export; see <a href="#documents">PDFs &amp; Excel</a>.</li>
+    <li><b>By room, category and supplier</b>, folded at the bottom: the totals by room &amp; area (tap a room to open it on the plan; the PDF button is its checklist), by category, by supplier with ordered, paid and balance, and the items you touched most recently.</li>
   </ul>
   <h3>Import from Excel</h3>
   <ul>
     <li>Press <b>Download the template</b> on the Import page. Its <b>Rooms</b> sheet already lists this project's rooms and areas, so adding a floor, a room or an area is one new row: <i>CODE - Name</i>, the floor, and the kind (room or area). Its <b>Shopping List</b> sheet takes one row per item, with dropdowns for the room, category, unit, status and optional; a room you add on the Rooms sheet appears in the room dropdown at once. A <b>How to</b> sheet repeats these rules.</li>
     <li><b>Several rooms in one row.</b> The Room dropdown starts with quick picks: <b>All rooms</b>, <b>All areas</b>, <b>All bedrooms</b>, <b>All bathrooms</b> and <b>All on Ground floor</b> (one per floor). You can also type several rooms with <b>;</b> between them ("GF-LIV - Living room; FF-BR1 - Bedroom 1"). The row becomes one item per room, each with its own code, exactly like ticking several rooms on the item form. The category stays one per item: it decides the schedule page the item prints on.</li>
-    <li><b>Updating items in Excel.</b> Press <b>Export all items</b> (also Overview › Documents › Excel export), or <b>Export a part</b> on the Import page to get just one category, floor, room or status; the Items page's <b>Export</b> button gives whatever its filter shows. It is the same file, with the chosen items filled in and each <b>Code</b> in the first column, so a short sheet is enough when you are fixing one category or one floor. Change prices, quantities, statuses, suppliers, specs or the room, then import the file. A row whose code matches an existing item updates that item: the cells you filled change, blank cells leave the value alone, and a single <b>-</b> clears a cell. The code, the photos and the dots on the plan stay; a changed room moves the item and removes its dots. Rows without a code are added as new items, so you can add and update in one file.</li>
+    <li><b>Updating items in Excel.</b> Press <b>Export all items</b> (also Home › Share &amp; print › Excel export), or <b>Export a part</b> on the Import page to get just one category, floor, room or status; the Items page's <b>Export</b> button gives whatever its filter shows. It is the same file, with the chosen items filled in and each <b>Code</b> in the first column, so a short sheet is enough when you are fixing one category or one floor. Change prices, quantities, statuses, suppliers, specs or the room, then import the file. A row whose code matches an existing item updates that item: the cells you filled change, blank cells leave the value alone, and a single <b>-</b> clears a cell. The code, the photos and the dots on the plan stay; a changed room moves the item and removes its dots. Rows without a code are added as new items, so you can add and update in one file.</li>
     <li><b>Pictures.</b> The export shows each item's cover picture over its <b>Photo</b> cell. To bring pictures in, upload picture files together with the sheet (the second file box on the Import page), named after the item code ("FF-MBR-04.jpg") or the item name ("Bedside wall light.jpg"; add "-2" for a second picture of the same item), or place a picture over the row's Photo cell in Excel (Insert › Pictures › Place over Cells). A picture goes to every item the name matches, so a product in four rooms gets it four times, like the item form. Items that already have a photo keep it and the preview says so; the export's own pictures are never added again.</li>
     <li><b>Preview first.</b> Every upload shows a check screen before anything is saved: how many items would be added, updated, left unchanged or skipped, the new rooms and suppliers, warnings such as a room or status the app could not match, a table of the updated items with each change ("Price (CNY): 3,200 → 3,500") and a table of the new items with the codes they would get. Press <b>Apply the import</b> to save it, or <b>Cancel</b> to fix the file and upload it again.</li>
     <li>The Kinondoni list format imports too. Columns are matched by their headers (Code, Room, Category, Item, Must-have spec, Brand, Size, Finish, Qty, Unit, Price (CNY), Supplier, Lead time, Status, Optional, Notes); extra columns, such as the totals in the export, are ignored.</li>
@@ -423,7 +441,7 @@
       <tr><td><b>Preferred brand</b></td><td>Only when the design asks for a brand: the shops see it as a must-have. The brand actually bought is the shop's, recorded with its quote on <a href="#buying">Buying</a>, and that is what the schedule prints once bought.</td><td>Buying, schedule, purchase order</td></tr>
       <tr><td><b>Qty, unit</b></td><td>Per room. No price on the item: a room's line takes the price of the shop chosen for it; see <a href="#prices">prices</a>.</td><td>Totals everywhere</td></tr>
       <tr><td><b>Buying</b> (a saved item)</td><td>Which shop supplies this room, the brand bought, the price and the lead time, or "No shop chosen yet" with the number of quotes. <b>Open in Buying</b> goes to the product.</td><td>Purchase order, packing link, balances</td></tr>
-      <tr><td><b>Status</b></td><td>Where the purchase is; see <a href="#statuses">statuses</a>.</td><td>Badges, Overview counts, client link</td></tr>
+      <tr><td><b>Status</b></td><td>Where the purchase is; see <a href="#statuses">statuses</a>.</td><td>Badges, Home counts, client link</td></tr>
       <tr><td><b>Optional item</b></td><td>An alternative the client may or may not take. Counted separately in the totals.</td><td>"optional" pill</td></tr>
       <tr><td><b>Notes</b></td><td>For you. Never shown to the client.</td><td>Item, checklist</td></tr>
       <tr><td><b>Photos / web link</b></td><td>Take a photo, or choose several from the gallery at once (the phone offers both); or paste a link to a page or a picture, downloaded when you save. The first photo is the cover; more photos can be added on the item page at any time.</td><td>Cards, schedule, purchase order, dots on the plan</td></tr>
@@ -438,7 +456,7 @@
     <li><b>Quick capture</b> and <b>Add item</b> from here keep the current room and category.</li>
   </ul>
   <div class="shots">
-    {{ shot('items-table', 'Table view, filtered by category: the compact sheet with a status dropdown per row. Press a heading to sort.') }}
+    {{ shot('items-table', 'Table view, filtered by category: the compact sheet, one line per room. Press a heading to sort.') }}
     {{ shot('items-list', 'Item list, sorted by rooms: the same product in several rooms is one line, with its rooms, the total quantity and a count per status.') }}
     {{ shot('items-select', 'Two lines ticked: the bar counts them and its button says how many go. Nothing is deleted until you press it and confirm.') }}
       {{ shot('items-codes', 'Tick by codes: three codes pasted and ticked, one not on the page named in the bar.') }}
@@ -580,7 +598,7 @@
   <h3>The cycle</h3>
   <ol>
     <li><b>To buy</b>: the item is on the schedule, no shop chosen yet.</li>
-    <li><b>Quoted</b>: a shop is chosen for the room on <a href="#buying">Buying</a>, at its price. Its product waits on <b>Orders</b> under <b>Ready to order</b>, and stays Quoted on a draft order.</li>
+    <li><b>Shop chosen</b>: a shop is chosen for the room on <a href="#buying">Buying</a>, at its price. Its product waits on <b>Orders</b> under <b>Ready to order</b>, and stays Shop chosen on a draft order. (The Excel sheet and the import call this status <b>Quoted</b>.)</li>
     <li><b>Ordered</b>: its order is confirmed with the shop.</li>
     <li><b>Paid</b>: its order is paid in full.</li>
   </ol>
@@ -650,25 +668,25 @@
     <li><b>Loading list</b> is the PDF for the warehouse and the forwarder: the container, seal, bill of lading, forwarder, vessel, ports and dates, then every box by room with its label, shop, contents, items, size, volume and weight, and a square to tick at loading and one on site.</li>
     <li><b>Delete shipment</b> keeps the boxes: they wait at the warehouse again, and their items are no longer Shipped.</li>
   </ul>
-  <p>The Tracker's <b>Needs attention</b> lists a shipment that is late or arrives within a week, boxes still to receive on site, a planned shipment that should have sailed, and boxes waiting at the warehouse; its <b>Shipping</b> section counts the boxes by place and lists the shipments. The Overview says when the next shipment arrives.</p>
+  <p>The Tracker's <b>Needs attention</b> lists a shipment that is late or arrives within a week, boxes still to receive on site, a planned shipment that should have sailed, and boxes waiting at the warehouse; its <b>Shipping</b> section counts the boxes by place and lists the shipments. Home says when the next shipment arrives.</p>
 </section>
 
 <section class="card" id="documents">
   <h2>PDFs &amp; Excel</h2>
-  <p>All documents are generated from the current data the moment you open them, so they are always up to date. Most are under <b>Documents</b> on the Overview; the others are on the page they belong to.</p>
+  <p>All documents are generated from the current data the moment you open them, so they are always up to date. Most are under <b>Share &amp; print</b> on Home; the others are on the page they belong to.</p>
   <div class="tbl"><table>
     <thead><tr><th>Document</th><th>What is in it</th><th>For whom</th><th>Where</th></tr></thead>
     <tbody>
-      <tr><td><b>Client schedule</b></td><td>Cover, At a glance with a contents list, each floor's main plan with the room boxes, mood board, one section per category (photo, code, product and must-haves, brand · finish · size, room, lead time, quantity, unit and total; no price until a shop is chosen) and a summary by room with share bars; by floor: each floor's plan, then its rooms. Suppliers, notes and CNY prices are never printed.</td><td>Client</td><td>Overview › Documents; Images &amp; plans; the client link</td></tr>
-      <tr><td><b>Schedule by floor</b></td><td>Each floor's plan, then its rooms in one table with a sub-header per room, then the whole-house items and a summary by floor.</td><td>Client, or the site team without prices</td><td>Overview › Documents</td></tr>
-      <tr><td><b>Room checklist</b></td><td>Page one: the room zoomed in on its plan with numbered dots; one more page per other sheet of the floor the room has dots on (the electrical sheet with the lighting dots, say). Then its items with photos, must-haves, quantities and a tick box each. Areas get an "Area checklist".</td><td>Installers</td><td>Rooms page, item list filtered by room, plan panel, Overview by room</td></tr>
-      <tr><td><b>Purchase schedule</b></td><td>Internal. Every product once, by category: photo, codes, product and must-haves, rooms, what to order, the shop and brand bought, unit price, total and stage; then the money by shop (bought, on orders, paid, to pay). CNY or USD, with the page's filters: a category, a floor, a stage or one market.</td><td>You and your team; one market at a time</td><td>Buying › Purchase schedule › PDF; Overview › Documents</td></tr>
+      <tr><td><b>Client schedule</b></td><td>Cover, At a glance with a contents list, each floor's main plan with the room boxes, mood board, one section per category (photo, code, product and must-haves, brand · finish · size, room, lead time, quantity, unit and total; no price until a shop is chosen) and a summary by room with share bars; by floor: each floor's plan, then its rooms. Suppliers, notes and CNY prices are never printed.</td><td>Client</td><td>Home › Share &amp; print; Images &amp; plans; the client link</td></tr>
+      <tr><td><b>Schedule by floor</b></td><td>Each floor's plan, then its rooms in one table with a sub-header per room, then the whole-house items and a summary by floor.</td><td>Client, or the site team without prices</td><td>Home › Share &amp; print</td></tr>
+      <tr><td><b>Room checklist</b></td><td>Page one: the room zoomed in on its plan with numbered dots; one more page per other sheet of the floor the room has dots on (the electrical sheet with the lighting dots, say). Then its items with photos, must-haves, quantities and a tick box each. Areas get an "Area checklist".</td><td>Installers</td><td>Rooms page, item list filtered by room, plan panel, Home › By room</td></tr>
+      <tr><td><b>Purchase schedule</b></td><td>Internal. Every product once, by category: photo, codes, product and must-haves, rooms, what to order, the shop and brand bought, unit price, total and stage; then the money by shop (bought, on orders, paid, to pay). CNY or USD, with the page's filters: a category, a floor, a stage or one market.</td><td>You and your team; one market at a time</td><td>Buying › Purchase schedule › PDF; Home › Share &amp; print</td></tr>
       <tr><td><b>Purchase order</b></td><td>One order: the shop, where to deliver, each product with its photo, the rooms with their codes, the quantity in boxes and CNY prices; total, deposit, paid and balance; payment terms, notes and the packing instruction. A draft prints as a draft.</td><td>Supplier</td><td>The order (Buying › Orders); the supplier's orders</td></tr>
       <tr><td><b>All their items</b></td><td>Every item bought from one supplier on the project, with codes, specs, photos, rooms and prices; total, paid and balance.</td><td>You, the supplier</td><td>Supplier page inside the project</td></tr>
-      <tr><td><b>Packing list</b></td><td>Every box with room, contents, codes, size, volume and weight; total volume and container. The supplier's link prints their own, with where to deliver.</td><td>Forwarder, site</td><td>Overview › Documents; Shipping › Boxes; supplier link</td></tr>
+      <tr><td><b>Packing list</b></td><td>Every box with room, contents, codes, size, volume and weight; total volume and container. The supplier's link prints their own, with where to deliver.</td><td>Forwarder, site</td><td>Home › Share &amp; print; Shipping › Boxes; supplier link</td></tr>
       <tr><td><b>Box labels</b></td><td>Six per A4 page, one per box, to stick on the cartons.</td><td>Supplier, site</td><td>Shipping › Boxes; Rooms page (one room); supplier link</td></tr>
       <tr><td><b>Loading list</b></td><td>One shipment: container, seal, bill of lading, forwarder, vessel, ports and dates; every box by room with its label, shop, contents, items, size, volume and weight, and squares to tick at loading and on site; the volume and weight against the container.</td><td>Warehouse, forwarder, site</td><td>The shipment (Shipping › Shipments)</td></tr>
-      <tr><td><b>Excel export</b></td><td>All items with their fields and codes, totals, and a Rooms sheet with the kind. Change it in Excel and import it back: rows are matched by code and updated.</td><td>You</td><td>Overview › Documents, Import</td></tr>
+      <tr><td><b>Excel export</b></td><td>All items with their fields and codes, totals, and a Rooms sheet with the kind. Change it in Excel and import it back: rows are matched by code and updated.</td><td>You</td><td>Home › Share &amp; print, Import</td></tr>
     </tbody>
   </table></div>
   <div class="shots">
@@ -685,7 +703,7 @@
   <ol>
     <li>Open <b>Project settings</b> and press <b>Copy link</b> under <b>Client link</b>. Send it over WhatsApp or email. <b>Preview as client</b> shows exactly what they see.</li>
     <li>They see the totals in USD, the mood board, the floor plan with the rooms and the item dots (tap a room, see what goes in it), the items by category with photos, USD prices (once a shop is chosen for the room) and delivery status, and <b>Download PDF</b> buttons.</li>
-    <li>The one thing they can add: <b>inspiration pictures</b>, for the whole house under the mood board or for a room in its panel: a photo from their phone or a web link, with a line on what they like, up to twelve per room. They show up on the room everywhere you work, marked "client", and the Overview tells you when new ones arrive. They can remove their own pictures; yours they cannot touch, and nothing else on the page can be changed.</li>
+    <li>The one thing they can add: <b>inspiration pictures</b>, for the whole house under the mood board or for a room in its panel: a photo from their phone or a web link, with a line on what they like, up to twelve per room. They show up on the room everywhere you work, marked "client", and Home tells you when new ones arrive. They can remove their own pictures; yours they cannot touch, and nothing else on the page can be changed.</li>
     <li>They never see suppliers, your notes, CNY prices, payments or drafts.</li>
     <li>If the link gets into the wrong hands, press <b>Reset link</b>. The old one stops working at once; send the new one.</li>
   </ol>
@@ -693,19 +711,19 @@
 
 <section class="card" id="statuses">
   <h2>What the statuses mean</h2>
-  <p>The status of an item follows the purchase: To buy, Quoted, Ordered and Paid move by themselves with Buying and the orders; Shipped and Received with the boxes that hold the item. You can still set any status by hand: from the dropdown on the item list, in the plan panel, or on the item itself. The Overview counts items per status, and the ring on each room box of the plan fills as items are received.</p>
+  <p>The status of an item follows the purchase: To buy, Shop chosen, Ordered and Paid move by themselves with Buying and the orders; Shipped and Received with the boxes that hold the item. The lists show it as a badge. You can still set a status by hand in the plan's room panel, or on the item under <b>More details</b>. In the Excel sheet and the import, Shop chosen is written <b>Quoted</b>. Home counts items per status, and the ring on each room box of the plan fills as items are received.</p>
   <div class="tbl"><table>
     <thead><tr><th>Status</th><th>Meaning</th><th>Set it when</th></tr></thead>
     <tbody>
       {% for st, meaning, when in [
-        ('To buy', 'On the schedule, no shop chosen yet.', 'An item is created. The Overview counts these as "still to buy".'),
+        ('To buy', 'On the schedule, no shop chosen yet.', 'An item is created.'),
         ('Quoted', 'A shop is chosen for the room, at its price.', 'By itself, when you buy from a quote on Buying (and back to To buy if the room loses its shop).'),
         ('Ordered', 'On an order confirmed with the shop.', 'By itself, when you confirm its order (back to Quoted if the order goes back to a draft or the product leaves it).'),
         ('Paid', 'Its order is paid in full.', 'By itself, when the payments recorded against its order reach the order\'s total.'),
         ('Shipped', 'Loaded at the warehouse, on its way.', 'By itself, when every box holding it is loaded on a shipment (back if a box comes off or the loading is undone). Or by hand.'),
         ('Received', 'On site.', 'By itself, when every box holding it is received on site, on its shipment or on Shipping › Boxes. Or by hand, once it is checked in place.'),
       ] %}
-      <tr><td><span class="badge" style="--c:{{ STATUS_COLORS[st] }}">{{ st }}</span></td><td>{{ meaning }}</td><td>{{ when }}</td></tr>
+      <tr><td><span class="badge" style="--c:{{ STATUS_COLORS[st] }}">{{ st|status_label }}</span></td><td>{{ meaning }}</td><td>{{ when }}</td></tr>
       {% endfor %}
     </tbody>
   </table></div>
@@ -729,15 +747,17 @@
   <h2>Tips for the phone</h2>
   <ul>
     <li>Add the app to your home screen from the browser menu; it then opens like an app.</li>
-    <li>The bottom bar has the pages you use most: <b>Overview</b>, <b>Items</b>, <b>Capture</b> in the middle, <b>Plan</b>, <b>Buying</b>. Everything else (Shipping among them), and switching project, is under <b>More</b>.</li>
+    <li>The bottom bar has the places you use most: <b>Home</b>, <b>Design</b>, <b>Capture</b> in the middle, <b>Sourcing</b> and <b>Orders</b>. Delivery, the project menu and switching project are under <b>More</b>.</li>
+    <li>On the Items page the filters fold behind one <b>Filters</b> button, so the list starts on the first screen.</li>
+    <li>Checking a supplier's quotation on the phone goes one line at a time from the start; <b>Exit</b> shows the whole page.</li>
     <li>Photos are shrunk on the phone before they upload, so they go through on slow Wi-Fi. Floor plans keep more detail.</li>
     <li>On the plan, pinch to zoom and tap a room; the room's items come up from the bottom. Tap the pin on an item, then the drawing, to place it.</li>
-    <li>Tap any picture to open it full screen: pinch to zoom, drag to move, and the Back button closes it. In a list (Items, Buying, the Overview, a room on the plan) tapping an item's photo shows the photo, and ‹ › go through the list's other photos; tap the name to open the item.</li>
+    <li>Tap any picture to open it full screen: pinch to zoom, drag to move, and the Back button closes it. In a list (Items, Buying, Home, a room on the plan) tapping an item's photo shows the photo, and ‹ › go through the list's other photos; tap the name to open the item.</li>
     <li>On site, open the shipment: each box has a large square to tap as it is checked, room by room.</li>
     <li>Nothing here needs Google or any outside service, so it works in China.</li>
   </ul>
   <div class="shots">
-    {{ shot('phone-overview', 'The Overview on a phone, with the bottom bar: Overview, Items, Capture, Plan, Buying and More.', 'phone') }}
+    {{ shot('phone-overview', 'Home on a phone, with the bottom bar: Home, Design, Capture, Sourcing, Orders and More.', 'phone') }}
     {{ shot('phone-more', 'The More menu: every page of the project, the Studio pages and the project switcher.', 'phone') }}
   </div>
 </section>
@@ -762,7 +782,7 @@
   <details><summary>The PDF pages were not ticked in the page picker.</summary><p>The PDF has no readable text (a scan or a flattened export), so there was nothing to read. Tick the plan pages and type the floor and sheet yourself. Everything else works the same.</p></details>
   <details><summary>A photo upload failed.</summary><p>Usually the Wi-Fi. Take the photo again; Quick capture keeps the ones that went through. Photos are shrunk before upload, so one photo at a time nearly always goes through even on a slow connection.</p></details>
   <details><summary>An item is in the wrong room.</summary><p>Open the item and change <b>Room or area</b>, then save. Its code stays as it is (codes are never renumbered); its dot on the plan is removed so you can place it again in the new room.</p></details>
-  <details><summary>I deleted a room by mistake.</summary><p>Its items and boxes are kept; they show under "Not in a room or area" on the Overview and as "Unassigned" in the item filter. Add the room again and set it on each item.</p></details>
+  <details><summary>I deleted a room by mistake.</summary><p>Its items and boxes are kept; they show under "Not in a room or area" on Home and as "Unassigned" in the item filter. Add the room again and set it on each item.</p></details>
   <details><summary>Why can the client see prices?</summary><p>The client link shows USD prices, because the schedule is a priced document for the client; a room shows its price only once a shop is chosen for it. For the site team or a supplier, use <b>Schedule without prices</b> or <b>Site schedule by floor</b> under Documents.</p></details>
   <details><summary>The USD totals changed although I changed no price.</summary><p>The project's exchange rate changed (Project settings). Prices are stored in CNY and do not move; the USD figures follow the rate.</p></details>
   <details><summary>Why is the code of a deleted item not reused?</summary><p>Codes are printed on labels, purchase orders and packing lists that may already be with a supplier. A code never changes meaning once it exists.</p></details>

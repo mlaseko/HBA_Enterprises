@@ -72,6 +72,7 @@ header.top .tools{display:flex;align-items:center;gap:6px;margin-left:auto}
   .side .nav a.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
   .side .nav a.on .ic{color:var(--accent)}
   .side .nav a .count{margin-left:auto;background:var(--accent);color:#fff;font-size:.7rem;font-weight:700;border-radius:999px;padding:1px 7px}
+  .side .nav-small a{padding:6px 10px;font-size:.85rem;margin-bottom:0}.side .nav-small a .ic{width:17px;height:17px}
   .side .cta{display:flex;align-items:center;justify-content:center;gap:8px;margin:12px 4px 4px;padding:11px 14px;border-radius:999px;background:var(--grad);color:#fff;font-weight:600;box-shadow:0 10px 24px -12px rgba(185,89,58,.8)}
   .side .cta:hover{text-decoration:none;filter:brightness(1.04)}
   .side .foot{margin-top:auto;padding:12px 10px 0;border-top:1px solid var(--line-2)}
@@ -87,6 +88,7 @@ header.top .tools{display:flex;align-items:center;gap:6px;margin-left:auto}
 .bottom{position:fixed;left:0;right:0;bottom:0;z-index:40;height:calc(var(--bottom-h) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);background:rgba(255,255,255,.94);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line);display:flex;align-items:stretch;justify-content:space-around}
 .bottom a,.bottom button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--muted);font-size:.66rem;font-weight:600;background:none;border:0;font-family:inherit;padding:6px 2px;cursor:pointer;letter-spacing:.01em}
 .bottom a:hover{text-decoration:none}
+.bottom a{position:relative}  /* the drafts dot sits on its own tab */
 .bottom a.on,.bottom button.on{color:var(--accent-ink)}.bottom a.on .ic,.bottom button.on .ic{color:var(--accent)}
 .bottom .ic{width:22px;height:22px}
 .bottom .capture{position:relative}
@@ -174,13 +176,13 @@ input[type=text],input[type=number],input[type=date],input[type=password],input[
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 textarea{min-height:72px;resize:vertical}
 select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23857C72' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 10px center;padding-right:32px}
-.in,input.in,select.in,textarea.in{background:var(--yellow)}
+.in,input.in,select.in,textarea.in{background:var(--surface)}  /* white: a form of yellow boxes read as warnings */
 .filters .in{background:var(--surface)}
 input[type=file]{font-size:.88rem;width:100%;padding:9px 10px;border:1px dashed #D9D1C6;border-radius:var(--r-sm);background:var(--surface-2);color:var(--ink-2)}
 input[type=file]::file-selector-button{font:inherit;font-weight:600;font-size:.84rem;padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);margin-right:10px;cursor:pointer}
 input[type=checkbox]{width:17px;height:17px;accent-color:var(--accent)}
 .help{font-size:.78rem;color:var(--muted);margin-top:4px}
-.room-picks{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:0 14px;max-height:280px;overflow:auto;padding:4px 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--yellow)}
+.room-picks{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:0 14px;max-height:280px;overflow:auto;padding:4px 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface-2)}
 .room-picks label.check{margin:7px 0}.room-picks label.check.locked{color:var(--muted)}.room-picks .pick-link{font-size:.74rem;color:var(--muted);text-decoration:underline dotted;margin-left:2px}
 .field-row{display:flex;gap:6px}.field-row input{min-width:0}
 .form-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid var(--line-2)}
@@ -1502,3 +1504,58 @@ tr.fam-row td{background:var(--surface-2);border-top:2px solid var(--line)}tr.fa
 @media(max-width:700px){.mc-line{grid-template-columns:44px 1fr}.mc-line>:last-child{grid-column:2}}
 .opt-chosen{display:flex;gap:12px;align-items:center;padding:10px;border:1px solid var(--gold);background:var(--gold-soft);border-radius:12px;margin-bottom:12px}
 .opt-chosen img{width:72px;height:72px;object-fit:cover;border-radius:10px;display:block}.qv-opt{margin-bottom:6px}
+
+/* ---------- Home: what needs you, progress, money (projects/dashboard.html) ---------- */
+.home-grid{display:grid;gap:14px;grid-template-columns:1fr;align-items:start;margin-bottom:14px}
+.home-grid>.card,.home-side>.card{margin-bottom:0}
+.home-side{display:grid;gap:14px}
+@media(min-width:960px){.home-grid{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}}
+.home-att{padding:6px 0 0;margin:0 -8px}
+.home-pipe{display:flex;gap:2px;height:12px;border-radius:999px;overflow:hidden;margin:14px 0 10px;background:var(--line-2)}
+.home-pipe i{display:block;background:var(--c)}
+.home-legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.83rem}
+.home-legend a{color:var(--ink-2);white-space:nowrap}
+.home-legend i{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c);margin-right:6px;vertical-align:1px}
+.home-legend b{font-variant-numeric:tabular-nums;color:var(--ink)}
+.home-money{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.home-money>div{display:flex;flex-direction:column;background:var(--surface-2);border:1px solid var(--line-2);border-radius:var(--r-sm);padding:10px 12px;min-width:0}
+.home-money .l{font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.home-money .v{font-family:var(--serif);font-size:1.35rem;line-height:1.2;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.home-money .s{font-size:.76rem;color:var(--muted)}
+.home-bar{height:6px;border-radius:6px;background:var(--line-2);overflow:hidden}
+.home-bar i{display:block;height:100%;background:var(--grad)}.home-bar.over i{background:var(--red)}
+/* a card folded under its heading (Home's Share & print and breakdown) */
+details.card.fold>summary{list-style:none;cursor:pointer;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding-right:28px;position:relative}
+details.card.fold>summary::-webkit-details-marker{display:none}
+details.card.fold>summary::after{content:"";position:absolute;right:4px;top:6px;width:9px;height:9px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);transition:transform .15s}
+details.card.fold[open]>summary::after{transform:rotate(-135deg);top:10px}
+details.card.fold>summary:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:6px}
+.home-todo>.row{flex-wrap:nowrap}.home-todo h2{white-space:nowrap}
+/* the item form's folded parts: More details, Rooms with this item */
+details.more-details{border-top:1px solid var(--line);margin-top:16px;padding-top:12px}
+details.more-details>summary{cursor:pointer;list-style:none;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;padding:4px 0}
+details.more-details>summary::-webkit-details-marker{display:none}
+details.more-details>summary::before{content:"";width:7px;height:7px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);margin-right:4px;align-self:center;transition:transform .15s}
+details.more-details[open]>summary::before{transform:rotate(45deg)}
+details.more-details>summary .muted{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+#itemform .bu-itemcard{margin-top:16px}
+/* Items page: ticking lines for Delete selected only after pressing Select (app.js toggles body.selecting) */
+.select-bar .codes-box[hidden]{display:none}
+body:not(.selecting) #bulk,body:not(.selecting) td.sel>label,body:not(.selecting) th.sel>label,body:not(.selecting) .item-card label.sel{display:none}
+body:not(.selecting) td.sel,body:not(.selecting) th.sel{padding:0;width:0}
+.sel-toggle[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+/* phone: the filters fold behind one button */
+@media(max-width:700px){
+  .filters .filt-toggle{order:-1}
+  .filters:not(.open)>select{display:none}
+  .filters:not(.open)>a.btn.ghost{display:none}
+}
+@media(max-width:700px){  /* the phone keeps what tells lines apart: item, rooms, quantity, status */
+  table.it-list th:nth-child(4),table.it-list td:nth-child(4),table.it-list th:nth-child(7),table.it-list td:nth-child(7),table.it-list th:nth-child(9),table.it-list td:nth-child(9),
+  table.it-table th:nth-child(3),table.it-table td:nth-child(3),table.it-table th:nth-child(6),table.it-table td:nth-child(6),table.it-table th:nth-child(8),table.it-table td:nth-child(8),table.it-table th:nth-child(10),table.it-table td:nth-child(10){display:none}
+}
+/* quotation check: the lines that need nothing are folded away under one note (filter "Needs you", the default) */
+.qi-folded{display:flex;align-items:center;gap:10px;background:var(--green-soft);border-color:#cfe6d7;color:var(--sage-ink);box-shadow:none}
+.qi-folded>.ic{color:var(--green);flex:none}.qi-folded .txt{flex:1;font-size:.9rem}
+body.qi-walking .qi-folded,body.qi-walking .qi-diffs{display:none!important}
+.home-grid h2 .h-note{display:inline;margin:0 0 0 6px}

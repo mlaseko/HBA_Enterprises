@@ -33,6 +33,9 @@ UNITS = ["pcs", "set", "m²", "lm", "m", "box", "kg", "roll"]
 STATUSES = ["To buy", "Quoted", "Ordered", "Paid", "Shipped", "Received"]
 STATUS_COLORS = {"To buy": "#9CA3AF", "Quoted": "#F59E0B", "Ordered": "#3B82F6", "Paid": "#8B5CF6",
                  "Shipped": "#06B6D4", "Received": "#16A34A"}
+# What a status is called on screen. The stored value stays (imports, exports and old data use it): "Quoted" is set when a
+# shop is chosen for the room, so people read it as "Shop chosen".
+STATUS_LABELS = {"Quoted": "Shop chosen"}
 PAYMENT_KINDS = ["Deposit", "Balance", "Full payment", "Other"]
 PRICE_CURRENCIES = ["CNY", "USD"]  # a unit price can be typed in either; it is stored in CNY at the project's rate
 # Rooms vs areas. Both carry a code and hold items and boxes; an area is a zone (entrance, corridors, stairs, balconies,
