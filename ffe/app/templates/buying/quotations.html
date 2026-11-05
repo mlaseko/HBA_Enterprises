@@ -4,6 +4,11 @@
 {% block scripts %}
 <script>
 (function(){
+  var drop=document.getElementById('qx-drop'), fin=drop&&drop.querySelector('input[type=file]'), fname=document.getElementById('qx-fname');
+  function named(){ if(!fin||!fname) return; var f=fin.files&&fin.files[0]; fname.hidden=!f; fname.textContent=f?f.name:''; drop.classList.toggle('has', !!f); }
+  if(drop){ fin.addEventListener('change', named); ['dragenter','dragover'].forEach(function(t){ drop.addEventListener(t,function(e){ e.preventDefault(); drop.classList.add('over'); }); });
+    ['dragleave','drop'].forEach(function(t){ drop.addEventListener(t,function(e){ e.preventDefault(); drop.classList.remove('over'); }); });
+    drop.addEventListener('drop',function(e){ if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files.length){ fin.files=e.dataTransfer.files; named(); } }); }
   var form=document.getElementById('upload'); if(!form||!window.XMLHttpRequest||!window.FormData) return;
   var box=document.getElementById('qi-upload'), bar=box.querySelector('.bar i'), note=document.getElementById('qi-upload-note'), err=document.getElementById('qi-upload-err'), go=document.getElementById('qi-go');
   function mb(n){ return n>=1048576?(n/1048576).toFixed(1)+' MB':Math.round(n/1024)+' KB'; }
@@ -30,7 +35,7 @@
   </div>
   <div class="actions">
     <a class="btn" href="/p/{{ p.id }}/quotations/compare"><svg class="ic"><use href="#i-chart"/></svg>Compare shops</a>
-    <a class="btn sec" href="#inquiry"><svg class="ic"><use href="#i-download"/></svg>Inquiry sheet</a>
+    <a class="btn sec hide-m" href="#inquiry"><svg class="ic"><use href="#i-download"/></svg>Inquiry sheet</a>
   </div>
 </div>
 {{ tabs(p, 'quotations') }}
@@ -38,86 +43,93 @@
 {% if ok %}<div class="alert">{{ ok }}</div>{% endif %}
 {% if err %}<div class="alert err">{{ err }}</div>{% endif %}
 
-<div class="grid g2 qi-top">
-  <form method="post" action="/p/{{ p.id }}/quotations" enctype="multipart/form-data" class="card" id="upload">
+{% if drafts %}
+<div class="card qx-wait" id="drafts">
+  <div class="row between"><div><h2 class="mb-0">Waiting for you <span class="n">{{ drafts|length }}</span></h2><p class="small muted">Drafts and uploads under way: sheets read but not posted yet. Nothing is on the Buying page until you save one.</p></div></div>
+  <div class="qx-wlist">
+  {% for d in drafts %}{% set u = d.up %}
+    <div class="qx-w">
+      <span class="qx-ic"><svg class="ic"><use href="#i-file"/></svg></span>
+      <div class="qx-wmain"><a href="{{ d.url }}"><b>{{ u.filename }}</b></a>
+        <div class="small muted">{% if u.lines %}{{ u.lines }} line{{ 's' if u.lines != 1 }} · {% endif %}{{ u.updated_at.strftime('%Y-%m-%d %H:%M') if u.updated_at else '' }}</div>
+        {% if u.stage == 'error' %}<div class="small muted">{{ u.message }}</div>{% elif u.stage == 'waiting' %}<div class="small muted">Read; the matching waits for you to try Claude again or go on without it.</div>{% elif d.stale %}<div class="small muted">Nothing happened for over 10 minutes: discard it and upload the file again.</div>{% endif %}</div>
+      <div class="qx-wst">{% if d.draft %}<span class="pill gold">Draft</span>{% elif u.stage == 'done' %}<span class="pill green">Ready to check</span>{% elif u.stage == 'error' %}<span class="pill red">Failed</span>{% elif u.stage == 'waiting' %}<span class="pill gold">Waiting for Claude</span>{% elif d.stale %}<span class="pill red">Stuck</span>{% else %}<span class="pill">Reading…</span>{% endif %}</div>
+      <div class="row qx-wact">
+        {% if u.stage == 'done' %}<a class="btn sm accent" href="{{ d.url }}"><svg class="ic"><use href="#i-edit"/></svg>{{ 'Continue' if d.draft else 'Check' }}</a>{% elif u.stage == 'waiting' %}<a class="btn sm" href="{{ d.url }}"><svg class="ic"><use href="#i-clock"/></svg>Match it</a>{% endif %}
+        {% if u.stage in ('done', 'error', 'waiting') or d.stale %}<form method="post" action="/p/{{ p.id }}/quotations/working/{{ u.id }}/discard" data-confirm="Discard this upload? The sheet, its pictures and your choices on it are dropped; the project is not changed."><button class="btn sm ghost" title="Discard"><svg class="ic"><use href="#i-trash"/></svg><span class="hide-m">Discard</span></button></form>{% endif %}
+      </div>
+    </div>
+  {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="qx-top">
+  <form method="post" action="/p/{{ p.id }}/quotations" enctype="multipart/form-data" class="card qx-up" id="upload">
     <h2 class="mb-0">Upload a quotation</h2>
-    <p class="small muted">The supplier's own Excel file (.xlsx, or .xls without its pictures). Nothing is saved until you have checked the preview.</p>
-    <div class="grid g2 mt">
-      <div><label>File</label><input class="in" type="file" name="file" accept=".xlsx,.xls,.xlsm" required></div>
-      <div><label>Shop <span class="muted small">(optional: one of your shops is recognised from the file)</span></label>
-        <select class="in" name="supplier_id" data-find="Search the shops by name"><option value="">Not sure yet</option>{% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if s.id == pre_supplier }}>{{ s.name }}{% if s.city %} · {{ s.city }}{% endif %}</option>{% endfor %}</select>
-        <div class="help">Naming the shop lets earlier confirmed matches from it apply at once.</div></div>
+    <label class="qx-drop" id="qx-drop">
+      <input type="file" name="file" accept=".xlsx,.xls,.xlsm" required>
+      <span class="qx-dic"><svg class="ic lg"><use href="#i-upload"/></svg></span>
+      <span class="qx-dt"><b>Drop the supplier's Excel file here</b><span class="small muted">or tap to choose it · .xlsx, or .xls without its pictures</span></span>
+      <span class="qx-fname small" id="qx-fname" hidden></span>
+    </label>
+    <div class="qx-shop">
+      <label>Shop <span class="muted small">(optional: one of your shops is recognised from the file)</span></label>
+      <select class="in" name="supplier_id" data-find="Search the shops by name"><option value="">Not sure yet</option>{% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if s.id == pre_supplier }}>{{ s.name }}{% if s.city %} · {{ s.city }}{% endif %}</option>{% endfor %}</select>
+      <div class="help">Naming the shop lets earlier confirmed matches from it apply at once.</div>
     </div>
     <div class="row mt"><button class="btn accent" id="qi-go"><svg class="ic"><use href="#i-upload"/></svg>Read the sheet</button>
-      <span class="small muted">{% if claude %}Claude suggests the matches; you confirm every line.{% else %}Matched by words and sizes; set ANTHROPIC_API_KEY for Claude's suggestions.{% endif %}</span></div>
+      <span class="small muted">{% if claude %}Claude suggests the matches; you confirm every line.{% else %}Matched by words and sizes; set ANTHROPIC_API_KEY for Claude's suggestions.{% endif %} Nothing is saved until you have checked it.</span></div>
     <div class="qi-upload" id="qi-upload" hidden><div class="bar"><i style="width:0"></i></div><div class="small muted" id="qi-upload-note">Uploading…</div></div>
     <div class="alert err mt" id="qi-upload-err" hidden></div>
   </form>
 
-  <form method="get" action="/p/{{ p.id }}/quotations/inquiry.xlsx" class="card" id="inquiry">
-    <h2 class="mb-0">Inquiry sheet for a supplier</h2>
-    <p class="small muted">One row per product with our code, the spec, the quantity needed and yellow cells for their item number, price, pack and lead time. A reply that keeps the code column matches on its own.</p>
+  <form method="get" action="/p/{{ p.id }}/quotations/inquiry.xlsx" class="card qx-inq" id="inquiry">
+    <h2 class="mb-0">Ask shops for prices</h2>
+    <p class="small muted">An inquiry sheet: one row per product with our code, the spec, the quantity and yellow cells for their item number, price, pack and lead time. A reply that keeps the code column matches on its own.</p>
     <div class="grid g3 mt">
       <div><label>Category</label><select name="category" class="in"><option value="">All categories</option>{% for c in categories %}<option>{{ c }}</option>{% endfor %}</select></div>
       <div><label>Floor</label><select name="floor" class="in"><option value="">All floors</option>{% for grp in ['Floors', 'Separate areas', 'Other'] %}{% set opts = floors|selectattr('group', 'equalto', grp)|list %}{% if opts %}<optgroup label="{{ grp }}">{% for o in opts %}<option value="{{ o.value }}">{{ o.title }}</option>{% endfor %}</optgroup>{% endif %}{% endfor %}</select></div>
       <div><label>Prices in</label><select name="currency" class="in"><option>USD</option><option>CNY</option></select></div>
     </div>
-    <div class="row mt"><button class="btn"><svg class="ic"><use href="#i-download"/></svg>Download the inquiry sheet</button></div>
+    <div class="row mt"><button class="btn sec"><svg class="ic"><use href="#i-download"/></svg>Download the inquiry sheet</button></div>
   </form>
 </div>
 
-{% if drafts %}
-<div class="card mt" id="drafts">
-  <h2 class="mb-0">Drafts and uploads under way</h2>
-  <p class="small muted">Sheets read but not posted yet. Open one to carry on where you left it; nothing is on the Buying page until you save it.</p>
-  <div class="tbl mt"><table>
-    <thead><tr><th>Sheet</th><th>State</th><th class="num">Lines</th><th>Saved</th><th></th></tr></thead>
-    <tbody>
-    {% for d in drafts %}{% set u = d.up %}
-    <tr>
-      <td><a href="{{ d.url }}"><b>{{ u.filename }}</b></a></td>
-      <td>{% if d.draft %}<span class="pill gold">Draft</span>{% elif u.stage == 'done' %}<span class="pill green">Ready to check</span>{% elif u.stage == 'error' %}<span class="pill red">Failed</span><div class="small muted">{{ u.message }}</div>{% elif u.stage == 'waiting' %}<span class="pill gold">Waiting for Claude</span><div class="small muted">Read; the matching waits for you to try Claude again or go on without it.</div>{% elif d.stale %}<span class="pill red">Stuck</span><div class="small muted">Nothing happened for over 10 minutes: discard it and upload the file again.</div>{% else %}<span class="pill">Reading…</span>{% endif %}</td>
-      <td class="num">{{ u.lines or '—' }}</td>
-      <td class="nowrap small muted">{{ u.updated_at.strftime('%Y-%m-%d %H:%M') if u.updated_at else '' }}</td>
-      <td class="nowrap"><div class="row">
-        {% if u.stage == 'done' %}<a class="btn sm" href="{{ d.url }}"><svg class="ic"><use href="#i-edit"/></svg>{{ 'Continue' if d.draft else 'Check' }}</a>{% elif u.stage == 'waiting' %}<a class="btn sm" href="{{ d.url }}"><svg class="ic"><use href="#i-clock"/></svg>Match it</a>{% endif %}
-        {% if u.stage in ('done', 'error', 'waiting') or d.stale %}<form method="post" action="/p/{{ p.id }}/quotations/working/{{ u.id }}/discard" data-confirm="Discard this upload? The sheet, its pictures and your choices on it are dropped; the project is not changed."><button class="btn sm sec"><svg class="ic"><use href="#i-trash"/></svg>Discard</button></form>{% endif %}
-      </div></td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table></div>
-</div>
-{% endif %}
-
 {% if rows %}
-<div class="tbl mt"><table>
-  <thead><tr><th>Quotation</th><th>Shop</th><th>Date</th><th class="num">Lines</th><th class="num">Quotes</th><th class="num">Total</th><th>Valid until</th><th></th></tr></thead>
-  <tbody>
-  {% for r in rows %}{% set q = r.q %}
-  <tr>
-    <td><a href="/p/{{ p.id }}/quotations/{{ q.id }}"><b>{{ q.title or q.filename or ('Quotation ' ~ q.id) }}</b></a>{% if r.revises %} <span class="pill gold" title="A revised sheet: it corrected the quotes of the earlier document">revision</span>{% endif %}{% if q.sales %}<div class="small muted">{{ q.sales }}</div>{% endif %}{% if r.revises %}<div class="small muted">revises <a href="/p/{{ p.id }}/quotations/{{ r.revises.id }}">{{ r.revises.title or r.revises.filename }}</a>{% if r.revises.quote_date %} of {{ r.revises.quote_date.isoformat() }}{% endif %}</div>{% endif %}</td>
-    <td>{{ q.supplier.name if q.supplier else '—' }}</td>
-    <td class="nowrap">{{ q.quote_date.isoformat() if q.quote_date else '—' }}</td>
-    <td class="num">{{ r.lines }}{% if r.skipped %} <span class="small muted">({{ r.skipped }} skipped)</span>{% endif %}</td>
-    <td class="num">{{ r.quotes }}{% if r.new %} <span class="pill accent">{{ r.new }} new</span>{% endif %}</td>
-    <td class="num nowrap">{{ q.currency }} {{ q.net|money(2) }}{% if q.discount %}<div class="small muted">after {{ q.discount|money(2) }} off</div>{% endif %}</td>
-    <td class="nowrap">{{ q.valid_until or '—' }}{% if q.expired %} <span class="pill red" title="Past its validity: ask the shop to confirm the prices before ordering">expired</span>{% endif %}</td>
-    <td class="nowrap"><a class="btn sm sec" href="/p/{{ p.id }}/quotations/{{ q.id }}/file"><svg class="ic"><use href="#i-download"/></svg>File</a></td>
-  </tr>
-  {% endfor %}
-  </tbody>
-</table></div>
+{% set ns = namespace(shops=[], by={}) %}
+{% for r in rows %}{% set k = r.q.supplier.name if r.q.supplier else 'Shop not known' %}{% if k not in ns.by %}{% set _ = ns.by.update({k: []}) %}{% set _ = ns.shops.append(k) %}{% endif %}{% set _ = ns.by[k].append(r) %}{% endfor %}
+<div class="bu-sec-head qx-head"><div><h2>Received <span class="n">{{ rows|length }}</span></h2><p class="small muted">By shop, the latest first. Open a sheet to see what each line became, or to change it.</p></div></div>
+<div class="qx-shops">
+{% for k in ns.shops %}{% set rs = ns.by[k] %}{% set sup = rs[0].q.supplier %}
+  <div class="card qx-shopcard">
+    <div class="qx-sh">
+      <span class="qx-av">{{ k[:1]|upper }}</span>
+      <div class="qx-shn">{% if sup %}<a href="/suppliers/{{ sup.id }}?project={{ p.id }}"><b>{{ k }}</b></a>{% else %}<b>{{ k }}</b>{% endif %}<div class="small muted">{% if sup and sup.city %}{{ sup.city }} · {% endif %}{{ rs|length }} sheet{{ 's' if rs|length != 1 }}</div></div>
+      {% if sup %}<a class="btn sm ghost" href="/p/{{ p.id }}/quotations?supplier={{ sup.id }}#upload" title="Upload another sheet from this shop"><svg class="ic"><use href="#i-plus"/></svg><span class="hide-m">Another sheet</span></a>{% endif %}
+    </div>
+    {% for r in rs %}{% set q = r.q %}
+    <a class="qx-doc" href="/p/{{ p.id }}/quotations/{{ q.id }}">
+      <div class="qx-dm"><b>{{ q.title or q.filename or ('Quotation ' ~ q.id) }}</b>{% if r.revises %} <span class="pill gold" title="A revised sheet: it corrected the quotes of the earlier document">revision</span>{% endif %}
+        <div class="small muted">{{ q.quote_date.isoformat() if q.quote_date else 'no date' }} · {{ r.lines }} line{{ 's' if r.lines != 1 }}{% if r.skipped %} ({{ r.skipped }} skipped){% endif %} · {{ r.quotes }} quote{{ 's' if r.quotes != 1 }}{% if r.new %} · {{ r.new }} new item{{ 's' if r.new != 1 }}{% endif %}{% if q.sales %} · {{ q.sales }}{% endif %}</div>
+        {% if r.revises %}<div class="small muted">revises {{ r.revises.title or r.revises.filename }}{% if r.revises.quote_date %} of {{ r.revises.quote_date.isoformat() }}{% endif %}</div>{% endif %}</div>
+      <div class="qx-dv"><b>{{ q.currency }} {{ q.net|money(2) }}</b>{% if q.discount %}<div class="small muted">after {{ q.discount|money(2) }} off</div>{% endif %}
+        <div class="small">{% if q.expired %}<span class="pill red" title="Past its validity: ask the shop to confirm the prices before ordering">expired</span>{% elif q.valid_until %}<span class="muted">valid until {{ q.valid_until }}</span>{% endif %}</div></div>
+    </a>
+    {% endfor %}
+  </div>
+{% endfor %}
+</div>
 {% if earlier %}
 <details class="card mt"><summary class="small">Earlier revisions ({{ earlier|length }}): sheets a later one from the same shop corrected; their quotes are the later one's now</summary>
   <ul class="qi-gaps mt">{% for r in earlier %}{% set q = r.q %}<li><a href="/p/{{ p.id }}/quotations/{{ q.id }}">{{ q.title or q.filename }}</a> <span class="small muted">· {{ q.quote_date.isoformat() if q.quote_date else '' }} · revised by <a href="/p/{{ p.id }}/quotations/{{ r.revised_by.id }}">{{ r.revised_by.title or r.revised_by.filename }}</a></span></li>{% endfor %}</ul>
 </details>
 {% endif %}
-{% else %}
+{% elif not drafts %}
 <div class="card empty bu-empty mt">
   <div class="ring"><svg class="ic"><use href="#i-file"/></svg></div>
   <h3>No quotation yet</h3>
-  <p>When a supplier sends their quotation sheet, upload it here. Each line is matched to a product and you confirm before anything is saved.</p>
+  <p>When a supplier sends their quotation sheet, drop it above. Each line is matched to a product and you confirm before anything is saved.</p>
 </div>
 {% endif %}
 {% endblock %}

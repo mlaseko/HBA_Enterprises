@@ -17,8 +17,8 @@
   </div>
   <div class="actions">
     <span class="badge" style="--c:{{ STAGE_COLORS[g.stage] }}" title="{{ STAGE_HELP[g.stage] }}">{{ g.stage }}</span>
-    <a class="btn sec sm" href="/p/{{ p.id }}/items/{{ g.item.id }}" data-quick><svg class="ic"><use href="#i-eye"/></svg>Quick view</a> <a class="btn ghost sm" href="/p/{{ p.id }}/items/{{ g.item.id }}"><svg class="ic"><use href="#i-grid"/></svg>Open the item</a>
-    <a class="btn ghost sm" href="/p/{{ p.id }}/buying/schedule?category={{ g.category|urlencode }}"><svg class="ic"><use href="#i-file"/></svg>Purchase schedule</a>
+    <a class="btn sec sm" href="/p/{{ p.id }}/items/{{ g.item.id }}" data-quick><svg class="ic"><use href="#i-eye"/></svg>Quick view</a> <a class="btn ghost sm hide-m" href="/p/{{ p.id }}/items/{{ g.item.id }}"><svg class="ic"><use href="#i-grid"/></svg>Open the item</a>
+    <a class="btn ghost sm hide-m" href="/p/{{ p.id }}/buying/schedule?category={{ g.category|urlencode }}"><svg class="ic"><use href="#i-file"/></svg>Purchase schedule</a>
   </div>
 </div>
 
@@ -38,14 +38,20 @@
         <dt>Category</dt><dd>{{ g.category }}</dd>
         {% if g.floors %}<dt>Floors</dt><dd>{{ g.floors|join(', ') }}</dd>{% endif %}
       </dl>
-      {% if g.item.spec %}<div class="bu-must"><div class="eyebrow">Must-have</div><p>{{ g.item.spec }}</p></div>{% endif %}
+    </div>
+    {% if g.item.spec %}<div class="bu-must"><div class="eyebrow">Must-have</div><p>{{ g.item.spec }}</p></div>{% endif %}
+    <div class="pstats">
+      <div><span class="l">Rooms</span><span class="v">{{ g.lines|length }}</span></div>
+      <div><span class="l">To order</span><span class="v">{{ o.qty|num(2) }}<small class="u">{{ unit }}</small></span></div>
+      <div><span class="l">Best price</span><span class="v">{% if best and best.unit_price %}{{ best.unit_price|cur(2) }}<small class="u">{{ per }}</small>{% else %}—{% endif %}</span></div>
+      <div><span class="l">Committed</span><span class="v">{{ committed|cur if committed else '—' }}</span></div>
     </div>
   </div>
 
   <div class="card bu-order" id="quantity">
     <div class="row between"><div class="eyebrow">Rooms <span class="muted">· {{ g.lines|length }}</span></div><span class="small muted">{{ g.covered }} of {{ g.lines|length }} with a shop</span></div>
     <div class="tbl bu-rooms mt"><table>
-      <thead><tr><th>Room</th><th class="num">Qty</th><th>Status</th><th>Shop</th></tr></thead>
+      <thead><tr><th>Room</th><th class="num">Qty</th><th class="hide-m">Status</th><th>Shop</th></tr></thead>
       <tbody>
       {% for fl, ls in by_floor.items() %}
         {% if by_floor|length > 1 %}<tr class="sub"><td colspan="4">{{ fl }}</td></tr>{% endif %}
@@ -53,7 +59,7 @@
         <tr>
           <td><a class="b" href="/p/{{ p.id }}/items/{{ i.id }}" data-quick>{{ i.code }}</a> <span class="small">{{ i.room.name if i.room else 'Whole house' }}</span></td>
           <td class="num nowrap">{{ i.qty|num(2) }} {{ i.unit }}</td>
-          <td><span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status|status_label }}</span></td>
+          <td class="hide-m"><span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status|status_label }}</span></td>
           <td class="small">{% if i.purchase %}{{ i.purchase.supplier.name if i.purchase.supplier else '—' }}{% else %}<span class="muted">no shop yet</span>{% endif %}</td>
         </tr>
         {% endfor %}
@@ -125,6 +131,20 @@
     <div><h2>Quotes <span class="n">{{ quotes|length }}</span></h2><p class="small muted">Compare the shops, then choose one: its rooms go on that shop's draft order.</p></div>
     <a class="btn sm accent" href="#add-quote" data-open="add-quote"><svg class="ic"><use href="#i-plus"/></svg>Add a quote</a>
   </div>
+  {% set priced = quotes|selectattr('unit_price')|list %}
+  {% if priced|length > 1 %}{% set tots = [] %}{% for q in priced %}{% set _ = tots.append(g.quote_total(q).total) %}{% endfor %}{% set top = tots|max %}
+  <div class="card qchart" aria-label="What each quote costs for all the rooms">
+    <div class="row between"><b>For all the rooms</b><span class="small muted">the rooms' quantity with the allowance and whole packs, at each shop's price{% if by_quote %} · <span class="qkey"></span> buying here{% endif %}</span></div>
+    <div class="hbars mt">
+      {% for q in priced %}{% set t = g.quote_total(q) %}{% set v = by_quote.get(q.id) %}
+      <a class="hbar{{ ' best' if best and q.id == best.id }}{{ ' chosen' if v }}" href="#quote-{{ q.id }}" title="{{ q.supplier.name if q.supplier else 'Shop not known' }}{% if q.option_label %} · {{ q.option_label }}{% endif %}: {{ t.total|cur }} for {{ t.qty|num(2) }} {{ unit }}">
+        <span class="k">{{ q.supplier.name if q.supplier else 'Shop not known' }}{% if q.option_label %} · {{ q.option_label }}{% endif %}</span>
+        <span class="track"><i style="width:{{ [2, (100 * t.total / top)|round(1)]|max if top else 2 }}%"></i></span>
+        <span class="n">{{ t.total|cur }}{% if v %} <span class="tag">{{ v.lines|length }} room{{ 's' if v.lines|length != 1 }}</span>{% endif %}{% if best and q.id == best.id %} <span class="tag low">lowest</span>{% endif %}</span></a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
   {% if quotes %}
   <div class="card tight bu-qtable"><table class="qcmp">
     <thead><tr><th>Shop</th><th class="num">Price {{ per }}</th><th>Brand · model</th><th>Pack · minimum · lead time</th><th class="num">For all rooms</th><th></th></tr></thead>

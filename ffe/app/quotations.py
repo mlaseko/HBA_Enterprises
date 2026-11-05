@@ -632,16 +632,17 @@ def _dims_match(a: list[float], b: list[float]) -> float:
 
 OPPOSITES = (("wall", "floor"), ("skirting", "floor"), ("skirting", "wall"), ("outdoor", "bathroom"), ("tread", "riser"))
 # a product named for a place or use the line does not mention is probably not it ("Outdoor floor" for a "main floor" line)
-QUALIFIERS = {"outdoor", "bathroom", "kitchen", "gym", "stairs", "tread", "riser", "landing", "skirting", "backsplash", "wall", "terrace",
+QUALIFIERS = {"outdoor", "bathroom", "kitchen", "hall", "gym", "stairs", "tread", "riser", "landing", "skirting", "backsplash", "wall", "terrace",
               "balcony", "master", "guest", "dining", "heavy", "exterior", "pantry", "office", "bedroom", "living", "roof", "worktop"}
 MAX_SCORE = 0.75  # what words and sizes alone may reach: only our code or a remembered match goes higher
 SURE = 0.8  # from here a suggestion shows green: above what words and sizes alone can reach
 
 
-def score(line: dict, c: Candidate) -> float:
+def score(line: dict, c: Candidate, raw: bool = False) -> float:
     """How much a line looks like a product, 0 to MAX_SCORE: the product's words found in the line, the rooms and places
     named, the size, the unit and the quantity. Rough on purpose: Claude (ask_claude) picks from the shortlist; without
-    it the designer does."""
+    it the designer does. raw=True leaves the cap off, for ranking: two products may both reach MAX_SCORE, and the one
+    whose whole name the line carries must still come first ("Floor tile, large-format porcelain" over "Corridor floor tile")."""
     words = tokens(f"{line.get('place', '')} {line['name']} {line['detail'][:300]} {line['section']}")
     if not words or not c.words:
         return 0.0
@@ -668,7 +669,8 @@ def score(line: dict, c: Candidate) -> float:
         ratio = line["qty"] / c.qty
         if 0.85 <= ratio <= 1.35:
             s += 0.05
-    return max(0.0, min(MAX_SCORE, round(s, 3)))
+    s = max(0.0, round(s, 3))
+    return s if raw else min(MAX_SCORE, s)
 
 
 def _scope_rooms(p: Project | None) -> list:
@@ -844,8 +846,9 @@ def shortlist(line: dict, cands: list[Candidate], memo: list[QuoteMatch], n: int
             continue
         if m.text and m.text == text and not any(x[0].id == c.id for x in out):
             out.append((c, 0.9 if m.supplier_id else 0.85, "matched before by wording" if m.supplier_id else "matched before by wording (another shop)"))
-    scored = sorted(((c, score(line, c)) for c in cands), key=lambda cs: -cs[1])
+    scored = sorted(((c, score(line, c, raw=True)) for c in cands), key=lambda cs: -cs[1])  # uncapped: a tie at the cap goes to what matches more
     for c, s in scored:
+        s = min(MAX_SCORE, s)
         if s <= 0.05 or len(out) >= n:
             break
         if any(x[0].id == c.id for x in out):

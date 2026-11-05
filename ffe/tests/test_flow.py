@@ -843,8 +843,10 @@ def flow(c):
     r=c.get(f"/p/{pid_p}/items?view=list&q=Reading"); h=r.text
     assert h.count('<tr id="item-')==1 and re.search(r'data-items="\d+ \d+ \d+"', h) and '>3 rooms</a>' in h and '6 pcs</td>' in h and 'data-v="900.0">900</td>' in h and "1 item · 3 room lines" in h and 'Shop chosen · 3</span>' in h and '<th data-sort="num">Rooms</th>' in h
     assert "status-sel" not in h and "One line per product" in h and c.get(f"/p/{pid_p}/items?view=list").text.count('<tr id="item-')>=5
-    h=c.get(f"/p/{pid_p}/items").text; assert 'aria-current="page" title="One line per item' in h and h.count('<tr id="item-')>=5 and 'name="view"' not in h  # the Item list is the default view
-    h=c.get(f"/p/{pid_p}/items?q=Bedside lamp").text; assert h.count('<tr id="item-')==1 and 'class="status-sel"' not in h and '<span class="badge" style="--c:' in h  # one room: its status as a read-only badge
+    h=c.get(f"/p/{pid_p}/items?view=list").text; assert 'aria-current="page" title="One line per item' in h and h.count('<tr id="item-')>=5
+    h=c.get(f"/p/{pid_p}/items").text; assert 'aria-current="page" title="A card per product' in h and 'class="cards pgrid"' in h and h.count('<article class="item-card pcard"')>=5 and '<tr id="item-' not in h and 'name="view"' not in h  # the photo grid is the default view
+    h=c.get(f"/p/{pid_p}/items?q=Reading").text; assert h.count('<article class="item-card pcard"')==1 and '3 rooms' in h and 'Shop chosen' in h  # one card for the three bedrooms
+    h=c.get(f"/p/{pid_p}/items?view=list&q=Bedside lamp").text; assert h.count('<tr id="item-')==1 and 'class="status-sel"' not in h and '<span class="badge" style="--c:' in h  # one room: its status as a read-only badge
     db=SessionLocal(); prp=db.get(_P,int(pid_p)); gs={g["item"].name:g for g in _gi(_si(list(prp.live_items), prp))}; db.close()
     assert len(gs["Reading light"]["rows"])==3 and gs["Reading light"]["qty"]==6 and gs["Reading light"]["total"]==900 and gs["Reading light"]["status_text"]=="Quoted" and gs["Reading light"]["unit"]=="pcs" and len(gs["Reading light"]["rooms"])==3
     assert len(gs["Bedside lamp"]["rows"])==1 and gs["Bedside lamp"]["rooms"][0].code=="FF-MBR" and gs["Bedside lamp"]["codes"]=="FF-MBR-01"
@@ -1608,7 +1610,7 @@ def flow(c):
     # money: summary, Overview, Payments, the supplier page and its list
     db=SessionLocal(); s=_summary(db, db.get(_P,pid_o)); db.close()
     assert s["ordered"]==6571.2 and s["paid"]==2628.48 and s["to_pay"]==3942.72 and s["orders"]==2 and {r_["label"]:r_["bought"] for r_ in s["by_sup"]}=={"Tile Shop":6571.2,"Lamp Shop":800}
-    assert "¥3,943 still to pay on ¥6,571 ordered" in c.get(f"/p/{pid_o}").text
+    h=c.get(f"/p/{pid_o}").text; assert 'class="dash-stats"' in h and "Still to pay" in h and "¥3,943" in h and "on ¥6,571 ordered" in h
     h=c.get(f"/suppliers/{ts}?project={pid_o}").text; assert 'id="orders"' in h and "KH-001" in h and f"/p/{pid_o}/orders/{oid}/po.pdf" in h and "on confirmed orders" in h
     assert "to pay ¥3,943" in c.get(f"/p/{pid_o}/suppliers").text
     assert c.get(f"/p/{pid_o}/export/po/{ts}.pdf").status_code==200  # every item from the shop, as before
@@ -1851,6 +1853,16 @@ def flow(c):
     _sl=_qz.shortlist(_ln("skirting", "Porcelain tile"), _cd, _memo); assert _sl[0][0].id==_sk.id and _sl[0][1]==0.97 and "wording" in _sl[0][2], _sl[0]
     _sl=_qz.shortlist(_ln("stairs", "Porcelain tile"), _cd, _memo); assert _sl[0][1]<0.97 and {x[0].id for x in _sl[:2]}=={_big.id, _sk.id} and "several products" in _sl[0][2], [(x[0].name, x[1], x[2]) for x in _sl[:3]]
     _sl=_qz.shortlist(_ln("stairs", "Porcelain tile"), _cd, _memo[:1]); assert _sl[0][0].id==_big.id and _sl[0][1]==0.97  # one product behind the number: trusted
+    # two products may both reach the cap on words and size: the one whose whole name the line carries comes first (ranked uncapped),
+    # and a product named for a place (Corridor = hall) the line does not name loses ground
+    def _fc(i, name, finish, rooms):
+        from types import SimpleNamespace as _NS
+        return _NS(id=i, key=f"k{i}", name=name, size="600 x 1200", finish=finish, category="Tiles", unit="m²", qty=24.0, codes=[], refs=set(), dims=_qz.dims("600 x 1200"),
+                   words=_qz.tokens(f"{name} Tiles {finish}"), spec_words=set(), room_words=_qz.tokens(rooms))
+    _fcs=[_fc(1, "Corridor floor tile", "Warm grey", "Hall & corridors Ground floor"), _fc(2, "Floor tile, large-format porcelain", "Warm grey", "Kitchen Ground floor")]
+    _tl=dict(no=1, ref="GC-1", name="Floor tile, large-format porcelain", size="600*1200", place="Kitchen", section="", unit="SQM", qty=26.0, unit_price=16.0, detail="Matte, warm grey", code="")
+    assert _qz.score(_tl, _fcs[1])==_qz.MAX_SCORE<_qz.score(_tl, _fcs[1], raw=True) and _qz.score(_tl, _fcs[1], raw=True)>_qz.score(_tl, _fcs[0], raw=True)
+    assert _qz.shortlist(_tl, _fcs, [])[0][0].id==2 and _qz.shortlist(dict(_tl, name="Corridor floor tile", place="Hall & corridors"), _fcs, [])[0][0].id==1
     _sdir=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "samples", "quotes", "kinondoni")
     _tile=os.path.join(_sdir, "KINO-tile quotation.xlsx")
     if os.path.exists(_tile):
@@ -2042,7 +2054,7 @@ def flow(c):
     loc5,st5=upload_quote("Tile quotation v5.xlsx", quote_sheet(), str(shop.id)); key5=_unq(loc5.split("key=")[1])
     from app.models import QuotationUpload as _QU
     db=SessionLocal(); up5=db.query(_QU).filter(_QU.state_key==key5).first(); assert up5 is not None and up5.stage=="done"; up5_id=up5.id; db.close()
-    h=c.get(f"/p/{pid_q}/quotations").text; assert "Drafts and uploads under way" in h and "Tile quotation v5.xlsx" in h and "Ready to check" in h and f"/quotations/working/{up5_id}/discard" in h
+    h=c.get(f"/p/{pid_q}/quotations").text; assert "Waiting for you" in h and "Drafts and uploads under way" in h and "Tile quotation v5.xlsx" in h and "Ready to check" in h and f"/quotations/working/{up5_id}/discard" in h
     dform=dict(base, key=key5, supplier_id="__new__", supplier_name="Draft Shop", supplier_city="Foshan", notes="draft note", title="Draft title", act_1="skip", act_4="new", name_4="Handrail v5", act_5="merge", into_5="4", rooms_4=str(_sta))
     r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(dform, supplier_id="", supplier_name=""), follow_redirects=False); assert "err=" in r.headers["location"]  # still refused without a shop when posting; the choices wait under a new key
     key5=_unq(r.headers["location"].split("key=")[1].split("&")[0]); dform["key"]=key5

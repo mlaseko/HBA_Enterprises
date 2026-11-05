@@ -124,10 +124,10 @@ def list_items(request: Request, p: Project = Depends(get_project), db: Session 
     drafts = db.query(Item).filter(Item.project_id == p.id, Item.draft == True).count()  # noqa: E712
     room_obj = next((r for r in p.rooms if r.id == fint(room)), None) if room and room != "none" else None
     zoom = drawings.room_zoom(p, room_obj, items) if room_obj is not None else None  # the room on the plan, zoomed, with its dots
-    view = view if view in ("cards", "table", "list") else "list"  # the Item list (one line per product) is the default view
+    view = view if view in ("cards", "table", "list", "grid") else "grid"  # the photo grid (a card per product) is the default view
     f = dict(floor=floor, room=room, category=category, status=status, supplier=supplier, q=q, view=view)
     qs = urlencode({k: v for k, v in f.items() if v and k != "view"})  # the filters, for the view switch links
-    rows = group_items(items) if view == "list" else None  # the Item list view: one line per product across its rooms
+    rows = group_items(items) if view in ("list", "grid") else None  # the grid and the Item list: one entry per product across its rooms
     fams = services.families(rows, lambda g: (g["item"].name, g["item"].finish)) if rows is not None else None  # a product's variants under it
     floors = floor_choices(p)
     floor_name = next((c["title"] for c in floors if drawings.floor_key(c["value"]) == drawings.floor_key(floor)), floor) if floor else ""
