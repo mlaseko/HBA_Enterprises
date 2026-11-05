@@ -949,8 +949,8 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   order by order (`#due`, linking to `/orders/<o>#payments`), by supplier, all payments, and the free-standing form folded
   (`#record`). The quotation preview is a wizard (`#qi-steps`; `step(n)` in its script, `body.qi-wiz` / `body.qi-step3`):
   step 2 the lines, step 3 The document (first, `order:-1`), the simulation and Save; an `err` opens it on step 3; no
-  JavaScript = one page as before. The saved quotation folds What it comes to now, the options card and Products and
-  variants under `details#advanced` (a hash inside it opens it). Breadcrumbs say Sourcing for the Buying pages.
+  JavaScript = one page as before. The saved quotation has Choose per room (`#choices`) and, under Adjust this quotation
+  (`#advanced`, tabs), What it comes to now and Products and variants. Breadcrumbs say Sourcing for the Buying pages.
 
 - **Redesign (design system A) and the quotation pages.** See "Look and feel". The Quotations page: Waiting for you,
   the drop zone (`.qx-drop`), Received by shop (`.qx-shopcard`). The check's step 2: `#qi-n-done` count, tabs To check /
@@ -960,6 +960,12 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   (`prices(per, f)`: data-q of the product option = "shop id:currency amount;…"). Hidden `.qi-folded` / `.qi-todo` /
   `#qi-splits` need `[hidden]{display:none!important}` because their rules set display. `shortlist` sorts on
   `score(..., raw=True)` and caps afterwards (two products at `MAX_SCORE` were a coin toss); `hall` joined `QUALIFIERS`.
+- **Choose per room on the saved quotation.** `quotations.choice_rooms(p, m)` / `choose_lines(db, p, q, product_id,
+  picks, labels)` behind `POST /quotations/<q>/choose` (picks = {room id: line ids}; averaged lines become options first via
+  `set_options`; then `buying.choose_options`; rooms with nothing of this sheet keep another sheet's option ids); the route
+  runs `od.loose_ids` / `routers.buy._placed` / `settle`. The `#choices` card is a `.qc-grid` (rooms × lines, `.qc-cell`
+  checkboxes, `.qc-all` = Every room); its secondary buttons post to `/options` with `formaction`. `#advanced` is a
+  `section.qa` with tabs (`.qa-tab[data-tab]`, `.qa-panel[data-tab]`; the page script shows one, a hash inside a panel opens it).
 - **Usability, phase 3.** A product's details are one for all its rooms without a schema change: `routers/items.update_item`
   copies to the product's other lines (`same_item_elsewhere`, taken before the save) the `SHARED_FIELDS` the save changed
   and the form carried (`was` vs after `apply_form`), so a typo fixed in one room fixes every room and `follow_renames`

@@ -2294,7 +2294,7 @@ def flow(c):
     locw,_=upload_quote("Lamp quotation.xlsx", lamp_sheet()); keyw=_unq(locw.split("key=")[1])
     r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(key=keyw, supplier_id="__new__", supplier_name="Lamp Shop", title="Lamps", currency="USD", total="60", discount="0", charges="0", terms="", notes="", sales="", quote_date="", valid_until="", lead_time="", act_1="quote", prod_1=str(_wlp)), follow_redirects=False)
     qdw=int(r.headers["location"].split("/quotations/")[1].split("?")[0])
-    h=c.get(f"/p/{pid_q}/quotations/{qdw}").text; assert 'id="now"' in h and 'id="advanced"' in h and "What it comes to now" in h and f'name="keep_{_wl[_acr[0][0]]}"' in h and 'id="nw-data"' in h and "USD 60.00" in h
+    h=c.get(f"/p/{pid_q}/quotations/{qdw}").text; assert 'id="now"' in h and 'id="advanced"' in h and "Adjust this quotation" in h and 'data-tab="now"' in h and "What it comes to now" in h and f'name="keep_{_wl[_acr[0][0]]}"' in h and 'id="nw-data"' in h and "USD 60.00" in h
     tried={f"keep_{_wl[_acr[1][0]]}":"1", f"qty_{_wl[_acr[1][0]]}":"1", f"keep_{_wl[_acr[2][0]]}":"1", f"qty_{_wl[_acr[2][0]]}":"2", f"qty_{_wl[_acr[0][0]]}":"2"}  # room 1 left out, room 2 down to 1
     r=c.post(f"/p/{pid_q}/quotations/{qdw}/revised.xlsx", data=tried); assert r.status_code==200 and r.headers["content-type"].startswith("application/vnd.openxml")
     _wb=openpyxl.load_workbook(io.BytesIO(r.content)); _ws=_wb.active; _row=[c_.value for c_ in _ws[5]]; assert _row[0]==1 and _row[6]==6 and _row[7]==3 and _row[9]==30 and "left out" in _row[10] and "less in" in _row[10], _row
@@ -2314,6 +2314,19 @@ def flow(c):
     assert "Back to one quote" in c.get(f"/p/{pid_q}/quotations/{qdc2}").text
     r=c.post(f"/p/{pid_q}/quotations/{qdc2}/options", data={"product":str(_cp_id), "on":"0"}, follow_redirects=False); assert "back%20to%20one%20quote" in r.headers["location"], r.headers["location"]
     db=SessionLocal(); assert _mine()==[("", 360)], _mine(); db.close()
+    # choose per room on the saved page: the averaged lines become options first, then each room takes the line ticked
+    h=c.get(f"/p/{pid_q}/quotations/{qdc2}").text; assert f'action="/p/{pid_q}/quotations/{qdc2}/choose"' in h and "Choose per room" in h and f'name="pick_{_acr[0][0]}" value="{_L2[1]}"' in h and "Every room" in h and "Save the choice" in h
+    _ch={"product":str(_cp_id), f"label_{_L2[1]}":"Wool", f"pick_{_acr[0][0]}":str(_L2[1]), f"pick_{_acr[1][0]}":[str(_L2[1]), str(_L2[2])], f"pick_{_acr[2][0]}":str(_L2[2])}
+    r=c.post(f"/p/{pid_q}/quotations/{qdc2}/choose", data=_ch, follow_redirects=False); loc=_unq(r.headers["location"])
+    assert "Choice saved: 3 rooms chosen" in loc and "options to choose now" in loc and "1 room takes both" in loc and loc.endswith("#choices"), loc
+    db=SessionLocal(); _byl={ln.no: ln.quote_id for ln in db.get(_QD, qdc2).lines}; _cl=db.query(_OI).filter(_OI.project_id==pid_q, _OI.name=="Carpet").all()
+    assert _mine()==[("CP-2", 420), ("Wool", 300)] and len(_cl)==4, (_mine(), len(_cl))
+    assert {r_[0]: sorted(i.purchase.quote_id for i in _cl if i.room_id==r_[0]) for r_ in _acr}=={_acr[0][0]:[_byl[1]], _acr[1][0]:sorted([_byl[1], _byl[2]]), _acr[2][0]:[_byl[2]]}
+    assert all(i.purchase.order is not None and not i.purchase.order.confirmed for i in _cl); db.close()  # on the shop's draft order
+    h=c.get(f"/p/{pid_q}/quotations/{qdc2}").text; assert h.count('checked aria-label=')>=4 and "Back to one quote" in h and "2 options to choose" in h
+    r=c.post(f"/p/{pid_q}/quotations/{qdc2}/choose", data={"product":str(_cp_id)}, follow_redirects=False); assert "0%20rooms%20chosen" in r.headers["location"] and "removed" in _unq(r.headers["location"]), r.headers["location"]
+    r=c.post(f"/p/{pid_q}/quotations/{qdc2}/options", data={"product":str(_cp_id), "on":"0"}, follow_redirects=False); assert "back%20to%20one%20quote" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); assert _mine()==[("", 360)] and db.query(_OI).filter(_OI.project_id==pid_q, _OI.name=="Carpet").count()==3; db.close()
     print("quotations ok")
 
     # what differs from the design: decided once per product and difference, for the quotation alone or into the items as well

@@ -56,7 +56,7 @@
       {% elif ln.action == 'extra' %}<span class="pill">Extra charge</span>
       {% else %}<span class="pill">Skipped</span>{% endif %}
       {% if ln.also %}<div class="small">Also prices {% for a in ln.also %}<a href="/p/{{ p.id }}/buying/{{ a.product_id }}">{{ (a.product.title if a.product else '')|truncate(50) }}</a>{{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
-      {% if not revised_by %}<a class="small qi-change" href="/p/{{ p.id }}/quotations/{{ q.id }}/lines/{{ ln.id }}">Change…</a>{% endif %}
+      {% if ln.product_id in choice and ln.action in ('quote', 'new') %}<a class="small b" href="#choices">Choose per room ↓</a> {% endif %}{% if not revised_by %}<a class="small qi-change" href="/p/{{ p.id }}/quotations/{{ q.id }}/lines/{{ ln.id }}">Change…</a>{% endif %}
       {% if ln.notes %}<div class="small qi-notes">{% for f in ln.notes.split('; ') if not (ln.id in qty_fine and f.startswith('quantity ')) %}{% if '(accepted' in f %}<span class="pill green">&#10003; {{ f }}</span>{% else %}<span class="pill {{ 'red' if f.startswith(('thickness', 'anti-slip', 'slip', 'finish', 'material')) else 'gold' }}">&#9888; {{ f }}</span>{% endif %} {% endfor %}</div>{% endif %}
     </td>
   </tr>
@@ -67,14 +67,55 @@
 
 
 
-{% if now.rows or multi or families %}
-<details class="card fold mt" id="advanced">
-  <summary><h2 class="mb-0">Advanced</h2><span class="small muted">{{ [('what it comes to now' if now.rows else ''), ('options to choose' if multi else ''), ('products and variants' if families else '')]|select|join(', ')|capitalize }}.</span></summary>
-<div class="adv-body mt">
+{% if multi %}
+<section class="card qc" id="choices">
+  <div class="qc-head"><div><h2 class="mb-0">Choose per room <span class="n">{{ multi|length }}</span></h2>
+    <p class="small muted">This sheet quotes {{ 'a product' if multi|length == 1 else 'some products' }} on two lines or more. Tick the line each room takes (both for a room that rotates them) and save; the rooms go on this shop's draft order.</p></div></div>
+  {% for m in multi %}{% set rooms = choice.get(m.pid, []) %}{% set ln_ids = m.lines|map(attribute='id')|list %}
+  <form method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/choose" class="qc-prod" data-lines="{{ ln_ids|join(' ') }}">
+    <input type="hidden" name="product" value="{{ m.pid }}">
+    <div class="qc-ph"><a href="/p/{{ p.id }}/buying/{{ m.pid }}{{ '#options' if m.options }}"><b>{{ m.title }}</b></a>
+      {% if m.options %}<span class="pill gold">{{ m.lines|length }} options to choose</span>{% else %}<span class="pill">now one quote{% if m.quote %} at the average, {{ cur }} {{ m.quote.amount|money(2) }}{% endif %}</span>{% endif %}
+      {% set open_ = rooms|rejectattr('chosen')|rejectattr('average')|rejectattr('other')|list|length %}{% if open_ %}<span class="pill accent">{{ open_ }} room{{ 's' if open_ != 1 }} to choose</span>{% endif %}</div>
+    <div class="qc-grid" style="--n:{{ m.lines|length }}">
+      <div class="qc-corner small muted">Room</div>
+      {% for ln in m.lines %}{% set letter = 'ABCDEFGHIJ'[loop.index0] if loop.index0 < 10 else loop.index %}
+      <div class="qc-opt">
+        {% if ln.thumb %}<a class="qc-pic" href="/media/{{ ln.photo_key }}" target="_blank" data-caption="L{{ ln.no }} · {{ ln.name }}"><img src="/media/{{ ln.thumb }}" alt=""></a>{% else %}<span class="qc-pic none">{{ letter }}</span>{% endif %}
+        <div class="qc-ot"><b>{% if m.options and ln.quote %}{{ ln.quote.option_label }}{% else %}L{{ ln.no }}{% endif %}</b> <span class="small muted">{{ (ln.size or ln.name)|truncate(40) }}{% if ln.ref %} · {{ ln.ref }}{% endif %}</span>
+          <div class="qc-price">{{ cur }} {{ ln.unit_price|money(2) }} <span class="small muted">/ {{ ln.unit or 'unit' }}</span></div>
+          {% if not m.options and not revised_by %}<input class="in sm" name="label_{{ ln.id }}" placeholder="Name it (Option {{ letter }})" maxlength="56" aria-label="Option name for line {{ ln.no }}">{% endif %}
+          {% if rooms and not revised_by %}<button type="button" class="qc-all" data-line="{{ ln.id }}">Every room</button>{% endif %}</div>
+      </div>
+      {% endfor %}
+      {% for r in rooms %}
+      <div class="qc-room{{ ' locked' if r.locked }}"><b>{{ r.room.code if r.room else 'Whole house' }}</b> <span class="small">{{ r.room.name if r.room else '' }}</span>
+        <div class="small muted">{{ r.qty|num(2) }} {{ r.unit }}{% if r.locked %} · on a confirmed order{% elif r.average %} · bought at the average{% elif r.other %} · bought from {{ r.other.supplier.name if r.other.supplier else 'another quote' }}{% endif %}</div></div>
+      {% for ln in m.lines %}
+      <label class="qc-cell"><input type="checkbox" name="pick_{{ r.rid }}" value="{{ ln.id }}"{{ ' checked' if ln.id in r.chosen }}{{ ' disabled' if r.locked or revised_by or not ln.unit_price }} aria-label="{{ r.room.code if r.room else 'Whole house' }} takes line {{ ln.no }}"><span class="qc-tick"><svg class="ic"><use href="#i-check"/></svg></span></label>
+      {% endfor %}
+      {% endfor %}
+    </div>
+    {% if not rooms %}<p class="small muted">No room of the design has this product any more.</p>{% endif %}
+    {% if not revised_by %}<div class="row qc-acts">
+      {% if rooms %}<button class="btn accent"><svg class="ic"><use href="#i-check"/></svg>Save the choice</button>{% endif %}
+      {% if m.options %}<button class="btn ghost sm" formaction="/p/{{ p.id }}/quotations/{{ q.id }}/options" name="on" value="0" data-confirm="Back to one quote? The options go and the lines make one quote at their combined price. Refused while rooms are bought from an option.">Back to one quote</button>
+      {% else %}<button class="btn ghost sm" formaction="/p/{{ p.id }}/quotations/{{ q.id }}/options" name="on" value="1" title="A quote per line, chosen later per room on the product's Buying page">Make them options to choose</button>{% endif %}
+    </div>{% endif %}
+  </form>
+  {% endfor %}
+</section>
+{% endif %}
+{% if now.rows or families %}
+<section class="card qa mt" id="advanced">
+  <div class="qa-head"><h2 class="mb-0">Adjust this quotation</h2>
+    <div class="qa-tabs" role="tablist" aria-label="Adjust">
+      {% if now.rows %}<button type="button" class="qa-tab" data-tab="now" role="tab">Quantities &amp; cost</button>{% endif %}
+      {% if families %}<button type="button" class="qa-tab" data-tab="variants" role="tab">Variants <b>{{ families|length }}</b></button>{% endif %}
+    </div></div>
 {% if now.rows %}{% set diff = now.today - now.sheet %}
-<form method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/now" class="card nw" id="now" data-cur="{{ cur }}">
-  <div class="row between top"><div><h2 class="mb-0">What it comes to now</h2>
-    <p class="small muted">This shop's unit prices against the design as it is today (allowance and packs included, as on Buying). Untick a room or lower a quantity to try a change: nothing is saved until you press <b>Apply to the design</b>.</p></div></div>
+<form method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/now" class="qa-panel nw" id="now" data-cur="{{ cur }}" data-tab="now">
+  <p class="small muted qa-intro"><b>What it comes to now</b>: this shop's prices against the design as it is today. Untick a room or change a quantity to try it; nothing changes until you press <b>Apply to the design</b>.</p>
   <div class="nw-kpis">
     <div><span class="l">On the sheet</span><span class="v">{{ cur }} {{ now.sheet|money(2) }}</span><span class="d">the lines that price products</span></div>
     <div><span class="l">At today's design</span><span class="v">{{ cur }} {{ now.today|money(2) }}</span><span class="d{{ ' red' if diff > 0.5 else (' green' if diff < -0.5 else '') }}">{% if diff|abs > 0.5 %}{{ '+' if diff > 0 }}{{ diff|money(2) }} against the sheet{% else %}as on the sheet{% endif %}</span></div>
@@ -110,33 +151,9 @@
   <script type="application/json" id="nw-data">{{ now_json|safe }}</script>
 </form>
 {% endif %}
-{% if multi %}
-<div class="card mt" id="choices">
-  <h2 class="mb-0">Several lines on one product</h2>
-  <p class="small muted">Products this sheet quotes on two lines or more. <b>One quote</b> averages them (the shop's models of one thing); <b>options to choose</b> keeps a quote per line with its own price and picture, and you choose per room on the product's Buying page (two carpets for a room that rotates them).</p>
-  {% for m in multi %}
-  <form method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/options" class="mc-row">
-    <input type="hidden" name="product" value="{{ m.pid }}">
-    <div class="mc-head"><a href="/p/{{ p.id }}/buying/{{ m.pid }}{{ '#options' if m.options }}"><b>{{ m.title }}</b></a>
-      {% if m.options %}<span class="pill gold">{{ m.lines|length }} options</span>{% else %}<span class="pill">one quote{% if m.quote %} · {{ cur }} {{ m.quote.amount|money(2) }} average{% endif %}</span>{% endif %}</div>
-    <div class="mc-lines">
-      {% for ln in m.lines %}
-      <div class="mc-line">{% if ln.thumb %}<a href="/media/{{ ln.photo_key }}" target="_blank" data-caption="L{{ ln.no }} · {{ ln.name }}"><img src="/media/{{ ln.thumb }}" alt=""></a>{% else %}<span class="mc-nopic"></span>{% endif %}
-        <span><b>L{{ ln.no }}</b> {{ ln.size or ln.name }} <span class="muted">{{ cur }} {{ ln.unit_price|money(2) }}</span></span>
-        {% if m.options %}<span class="pill">{{ ln.quote.option_label if ln.quote else '' }}</span>{% elif not revised_by %}<input class="in sm" name="label_{{ ln.id }}" placeholder="Option {{ 'ABCDEFGHIJ'[loop.index0] if loop.index0 < 10 else loop.index }}" maxlength="56" aria-label="Option name for line {{ ln.no }}">{% endif %}
-      </div>
-      {% endfor %}
-    </div>
-    {% if not revised_by %}<div class="row mt">{% if m.options %}<button class="btn sm ghost" name="on" value="0" data-confirm="Back to one quote? The options go and the lines make one quote at their combined price. Refused while rooms are bought from an option.">Back to one quote</button>
-      {% else %}<button class="btn sm" name="on" value="1"><svg class="ic"><use href="#i-layout"/></svg>Make them options to choose</button><span class="small muted">Names are optional: empty boxes become Option A, B…</span>{% endif %}</div>{% endif %}
-  </form>
-  {% endfor %}
-</div>
-{% endif %}
 {% if families %}
-<div class="card mt" id="variants">
-  <h2 class="mb-0">Products and variants</h2>
-  <p class="small muted">What this sheet priced, product by product. A product split by model has a variant per model (its size): rename a variant, or move a room line to another variant, and the products, quotes and anything bought follow. These names are what the next sheet is matched against, so keep them the way the shops write them (1.5 HP, 600 × 600).</p>
+<div class="qa-panel" id="variants" data-tab="variants">
+  <p class="small muted qa-intro"><b>Products and variants</b>: rename a variant (its size) or move a room to another variant; the products, quotes and anything bought follow. Write them the way the shops do (1.5 HP, 600 × 600): the next sheet is matched against them.</p>
   <form method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/variants">
   {% for f in families %}
   <div class="qi-fam mt">
@@ -151,8 +168,7 @@
   </form>
 </div>
 {% endif %}
-</div>
-</details>
+</section>
 {% endif %}
 
 <div class="grid g2 mt">
@@ -177,10 +193,22 @@
 
 {% block scripts %}
 <script>
-(function () {  // a link or a redirect to a card under Advanced opens it
-  function open_() { var t = location.hash && document.getElementById(location.hash.slice(1)); var d = document.getElementById('advanced');
-    if (t && d && d.contains(t)) { d.open = true; t.scrollIntoView({block: 'start'}); } }
-  window.addEventListener('hashchange', open_); open_();
+(function () {  // Adjust this quotation: one panel at a time; #now / #variants in the address opens that one
+  var box = document.getElementById('advanced'); if (!box) return; box.classList.add('tabbed');
+  var tabs = box.querySelectorAll('.qa-tab'), panels = box.querySelectorAll('.qa-panel');
+  function show(k) { tabs.forEach(function (t) { var on = t.dataset.tab === k; t.classList.toggle('on', on); t.setAttribute('aria-selected', on ? 'true' : 'false'); });
+    panels.forEach(function (pn) { pn.hidden = pn.dataset.tab !== k; }); }
+  tabs.forEach(function (t) { t.addEventListener('click', function () { show(t.dataset.tab); }); });
+  function fromHash() { var t = location.hash && document.getElementById(location.hash.slice(1)); var pn = t && t.closest('.qa-panel');
+    if (pn) { show(pn.dataset.tab); box.scrollIntoView({block: 'start'}); return true; } return false; }
+  window.addEventListener('hashchange', fromHash); if (!fromHash() && tabs.length) show(tabs[0].dataset.tab);
+})();
+(function () {  // Choose per room: "Every room" ticks that line in every room (and unticks the others)
+  document.querySelectorAll('.qc-prod').forEach(function (f) {
+    f.addEventListener('click', function (e) { var b = e.target.closest('.qc-all'); if (!b) return;
+      f.querySelectorAll('.qc-cell input[type=checkbox]:not([disabled])').forEach(function (c) { c.checked = c.value === b.dataset.line; }); f.classList.add('dirty'); });
+    f.addEventListener('change', function () { f.classList.add('dirty'); });
+  });
 })();
 </script>
 <script>

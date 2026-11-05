@@ -1882,3 +1882,48 @@ body.qi-step3 .qi-cols,body.qi-walking .qi-cols,.qi-cols:has(+ #lines[hidden]){d
 @media (max-width:560px){.qx-w{grid-template-columns:36px minmax(0,1fr) auto}.qx-wst{display:none}}
 .qx-wait h2 .n{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:var(--accent);color:#fff;font-size:.75rem;margin-left:6px;vertical-align:2px}
 body.qi-walking .qi-line{grid-template-columns:56px minmax(0,1fr)}body.qi-walking .qi-line .qi-pick{grid-column:1/-1;padding-left:0;border-left:0;border-top:1px dashed var(--line);padding-top:10px}body.qi-walking .qi-line .qi-pick::before{left:50%;top:-10px;margin-left:-9px;content:"\2193"}body.qi-walking .alert.info{display:none}
+/* saved quotation: Choose per room (a column per line of the sheet, a row per room) and Adjust this quotation (tabs) */
+.qc{border-left:4px solid var(--accent)}
+.qc-head h2 .n,.qa-tab b{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--accent);color:#fff;font-size:.72rem;margin-left:6px;vertical-align:2px}
+.qa-tab b{background:var(--surface-3);color:var(--ink-2)}.qa-tab.on b{background:rgba(255,255,255,.2);color:#fff}
+.qc-prod{margin-top:16px;padding-top:14px;border-top:1px solid var(--line-2)}
+.qc-ph{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.qc-grid{display:grid;grid-template-columns:minmax(150px,1.1fr) repeat(var(--n),minmax(130px,1fr));border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+.qc-grid>*{padding:10px 12px;border-top:1px solid var(--line-2);border-left:1px solid var(--line-2);min-width:0}
+.qc-corner,.qc-opt{border-top:0;background:var(--surface-2)}
+.qc-corner,.qc-room{border-left:0}
+.qc-corner{display:flex;align-items:flex-end;font-weight:600;text-transform:uppercase;letter-spacing:.06em;font-size:.68rem}
+.qc-opt{display:flex;gap:10px;align-items:flex-start}
+.qc-pic{width:52px;height:52px;border-radius:8px;overflow:hidden;flex:none;border:1px solid var(--line);background:var(--surface-3);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--muted)}
+.qc-pic img{width:100%;height:100%;object-fit:cover;display:block}
+.qc-ot{min-width:0;display:flex;flex-direction:column;gap:3px}
+.qc-price{font-weight:700;font-variant-numeric:tabular-nums}
+.qc-ot .in.sm{min-height:30px;font-size:.8rem;padding:4px 8px}
+.qc-all{align-self:flex-start;border:0;background:none;padding:0;color:var(--accent-ink);font:inherit;font-size:.78rem;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.qc-room{line-height:1.3}
+.qc-room.locked{opacity:.6}
+.qc-cell{display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative}
+.qc-cell:hover{background:var(--surface-2)}
+.qc-cell input{position:absolute;opacity:0;pointer-events:none}
+.qc-tick{width:28px;height:28px;border-radius:8px;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;background:var(--surface);transition:all .12s}
+.qc-tick .ic{width:16px;height:16px;color:#fff;opacity:0}
+.qc-cell input:checked+.qc-tick{background:var(--accent);border-color:var(--accent)}
+.qc-cell input:checked+.qc-tick .ic{opacity:1}
+.qc-cell input:focus-visible+.qc-tick{outline:2px solid var(--accent);outline-offset:2px}
+.qc-cell input:disabled+.qc-tick{opacity:.35}
+.qc-acts{margin-top:12px;gap:8px;align-items:center}
+.qc-prod.dirty .qc-acts .btn.accent{box-shadow:0 0 0 3px var(--accent-soft)}
+.qa-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.qa-tabs{display:flex;gap:6px;flex-wrap:wrap}
+.qa-tab{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 14px;font:inherit;font-size:.86rem;font-weight:600;color:var(--ink-2);cursor:pointer}
+.qa-tab.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.qa:not(.tabbed) .qa-tabs{display:none}
+.qa-panel{margin-top:14px;padding-top:14px;border-top:1px solid var(--line-2)}
+.qa-panel[hidden]{display:none!important}
+.qa-intro{margin:0 0 12px}
+@media (max-width:700px){
+  .qc-grid{grid-template-columns:minmax(96px,1fr) repeat(var(--n),minmax(84px,1fr));overflow-x:auto}
+  .qc-opt{flex-direction:column;gap:6px}.qc-pic{width:44px;height:44px}
+  .qc-grid>*{padding:8px}
+  .qa-head{align-items:flex-start}
+}

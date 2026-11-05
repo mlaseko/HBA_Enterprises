@@ -2510,6 +2510,75 @@ def multi_line_products(q: Quotation) -> list[dict]:
     return out
 
 
+def choice_rooms(p: Project, m: dict) -> list[dict]:
+    """For the saved page's "Choose per room" card: the rooms of a product two or more of the sheet's lines quote, with the
+    lines chosen in each: [{rid, room, qty, unit, chosen (line ids), average (bought from the combined quote), other (a
+    purchase from something else: another shop or sheet), locked (on a confirmed order)}], in schedule order."""
+    prod = m["lines"][0].product if m["lines"] else None
+    g = buying.group_of(p, prod) if prod is not None else None
+    if g is None:
+        return []
+    by_quote: dict[int, list[int]] = {}
+    for ln in m["lines"]:
+        if ln.quote_id:
+            by_quote.setdefault(ln.quote_id, []).append(ln.id)
+    out: dict[int, dict] = {}
+    for i in g.lines:
+        r = out.setdefault(i.room_id or 0, dict(rid=i.room_id or 0, room=i.room, qty=i.qty or 0, unit=i.unit or "", chosen=[],
+                                                 average=False, other=None, locked=False, codes=[]))
+        r["codes"].append(i.code)
+        pu = i.purchase
+        if pu is None:
+            continue
+        lids = by_quote.get(pu.quote_id or -1, [])
+        if m["options"] and lids:
+            r["chosen"].extend(x for x in lids if x not in r["chosen"])
+        elif lids:
+            r["average"] = True
+        else:
+            r["other"] = pu
+        if pu.order is not None and pu.order.confirmed:
+            r["locked"] = True
+    return list(out.values())
+
+
+def choose_lines(db: Session, p: Project, q: Quotation, product_id: int, picks: dict[int, list[int]],
+                 labels: dict[int, str] | None = None) -> tuple[dict, list[str]]:
+    """The saved page's choice per room between the lines of this sheet on one product: picks = {room id (0 = no room):
+    [line ids]}. The lines become options to choose first when they are not yet (set_options, a quote each named by
+    `labels` or from the sheet), then each room is bought from the option of the line ticked (buying.choose_options: a
+    second line ticked adds a line in the room). A room with nothing of this sheet ticked keeps what it has from another
+    shop or sheet. Returns (choose_options' stats + made_options, warnings); raises ValueError."""
+    m = next((x for x in multi_line_products(q) if x["pid"] == product_id), None)
+    if m is None:
+        raise ValueError("This sheet no longer has two lines on that product.")
+    warns: list[str] = []
+    made = False
+    if not m["options"]:
+        _, warns = set_options(db, p, q, product_id, True, labels)
+        made = True
+        db.flush()
+        db.expire_all()
+        q = db.get(Quotation, q.id)
+        m = next((x for x in multi_line_products(q) if x["pid"] == product_id), None)
+        if m is None or not m["options"]:
+            raise ValueError("The lines could not be made options to choose.")
+    line_quote = {ln.id: ln.quote_id for ln in m["lines"] if ln.quote_id}
+    sheet_q = set(line_quote.values())
+    prod = db.get(Product, product_id)
+    g = buying.group_of(p, prod) if prod is not None else None
+    if g is None:
+        raise ValueError("The product has no room left in the design.")
+    qpicks: dict[int, list[int]] = {}
+    for r in g.option_rooms():
+        rid = r["room"].id if r["room"] is not None else 0
+        mine = [line_quote[x] for x in picks.get(rid, []) if x in line_quote]
+        qpicks[rid] = mine or [qid for qid in r["chosen"] if qid not in sheet_q]  # nothing of this sheet: the room keeps another sheet's option
+    st = buying.choose_options(db, p, prod, g, qpicks)
+    st["made_options"] = made
+    return st, warns
+
+
 def set_options(db: Session, p: Project, q: Quotation, product_id: int, on: bool, labels: dict[int, str] | None = None) -> tuple[str, list[str]]:
     """The lines of this sheet on one product made options to choose (a quote each, named by `labels` = {line id: label},
     else variant_label, else Option A, B…, with the line's picture) or back into one quote at the combined price. Refused
