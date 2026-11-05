@@ -229,13 +229,14 @@ def flow(c):
     # edit specs once, applied to every room using the item; per-room qty/status stay
     db=SessionLocal(); slabs=db.query(Item).filter(Item.project_id==int(pid), Item.name=="Floor - big porcelain slab (+ extra % for cuts)").all()
     assert len(slabs)>3; s0=slabs[0]; qtys={x.id:x.qty for x in slabs}; s1=slabs[1]; s1.status="Ordered"; db.commit(); s0id, s1id=s0.id, s1.id; room0=s0.room_id; db.close()
-    r=c.get(f"/p/{pid}/items/{s0id}"); assert 'name="apply_all"' in r.text and f"{len(slabs)-1} other rooms" in r.text
-    r=c.post(f"/p/{pid}/items/{s0id}", data={"room_id":room0,"category":"Tiles","name":"Floor - big porcelain slab (+ extra % for cuts)","spec":"Calacatta look, 9 mm","size":"1600 x 3200 mm","qty":"5","unit":"sqm","unit_price":"88","status":"Quoted","apply_all":"1"}, follow_redirects=False)
+    r=c.get(f"/p/{pid}/items/{s0id}"); assert 'id="rooms"' in r.text and f"In {len(slabs)} rooms" in r.text and f'name="qty_{s1id}"' in r.text and 'name="apply_all"' not in r.text
+    # what this save changes goes to every room; each room's quantity is its own, set in the rooms table
+    r=c.post(f"/p/{pid}/items/{s0id}", data={"room_id":room0,"category":"Tiles","name":"Floor - big porcelain slab (+ extra % for cuts)","spec":"Calacatta look, 9 mm","size":"1600 x 3200 mm","qty":"5","unit":"sqm","unit_price":"88","status":"Quoted",f"qty_{s1id}":"7"}, follow_redirects=False)
     db=SessionLocal(); slabs=db.query(Item).filter(Item.project_id==int(pid), Item.name=="Floor - big porcelain slab (+ extra % for cuts)").all()
     assert all(x.spec=="Calacatta look, 9 mm" and x.size=="1600 x 3200 mm" for x in slabs)
-    assert all(x.qty==qtys[x.id] for x in slabs if x.id!=s0id) and db.get(Item,s1id).status=="Ordered"; db.close()
-    # without the tick only this room changes
-    r=c.post(f"/p/{pid}/items/{s0id}", data={"room_id":room0,"category":"Tiles","name":"Floor - big porcelain slab (+ extra % for cuts)","spec":"Only here","qty":"5","unit":"sqm","status":"Quoted"}, follow_redirects=False)
+    assert db.get(Item,s1id).qty==7 and all(x.qty==qtys[x.id] for x in slabs if x.id not in (s0id, s1id)) and db.get(Item,s1id).status=="Ordered"; db.close()
+    # "Save the changes to this room only" keeps them here
+    r=c.post(f"/p/{pid}/items/{s0id}", data={"room_id":room0,"category":"Tiles","name":"Floor - big porcelain slab (+ extra % for cuts)","spec":"Only here","qty":"5","unit":"sqm","status":"Quoted","only_here":"1"}, follow_redirects=False)
     db=SessionLocal(); assert db.get(Item,s0id).spec=="Only here" and db.get(Item,s1id).spec=="Calacatta look, 9 mm"; db.close()
     # add an existing item to more rooms from its page
     db=SessionLocal(); extra=[x for x in db.query(Room).filter(Room.project_id==int(pid)).all() if x.id not in rids][:2]; extra_ids=[x.id for x in extra]; db.close()
@@ -578,7 +579,7 @@ def flow(c):
     assert 'data-group="bathroom" data-floor="First" data-kind="room"' in h and 'capture=' not in h.split('name="photos"')[1][:120] and 'name="photos" accept="image/*" multiple' in h
     db=SessionLocal(); mbr=db.query(Room).filter(Room.project_id==int(pid_p), Room.code=="FF-MBR").one().id; db.close()
     r=c.post(f"/p/{pid_p}/items/new", data={"room_ids":[str(mbr)],"category":"Furniture","name":"Bedside lamp","qty":"2","unit":"pcs","unit_price":"300","status":"To buy"}, follow_redirects=False)
-    r=c.get(r.headers["location"]); assert 'name="rooms_form" value="1"' in r.text and 'name="room_ids"' in r.text and 'All bedrooms <b>3</b>' in r.text and "Rooms with this item" in r.text  # every room, this one locked
+    r=c.get(r.headers["location"]); assert 'name="rooms_form" value="1"' in r.text and 'name="room_ids"' in r.text and 'All bedrooms <b>3</b>' in r.text and "Add or remove rooms" in r.text  # every room, this one locked
     r=c.get(f"/p/{pid_p}/import/template.xlsx"); assert r.status_code==200 and "spreadsheetml" in r.headers["content-type"] and "import_template.xlsx" in r.headers["content-disposition"]
     wb=openpyxl.load_workbook(io.BytesIO(r.content)); assert wb.sheetnames==["How to","Rooms","Shopping List","Lists"]
     ws=wb["Rooms"]; labels=[ws.cell(row=i, column=1).value for i in range(2, 30)]
@@ -857,7 +858,7 @@ def flow(c):
     db=SessionLocal(); rls=sorted(db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Reading light"), key=lambda i: i.id); rl=rls[0]; own=rl.room_id; others_=[i.room_id for i in rls[1:]]
     rc={x.id:x.code for x in db.query(Room).filter(Room.project_id==int(pid_p))}; liv=[k for k,v in rc.items() if v=="GF-LIV"][0]; db.close()
     r=c.get(f"/p/{pid_p}/items/{rl.id}"); h=r.text
-    assert 'name="rooms_form" value="1"' in h and h.count('name="room_ids"')>=12 and f'<input type="hidden" name="room_ids" value="{own}">' in h and re.search(r'value="%d"[^>]*checked disabled>' % own, h) and h.count('class="pick-link"')==2 and "Rooms with this item" in h and 'data-removal="Remove this item from' in h
+    assert 'name="rooms_form" value="1"' in h and h.count('name="room_ids"')>=12 and f'<input type="hidden" name="room_ids" value="{own}">' in h and re.search(r'value="%d"[^>]*checked disabled>' % own, h) and h.count('class="pick-link"')==2 and "Add or remove rooms" in h and 'data-removal="Remove this item from' in h
     r=c.post(f"/p/{pid_p}/items/{rl.id}", data={"room_id":str(own),"category":"Lighting","name":"Reading light","qty":"2","unit":"pcs","unit_price":"150","status":"To buy","rooms_form":"1","room_ids":[str(own), str(others_[0]), str(liv)]}, follow_redirects=False); assert r.status_code==303
     db=SessionLocal(); codes=sorted(i.room.code for i in db.query(Item).filter(Item.project_id==int(pid_p), Item.name=="Reading light")); db.close()
     assert codes==sorted([rc[own], rc[others_[0]], "GF-LIV"]), codes  # one room dropped, one added, the own room kept
@@ -1149,19 +1150,18 @@ def flow(c):
     db=SessionLocal(); P=db.get(_P,int(pid)); i1,i2,i3=db.get(Item,t1),db.get(Item,t2),db.get(Item,t3)
     assert _pk(i1)==_pk(i2)!=_pk(i3) and [x.id for x in _sie(P,i1)]==[t2] and _sie(P,i3)==[]; db.close()
     h=c.get(f"/p/{pid}/items/{t1}").text
-    assert 'name="apply_all" value="1" checked>' in h and "1 other room with this exact item" in h and "differ in" not in h
+    assert "In 2 rooms" in h and 'name="only_here"' in h and f'name="qty_{t2}"' in h
     assert 'list="dl-name"' in h and '<datalist id="dl-name">' in h and '<option value="Floor tiles">' in h and '<datalist id="dl-size">' in h and '<option value="1200 x 600 mm">' in h and '<option value="Ceramic, matt, cream">' in h
     assert "only in this room so far" in c.get(f"/p/{pid}/items/{t3}").text and '<datalist id="dl-name">' in c.get(f"/p/{pid}/items/new").text
     h=c.get(f"/p/{pid}/items?view=list&q=Floor%20tiles").text; assert f'<tr id="item-{t1}"' in h and f'<tr id="item-{t3}"' in h and "2 rooms</a>" in h
     assert '<tr class="fam-row" data-fam-head="floor tiles|ceramic, matt, cream"' in h and '<b>Floor tiles</b> <span class="muted">· Ceramic, matt, cream</span> <span class="pill">2 variants</span>' in h  # one name and finish in two sizes: a family
     assert f'<a class="b" href="/p/{pid}/items/{t1}">1200 x 600 mm</a>' in h and f'<a class="b" href="/p/{pid}/items/{t3}">800 * 400 mm</a>' in h and h.count('class="fam-var" data-fam="floor tiles|ceramic, matt, cream"')==2  # a variant line reads by its size
-    c.post(f"/p/{pid}/items/{t2}/status", data={"status":"Quoted"}); assert 'name="apply_all" value="1" checked>' in c.get(f"/p/{pid}/items/{t1}").text  # status is per room: no difference that matters
+    c.post(f"/p/{pid}/items/{t2}/status", data={"status":"Quoted"}); db=SessionLocal(); assert db.get(Item,t1).status=="To buy"; db.close()  # status is per room
     r=c.post(f"/p/{pid}/items/{t2}", data={"room_id":rids[1],"category":"Tiles","name":"Floor tiles","size":"1200*600 mm","finish":"Ceramic, matt, cream","spec":"Rectified edge","brand":"Marazzi","qty":"20","unit":"m²","status":"Quoted"}, follow_redirects=False); assert r.status_code==303
-    h=c.get(f"/p/{pid}/items/{t1}").text; assert 'name="apply_all" value="1">' in h and "The other rooms differ in spec and preferred brand:" in h  # set up its own way: not overwritten by default
-    db=SessionLocal(); assert db.get(Item,t1).spec=="" and db.get(Item,t2).spec=="Rectified edge" and _pk(db.get(Item,t1))==_pk(db.get(Item,t2)); db.close()  # still one product: the brand is a preference
+    db=SessionLocal(); assert db.get(Item,t1).spec=="Rectified edge" and db.get(Item,t1).brand=="Marazzi" and db.get(Item,t1).size=="1200*600 mm" and db.get(Item,t3).spec=="" and _pk(db.get(Item,t1))==_pk(db.get(Item,t2)); db.close()  # one product: what t2's save changed went to t1 too, not to the other size
     r=c.post(f"/p/{pid}/items/{t1}", data={"room_id":rids[0],"category":"Tiles","name":"Floor tiles","size":"1200 x 600 mm","finish":"Ceramic, matt, cream","spec":"Rectified, 9 mm","qty":"20","unit":"m²","status":"To buy","apply_all":"1"}, follow_redirects=False)
     db=SessionLocal(); assert db.get(Item,t2).spec=="Rectified, 9 mm" and db.get(Item,t2).brand=="" and db.get(Item,t2).status=="Quoted" and db.get(Item,t3).spec=="" and db.get(Item,t3).size=="800 * 400 mm"; db.close()  # ticked: twins follow, the other size untouched
-    assert 'name="apply_all" value="1" checked>' in c.get(f"/p/{pid}/items/{t1}").text and '<datalist id="dl-name">' in c.get(f"/p/{pid}/drafts").text
+    assert 'id="rooms"' in c.get(f"/p/{pid}/items/{t1}").text and '<datalist id="dl-name">' in c.get(f"/p/{pid}/drafts").text
     print("product identity ok")
     # a document that cannot be built explains itself (the designer's route) instead of a bare 500; the client gets a plain message
     from app.routers import exports as _ex
@@ -1493,7 +1493,7 @@ def flow(c):
     # renames: the whole product renamed keeps its quotes and purchases; one line renamed alone leaves them; two products merge
     c.post(f"/p/{pid_b}/items/{tl['GF-LIV']}", data={"room_id":str(br["GF-LIV"]),"category":"Tiles","name":"Porcelain floor tile","size":"600 x 600 mm","finish":"Grey","brand":"Marazzi","qty":"20","unit":"m²","status":"Quoted","apply_all":"1"}, follow_redirects=False)
     db=SessionLocal(); pr=db.get(_Pr,tp); assert pr is not None and pr.key==_pk(db.get(Item,tl["GF-LIV"])) and all(db.get(Item,x).name=="Porcelain floor tile" and db.get(Item,x).purchase_id for x in tl.values()) and db.query(_Q).filter(_Q.product_id==tp).count()==1; db.close()
-    c.post(f"/p/{pid_b}/items/{tl['FF-BED']}", data={"room_id":str(br["FF-BED"]),"category":"Tiles","name":"Bedroom tile","size":"600 x 600 mm","finish":"Grey","qty":"10","unit":"m²","status":"Quoted"}, follow_redirects=False)
+    c.post(f"/p/{pid_b}/items/{tl['FF-BED']}", data={"room_id":str(br["FF-BED"]),"category":"Tiles","name":"Bedroom tile","size":"600 x 600 mm","finish":"Grey","qty":"10","unit":"m²","status":"Quoted","only_here":"1"}, follow_redirects=False)  # this room only
     db=SessionLocal(); x=db.get(Item,tl["FF-BED"]); assert x.purchase_id is None and x.unit_price==0 and x.status=="To buy" and db.get(Item,tl["GF-KIT"]).purchase_id; db.close()
     for nm, rm in (("Wall light","GF-LIV"),("Wall lamp","FF-BED")):
         c.post(f"/p/{pid_b}/items/new", data={"room_ids":[str(br[rm])],"category":"Lighting","name":nm,"qty":"2","unit":"pcs","status":"To buy"}, follow_redirects=False)
@@ -1609,6 +1609,15 @@ def flow(c):
     # Home: the Tracker's attention lines are its to-do list; the five places are the project's menu; the status shows as people read it
     h=c.get(f"/p/{pid_o}").text
     assert "What needs you" in h and "KH-001 changed after it was confirmed" in h and 'id="documents"' in h and "Share &amp; print" in h
+    assert "Getting started" not in h and "Getting started" in c.get(f"/p/{pid_e}").text and " of 5</span>" in c.get(f"/p/{pid_e}").text  # the first steps
+    r=c.post("/projects/new", data={"client_name":"Fresh","name":"Fresh house","rate":"7.1"}, follow_redirects=False); assert "0 of 5</span>" in c.get(r.headers["location"]).text  # the whole-house area every project starts with is not a step done, until an order is confirmed
+    # a project switches off what it does not use: it leaves the menu, nothing is deleted
+    c.post(f"/p/{pid_o}/edit", data={"client_name":"Orders","name":"Kilimani House","rate":"7","budget_usd":"5000","status":"Active","features_form":"1","use_plan":"1"}, follow_redirects=False)
+    nav=c.get(f"/p/{pid_o}").text.split('<aside class="side">')[1].split("</aside>")[0]; assert ">Delivery</a>" not in nav and f'href="/p/{pid_o}/plan"' in c.get(f"/p/{pid_o}/items").text.split('aria-label="Design"')[1].split("</nav>")[0]  # delivery off, plans still on
+    c.post(f"/p/{pid_o}/edit", data={"client_name":"Orders","name":"Kilimani House","rate":"7","budget_usd":"5000","status":"Active","features_form":"1","use_delivery":"1"}, follow_redirects=False)
+    h=c.get(f"/p/{pid_o}/items").text; assert ">Delivery</a>" in h.split('<aside class="side">')[1].split("</aside>")[0] and f'href="/p/{pid_o}/plan"' not in h.split('aria-label="Design"')[1].split("</nav>")[0]
+    c.post(f"/p/{pid_o}/edit", data={"client_name":"Orders","name":"Kilimani House","rate":"7","budget_usd":"5000","status":"Active","features_form":"1","use_plan":"1","use_delivery":"1"}, follow_redirects=False)
+    db=SessionLocal(); assert db.get(_P,pid_o).features_off=="" and db.get(_P,pid_o).budget_usd==5000; db.close()
     nav=h.split('<aside class="side">')[1].split("</aside>")[0]
     assert all(f">{w}</a>" in nav or f">{w}<span" in nav for w in ("Home", "Design", "Sourcing", "Orders", "Delivery")) and ">Payments</a>" not in nav and "Project settings" in nav
     h=c.get(f"/p/{pid_o}/items?view=table").text

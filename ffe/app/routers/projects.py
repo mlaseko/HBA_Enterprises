@@ -35,6 +35,7 @@ def create_project(request: Request, db: Session = Depends(get_db), client_name:
                    lists_from: str = Form(""), show_currency: str = Form("CNY")):
     p = Project(client_name=client_name.strip(), name=name.strip(), address=address.strip(), rate=ffloat(rate, 7.1),
                 budget_usd=ffloat(budget_usd), description=description.strip(), show_currency="USD" if show_currency == "USD" else "CNY")
+    p.features_off = ""
     db.add(p)
     db.flush()
     src = db.get(Project, fint(lists_from)) if fint(lists_from) else None
@@ -62,13 +63,16 @@ def edit_project(request: Request, p: Project = Depends(get_project), db: Sessio
 
 
 @router.post("/p/{project_id}/edit")
-def update_project(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db),
+async def update_project(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db),
                    client_name: str = Form(...), name: str = Form(...), address: str = Form(""), rate: str = Form("7.1"),
                    budget_usd: str = Form("0"), description: str = Form(""), status: str = Form("Active"), show_currency: str = Form("")):
     p.client_name, p.name, p.address = client_name.strip(), name.strip(), address.strip()
     if show_currency in ("USD", "CNY"):
         p.show_currency = show_currency
     p.rate, p.budget_usd, p.description, p.status = ffloat(rate, 7.1), ffloat(budget_usd), description.strip(), status
+    form = await request.form()
+    if form.get("features_form") == "1":  # the "This project uses" boxes: an unticked part is switched off
+        p.features_off = ",".join(f for f in Project.FEATURES if form.get(f"use_{f}") != "1")
     db.commit()
     return redirect(f"/p/{p.id}")
 

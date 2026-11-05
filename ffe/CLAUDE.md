@@ -207,7 +207,7 @@ titles (system serif stack), sans body. Everything lives in `app/static/app.css`
 - **One product, many rooms.** A product used in several rooms is one `Item` row per room. What makes rows the same product is
   `services.product_key`: name + size + finish (`IDENTITY_FIELDS`; case, spacing and the x of a size normalised). The
   preferred brand (`Item.brand`) is shared by the twins but is not identity. Keep names short and generic ("Floor tiles")
-  and the variation in size / finish; never fold the size or colour into the name. `same_item_elsewhere` (apply-to-other-rooms, the rooms checklist) and `group_items` (the Item list) must keep using
+  and the variation in size / finish; never fold the size or colour into the name. `same_item_elsewhere` (the rooms a product's changes go to, the rooms table and checklist) and `group_items` (the Item list) must keep using
   that one rule. The name, size, finish and brand inputs carry `<datalist>` suggestions from `items.suggestions` so values are
   typed the same way; add the list to any new form with those fields.
 - **Messages and confirmations are the app's own.** Never call `alert()`, `confirm()` or `prompt()` (the browser's grey
@@ -519,7 +519,7 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
 
 - **Product identity and naming.** `services.product_key` = name + size + finish (brand left it with Buying) (`IDENTITY_FIELDS`; `_key` lowercases
   and collapses spaces, `_SIZE_SEP_RE` makes 1200 x 600 / 1200*600 / 1200×600 one size) is the one rule behind
-  `same_item_elsewhere` (the apply-to-other-rooms twins and the "Rooms with this item" checklist) and `group_items` (the Item
+  `same_item_elsewhere` (the product's other rooms: its changes go there, the rooms table) and `group_items` (the Item
   list, which shows size · finish · brand under the name so variants read apart; a family's variant line shows its size as the
   link and finish · brand under it). `twin_differences(item, others)` lists the
   shared fields outside the identity (`DIFF_LABELS`: category, spec, unit, preferred brand) on which the twins no
@@ -931,6 +931,22 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   step 2 the lines, step 3 The document (first, `order:-1`), the simulation and Save; an `err` opens it on step 3; no
   JavaScript = one page as before. The saved quotation folds What it comes to now, the options card and Products and
   variants under `details#advanced` (a hash inside it opens it). Breadcrumbs say Sourcing for the Buying pages.
+
+- **Usability, phase 3.** A product's details are one for all its rooms without a schema change: `routers/items.update_item`
+  copies to the product's other lines (`same_item_elsewhere`, taken before the save) the `SHARED_FIELDS` the save changed
+  and the form carried (`was` vs after `apply_form`), so a typo fixed in one room fixes every room and `follow_renames`
+  keeps the product's quotes and purchases; untouched fields stay as each room has them. `only_here=1` ("Save the changes
+  to this room only") keeps the change on the line (a new name, size or finish then splits it off); `apply_all=1` still
+  copies every shared field (older forms, the tests). `twin_differences` / `DIFF_LABELS` are gone. The item page shows
+  `#rooms`: every line of the product with its code, status and a quantity input (`qty` for this line, `qty_<line id>` for
+  the others, read in `update_item`), and the room checklist folded under "Add or remove rooms". Product identity stays
+  `services.product_key` (name + size + finish): the quotation memory (`QuoteMatch.product_key`) and the variants
+  (`split_products`, families) work by it across projects, so an id-based product was not worth rewriting them.
+  `Project.features_off` (column via `COLUMN_MIGRATIONS`; `Project.FEATURES` = plan, delivery; `p.uses(name)`), set by the
+  "This project uses" boxes on Project settings (`features_form=1`, `use_<feature>`): Delivery leaves the sidebar / More
+  sheet and Plan leaves the Design tabs (the pages still open by URL; nothing is deleted). Home's **Getting started**
+  (`.setup-steps`: rooms, items, a quote, a shop chosen, an order confirmed; read from `p` and the Tracker figures) shows
+  until all five are done. The guide opens with a Quick guide (five places, item to site, good to know) before the walkthrough.
 
 ## Backlog (in priority order)
 

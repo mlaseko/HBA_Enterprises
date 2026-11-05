@@ -17,7 +17,7 @@
 <div class="help-layout">
 <nav class="help-toc card tight noprint" aria-label="Contents">
   <div class="eyebrow">Start here</div>
-  <a href="#idea">The idea in one minute</a>
+  <a href="#idea">Quick guide (5 minutes)</a>
   <a href="#flow">The walkthrough, start to finish</a>
   <div class="eyebrow sub">Feature by feature</div>
   <a href="#start">Studio settings</a>
@@ -50,10 +50,31 @@
 <div class="card help-nomatch" id="help-nomatch" hidden><b>Nothing in the guide matches that word.</b> Try another word, or clear the search.</div>
 
 <section class="card" id="idea">
-  <h2>The idea in one minute</h2>
-  <p>You enter each item <b>once</b>: which room it goes in, what it is and a photo of the sample. On <b>Buying</b> you then record what the shops quote and choose which shop supplies which rooms; the price and the brand bought go onto those rooms by themselves. From there the app gives you the client's schedule as a PDF, keeps track of what is quoted, ordered, paid, shipped and received, prints box labels by room, follows every box from the shop through the warehouse and the container to its room, and gives the client a link to follow progress. Nothing is typed twice.</p>
-  <p>Everything hangs off <b>rooms and areas</b>. Every item and every box carries a code such as <span class="pill accent">GF-KIT</span>, so a delivery goes straight to the place where it will be installed.</p>
-  <p>Yellow boxes are where you type. Everything else is worked out for you.</p>
+  <h2>Quick guide</h2>
+  <p>You enter each item <b>once</b>: what it is, which rooms it goes in and how many. You collect the shops' prices, choose a shop, and the app makes the order, follows the payments and the boxes, and prints the client's schedule from the same data.</p>
+  <h3>The five places</h3>
+  <ul>
+    <li><b>Home</b>: what needs you next, the progress and the money; <b>Share &amp; print</b> for every PDF.</li>
+    <li><b>Design</b>: the items, the rooms, the floor plan and the mood board.</li>
+    <li><b>Sourcing</b>: the shops' quotes and quotation sheets; choose a shop here.</li>
+    <li><b>Orders</b>: confirm each shop's order and record what you pay.</li>
+    <li><b>Delivery</b>: the boxes, from the shop to the warehouse, a container and the site.</li>
+  </ul>
+  <h3>From item to site</h3>
+  <ol>
+    <li>Add the <b>rooms</b>, then the <b>items</b> (or import your Excel list). One item can go in many rooms, each with its own quantity.</li>
+    <li>In <b>Sourcing</b>, add each shop's price, or upload its quotation sheet and check the lines that need you.</li>
+    <li>Press <b>Choose</b> on the best quote. The rooms take that shop's price and go onto its <b>draft order</b> by themselves.</li>
+    <li>In <b>Orders</b>, send the shop the purchase order and press <b>Confirm the order</b> when it agrees. Record the deposit and the balance on the order.</li>
+    <li>The shop lists its boxes on its packing link; in <b>Delivery</b> you follow them to the warehouse, onto a shipment and to site.</li>
+  </ol>
+  <h3>Good to know</h3>
+  <ul>
+    <li>Statuses move by themselves: Shop chosen, Ordered, Paid, Shipped, Received follow the orders, payments and boxes.</li>
+    <li>A product's details are one for all its rooms: change them on any room's line and every room follows.</li>
+    <li>Every page has a <b>?</b> button with its steps. Nothing is lost: item codes and order numbers are never reused.</li>
+  </ul>
+  <h3>The full walkthrough</h3>
   <ol class="flow">
     <li><a href="#s1"><span class="n">1</span><span class="t">Studio settings</span><span class="d">Once. Your name on every document.</span></a></li>
     <li><a href="#s2"><span class="n">2</span><span class="t">Project</span><span class="d">One per house. Import the Excel if you have it.</span></a></li>
@@ -465,8 +486,8 @@
   <h3>Editing an item</h3>
   <ul>
     <li><b>Photos are shared across rooms.</b> A photo belongs to the product, not to one room's line: add it from any room's line or from the item list and it shows on the same item in every room (lists, cards, plan dots, PDFs, the client's link). The cover is the same everywhere, <b>Make cover</b> changes it for all, and a photo deleted on one line is gone from all. Deleting a room's line never deletes the photos while another room still has the item. Older photos stored once per room show once; Studio settings → Speed prepares them (press once after this version).</li>
-    <li><b>Apply to the other rooms</b> (ticked when the other rooms' lines of this product still match this one; unticked, with a note of what differs, when they were set up their own way) copies the name, category, spec, size, finish, preferred brand and unit to the other lines. Quantity, status, notes and photos always stay per room; the shop, price and lead time come from Buying.</li>
-    <li><b>Rooms with this item</b> is a checklist of every room, ticked where the item already is. Tick another room and Save: the item is copied there with its own code, the same spec, quantity and photos, and the status To buy. Untick a room and Save: that room's line is deleted, with its photos and plan dots (the app asks first). The chips tick all bedrooms, all bathrooms or a floor at once. The line you are editing is locked: change its room with the Room field, or remove it with Delete.</li>
+    <li><b>One product, every room.</b> The name, size, colour/finish, spec, preferred brand, unit and category are the product's: what you change on any room's line goes to every room that has it, and only what you changed (each room keeps the rest as it is). Quantity, status and notes stay per room. To change one room alone, tick <b>Save the changes to this room only</b>; a new name, size or finish then makes that room a product of its own. The shop, price and lead time come from Sourcing.</li>
+    <li><b>In N rooms</b> lists every room with the item: its code, its status and its <b>quantity</b>, which you change right in the table and save once. <b>Add or remove rooms</b> under it: tick another room and Save, and the item is copied there with its own code, the same details, quantity and photos, and the status To buy; untick a room and its line is deleted, with its plan dots (the app asks first). The chips tick all bedrooms, all bathrooms or a floor at once. The line you are on is locked: change its room with the Room field, or remove it with Delete.</li>
     <li>Photos: delete, or <b>Make cover</b>. With Claude turned on, <b>Fill in with Claude</b> fills the empty fields from the cover photo.</li>
     <li><b>Duplicate</b> makes a copy to tweak, without a shop. <b>Delete item</b> removes the item and its photos; its code is not reused. When the item is in more than one room, its page offers <b>Delete from this room</b> (the other rooms keep it, with the photos) or <b>Delete from all N rooms</b> (the whole product goes). A product left in no room leaves the Buy list, and a saved quotation that priced it marks its line <b>No rooms left in the design</b>.</li>
     <li><b>Plan</b> / <b>On the plan</b> at the top opens the room on the drawing, with the item highlighted if it has a dot.</li>
@@ -497,7 +518,7 @@
   </ul>
   <h3>The Purchase schedule</h3>
   <p>Every product by category, in the look of the client schedule: photo, codes, product and must-haves, rooms, what to order, the shop and the brand bought, the unit price, the total and the stage. Filter by category, floor or stage, show the prices in CNY or USD, and press <b>Print / PDF</b> to save it.</p>
-  <p>An item renamed with <b>Apply to the other rooms</b> keeps its quotes and purchases; a line renamed on its own becomes another product and leaves its shop. Deleting a supplier removes its quotes and purchases, and the rooms it supplied have no shop again.</p>
+  <p>A product renamed keeps its quotes and purchases (the change goes to every room); a line renamed with <b>Save the changes to this room only</b> becomes another product and leaves its shop. Deleting a supplier removes its quotes and purchases, and the rooms it supplied have no shop again.</p>
   {{ shot('buying-quote', 'Adding a quote: the shop, or a new one with its market and WeChat; the brand; the price in CNY or USD with its conversion; the box size, minimum order, lead time and a photo.', 'narrow') }}
 </section>
 

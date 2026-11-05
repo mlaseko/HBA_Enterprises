@@ -14,7 +14,7 @@
 <nav class="bu-tabs noprint" aria-label="{{ labels[section] }}">
   {% for key, href, icon, title in tabs[section] %}
   {% if key == 'drafts' %}{% set n = p.drafts|length %}{% elif key == 'orders' %}{% set n = p.orders|length %}{% elif key == 'boxes' %}{% set n = p.cartons|length %}{% elif key == 'shipments' %}{% set n = p.shipments|length %}{% else %}{% set n = 0 %}{% endif %}
-  {% if key != 'drafts' or n or active == 'drafts' %}
+  {% if (key != 'drafts' or n or active == 'drafts') and (key != 'plan' or p.uses('plan') or active == 'plan') %}
   <a href="/p/{{ p.id }}{{ href }}" class="{{ 'on' if active == key }}"{% if active == key %} aria-current="page"{% endif %}><svg class="ic"><use href="#i-{{ icon }}"/></svg>{{ title }}{% if n %} <b>{{ n }}</b>{% endif %}</a>
   {% endif %}
   {% endfor %}

@@ -34,6 +34,7 @@ def get_db():
 # the missing ones at startup. Prefer a new table when you can; when a column is the right model, add it here too.
 COLUMN_MIGRATIONS = [
     ("projects", "show_currency", "VARCHAR(3) NOT NULL DEFAULT 'CNY'"),  # the designer's pages: amounts in USD or CNY
+    ("projects", "features_off", "VARCHAR(60) NOT NULL DEFAULT ''"),  # parts of the app the project does not use: plan, delivery
     ("quotes", "option_label", "VARCHAR(60) NOT NULL DEFAULT ''"),          # one of the options to choose from ('' = a plain quote)
     ("items", "draft", "BOOLEAN NOT NULL DEFAULT FALSE"),           # quick-capture drafts
     ("rooms", "kind", "VARCHAR(10) NOT NULL DEFAULT 'room'"),       # room | area
