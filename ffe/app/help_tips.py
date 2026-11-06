@@ -243,7 +243,7 @@ TIPS = {
                "<b>Needs attention</b> lists what to do, the most pressing first: tap a line to open the order or the products concerned. It also warns of a quotation that expires within a week (or has expired) while products it priced still have no shop, of a quotation read but not saved, and of the categories with no quote.",
                "Below, the products by stage (tap one to list them), each shop's money and next ready date, and each category."],
         tips=["Estimated counts the shops you chose and, for the rest, the lowest quote; products with no quote yet count nothing.",
-              "Set the budget (in USD) and <b>Show amounts in</b> (USD or CNY) in Project settings: every amount on the designer's pages follows, with the other currency underneath. Prices are still kept in CNY."]),
+              "Set the budget (in USD) and <b>Show amounts in</b> (USD or CNY) in Project settings: every amount on the designer's pages follows, and a CNY amount always carries its USD. Prices are still kept in CNY."]),
     "capture": dict(
         title="Quick capture", anchor="capture",
         what="Shoot first, fill in later. Every photo is saved at once as a draft item.",

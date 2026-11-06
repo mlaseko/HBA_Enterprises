@@ -42,6 +42,15 @@ from .services import content_key, next_code, product_key
 EXTENSIONS = ("xlsx", "xlsm", "xls")
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
+def amt(p, currency, v, fmt="g") -> str:
+    """An amount in a document's currency for a message or a note, with its USD when it is in CNY: "CNY 575 ($81)"."""
+    v = float(v or 0)
+    t = f"{currency} {v:{fmt}}"
+    if (currency or "CNY").upper() == "USD":
+        return t
+    return f"{t} (${v / (float(getattr(p, 'rate', 0) or 0) or 1):,.2f})"
+
+
 CURRENCY_GUESS = "The sheet does not say its currency: USD assumed."  # the preview offers USD / CNY buttons beside it
 
 
@@ -68,6 +77,60 @@ def _serial_date(v):
     if 20000 < f < 80000:
         return dt.date(1899, 12, 30) + dt.timedelta(days=int(f))
     return None
+
+
+_REF_RE = re.compile(r"\$?([A-Z]{1,3})\$?(\d+)")
+_RANGE_RE = re.compile(r"SUM\(\s*\$?([A-Z]{1,3})\$?(\d+)\s*:\s*\$?([A-Z]{1,3})\$?(\d+)\s*\)", re.I)
+_ARITH_RE = re.compile(r"^[\d.\s+\-*/()]+$")
+
+
+def _fill_formulas(rows: list[list], ws) -> None:
+    """Work out the simple formulas whose results the file does not carry (=K5*D5, =SUM(L5:L19), + - * /), so a sheet
+    saved by a program other than Excel still has its amounts. Anything else stays empty."""
+    from openpyxl.utils import column_index_from_string as col
+    texts = {}
+    for r in ws.iter_rows():
+        for c in r:
+            if isinstance(c.value, str) and c.value.startswith("="):
+                texts[(c.row, c.column)] = c.value[1:]
+
+    def val(rw, cl, depth=0):
+        if rw - 1 < len(rows) and cl - 1 < len(rows[rw - 1]) and rows[rw - 1][cl - 1] is not None:
+            v = rows[rw - 1][cl - 1]
+            return v if isinstance(v, (int, float)) else None
+        if (rw, cl) in texts and depth < 20:
+            v = calc(texts[(rw, cl)], depth + 1)
+            if v is not None and rw - 1 < len(rows) and cl - 1 < len(rows[rw - 1]):
+                rows[rw - 1][cl - 1] = v
+            return v
+        return 0
+
+    def calc(t, depth):
+        def rng(m):
+            c1, r1, c2, r2 = col(m.group(1)), int(m.group(2)), col(m.group(3)), int(m.group(4))
+            tot = 0.0
+            for rr in range(min(r1, r2), max(r1, r2) + 1):
+                for cc in range(min(c1, c2), max(c1, c2) + 1):
+                    tot += val(rr, cc, depth) or 0
+            return repr(tot)
+        t = _RANGE_RE.sub(rng, t.upper())
+        bad = []
+        def ref(m):
+            v = val(int(m.group(2)), col(m.group(1)), depth)
+            if v is None:
+                bad.append(1)
+            return repr(float(v or 0))
+        t = _REF_RE.sub(ref, t)
+        if bad or not _ARITH_RE.match(t):
+            return None
+        try:
+            return round(float(eval(t, {"__builtins__": {}}, {})), 6)  # digits and + - * / ( ) only, checked above
+        except Exception:
+            return None
+
+    for (rw, cl) in sorted(texts):
+        if rw - 1 < len(rows) and cl - 1 < len(rows[rw - 1]) and rows[rw - 1][cl - 1] is None:
+            val(rw, cl)
 
 
 def read_sheets(data: bytes, filename: str) -> list[dict]:
@@ -107,9 +170,18 @@ def read_sheets(data: bytes, filename: str) -> list[dict]:
         wb = load_workbook(io.BytesIO(data), data_only=True)
     except Exception as e:
         raise ReadError(f"Could not read the file: {e}")
+    formulas = None
     out = []
-    for ws in wb.worksheets:
+    for wi, ws in enumerate(wb.worksheets):
         rows = [[c for c in r] for r in ws.iter_rows(values_only=True)]
+        if any(v is None for r in rows for v in r):  # a file saved by a program that keeps formulas without their results
+            if formulas is None:
+                try:
+                    formulas = load_workbook(io.BytesIO(data), data_only=False).worksheets
+                except Exception:
+                    formulas = []
+            if wi < len(formulas):
+                _fill_formulas(rows, formulas[wi])
         pics: dict[int, list] = {}
         for im in getattr(ws, "_images", []) or []:
             try:
@@ -1532,7 +1604,7 @@ def apply(db: Session, p: Project, parsed: dict, choices: dict[int, dict], head:
             stats["added"] += 1
         else:
             stats["updated"] += 1
-            note.insert(1, f"Replaces this shop's earlier quote of {quote.currency} {quote.amount:g}.")
+            note.insert(1, f"Replaces this shop's earlier quote of {amt(p, quote.currency, quote.amount)}.")
         if option:
             note.insert(1, f"One of the options to choose for this product: {option}.")
         buying.set_quote(quote, p, supplier=supplier, brand=quote.brand if replaced else "", model=_option_model(option, refs), amount=unit_price,
@@ -1795,7 +1867,7 @@ def reprice(db: Session, p: Project, q: Quotation, product_ids, ours: set[int] |
             n = _bought(db, quote)
             buying.follow_quote(db, quote)
             if n and abs((before or 0) - unit_price) > 1e-6:
-                warns.append(f"{c.title} ({quote.option_label}): {n} purchase{'s' if n != 1 else ''} made from this option now cost {q.currency} {unit_price:g} per unit instead of {before:g}.")
+                warns.append(f"{c.title} ({quote.option_label}): {n} purchase{'s' if n != 1 else ''} made from this option now cost {amt(p, q.currency, unit_price)} per unit instead of {before:g}.")
             for x in q.lines:
                 if x.action == "merge" and x.into_id == ln.id:
                     x.quote_id = quote.id
@@ -1807,7 +1879,7 @@ def reprice(db: Session, p: Project, q: Quotation, product_ids, ours: set[int] |
             if quote is not None and quote.id in ours:
                 n = _bought(db, quote)
                 if n:
-                    warns.append(f"{c.title}: its quote of {quote.currency} {quote.amount:g} stays, {n} purchase{'s were' if n != 1 else ' was'} made from it.")
+                    warns.append(f"{c.title}: its quote of {amt(p, quote.currency, quote.amount)} stays, {n} purchase{'s were' if n != 1 else ' was'} made from it.")
                 else:
                     for ln in q.lines:
                         if ln.quote_id == quote.id:
@@ -1835,7 +1907,7 @@ def reprice(db: Session, p: Project, q: Quotation, product_ids, ours: set[int] |
             n = _bought(db, quote)
             buying.follow_quote(db, quote)
             if n and abs((before or 0) - unit_price) > 1e-6:
-                warns.append(f"{c.title}: {n} purchase{'s' if n != 1 else ''} made from this quote now cost {q.currency} {unit_price:g} per unit instead of {before:g}.")
+                warns.append(f"{c.title}: {n} purchase{'s' if n != 1 else ''} made from this quote now cost {amt(p, q.currency, unit_price)} per unit instead of {before:g}.")
         for ln in own:
             ln.quote_id = quote.id
             for x in q.lines:

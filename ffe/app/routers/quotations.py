@@ -593,7 +593,7 @@ async def apply_now(request: Request, quotation_id: int, p: Project = Depends(ge
     if not st["changed"] and not st["removed"]:
         return redirect(f"/p/{p.id}/quotations/{q.id}?ok=" + urlquote("Nothing changed in the design.") + "#now")
     msg = [f"Design changed: {st['changed']} quantit{'ies' if st['changed'] != 1 else 'y'} changed, {st['removed']} room line{'s' if st['removed'] != 1 else ''} removed."]
-    msg.append(f"At this shop's prices it comes to {q.currency} {after:,.2f} (was {before:,.2f}).")
+    msg.append(f"At this shop's prices it comes to {qz.amt(p, q.currency, after, ',.2f')} (was {before:,.2f}).")
     if st["locked"]:
         msg.append(f"{st['locked']} line{'s' if st['locked'] != 1 else ''} on a confirmed order left as {'they were' if st['locked'] != 1 else 'it was'}.")
     return redirect(f"/p/{p.id}/quotations/{q.id}?ok=" + urlquote(" ".join(msg)) + "#now")

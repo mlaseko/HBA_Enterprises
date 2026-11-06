@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from .. import buying as bz
 from .. import ordering as od
 from .. import storage
-from ..common import content_disposition, ffloat, fint, get_project, get_settings, redirect, render, require_login
+from ..common import fmt_cur, content_disposition, ffloat, fint, get_project, get_settings, redirect, render, require_login
 from ..db import get_db
 from ..models import Order, Project, Purchase, Supplier
 from .exports import build_error, try_build
@@ -189,7 +189,7 @@ async def pay_order(request: Request, order_id: int, p: Project = Depends(get_pr
     od.record_payment(db, p, o, amount, kind, _date(form.get("paid_on", "")) or date.today(), form.get("reference", ""), form.get("note", ""), key)
     bz.settle(db, p)
     db.commit()
-    return _to(p, order_id, "#payments", ok=f"{kind} of ¥{amount:,.2f} recorded.")
+    return _to(p, order_id, "#payments", ok=f"{kind} of {fmt_cur(p, amount, 2)} recorded.")
 
 
 @router.post("/p/{project_id}/orders/{order_id}/claim")

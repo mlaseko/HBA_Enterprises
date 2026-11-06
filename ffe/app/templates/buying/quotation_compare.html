@@ -3,7 +3,7 @@
 {% block title %}Compare shops · {{ p.name }}{% endblock %}
 {% block content %}
 {% set rate = p.rate or 1 %}
-{% macro money(cny) %}{% if cur == 'USD' %}${{ (cny / rate)|money(2) }}{% else %}¥{{ cny|money(2) }}{% endif %}{% endmacro %}
+{% macro money(cny) %}{% if cur == 'USD' %}${{ (cny / rate)|money(2) }}{% else %}¥{{ cny|money(2) }}{{ cny|usd('CNY', 2) }}{% endif %}{% endmacro %}
 <div class="page-head">
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/quotations">Quotations</a></div>

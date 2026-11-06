@@ -4,7 +4,7 @@
   <summary><h2 class="mb-0">Record a payment here</h2><span class="small muted">For a payment to a shop on no order, or to pick the order from a list.</span></summary>
 <form method="post" enctype="multipart/form-data" class="mt">
   <div class="grid stack g3">
-    <div><label>Order</label><select name="order_id" class="in"><option value="">No order: to the supplier below</option>{% for ov in ovs|selectattr('o.confirmed') %}<option value="{{ ov.o.id }}">{{ ov.ref }} · {{ ov.o.supplier.name if ov.o.supplier else 'Shop' }} · to pay {{ ([ov.balance, 0]|max)|cur }}</option>{% endfor %}{% for ov in ovs|rejectattr('o.confirmed') %}<option value="{{ ov.o.id }}">{{ ov.ref }} (draft) · {{ ov.o.supplier.name if ov.o.supplier else 'Shop' }}</option>{% endfor %}</select>
+    <div><label>Order</label><select name="order_id" class="in"><option value="">No order: to the supplier below</option>{% for ov in ovs|selectattr('o.confirmed') %}<option value="{{ ov.o.id }}">{{ ov.ref }} · {{ ov.o.supplier.name if ov.o.supplier else 'Shop' }} · to pay {{ ([ov.balance, 0]|max)|cur_txt }}</option>{% endfor %}{% for ov in ovs|rejectattr('o.confirmed') %}<option value="{{ ov.o.id }}">{{ ov.ref }} (draft) · {{ ov.o.supplier.name if ov.o.supplier else 'Shop' }}</option>{% endfor %}</select>
       <div class="help">Paying an order counts toward it: its rooms become Paid once it is paid in full.</div></div>
     <div><label>Supplier</label><select name="supplier_id" class="in"><option value="">—</option>{% for sp in suppliers %}<option value="{{ sp.id }}">{{ sp.name }}</option>{% endfor %}</select>
       <div class="help">With an order chosen, its shop is used.</div></div>
@@ -31,7 +31,7 @@
 
 <div class="grid g3">
   <div class="kpi"><div class="v">{{ s.ordered|cur }}</div><div class="l">on confirmed orders</div><svg class="ic"><use href="#i-file"/></svg></div>
-  <div class="kpi"><div class="v">{{ s.paid|cur }}</div><div class="l">paid · {{ s.paid|cur_other }}</div><svg class="ic"><use href="#i-check"/></svg></div>
+  <div class="kpi"><div class="v">{{ s.paid|cur_main }}</div><div class="l">paid · {{ s.paid|cur_other }}</div><svg class="ic"><use href="#i-check"/></svg></div>
   <div class="kpi accent"><div class="v">{{ s.to_pay|cur }}</div><div class="l">still to pay on orders</div><svg class="ic"><use href="#i-card"/></svg></div>
 </div>
 
@@ -105,7 +105,7 @@
   <summary><h2 class="mb-0">Record a payment here</h2><span class="small muted">For a payment to a shop on no order, or to pick the order from a list.</span></summary>
 <form method="post" enctype="multipart/form-data" class="mt">
   <div class="grid stack g3">
-    <div><label>Order</label><select name="order_id" class="in"><option value="">No order: to the supplier below</option>{% for ov in ovs|selectattr('o.confirmed') %}<option value="{{ ov.o.id }}">{{ ov.ref }} · {{ ov.o.supplier.name if ov.o.supplier else 'Shop' }} · to pay {{ ([ov.balance, 0]|max)|cur }}</option>{% endfor %}{% for ov in ovs|rejectattr('o.confirmed') %}<option value="{{ ov.o.id }}">{{ ov.ref }} (draft) · {{ ov.o.supplier.name if ov.o.supplier else 'Shop' }}</option>{% endfor %}</select>
+    <div><label>Order</label><select name="order_id" class="in"><option value="">No order: to the supplier below</option>{% for ov in ovs|selectattr('o.confirmed') %}<option value="{{ ov.o.id }}">{{ ov.ref }} · {{ ov.o.supplier.name if ov.o.supplier else 'Shop' }} · to pay {{ ([ov.balance, 0]|max)|cur_txt }}</option>{% endfor %}{% for ov in ovs|rejectattr('o.confirmed') %}<option value="{{ ov.o.id }}">{{ ov.ref }} (draft) · {{ ov.o.supplier.name if ov.o.supplier else 'Shop' }}</option>{% endfor %}</select>
       <div class="help">Paying an order counts toward it: its rooms become Paid once it is paid in full.</div></div>
     <div><label>Supplier</label><select name="supplier_id" class="in"><option value="">—</option>{% for sp in suppliers %}<option value="{{ sp.id }}">{{ sp.name }}</option>{% endfor %}</select>
       <div class="help">With an order chosen, its shop is used.</div></div>

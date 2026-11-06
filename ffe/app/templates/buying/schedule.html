@@ -4,7 +4,7 @@
 {% block content %}
 {% set filtering = f.category or f.floor or f.stage or f.market %}
 {% set q_ = qs ~ '&' if qs else '' %}
-{% macro amount(cny, dec=0) %}{{ sym }}{{ (cny / rate)|money(dec if not usd else 2) }}{% endmacro %}
+{% macro amount(cny, dec=0) %}{{ sym }}{{ (cny / rate)|money(dec if not usd else 2) }}{% if not usd %}{{ cny|usd('CNY', dec) }}{% endif %}{% endmacro %}
 {% macro packs(n, word) %}{{ n }} {{ word }}{{ ('es' if word[-1:] in 'xs' else 's') if n != 1 }}{% endmacro %}
 <style media="print">@page{size:A4 landscape;margin:11mm 10mm}</style>
 <div class="page-head noprint">

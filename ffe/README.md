@@ -253,6 +253,11 @@ name** (or set the Kind by hand): every existing entry starts as a room.
   lines of the supplier named "Test" and prices without a supplier are cleared; every other supplier typed on a line
   becomes a quote and a purchase covering those lines (statuses kept); a draft's price moves into its notes.
 
+Every price on the designer's pages shows its USD. With amounts shown in CNY the dollars follow each figure in
+small grey type (`.usd`, from the `cur` / `cur_num` filters, `cur_range`, and `usd` after a quotation's own CNY
+amounts); big figures keep one currency with the other on the line under them. Messages and hover titles read
+"¥8,762 ($1,234)". The shop's purchase order and WeChat text stay in CNY.
+
 ## Supplier quotations
 
 - Tests: `python tests/test_flow.py` runs the whole walk (prints ALL OK); `python tests/test_flow.py quotations` runs
