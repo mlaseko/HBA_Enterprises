@@ -72,7 +72,7 @@
 <div class="group-title"><h2>{{ g.title }}</h2><span class="n">{{ count_label(g.rooms, g.areas) }}</span></div>
 {% if g.plans %}
 <div class="gallery plans mini">
-  {% for im in g.plans %}<a class="g" href="/media/{{ im.best_key }}" target="_blank" title="Open full size"><img src="/media/{{ im.file_key }}" alt="{{ plan_caption(im) or 'Floor plan' }}"><div class="cap">{{ im.sheet or 'Plan' }}{% if im.caption %} · {{ im.caption }}{% endif %}</div></a>{% endfor %}
+  {% for im in g.plans %}<a class="g" href="/media/{{ im.best_key }}" target="_blank" title="Open full size"><img src="/media/{{ im.file_key }}" alt="{{ plan_caption(im) or 'Floor plan' }}" loading="lazy" decoding="async"><div class="cap">{{ im.sheet or 'Plan' }}{% if im.caption %} · {{ im.caption }}{% endif %}</div></a>{% endfor %}
 </div>
 {% elif g.key != 'whole' %}
 <div class="small muted mb">No plan for this floor yet. <a href="/p/{{ p.id }}/images#plans">Add one</a> tagged "{{ g.floor }}" and mark its rooms on <a href="/p/{{ p.id }}/plan">the plan</a>.</div>

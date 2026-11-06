@@ -18,7 +18,7 @@
 
 <div class="card ql-line">
   <div class="row top">
-    {% if ln.thumb %}<a href="/media/{{ ln.photo_key }}" target="_blank" data-caption="Line {{ ln.no }} · {{ ln.name }}"><img class="ql-pic" src="/media/{{ ln.thumb }}" alt=""></a>{% endif %}
+    {% if ln.thumb %}<a href="/media/{{ ln.photo_key }}" target="_blank" data-caption="Line {{ ln.no }} · {{ ln.name }}"><img class="ql-pic" src="/media/{{ ln.thumb }}" alt="" loading="lazy" decoding="async"></a>{% endif %}
     <div>
       <div class="small muted">L{{ ln.no }}{% if ln.section %} · {{ ln.section }}{% endif %}{% if ln.ref %} · <b>{{ ln.ref }}</b>{% endif %}</div>
       <div class="b">{{ ln.name }}{% if ln.size %} <span class="muted">· {{ ln.size }}</span>{% endif %}</div>

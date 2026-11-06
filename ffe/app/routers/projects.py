@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Project, ProjectImage, Room, DrawingSet, PlanTag, DrawingPage
 from ..common import render, redirect, require_login, get_project, get_settings, ffloat, fint, content_disposition, safe_next
-from ..services import summary, mood_groups, client_moods, moods_for
+from ..services import summary, mood_groups, client_moods, moods_for, project_cards
 from .. import storage, webimage, drawings, config, layers, lists
 from urllib.parse import quote
 from ..models import token as new_token
@@ -17,10 +17,8 @@ router = APIRouter(dependencies=[Depends(require_login)])
 @router.get("/")
 def home(request: Request, db: Session = Depends(get_db)):
     projects = db.query(Project).order_by(Project.created_at.desc()).all()
-    cards = []
-    for p in projects:
-        s = summary(db, p)
-        cards.append((p, s))
+    figs = project_cards(db, projects)  # two grouped queries, not a full summary per project
+    cards = [(p, figs[p.id]) for p in projects]
     return render(request, "projects/list.html", cards=cards)
 
 

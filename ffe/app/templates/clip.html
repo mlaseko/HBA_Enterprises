@@ -16,7 +16,7 @@
   <h2><svg class="ic"><use href="#i-link"/></svg> {{ 'Save this picture' if (url or img) else 'Save a picture from a link' }}</h2>
   {% if url or img %}
   <div class="row top mt">
-    {% if img %}<img class="thumb lg" src="{{ img }}" alt="Preview" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ph lg',textContent:'No preview'}))">{% else %}<div class="ph lg">Page’s main picture</div>{% endif %}
+    {% if img %}<img class="thumb lg" src="{{ img }}" alt="Preview" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ph lg',textContent:'No preview'}))" loading="lazy" decoding="async">{% else %}<div class="ph lg">Page’s main picture</div>{% endif %}
     <div class="sp">
       <div class="small muted">From</div>
       <div class="b small" style="word-break:break-all">{{ url or img }}</div>

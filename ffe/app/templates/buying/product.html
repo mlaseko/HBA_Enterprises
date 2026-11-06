@@ -27,7 +27,7 @@
 
 <div class="bu-top">
   <div class="card bu-hero">
-    {% if g.cover %}<a class="pic" href="/media/{{ g.cover.file_key }}" target="_blank" data-caption="{{ g.name }}"><img src="/media/{{ g.cover.thumb }}" alt="{{ g.name }}"></a>
+    {% if g.cover %}<a class="pic" href="/media/{{ g.cover.file_key }}" target="_blank" data-caption="{{ g.name }}"><img src="/media/{{ g.cover.thumb }}" alt="{{ g.name }}" loading="lazy" decoding="async"></a>
     {% else %}<a class="pic empty" href="/p/{{ p.id }}/items/{{ g.item.id }}" title="Add a photo on the item">{{ '' }}<svg class="ic lg"><use href="#i-image"/></svg><span>No photo yet</span></a>{% endif %}
     <div class="body">
       <div class="eyebrow">The design asks for</div>
@@ -103,7 +103,7 @@
       <div class="opt-corner small muted">Room</div>
       {% for q in g.options %}{% set t = g.quote_total(q) %}
       <div class="opt-head">
-        {% if q.thumb %}<a class="pic" href="/media/{{ q.photo_key }}" target="_blank" data-caption="{{ q.option_label }} · {{ g.name }}"><img src="/media/{{ q.thumb }}" alt=""></a>{% else %}<span class="pic empty"><svg class="ic"><use href="#i-image"/></svg></span>{% endif %}
+        {% if q.thumb %}<a class="pic" href="/media/{{ q.photo_key }}" target="_blank" data-caption="{{ q.option_label }} · {{ g.name }}"><img src="/media/{{ q.thumb }}" alt="" loading="lazy" decoding="async"></a>{% else %}<span class="pic empty"><svg class="ic"><use href="#i-image"/></svg></span>{% endif %}
         <div class="opt-name"><span class="opt-letter">{{ 'ABCDEFGHIJ'[loop.index0] if loop.index0 < 10 else loop.index }}</span> <b>{{ q.option_label }}</b></div>
         <div class="small muted">{{ q.supplier.name if q.supplier else 'Shop not known' }}{% set mdl = q.model[q.option_label|length + 2:] if q.model.startswith(q.option_label ~ ', ') else ('' if q.model == q.option_label else q.model) %}{% if mdl %} · {{ mdl }}{% endif %}</div>
         <div class="opt-price">{% if q.unit_price %}{% if show_usd(p) and q.currency == 'USD' %}${{ q.amount|money(2) }}{% else %}{{ q.unit_price|cur(2) }}{% endif %} <span class="small muted">{{ per }}</span>{% else %}<span class="muted">No price yet</span>{% endif %}</div>
@@ -152,7 +152,7 @@
     <tbody class="qtr{{ ' best' if is_best }}{{ ' chosen' if v }}" id="quote-{{ q.id }}">
     <tr class="qt-row">
       <td class="who" data-l="Shop">
-        {% if q.thumb %}<a class="pic" href="/media/{{ q.photo_key }}" target="_blank" data-caption="{{ q.supplier.name if q.supplier else 'Quote' }} · {{ g.name }}"><img src="/media/{{ q.thumb }}" alt=""></a>
+        {% if q.thumb %}<a class="pic" href="/media/{{ q.photo_key }}" target="_blank" data-caption="{{ q.supplier.name if q.supplier else 'Quote' }} · {{ g.name }}"><img src="/media/{{ q.thumb }}" alt="" loading="lazy" decoding="async"></a>
         {% else %}<span class="pic empty"><svg class="ic"><use href="#i-camera"/></svg></span>{% endif %}
         <div>
           <div class="shop">{{ q.supplier.name if q.supplier else 'Shop not known' }}</div>

@@ -43,7 +43,7 @@
       <td class="ref">{{ q['ref'] }}</td>
       <td class="where small">{% if q['strong'] %}<span class="pill sage">Title</span> {{ q['line'] }}{% else %}<span class="pill">Mentioned</span> {{ q['line'] }}<div class="muted">Not a drawing title: only tick it if the drawing is at this spot.</div>{% endif %}</td>
       <td class="items">{% for i in q['items'] %}<div><span class="pill accent">{{ i.code }}</span>{{ i.name }}{% if i.room %} <span class="muted small">· {{ i.room.name }}</span>{% endif %}{% if i.id in q['placed'] %} <span class="muted small">· already on this sheet, its dot moves here</span>{% endif %}</div>{% else %}<span class="muted small">No item carries this reference</span>{% endfor %}</td>
-      <td class="crop">{% if q['preview'] %}<img src="{{ q['preview'] }}" alt="Drawing {{ q['ref'] }}">{% elif q['items'] %}<span class="muted small">Could not cut it out; the dot is still placed.</span>{% endif %}</td>
+      <td class="crop">{% if q['preview'] %}<img src="{{ q['preview'] }}" alt="Drawing {{ q['ref'] }}" loading="lazy" decoding="async">{% elif q['items'] %}<span class="muted small">Could not cut it out; the dot is still placed.</span>{% endif %}</td>
     </tr>
     {% endfor %}
     </tbody>

@@ -78,14 +78,14 @@
 {% macro help_button(cls='') %}{% if help_tip %}<span class="help-wrap {{ cls }}"><button type="button" class="iconbtn help-btn" id="help-btn" aria-controls="page-help" aria-expanded="false" title="Help for this page">{{ ic('help') }}<span class="hide-m">Help</span></button><span class="help-nudge" id="help-nudge" hidden role="status">New here? Tap for the steps on this page.</span></span>{% endif %}{% endmacro %}
 {% macro brand(nav) %}
   <a class="brand" href="/">
-    <span class="mark">{% if nav and nav.studio and nav.studio.logo_key %}<img src="/media/{{ nav.studio.logo_key }}" alt="">{% else %}<img class="glyph" src="/static/brand-mark.png" alt="">{% endif %}</span>
+    <span class="mark">{% if nav and nav.studio and nav.studio.logo_key %}<img src="/media/{{ nav.studio.logo_key }}" alt="" loading="lazy" decoding="async">{% else %}<img class="glyph" src="/static/brand-mark.png" alt="">{% endif %}</span>
     <span class="name">{{ nav.studio.name if nav and nav.studio and nav.studio.name else APP_NAME }}</span>
   </a>
 {% endmacro %}
 {% if public %}
 <header class="pubbar">{% block pubbar %}
   <div class="in-bar">
-    <span class="brand"><span class="mark">{% if studio is defined and studio.logo_key %}<img src="/media/{{ studio.logo_key }}" alt="">{% else %}<img class="glyph" src="/static/brand-mark.png" alt="">{% endif %}</span><span class="name">{{ studio.studio_name if studio is defined and studio.studio_name else APP_NAME }}</span></span>
+    <span class="brand"><span class="mark">{% if studio is defined and studio.logo_key %}<img src="/media/{{ studio.logo_key }}" alt="" loading="lazy" decoding="async">{% else %}<img class="glyph" src="/static/brand-mark.png" alt="">{% endif %}</span><span class="name">{{ studio.studio_name if studio is defined and studio.studio_name else APP_NAME }}</span></span>
     <span class="ctx">{% block pubctx %}{% endblock %}</span>
     <span class="sp"></span>
     {{ help_button() }}

@@ -118,6 +118,22 @@ Pushing new commits to GitHub and re-deploying updates the app. The database and
 * Relationships load eagerly (`lazy="joined"` for many-to-one, `lazy="selectin"` for collections), so the Overview and the
   Items page run a handful of queries instead of one per item. On Neon that is the difference between seconds and
   a fraction of a second.
+* **Starts after a quiet spell are short.** A full start (`main.full_start`: `create_all`, the column migrations, the
+  settings row, the plan sheet types and the one-time upgrades) runs only when `main.schema_fingerprint()` changed: a hash
+  of every table and column of the models, `COLUMN_MIGRATIONS`, `DATA_MIGRATIONS` and the code of `full_start` itself,
+  stored in `schema_marks` as `start:<hash>`. Otherwise a start is one lookup plus `mark_stale`: on Neon that saves about
+  a hundred round trips on every Autoscale cold start. A new one-time upgrade goes into `full_start()`, so the fingerprint
+  changes with it.
+* The projects page reads its four figures per project (items, received, total, boxes) in two grouped queries
+  (`services.project_cards`), not a full `summary()` per project (about 15 queries each). The app shell's data
+  (`common.nav_context`: the project switcher, the studio, the drafts badge) is read through the page's own session when
+  the page has a project, so a request checks out one connection (with `pool_pre_ping`, every checkout is a round trip).
+* List and card pictures load as they scroll into view (`loading="lazy" decoding="async"`), so a page's navigation does
+  not queue behind a hundred thumbnails on a fresh server; the plan's stage and zoom pictures load at once.
+* Every answer carries `Server-Timing: app;dur=<ms>, db;desc="<n> queries"`; a request over `SLOW_MS` (1 s) is printed to
+  the deployment log (`slow request: GET /p/3/items 2350 ms, 21 queries`) and listed on **Studio settings → Speed**, which
+  also measures the **database round trip** as this server sees it: above about 60 ms the database is far from the app
+  (a page runs 15 to 45 queries) and the Neon project belongs in the deployment's region.
 * What remains: Replit Autoscale starts the app on the first visit after a quiet spell and Neon wakes its compute;
   an always-on (Reserved VM) deployment and a longer Neon autosuspend remove those seconds.
 

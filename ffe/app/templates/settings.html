@@ -36,7 +36,7 @@
       <div class="span2">
         <label>Logo (optional)</label>
         <div class="row top">
-          {% if s.logo_key %}<img class="thumb" src="/media/{{ s.logo_key }}" alt="Current logo">{% else %}<div class="ph"><svg class="ic"><use href="#i-image"/></svg></div>{% endif %}
+          {% if s.logo_key %}<img class="thumb" src="/media/{{ s.logo_key }}" alt="Current logo" loading="lazy" decoding="async">{% else %}<div class="ph"><svg class="ic"><use href="#i-image"/></svg></div>{% endif %}
           <div class="sp">
             <input type="file" name="logo" accept="image/*">
             <div class="help">Square PNG or JPG looks best. Uploading a new file replaces the current logo when you save.</div>
@@ -53,7 +53,7 @@
   <div class="card soft">
     <div class="eyebrow">How clients and suppliers see you</div>
     <div class="row mt">
-      <span class="mark">{% if s.logo_key %}<img src="/media/{{ s.logo_key }}" alt="">{% else %}<img class="glyph" src="/static/brand-mark.png" alt="">{% endif %}</span>
+      <span class="mark">{% if s.logo_key %}<img src="/media/{{ s.logo_key }}" alt="" loading="lazy" decoding="async">{% else %}<img class="glyph" src="/static/brand-mark.png" alt="">{% endif %}</span>
       <div>
         <div class="b">{{ s.studio_name or APP_NAME }}</div>
         <div class="muted small">Header of every share page and PDF</div>
@@ -95,7 +95,13 @@
   <dl class="kv small">
     <dt>Pictures in memory</dt><dd>{{ cache[0] }} ({{ (cache[1] / 1048576)|round(1) }} MB), kept for the next visitor so the bucket is asked once</dd>
     <dt>First visit after a quiet spell</dt><dd>Replit starts the app and Neon wakes the database: a few seconds, once. An always-on deployment on Replit and a longer sleep setting on Neon remove it.</dd>
+    <dt>Database round trip</dt><dd><b class="{{ 'red' if db_ping > 60 else '' }}">{{ db_ping }} ms</b> per query, measured now{% if db_ping > 60 %}: high. A page runs 15 to 45 queries, so this alone is {{ (db_ping * 15 / 1000)|round(1) }}–{{ (db_ping * 45 / 1000)|round(1) }} s. The database is far from the app: put the Neon project in the region of the Replit deployment (US East for most), or the deployment near the database.{% else %}: fine.{% endif %}</dd>
   </dl>
+  {% if recent_slow %}<div class="divider"></div>
+  <div class="small"><b>Slowest recent requests on this server</b> <span class="muted">(over a second, since it started)</span></div>
+  <div class="tbl mt"><table><thead><tr><th>Time</th><th>Page</th><th class="num">ms</th><th class="num">Queries</th></tr></thead><tbody>
+  {% for r in recent_slow %}<tr><td class="small">{{ r.at }}</td><td class="small">{{ r.method }} {{ r.path }}</td><td class="num">{{ r.ms }}</td><td class="num">{{ r.queries }}</td></tr>{% endfor %}
+  </tbody></table></div>{% endif %}
 </div>
 
 <div class="card" id="sheets">

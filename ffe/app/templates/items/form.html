@@ -119,12 +119,12 @@
 {% if it %}
 <div class="card">
   <h2>Photos <span class="h-note">{{ it.all_photos|length }}</span></h2>
-  {% set oc = it.option_cover %}{% if oc %}<div class="opt-chosen"><a href="/media/{{ oc.file_key }}" target="_blank" data-caption="{{ it.name }} · {{ oc.caption }}"><img src="/media/{{ oc.thumb }}" alt=""></a><div><b>Chosen option: {{ oc.caption }}</b><div class="small muted">The supplier's picture of the option this room was chosen with stands for this line on the lists, the plan, the client schedule and the purchase order. The design photos below stay with the product.</div></div></div>{% endif %}
+  {% set oc = it.option_cover %}{% if oc %}<div class="opt-chosen"><a href="/media/{{ oc.file_key }}" target="_blank" data-caption="{{ it.name }} · {{ oc.caption }}"><img src="/media/{{ oc.thumb }}" alt="" loading="lazy" decoding="async"></a><div><b>Chosen option: {{ oc.caption }}</b><div class="small muted">The supplier's picture of the option this room was chosen with stands for this line on the lists, the plan, the client schedule and the purchase order. The design photos below stay with the product.</div></div></div>{% endif %}
   {% if others %}<p class="small muted">Shared with this item's {{ others|length }} other room line{{ 's' if others|length != 1 }}: a photo added here, or there, shows on all of them.</p>{% endif %}
   <div class="gallery">
   {% for ph in it.all_photos %}
     <div class="g">
-      <a href="/media/{{ ph.file_key }}" target="_blank" data-caption="{{ it.name }}{% if ph.caption %} · {{ ph.caption }}{% endif %}"><img src="/media/{{ ph.thumb }}" alt="{{ it.name }}"></a>
+      <a href="/media/{{ ph.file_key }}" target="_blank" data-caption="{{ it.name }}{% if ph.caption %} · {{ ph.caption }}{% endif %}"><img src="/media/{{ ph.thumb }}" alt="{{ it.name }}" loading="lazy" decoding="async"></a>
       <form method="post" action="/p/{{ p.id }}/items/{{ it.id }}/photo/{{ ph.id }}/delete" data-confirm="Delete this photo? It disappears from this item in every room, from the plan dots and the PDFs."><button class="btn sm icon danger" title="Delete photo" aria-label="Delete photo"><svg class="ic"><use href="#i-x"/></svg></button></form>
       {% if loop.index0 > 0 %}<form class="cover" method="post" action="/p/{{ p.id }}/items/{{ it.id }}/photo/{{ ph.id }}/cover"><button class="btn sm sec">Make cover</button></form>{% else %}<div class="cap"><svg class="ic sm"><use href="#i-check"/></svg> cover</div>{% endif %}
     </div>

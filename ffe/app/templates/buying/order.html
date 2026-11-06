@@ -103,7 +103,7 @@
     <tbody>
     {% for pay in o.payments %}
     <tr><td class="nowrap">{{ pay.paid_on.strftime('%d %b %Y') }}</td><td><span class="pill">{{ pay.kind }}</span></td><td class="num b">{{ pay.amount|cur_num(2) }}</td><td>{{ pay.reference }}</td><td class="small muted">{{ pay.note }}</td>
-      <td>{% if pay.receipt_key %}<a href="/media/{{ pay.receipt_key }}" target="_blank" data-caption="Receipt · {{ ov.ref }} · {{ pay.paid_on }}"><img class="thumb sm" src="/media/{{ pay.receipt_key }}" alt="Receipt"></a>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td>{% if pay.receipt_key %}<a href="/media/{{ pay.receipt_key }}" target="_blank" data-caption="Receipt · {{ ov.ref }} · {{ pay.paid_on }}"><img class="thumb sm" src="/media/{{ pay.receipt_key }}" alt="Receipt" loading="lazy" decoding="async"></a>{% else %}<span class="muted">—</span>{% endif %}</td>
       <td class="right"><form method="post" action="/p/{{ p.id }}/payments/{{ pay.id }}/delete" data-confirm="Delete this payment? Its receipt is deleted and the order's paid total goes down{% if ov.stage == 'Paid' %}: its rooms go back to Ordered{% endif %}."><input type="hidden" name="next" value="/p/{{ p.id }}/orders/{{ o.id }}#payments"><button class="btn icon sm ghost danger" title="Delete payment" aria-label="Delete payment"><svg class="ic"><use href="#i-trash"/></svg></button></form></td></tr>
     {% endfor %}
     </tbody>

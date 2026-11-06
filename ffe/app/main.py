@@ -37,8 +37,81 @@ async def cache_headers(request: Request, call_next):
 app.add_middleware(GZipMiddleware, minimum_size=1000)  # pages with hundreds of cards shrink about tenfold on the wire
 
 
+# ---- how long each request takes and how many queries it runs: a Server-Timing header on every answer, a line in the
+# deployment log for anything over SLOW_MS, and the slowest recent ones on Settings → Speed (per instance, in memory)
+import collections, contextvars
+from sqlalchemy import event as _sa_event
+_req_queries: contextvars.ContextVar = contextvars.ContextVar("req_queries", default=None)
+SLOW_MS = 1000
+recent_slow: collections.deque = collections.deque(maxlen=25)
+
+
+@_sa_event.listens_for(engine, "before_cursor_execute")
+def _count_query(conn, cursor, statement, parameters, context, executemany):
+    box = _req_queries.get()
+    if box is not None:
+        box[0] += 1
+
+
+@app.middleware("http")
+async def request_timing(request: Request, call_next):
+    box = [0]
+    token = _req_queries.set(box)
+    t0 = time.perf_counter()
+    try:
+        response = await call_next(request)
+    finally:
+        _req_queries.reset(token)
+    ms = (time.perf_counter() - t0) * 1000
+    response.headers["Server-Timing"] = f'app;dur={ms:.0f}, db;desc="{box[0]} queries"'
+    if ms >= SLOW_MS and not request.url.path.startswith("/static"):
+        line = f"slow request: {request.method} {request.url.path} {ms:.0f} ms, {box[0]} queries"
+        print(line, flush=True)
+        recent_slow.appendleft(dict(path=request.url.path, method=request.method, ms=round(ms), queries=box[0], at=time.strftime("%H:%M:%S")))
+    return response
+
+
+def schema_fingerprint() -> str:
+    """What a full start would check, as one key: every table and column of the models, the column and data migrations, and
+    the code of full_start() (so a new one-time upgrade added there counts as a change). A start whose key is already in
+    schema_marks skips the checks: on Neon they are about a hundred round trips, paid on every autoscale cold start."""
+    import hashlib, inspect as _inspect
+    from .db import COLUMN_MIGRATIONS, DATA_MIGRATIONS
+    h = hashlib.sha1()
+    for t in sorted(Base.metadata.tables.values(), key=lambda t: t.name):
+        h.update(t.name.encode())
+        for c in t.columns:
+            h.update(f"|{c.name}:{c.type}".encode())
+    h.update(repr(COLUMN_MIGRATIONS).encode())
+    h.update(repr(DATA_MIGRATIONS).encode())
+    h.update(_inspect.getsource(full_start).encode())
+    return "start:" + h.hexdigest()[:24]
+
+
 @app.on_event("startup")
 def startup():
+    key = schema_fingerprint()
+    try:
+        with engine.connect() as conn:
+            done = conn.execute(text("SELECT 1 FROM schema_marks WHERE key = :k"), {"k": key}).first() is not None
+    except Exception:
+        done = False  # first start on an empty database: no schema_marks table yet
+    if not done:
+        full_start()
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("INSERT INTO schema_marks (key, done_at) VALUES (:k, CURRENT_TIMESTAMP)"), {"k": key})
+        except Exception:
+            pass  # another instance wrote it a moment ago
+    with SessionLocal() as db:
+        quotations_mod.mark_stale(db)  # a quotation upload the old server was reading becomes an error to discard
+    if config.PHOTO_PREPARE_AT_START:
+        prepare_photos_in_background()
+
+
+def full_start():
+    """The checks and one-time upgrades of a start after a deploy that changed the schema or this function (see
+    schema_fingerprint): tables, columns, the settings row, the plan sheet types and the upgrades that each run once."""
     Base.metadata.create_all(bind=engine)
     added = migrate(engine)  # columns added to existing tables (db.COLUMN_MIGRATIONS)
     with engine.begin() as conn:
@@ -54,10 +127,6 @@ def startup():
         buying.link_products(db)  # once: every room line linked to its product by id (Item.product_id)
     with SessionLocal() as db:
         lists.upgrade(db)  # once: every project gets its own lists (categories, units, payment types, containers)
-    with SessionLocal() as db:
-        quotations_mod.mark_stale(db)  # a quotation upload the old server was reading becomes an error to discard
-    if config.PHOTO_PREPARE_AT_START:
-        prepare_photos_in_background()
 
 
 def prepare_photos(db: Session, limit: int = 60) -> tuple[int, int]:
@@ -146,8 +215,11 @@ def settings_page(request: Request, db: Session = Depends(get_db), thumbs: str =
     missing = db.query(ItemPhoto).filter((ItemPhoto.thumb_key == "") | (ItemPhoto.digest == "")).count()  # photos from before the small copies / fingerprints
     used = layers.usage(db)
     layer_rows = [dict(r, plans=used.get(r["key"], 0)) for r in layers.rows()]
+    pings = []
+    for _ in range(3):  # the database's round trip as this server sees it: every query of every page pays it
+        t0 = time.perf_counter(); db.execute(text("SELECT 1")); pings.append((time.perf_counter() - t0) * 1000)
     return render(request, "settings.html", s=get_settings(db), thumbs_missing=missing, thumbs_done=ffloat(thumbs, 0), thumbs_left=left,
-                  cache=storage.cache_info(), layer_rows=layer_rows, category_map=layers.category_map(), sheet_categories=layers.category_names(db),
+                  cache=storage.cache_info(), db_ping=round(sorted(pings)[1]), recent_slow=list(recent_slow), layer_rows=layer_rows, category_map=layers.category_map(), sheet_categories=layers.category_names(db),
                   err=err[:300], ok=ok[:300])
 
 

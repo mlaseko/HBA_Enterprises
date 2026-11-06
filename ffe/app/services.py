@@ -319,3 +319,22 @@ def room_covers(p: Project) -> dict:
         if im is not None:
             out[r.id] = im
     return out
+
+
+def project_cards(db: Session, projects: list) -> dict:
+    """The four figures of each project's card on the projects page ({project id: {items, received, total_usd, cartons}}),
+    in two grouped queries whatever the number of projects: summary() would load every project's items, rooms, orders,
+    payments and boxes (about 15 queries a project)."""
+    from sqlalchemy import func, case
+    rates = {p.id: (p.rate or 1) for p in projects}
+    out = {p.id: {"items": 0, "received": 0, "total_usd": 0.0, "cartons": 0} for p in projects}
+    rows = db.query(Item.project_id, func.count(Item.id), func.sum(case((Item.status == "Received", 1), else_=0)),
+                    func.sum(func.coalesce(Item.qty, 0) * func.coalesce(Item.unit_price, 0))) \
+        .filter(Item.draft == False).group_by(Item.project_id).all()  # noqa: E712
+    for pid, n, rec, tot in rows:
+        if pid in out:
+            out[pid].update(items=n or 0, received=int(rec or 0), total_usd=float(tot or 0) / rates[pid])
+    for pid, n in db.query(Carton.project_id, func.count(Carton.id)).group_by(Carton.project_id).all():
+        if pid in out:
+            out[pid]["cartons"] = n or 0
+    return out
