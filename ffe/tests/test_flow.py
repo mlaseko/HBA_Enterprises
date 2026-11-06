@@ -48,6 +48,13 @@ def flow(c):
     assert "Imported" in r.text, r.text[:500]
     import re; print(re.search(r"Imported[^<]*", r.text).group(0))
     r=c.get(f"/p/{pid}"); assert "Kinondoni House" in r.text
+    # the projects page reads four figures per project in two grouped queries; they must match the full summary
+    from app.services import project_cards as _pcards, summary as _summ
+    from app.models import Project as _Pc
+    from app.db import SessionLocal as _SLc
+    _dbc=_SLc(); _pc=_dbc.get(_Pc, int(pid)); _f=_pcards(_dbc, [_pc])[_pc.id]; _s=_summ(_dbc, _pc); _dbc.close()
+    assert _f["items"]==_s["items"] and _f["received"]==_s["received"] and abs(_f["total_usd"]-_s["total_usd"])<0.5 and _f["cartons"]==_s["cartons"], (_f, {k:_s[k] for k in ("items","received","total_usd","cartons")})
+    r=c.get("/"); assert "Kinondoni House" in r.text and "app;dur=" in r.headers.get("server-timing","") and "queries" in r.headers["server-timing"]
     r=c.get(f"/p/{pid}/items"); assert "Floor - big porcelain slab" in r.text
     r=c.get(f"/p/{pid}/items?view=table&category=Tiles"); assert "status-sel" not in r.text and '<span class="badge"' in r.text  # a read-only badge: orders and boxes move the status
     # add supplier + item with photo

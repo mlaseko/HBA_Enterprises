@@ -172,13 +172,23 @@ PUBLIC_TEMPLATES = {"login.html"}  # plus everything under share/: pages without
 
 
 def nav_context(p: Project | None) -> dict:
-    """Data for the app shell (sidebar, project switcher, drafts badge). Plain dicts: safe after the session closes."""
-    with SessionLocal() as db:
-        projects = db.query(Project).order_by(Project.created_at.desc()).all()
-        studio = get_settings(db)
-        drafts = db.query(Item).filter(Item.project_id == p.id, Item.draft == True).count() if p else 0  # noqa: E712
-        return {"projects": [{"id": x.id, "name": x.name, "client_name": x.client_name, "status": x.status} for x in projects],
-                "studio": {"name": studio.studio_name, "logo_key": studio.logo_key}, "drafts": drafts}
+    """Data for the app shell (sidebar, project switcher, drafts badge). Plain dicts: safe after the session closes.
+    Read through the page's own session when it has a project (one connection per request: on Neon each extra
+    checkout is a ping and a round trip), else a short session of its own. Two small queries either way."""
+    from sqlalchemy import func
+    from sqlalchemy.orm import object_session
+    own = object_session(p) if p is not None else None
+    db = own or SessionLocal()
+    try:
+        rows = db.query(Project.id, Project.name, Project.client_name, Project.status, Project.created_at).order_by(Project.created_at.desc()).all()
+        studio = db.query(Settings.studio_name, Settings.logo_key).filter(Settings.id == 1).first()
+        drafts = db.query(func.count(Item.id)).filter(Item.project_id == p.id, Item.draft == True).scalar() if p else 0  # noqa: E712
+        return {"projects": [{"id": r.id, "name": r.name, "client_name": r.client_name, "status": r.status} for r in rows],
+                "studio": {"name": studio.studio_name if studio else "My Design Studio", "logo_key": studio.logo_key if studio else ""},
+                "drafts": drafts or 0}
+    finally:
+        if own is None:
+            db.close()
 
 
 def render(request: Request, name: str, **ctx):

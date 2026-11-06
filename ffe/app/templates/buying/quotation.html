@@ -90,7 +90,7 @@
       <div class="qc-corner small muted">Room</div>
       {% for ln in m.lines %}{% set letter = 'ABCDEFGHIJ'[loop.index0] if loop.index0 < 10 else loop.index %}
       <div class="qc-opt">
-        {% if ln.thumb %}<a class="qc-pic" href="/media/{{ ln.photo_key }}" target="_blank" data-caption="L{{ ln.no }} · {{ ln.name }}"><img src="/media/{{ ln.thumb }}" alt=""></a>{% else %}<span class="qc-pic none">{{ letter }}</span>{% endif %}
+        {% if ln.thumb %}<a class="qc-pic" href="/media/{{ ln.photo_key }}" target="_blank" data-caption="L{{ ln.no }} · {{ ln.name }}"><img src="/media/{{ ln.thumb }}" alt="" loading="lazy" decoding="async"></a>{% else %}<span class="qc-pic none">{{ letter }}</span>{% endif %}
         <div class="qc-ot"><b>{% if m.options and ln.quote %}{{ ln.quote.option_label }}{% else %}L{{ ln.no }}{% endif %}</b> <span class="small muted">{{ (ln.size or ln.name)|truncate(40) }}{% if ln.ref %} · {{ ln.ref }}{% endif %}</span>
           <div class="qc-price">{{ cur }} {{ ln.unit_price|money(2) }} <span class="small muted">/ {{ ln.unit or 'unit' }}</span></div>
           {% if not m.options and not revised_by %}<input class="in sm" name="label_{{ ln.id }}" placeholder="Name it (Option {{ letter }})" maxlength="56" aria-label="Option name for line {{ ln.no }}">{% endif %}
@@ -127,7 +127,7 @@
   {% for ln in q.lines %}
   {% if ln.section != ns.section %}{% set ns.section = ln.section %}{% if ln.section %}<tr class="qi-sec"><td colspan="7">{{ ln.section }}</td></tr>{% endif %}{% endif %}
   <tr class="act-{{ ln.action }}" id="line-{{ ln.id }}">
-    <td class="qi-td-pic">{% if ln.thumb %}<a href="/media/{{ ln.photo_key }}" target="_blank" data-caption="Line {{ ln.no }} · {{ ln.name }}"><img src="/media/{{ ln.thumb }}" alt=""></a>{% endif %}</td>
+    <td class="qi-td-pic">{% if ln.thumb %}<a href="/media/{{ ln.photo_key }}" target="_blank" data-caption="Line {{ ln.no }} · {{ ln.name }}"><img src="/media/{{ ln.thumb }}" alt="" loading="lazy" decoding="async"></a>{% endif %}</td>
     <td class="small muted nowrap">L{{ ln.no }}{% if ln.ref %}<div><b>{{ ln.ref }}</b></div>{% endif %}</td>
     <td><div>{{ ln.name }}</div>{% if ln.size %}<div class="small muted">{{ ln.size }}</div>{% endif %}{% if ln.detail %}<details class="qi-detail"><summary class="small">Description</summary><div class="small">{{ ln.detail }}</div></details>{% endif %}</td>
     <td class="num nowrap">{{ ln.qty|num(2) }} {{ ln.unit }}</td>

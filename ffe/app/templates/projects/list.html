@@ -27,7 +27,7 @@
   {% set pct = (100 * s.received / s['items'])|int if s['items'] else 0 %}
   <a href="/p/{{ p.id }}" class="card proj">
     <div class="cover{% if not cover %} blank{% endif %}">
-      {% if cover %}<img src="/media/{{ cover.file_key }}" alt="">{% else %}<span class="init">{{ p.name[:1] }}</span>{% endif %}
+      {% if cover %}<img src="/media/{{ cover.file_key }}" alt="" loading="lazy" decoding="async">{% else %}<span class="init">{{ p.name[:1] }}</span>{% endif %}
       <span class="pill {{ 'green' if p.status == 'Active' else ('gold' if p.status == 'On hold' else 'sage') }}">{{ p.status }}</span>
     </div>
     <div class="body">

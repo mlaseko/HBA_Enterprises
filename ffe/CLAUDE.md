@@ -975,6 +975,13 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   header, line notes in `details.qi-flags`. Preview: sure lines accepted on load (not on a draft), `.qi-decs` under red
   notes, `#qi-diffs` folded, `.qi-views` hidden (By product lives on step 3), `#sim-sum` / `#sim-warn` + folded
   `details.qi-s3more`, `details.qi-docmore`. Hidden flex/pill elements need their own `[hidden]{display:none!important}`.
+- **Speed, round 2.** Starts skip the schema checks unless `main.schema_fingerprint()` changed (models' tables and columns,
+  `COLUMN_MIGRATIONS`, `DATA_MIGRATIONS`, the source of `main.full_start`; mark `start:<hash>` in `schema_marks`): **a new
+  one-time upgrade must be called from `full_start()`**, never from `startup()`. `services.project_cards` (grouped queries)
+  feeds the projects page; `common.nav_context` uses `object_session(p)`. Templates' `<img>` carry `loading="lazy"
+  decoding="async"` at the end of the tag (tests match `<img src=` / `<img class=… src=`), except the plan's stage and zoom.
+  `main.request_timing` adds `Server-Timing`, prints requests over `SLOW_MS` and keeps `recent_slow` for Settings → Speed
+  (with the `SELECT 1` round trip). Measure with a copy of a database: count queries with a `before_cursor_execute` listener.
 - **Usability, phase 3.** A product's details are one for all its rooms without a schema change: `routers/items.update_item`
   copies to the product's other lines (`same_item_elsewhere`, taken before the save) the `SHARED_FIELDS` the save changed
   and the form carried (`was` vs after `apply_form`), so a typo fixed in one room fixes every room and `follow_renames`
