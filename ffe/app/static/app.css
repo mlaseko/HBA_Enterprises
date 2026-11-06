@@ -1986,3 +1986,5 @@ body.qi-step3 #qi-sim #qi-byprod{display:block!important}
 details.qi-s3more>summary.row{display:flex;align-items:flex-start;gap:8px;flex-wrap:nowrap}
 details.qi-s3more>summary.row>div{flex:1;min-width:0}
 details.qi-s3more>summary.row::before{margin-top:2px}
+/* the preview's "which currency?" question: the answer is one tap in the message itself */
+.qi-curq{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.qi-curq-b{display:flex;gap:8px}

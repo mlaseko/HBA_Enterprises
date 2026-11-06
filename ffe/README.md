@@ -315,6 +315,8 @@ name** (or set the Kind by hand): every existing entry starts as a room.
   silently matching by words: the page offers **Try Claude again** and **Continue without Claude**
   (`POST /working/<id>/retry`, `claude=1|0`, `quotations.retry_matching` → `match_upload` on a thread); the Quotations
   page lists it as "Waiting for Claude".
+- `POST /quotations/currency` (`set_currency` = CNY | USD, the whole preview form posted with it) answers the "no currency on the
+  sheet" warning: the state's currency is set, the warning dropped and the choices kept under a new key (not as a draft).
 - `POST /quotations/draft` keeps the preview's choices and document fields in the state (a new key each time, the
   upload row pointing at it, `message = "draft"`); the preview reads them back over the suggestions; the Quotations
   page lists the uploads not yet posted (drafts, ready, reading, failed) with Continue and Discard

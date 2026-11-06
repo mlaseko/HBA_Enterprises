@@ -24,7 +24,9 @@
 {% if err %}<div class="alert err">{{ err }}</div>{% endif %}
 {% if draft_at %}<div class="alert info">A draft saved {{ draft_at|replace('T', ' ') }}: your choices are as you left them. Nothing is posted until you press Save the quotation.</div>{% endif %}
 {% if supplier_guess %}<div class="alert info">Shop recognised: <b>{{ supplier.name }}</b> ({{ supplier_guess }}). Its earlier matches were used. Wrong shop? Change it under <a href="#document">The document</a>.</div>{% endif %}
-{% for w in warnings %}<div class="alert {{ 'err' if 'add up' in w else 'info' }}">{{ w }}</div>{% endfor %}
+{% for w in warnings %}{% if 'USD assumed' in w %}<div class="alert info qi-curq" id="qi-curq"><span>The sheet does not say its currency. <b>Which are the prices in?</b></span>
+  <span class="qi-curq-b"><button class="btn sm" form="qi-form" formaction="/p/{{ p.id }}/quotations/currency" name="set_currency" value="CNY" formnovalidate>CNY ¥</button><button class="btn sec sm" form="qi-form" formaction="/p/{{ p.id }}/quotations/currency" name="set_currency" value="USD" formnovalidate>USD $</button></span></div>
+{% else %}<div class="alert {{ 'err' if 'add up' in w else 'info' }}">{{ w }}</div>{% endif %}{% endfor %}
 
 <form method="post" action="/p/{{ p.id }}/quotations/apply" id="qi-form">
 <input type="hidden" name="key" value="{{ key }}">
@@ -642,7 +644,7 @@
     var html=''; Object.keys(left).forEach(function(cat){ html+='<div class="qi-left-cat"><b>'+cat+'</b> <span class="muted">'+left[cat].length+'</span><ul>'+left[cat].map(function(t){return '<li>'+t.replace(/</g,'&lt;')+'</li>';}).join('')+'</ul></div>'; });
     document.getElementById('sim-left-list').innerHTML=html||'<p>Every product of the design would have a quote.</p>'; }
   form.addEventListener('change',simulate); form.addEventListener('input',function(e){ if(e.target.name==='discount'||e.target.name==='total') simulate(); }); simulate();
-  form.addEventListener('submit',function(e){ var d=document.getElementById('qi-draft'), b=document.getElementById('qi-save'); var asDraft=e.submitter&&e.submitter.id==='qi-draft';
+  form.addEventListener('submit',function(e){ if(e.submitter&&e.submitter.name==='set_currency') return; var d=document.getElementById('qi-draft'), b=document.getElementById('qi-save'); var asDraft=e.submitter&&e.submitter.id==='qi-draft';
     if(!asDraft){ var nm=(form.querySelector('[name=supplier_name]')||{}).value||''; if(!sup.value||(sup.value==='__new__'&&!nm.trim())){ e.preventDefault(); if(docCard) docCard.open=true; (sup.value==='__new__'?form.querySelector('[name=supplier_name]'):sup).focus(); appAlert('Pick the shop that sent the quotation, or type the new shop\u2019s name, under The document. Nothing is lost.', {title:'Which shop?'}); return; } }
     var hit=asDraft?d:b; if(hit){ hit.disabled=true; hit.innerHTML='<span class="qi-spin"></span>'+(asDraft?'Saving the draft…':'Saving the quotation…'); } if(d&&!asDraft) d.disabled=true; if(b&&asDraft) b.disabled=true; });
   form.addEventListener('change',function(e){ var line=e.target.closest('.qi-line'); if(!line){ if(e.target.id==='qi-sup'||e.target.name==='supplier_name'||e.target.name==='total'){ var sm=document.getElementById('qi-doc-sum'); if(sm){ var nm=sup.value==='__new__'?((form.querySelector('[name=supplier_name]')||{}).value||'shop not chosen'):(sup.value?sup.options[sup.selectedIndex].textContent:'shop not chosen'); sm.textContent=nm+' · '+cur+' '+fmtq(parseFloat((form.querySelector('[name=total]')||{}).value)||0); } } return; }

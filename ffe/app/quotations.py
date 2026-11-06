@@ -42,6 +42,8 @@ from .services import content_key, next_code, product_key
 EXTENSIONS = ("xlsx", "xlsm", "xls")
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
+CURRENCY_GUESS = "The sheet does not say its currency: USD assumed."  # the preview offers USD / CNY buttons beside it
+
 
 class ReadError(Exception):
     pass
@@ -499,7 +501,7 @@ def _parse_sheet(sh: dict) -> dict:
         out["total"] = round(sum(l["amount"] for l in out["lines"]) + sum(c["amount"] for c in out["charges"]), 2)
     if not out["currency"]:
         out["currency"] = "USD"
-        out["warnings"].append("The sheet does not say its currency: USD assumed. Change it below if the prices are in CNY.")
+        out["warnings"].append(CURRENCY_GUESS)
     if "quote_date" in out["head"]:
         out["head"]["quote_date"] = out["head"]["quote_date"][:10]
     return out
