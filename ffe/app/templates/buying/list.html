@@ -21,7 +21,7 @@
   <div class="kpi"><svg class="ic"><use href="#i-tag"/></svg><div class="v">{{ all.products }}</div><div class="l">Products</div><div class="d">{{ all.lines }} room line{{ 's' if all.lines != 1 }} in the design</div></div>
   <div class="kpi sage"><svg class="ic"><use href="#i-check"/></svg><div class="v">{{ all.covered }}<span class="of">/{{ all.lines }}</span></div><div class="l">Rooms with a shop</div><div class="bar"><i style="width:{{ all.pct }}%"></i></div><div class="d">{{ all.pct }}% sourced</div></div>
   <div class="kpi gold"><svg class="ic"><use href="#i-users"/></svg><div class="v">{{ all.quotes }}</div><div class="l">Quotes recorded</div><div class="d">from {{ all.shops }} shop{{ 's' if all.shops != 1 }}</div></div>
-  <div class="kpi ink"><svg class="ic"><use href="#i-card"/></svg><div class="v">{{ all.committed|cur }}</div><div class="l">Committed</div><div class="d">{{ (all.committed)|cur_other }} · allowances and whole packs included</div></div>
+  <div class="kpi ink"><svg class="ic"><use href="#i-card"/></svg><div class="v">{{ all.committed|cur_main }}</div><div class="l">Committed</div><div class="d">{{ (all.committed)|cur_other }} · allowances and whole packs included</div></div>
 </div>
 
 <nav class="bu-stages" aria-label="Stage">
@@ -67,7 +67,7 @@
       <span class="facts">
         <span><span class="v">{{ o.qty|num(2) }}<small>{{ g.unit }}</small></span><span class="l">to order{% if o.packs %} · {{ o.packs }} {{ g.pack_name or 'pack' }}{{ ('es' if (g.pack_name or 'pack')[-1:] in 'xs' else 's') if o.packs != 1 }}{% endif %}</span></span>
         {% if g.committed %}<span><span class="v">{{ g.committed|cur }}</span><span class="l">committed</span></span>
-        {% elif g.options and g.estimate_quote %}{% set pr = g.options|map(attribute='unit_price')|select|list %}<span><span class="v">{{ (pr|min)|cur(2) }}{% if pr|max != pr|min %}–{{ (pr|max)|cur_num(2) }}{% endif %}<small>/{{ g.unit }}</small></span><span class="l">{{ g.options|length }} options</span></span>
+        {% elif g.options and g.estimate_quote %}{% set pr = g.options|map(attribute='unit_price')|select|list %}<span><span class="v">{{ cur_range(pr|min, pr|max, 2) }}<small>/{{ g.unit }}</small></span><span class="l">{{ g.options|length }} options</span></span>
         {% elif best %}<span><span class="v">{{ best.unit_price|cur(2) }}<small>/{{ g.unit }}</small></span><span class="l">best quote</span></span>
         {% else %}<span class="none"><span class="v">—</span><span class="l">no price yet</span></span>{% endif %}
       </span>

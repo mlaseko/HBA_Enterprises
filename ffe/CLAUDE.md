@@ -565,6 +565,13 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   `common.fmt_cur(p, cny)` (the tracker's attention lines). A quote typed in USD shows its typed amount in USD mode. Compare
   shops, the Purchase schedule (+ PDF) default to the project's currency; the shop's WeChat text and the PO stay CNY; the client
   link and schedule are USD whatever the setting. Write new amounts with these filters, never `¥{{ x|money }}`.
+  **Every price carries its USD.** In CNY mode `cur` / `cur_num` output `¥8,762<span class="usd">$1,234</span>` (Markup;
+  `.usd` is small grey, a block line in `td.num`); `cur_main` is the figure alone for a big number with `cur_other` under it
+  (never `cur` + `cur_other`: the USD would show twice); `cur_txt` / `common.fmt_cur` are plain text "¥8,762 ($1,234)" for
+  attributes, `<option>` and Python messages; `cur_range(lo, hi, dec, sym)` a range with one USD span; `x|usd(currency)` the
+  USD span after a document's own amount (a CNY quotation's lines and totals; nothing for USD); `quotations.amt(p, cur, v)`
+  for notes and warnings; the preview's and the saved quotation's scripts write `cm(v, fmt)`. The shop's PO and WeChat text
+  stay CNY. `read_sheets` works out simple formulas a file carries without results (`_fill_formulas`: refs, + - * /, SUM).
 - **Tracker sourcing.** `ordering.tracker(..., waiting=)` (the `QuotationUpload` rows at stage done, from the route) adds
   `cats[].quoted`, `sourcing` (products, quoted, unpriced, left = budget − estimated, over, cats by coverage) for the
   `#sourcing` card (shown while a product has no quote), and attention lines: quotations expiring within 7 days or expired

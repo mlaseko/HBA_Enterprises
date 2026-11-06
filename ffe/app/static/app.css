@@ -1988,3 +1988,7 @@ details.qi-s3more>summary.row>div{flex:1;min-width:0}
 details.qi-s3more>summary.row::before{margin-top:2px}
 /* the preview's "which currency?" question: the answer is one tap in the message itself */
 .qi-curq{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.qi-curq-b{display:flex;gap:8px}
+/* the USD equivalent after an amount in CNY (filters cur / cur_num / usd and the pages' scripts): small, grey, never alone on a line */
+.usd{font-size:.8em;font-weight:500;color:var(--muted,#6b7280);white-space:nowrap;margin-left:.35em;letter-spacing:0}
+.num .usd,td.num .usd{display:block;margin-left:0;line-height:1.2}
+.v .usd,.kpi .v .usd,.stat .v .usd{font-size:.55em;display:inline-block}

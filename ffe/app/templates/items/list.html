@@ -10,7 +10,7 @@
 <div class="page-head">
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a></div>
-    <h1>Items <span class="h-note">{% if view in ('list', 'grid') %}{{ rows|length }} item{{ 's' if rows|length != 1 }} · {{ items|length }} room line{{ 's' if items|length != 1 }}{% else %}{{ items|length }}{% endif %} · {{ total|cur }} · {{ (total)|cur_other }}</span></h1>
+    <h1>Items <span class="h-note">{% if view in ('list', 'grid') %}{{ rows|length }} item{{ 's' if rows|length != 1 }} · {{ items|length }} room line{{ 's' if items|length != 1 }}{% else %}{{ items|length }}{% endif %} · {{ total|cur_main }} · {{ (total)|cur_other }}</span></h1>
     <p class="sub hide-m">{% if view == 'list' %}One line per product, with its rooms and total.{% elif view == 'table' %}One line per room.{% elif view == 'grid' %}A card per product, whatever its rooms, by category.{% else %}By category, with photos.{% endif %}</p>
   </div>
   <div class="actions">
@@ -167,7 +167,7 @@
     <td class="rooms" data-v="{{ g.rooms|length }}">{% set names = [] %}{% for r in g.rooms %}{% set _ = names.append(r.name if r else 'Whole house') %}{% endfor %}
       {% if names|length == 1 %}{{ names[0] }}{% else %}<a class="n" href="/p/{{ p.id }}/items?q={{ i.name|urlencode }}&amp;view=table" title="{{ names|join(', ') }}">{{ names|length }} rooms</a> · {{ names[:3]|join(', ') }}{% if names|length > 3 %} <span class="more" title="{{ names[3:]|join(', ') }}">+{{ names|length - 3 }} more</span>{% endif %}{% endif %}</td>
     <td class="num" data-v="{{ g.qty }}">{{ g.qty|num }} {{ g.unit }}</td>
-    <td class="num" data-v="{{ g.price_min if g.price_min else '' }}">{% if g.price_min %}{{ g.price_min|cur_num(2) }}{% if g.price_max != g.price_min %}–{{ g.price_max|cur_num(2) }}{% endif %}{% endif %}</td>
+    <td class="num" data-v="{{ g.price_min if g.price_min else '' }}">{% if g.price_min %}{{ cur_range(g.price_min, g.price_max, 2, false) }}{% endif %}</td>
     <td class="num" data-v="{{ g.total if g.total else '' }}">{{ g.total|cur_num if g.total else '' }}</td>
     <td class="small nowrap">{% for s in g.suppliers %}{{ s.name }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
     <td data-v="{{ g.status_rank }}" class="small nowrap">{% if g.rows|length == 1 %}<span class="badge" style="--c:{{ STATUS_COLORS[i.status] }}">{{ i.status|status_label }}</span>{% else %}{% for s, n in g.statuses|dictsort(by='value', reverse=true) %}<span class="badge" style="--c:{{ STATUS_COLORS[s] }}">{{ s|status_label }} · {{ n }}</span> {% endfor %}{% endif %}</td>

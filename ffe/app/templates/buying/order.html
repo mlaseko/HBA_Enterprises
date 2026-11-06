@@ -26,10 +26,10 @@
   <div class="card od-money">
     <div class="eyebrow">Money</div>
     <div class="od-figs">
-      <div><span class="v">{{ ov.total|cur(2) }}</span><span class="l">Total</span><span class="s">{{ (ov.total)|cur_other(2) }}</span></div>
+      <div><span class="v">{{ ov.total|cur_main(2) }}</span><span class="l">Total</span><span class="s">{{ (ov.total)|cur_other(2) }}</span></div>
       <div><span class="v">{{ ov.deposit|cur(2) }}</span><span class="l">Deposit {{ '%g'|format(o.deposit_pct or 0) }}%</span><span class="s">{% if not o.deposit_pct %}none{% elif ov.deposit_left > 0.005 %}{% if o.confirmed %}{{ ov.deposit_left|cur(2) }} still due{% else %}due once confirmed{% endif %}{% else %}<span class="ok"><svg class="ic sm"><use href="#i-check"/></svg>paid</span>{% endif %}</span></div>
       <div><span class="v">{{ ov.paid|cur(2) }}</span><span class="l">Paid</span><span class="s">{{ o.payments|length }} payment{{ 's' if o.payments|length != 1 }}</span></div>
-      <div class="hl"><span class="v">{{ ([ov.balance, 0]|max)|cur(2) }}</span><span class="l">To pay</span><span class="s">{{ ([ov.balance, 0]|max)|cur_other(2) }}</span></div>
+      <div class="hl"><span class="v">{{ ([ov.balance, 0]|max)|cur_main(2) }}</span><span class="l">To pay</span><span class="s">{{ ([ov.balance, 0]|max)|cur_other(2) }}</span></div>
     </div>
     <div class="bar"><i style="width:{{ [100, (100 * ov.paid / ov.total)|round|int]|min if ov.total else 0 }}%"></i></div>
     <p class="small muted od-terms mt"><b>Terms</b> {{ o.terms or 'none written yet: add them under Details' }}</p>

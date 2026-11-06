@@ -504,7 +504,7 @@ def flow(c):
     r=c.get(f"/p/{pid}/items/{usd_id}"); assert "No shop chosen yet" in r.text and f"/p/{pid}/buying/item/{usd_id}" in r.text and 'name="unit_price"' not in r.text
     prod_id, q1 = buy(c, pid, usd_id, sup.id, 120, "USD", "2 weeks")
     db=SessionLocal(); u=db.get(Item, usd_id); assert u.unit_price==852.0 and u.price_currency=="USD" and u.price_amount==120 and u.total==1704.0 and u.supplier_id==sup.id and u.lead_time=="2 weeks" and u.status=="Quoted"; db.close()
-    r=c.get(f"/p/{pid}/items/{usd_id}"); assert "Buying from" in r.text and "Foshan Tile Co." in r.text and "¥852.00 each" in r.text
+    r=c.get(f"/p/{pid}/items/{usd_id}"); assert "Buying from" in r.text and "Foshan Tile Co." in r.text and "¥852.00<span class=\"usd\">$120.00</span> each" in r.text
     r=c.get(f"/p/{pid}/items"); assert "1,704" in r.text  # lists, totals and PDFs keep using the CNY value
     r=c.get(f"/p/{pid}/buying/{prod_id}"); assert "typed as $120.00" in r.text and "Buying for 1 room" in r.text
     # the same product into a second room: no shop there until it is bought for it; buying from the same quote widens its purchase
@@ -848,7 +848,7 @@ def flow(c):
     assert '<table class="sortable it-table">' in h and '<th data-sort="text">Code</th>' in h and '<th class="num" data-sort="num">Total CNY</th>' in h and '<th data-sort="num">Status</th>' in h
     assert h.count('data-v="Reading light"')==3 and 'data-v="150.0"' in h and f'href="/p/{pid_p}/items?category=Lighting&amp;view=list"' in h and 'aria-current="page" title="One line per room' in h and f'href="/p/{pid_p}/items?view=table">Clear</a>' in h
     r=c.get(f"/p/{pid_p}/items?view=list&q=Reading"); h=r.text
-    assert h.count('<tr id="item-')==1 and re.search(r'data-items="\d+ \d+ \d+"', h) and '>3 rooms</a>' in h and '6 pcs</td>' in h and 'data-v="900.0">900</td>' in h and "1 item · 3 room lines" in h and 'Shop chosen · 3</span>' in h and '<th data-sort="num">Rooms</th>' in h
+    assert h.count('<tr id="item-')==1 and re.search(r'data-items="\d+ \d+ \d+"', h) and '>3 rooms</a>' in h and '6 pcs</td>' in h and 'data-v="900.0">900<span class="usd">$' in h and "1 item · 3 room lines" in h and 'Shop chosen · 3</span>' in h and '<th data-sort="num">Rooms</th>' in h
     assert "status-sel" not in h and "One line per product" in h and c.get(f"/p/{pid_p}/items?view=list").text.count('<tr id="item-')>=5
     h=c.get(f"/p/{pid_p}/items?view=list").text; assert 'aria-current="page" title="One line per item' in h and h.count('<tr id="item-')>=5
     h=c.get(f"/p/{pid_p}/items").text; assert 'aria-current="page" title="A card per product' in h and 'class="cards pgrid"' in h and h.count('<article class="item-card pcard"')>=5 and '<tr id="item-' not in h and 'name="view"' not in h  # the photo grid is the default view
@@ -1608,7 +1608,7 @@ def flow(c):
     ov=_od.OrderView(db.get(_O,oid), _bz.Ledger(db.get(_P,pid_o)), today=_dt.date(2026,10,16)); assert ov.stage=="Balance due" and ov.deposit_left==0 and ov.balance==3942.72 and ov.soon and not ov.late and ov.ready_text=="in 4 days"; db.close()
     assert _sts(tile_bed)==["Ordered","Ordered","Shipped"]
     assert 'value="3942.72"' in c.get(f"/p/{pid_o}/orders/{oid}").text  # the form offers what is due
-    h=c.get(f"/p/{pid_o}/payments").text; assert f'<option value="{oid}">KH-001 · Tile Shop · to pay ¥3,943</option>' in h and "On orders" in h and "KH-001" in h.split("All payments")[1]
+    h=c.get(f"/p/{pid_o}/payments").text; assert f'<option value="{oid}">KH-001 · Tile Shop · to pay ¥3,943 ($' in h and "On orders" in h and "KH-001" in h.split("All payments")[1]
     c.post(f"/p/{pid_o}/payments", data={"order_id":str(oid),"supplier_id":str(ls),"paid_on":"2026-10-15","amount":"3942.72","kind":"Balance","reference":"BANK2"}, follow_redirects=False)
     db=SessionLocal(); pay2=db.query(_Pay).filter(_Pay.order_id==oid, _Pay.kind=="Balance").one(); assert pay2.supplier_id==ts; pay2=pay2.id; db.close()  # the order's shop, not the one picked
     assert _sts(tile_bed)==["Paid","Paid","Shipped"] and c.get(f"/p/{pid_o}/buying?stage=Paid").text.count('class="bu-card"')==2  # the stage reads the order
@@ -1617,9 +1617,9 @@ def flow(c):
     # money: summary, Overview, Payments, the supplier page and its list
     db=SessionLocal(); s=_summary(db, db.get(_P,pid_o)); db.close()
     assert s["ordered"]==6571.2 and s["paid"]==2628.48 and s["to_pay"]==3942.72 and s["orders"]==2 and {r_["label"]:r_["bought"] for r_ in s["by_sup"]}=={"Tile Shop":6571.2,"Lamp Shop":800}
-    h=c.get(f"/p/{pid_o}").text; assert 'class="dash-stats"' in h and "Still to pay" in h and "¥3,943" in h and "on ¥6,571 ordered" in h
+    h=c.get(f"/p/{pid_o}").text; assert 'class="dash-stats"' in h and "Still to pay" in h and "¥3,943" in h and "on ¥6,571 ($" in h
     h=c.get(f"/suppliers/{ts}?project={pid_o}").text; assert 'id="orders"' in h and "KH-001" in h and f"/p/{pid_o}/orders/{oid}/po.pdf" in h and "on confirmed orders" in h
-    assert "to pay ¥3,943" in c.get(f"/p/{pid_o}/suppliers").text
+    assert "to pay ¥3,943<span class=\"usd\">$" in c.get(f"/p/{pid_o}/suppliers").text
     assert c.get(f"/p/{pid_o}/export/po/{ts}.pdf").status_code==200  # every item from the shop, as before
     # a change after confirming shows on the order and the tracker until the shop agrees the new total
     c.post(f"/p/{pid_o}/buying/{p_tile}/quotes/{q_tile}", data={"supplier_id":str(ts),"amount":"85","currency":"CNY","pack_size":"1.44"}, follow_redirects=False)
@@ -2056,6 +2056,17 @@ def flow(c):
     h=c.get(r.headers["location"]).text; assert 'id="qi-curq"' not in h and "USD assumed" not in h and "A draft saved" not in h and re.search(r'<option selected>CNY</option>', h) and 'value="Lights"' in h
     assert re.search(r'name="act_2"[^>]*>(?:(?!</select>).)*value="skip" selected', h, re.S) and _st.read_image(keyn) is None
     c.post(f"/p/{pid_q}/quotations/cancel", data={"key":keyn2}, follow_redirects=False)
+    # every amount carries its USD: a CNY figure gets the dollars after it, a USD project shows dollars, a document in CNY its USD too
+    from app import common as _cm
+    class _Pj: rate=7.0; show_currency="CNY"
+    _pj=_Pj(); assert str(_cm.html_cur(_pj, 700))=='¥700<span class="usd">$100</span>' and _cm.fmt_cur(_pj, 700)=="¥700 ($100)" and _cm.fmt_main(_pj, 700)=="¥700"
+    assert str(_cm.html_range(_pj, 70, 140, 2))=='¥70.00–140.00<span class="usd">$10.00–20.00</span>' and str(_cm.usd_of(_pj, 70, "CNY"))=='<span class="usd">$10</span>' and _cm.usd_of(_pj, 70, "USD")==""
+    _pj.show_currency="USD"; assert _cm.html_cur(_pj, 700)=="$100" and _cm.fmt_cur(_pj, 700)=="$100"
+    # a sheet whose formulas carry no results (saved by a program other than Excel): the simple ones are worked out
+    fw=openpyxl.Workbook(); fws=fw.active; fws.append(["No","Item","Qty","Unit Price","Total Price"]); fws.append([1,"Down light",150,60,"=D2*C2"]); fws.append([2,"Garden light",10,350,"=D3*C3"]); fws.append([None,None,None,None,"=SUM(E2:E3)"])
+    fb=io.BytesIO(); fw.save(fb); _rs=_qz.read_sheets(fb.getvalue(), "f.xlsx"); assert _rs[0]["rows"][1][4]==9000 and _rs[0]["rows"][3][4]==12500, _rs[0]["rows"]
+    _pf=_qz.parse(_rs, "f.xlsx"); assert [(l["qty"], l["amount"]) for l in _pf["lines"]]==[(150, 9000), (10, 3500)], _pf["lines"]
+    assert _qz.amt(_pj, "CNY", 575)=="CNY 575 ($82.14)" and _qz.amt(_pj, "USD", 5)=="USD 5"
     r=c.post(f"/p/{pid_q}/quotations/{qd2_id}/delete", follow_redirects=False); assert "0%20quotes%20nothing%20was%20bought%20from" in r.headers["location"], r.headers["location"]  # the second document corrected the first's quotes: they stay with it
     db=SessionLocal(); assert db.get(_Qt, q1.id) is not None and db.get(_Qt, q2.id) is not None and db.get(_Qt, q4.id) is not None; db.close()
     # the first document still holds q2 and q4: deleting it takes them (q1 is bought from)
@@ -2152,7 +2163,7 @@ def flow(c):
     _kc=_kit[0].category; h=c.get(f"/p/{pid_q}/quotations/compare?category={_kc}").text
     assert "Compare shops" in h and shop.name in h and _kit[0].name in h and 'class="num cmp-cell best"' in h and f"/buying/{_kit[0].id}/quotes/{qk.id}/buy" in h and "1 priced" in h
     assert 'name="next" value="/p/%d/quotations/compare?category=' % pid_q in h and "Every product at its lowest price" in h
-    h2=c.get(f"/p/{pid_q}/quotations/compare?category={_kc}&currency=CNY").text; assert "¥" in h2 and "$" not in h2.split('class="cmp"')[1].split("</table>")[0]
+    h2=c.get(f"/p/{pid_q}/quotations/compare?category={_kc}&currency=CNY").text; assert "¥" in h2 and '<span class="usd">$' in h2.split('class="cmp"')[1].split("</table>")[0]  # CNY prices carry their USD
     assert "Nothing to compare yet" in c.get(f"/p/{pid_q}/quotations/compare?category=Nope").text or _kc in c.get(f"/p/{pid_q}/quotations/compare?category=Nope").text  # an unknown category falls back to the first with quotes
     r=c.post(f"/p/{pid_q}/buying/{_kit[0].id}/quotes/{qk.id}/buy", data={"next":f"/p/{pid_q}/quotations/compare?category={_kc}&currency=USD"}, follow_redirects=False)
     assert r.status_code==303 and "/quotations/compare?category=" in r.headers["location"] and "ok=Buying" in r.headers["location"], r.headers["location"]

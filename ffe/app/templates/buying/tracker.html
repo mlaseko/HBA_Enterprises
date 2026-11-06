@@ -18,12 +18,12 @@
 
 <section class="card tr-money">
   <div class="tr-figs">
-    <div class="b0"><span class="l">Budget</span><span class="v">{% if t.budget %}{{ t.budget|cur }}{% else %}—{% endif %}</span><span class="s">{% if t.budget %}{{ t.budget|cur_other }}{% else %}<a href="/p/{{ p.id }}/edit">set it in Project settings</a>{% endif %}</span></div>
-    <div class="b1"><span class="l">Estimated</span><span class="v">{{ t.estimated|cur }}</span><span class="s">{% if t.unpriced %}{{ t.unpriced }} product{{ 's' if t.unpriced != 1 }} not priced yet{% else %}{{ t.estimated|cur_other }} · bought + lowest quotes{% endif %}</span></div>
-    <div class="b2"><span class="l">Committed</span><span class="v">{{ t.committed|cur }}</span><span class="s">{{ t.committed|cur_other }} · bought from shops</span></div>
-    <div class="b3"><span class="l">Ordered</span><span class="v">{{ t.ordered|cur }}</span><span class="s">{{ t.ordered|cur_other }} · on confirmed orders</span></div>
-    <div class="b4"><span class="l">Paid</span><span class="v">{{ t.paid|cur }}</span><span class="s">{{ (t.paid)|cur_other }}</span></div>
-    <div class="b5"><span class="l">To pay</span><span class="v">{{ t.to_pay|cur }}</span><span class="s">{{ t.to_pay|cur_other }} · on confirmed orders</span></div>
+    <div class="b0"><span class="l">Budget</span><span class="v">{% if t.budget %}{{ t.budget|cur_main }}{% else %}—{% endif %}</span><span class="s">{% if t.budget %}{{ t.budget|cur_other }}{% else %}<a href="/p/{{ p.id }}/edit">set it in Project settings</a>{% endif %}</span></div>
+    <div class="b1"><span class="l">Estimated</span><span class="v">{{ t.estimated|cur_main }}</span><span class="s">{% if t.unpriced %}{{ t.unpriced }} product{{ 's' if t.unpriced != 1 }} not priced yet{% else %}{{ t.estimated|cur_other }} · bought + lowest quotes{% endif %}</span></div>
+    <div class="b2"><span class="l">Committed</span><span class="v">{{ t.committed|cur_main }}</span><span class="s">{{ t.committed|cur_other }} · bought from shops</span></div>
+    <div class="b3"><span class="l">Ordered</span><span class="v">{{ t.ordered|cur_main }}</span><span class="s">{{ t.ordered|cur_other }} · on confirmed orders</span></div>
+    <div class="b4"><span class="l">Paid</span><span class="v">{{ t.paid|cur_main }}</span><span class="s">{{ (t.paid)|cur_other }}</span></div>
+    <div class="b5"><span class="l">To pay</span><span class="v">{{ t.to_pay|cur_main }}</span><span class="s">{{ t.to_pay|cur_other }} · on confirmed orders</span></div>
   </div>
   <div class="tr-bar" role="img" aria-label="Paid, ordered, committed and estimated against {{ 'the budget' if t.budget else 'the estimate' }}">
     <i class="paid" style="width:{{ (100 * t.paid / top)|round(1) }}%"></i>

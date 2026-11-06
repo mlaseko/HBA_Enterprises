@@ -7,7 +7,7 @@
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/quotations">Quotations</a></div>
     <h1>{{ q.title or q.filename or 'Quotation' }} <span class="h-note">{{ q.supplier.name if q.supplier else 'no shop' }}</span></h1>
-    <p class="sub qn-facts"><b>{{ cur }} {{ q.net|money }}</b>{% if q.discount %} after {{ q.discount|money(2) }} off{% endif %} · {{ q.lines|length }} line{{ 's' if q.lines|length != 1 }}, {{ by_quote|length }} quote{{ 's' if by_quote|length != 1 }} made{% if q.quote_date %} · {{ q.quote_date.isoformat() }}{% endif %}{% if q.valid_until %} · valid until {{ q.valid_until }}{% endif %}{% if q.lead_time %} · lead time {{ q.lead_time }}{% endif %}</p>
+    <p class="sub qn-facts"><b>{{ cur }} {{ q.net|money }}</b>{{ q.net|usd(cur) }}{% if q.discount %} after {{ q.discount|money(2) }} off{% endif %} · {{ q.lines|length }} line{{ 's' if q.lines|length != 1 }}, {{ by_quote|length }} quote{{ 's' if by_quote|length != 1 }} made{% if q.quote_date %} · {{ q.quote_date.isoformat() }}{% endif %}{% if q.valid_until %} · valid until {{ q.valid_until }}{% endif %}{% if q.lead_time %} · lead time {{ q.lead_time }}{% endif %}</p>
   </div>
   <div class="actions">
     <a class="btn sec" href="/p/{{ p.id }}/quotations/compare{% if cmp_cat %}?category={{ cmp_cat|urlencode }}{% endif %}"><svg class="ic"><use href="#i-chart"/></svg>Compare shops</a>
@@ -83,7 +83,7 @@
   <div class="qc-prod" data-pid="{{ m.pid }}">
     <input type="hidden" name="product" value="{{ m.pid }}">
     <div class="qc-ph"><a href="/p/{{ p.id }}/buying/{{ m.pid }}{{ '#options' if m.options }}"><b>{{ m.title }}</b></a>
-      {% if m.options %}<span class="pill gold">{{ m.lines|length }} options to choose</span>{% else %}<span class="pill">now one quote{% if m.quote %} at the average, {{ cur }} {{ m.quote.amount|money(2) }}{% endif %}</span>{% endif %}
+      {% if m.options %}<span class="pill gold">{{ m.lines|length }} options to choose</span>{% else %}<span class="pill">now one quote{% if m.quote %} at the average, {{ cur }} {{ m.quote.amount|money(2) }} ({{ m.quote.unit_price|cur_txt(2) if cur != 'USD' else '' }}){% endif %}</span>{% endif %}
       {% set open_ = rooms|rejectattr('chosen')|rejectattr('average')|rejectattr('other')|list|length %}{% if open_ %}<span class="pill accent">{{ open_ }} room{{ 's' if open_ != 1 }} to choose</span>{% else %}<span class="pill green">all chosen</span>{% endif %}
       <span class="qc-changed pill accent" hidden>changed</span></div>
     <div class="qc-scroll"><div class="qc-grid" style="--n:{{ m.lines|length }}">
@@ -92,7 +92,7 @@
       <div class="qc-opt">
         {% if ln.thumb %}<a class="qc-pic" href="/media/{{ ln.photo_key }}" target="_blank" data-caption="L{{ ln.no }} · {{ ln.name }}"><img src="/media/{{ ln.thumb }}" alt="" loading="lazy" decoding="async"></a>{% else %}<span class="qc-pic none">{{ letter }}</span>{% endif %}
         <div class="qc-ot"><b>{% if m.options and ln.quote %}{{ ln.quote.option_label }}{% else %}L{{ ln.no }}{% endif %}</b> <span class="small muted">{{ (ln.size or ln.name)|truncate(40) }}{% if ln.ref %} · {{ ln.ref }}{% endif %}</span>
-          <div class="qc-price">{{ cur }} {{ ln.unit_price|money(2) }} <span class="small muted">/ {{ ln.unit or 'unit' }}</span></div>
+          <div class="qc-price">{{ cur }} {{ ln.unit_price|money(2) }}{{ ln.unit_price|usd(cur, 2) }} <span class="small muted">/ {{ ln.unit or 'unit' }}</span></div>
           {% if not m.options and not revised_by %}<input class="in sm" name="label_{{ ln.id }}" placeholder="Name it (Option {{ letter }})" maxlength="56" aria-label="Option name for line {{ ln.no }}">{% endif %}
           {% if rooms and not revised_by %}<button type="button" class="qc-all" data-line="{{ ln.id }}">Every room</button>{% endif %}</div>
       </div>
@@ -131,8 +131,8 @@
     <td class="small muted nowrap">L{{ ln.no }}{% if ln.ref %}<div><b>{{ ln.ref }}</b></div>{% endif %}</td>
     <td><div>{{ ln.name }}</div>{% if ln.size %}<div class="small muted">{{ ln.size }}</div>{% endif %}{% if ln.detail %}<details class="qi-detail"><summary class="small">Description</summary><div class="small">{{ ln.detail }}</div></details>{% endif %}</td>
     <td class="num nowrap">{{ ln.qty|num(2) }} {{ ln.unit }}</td>
-    <td class="num nowrap">{{ ln.unit_price|num(2) }}</td>
-    <td class="num nowrap">{{ ln.amount|money(2) }}</td>
+    <td class="num nowrap">{{ ln.unit_price|num(2) }}{{ ln.unit_price|usd(cur, 2) }}</td>
+    <td class="num nowrap">{{ ln.amount|money(2) }}{{ ln.amount|usd(cur) }}</td>
     <td class="qi-became">
       {% if ln.action in ('quote', 'new') and ln.product %}
         <a href="/p/{{ p.id }}/buying/{{ ln.product.id }}#quote-{{ ln.quote_id }}" class="pill green">{{ 'New item · ' if ln.action == 'new' }}{{ ln.product.title|truncate(60) }}</a>
@@ -150,7 +150,7 @@
   </tr>
   {% endfor %}
   </tbody>
-  <tfoot><tr><td colspan="5" class="num">Lines</td><td class="num"><b>{{ lines_total|money(2) }}</b></td><td></td></tr></tfoot>
+  <tfoot><tr><td colspan="5" class="num">Lines</td><td class="num"><b>{{ lines_total|money(2) }}</b>{{ lines_total|usd(cur) }}</td><td></td></tr></tfoot>
 </table></div>
 
 
@@ -163,21 +163,21 @@
       {% if families %}<button type="button" class="qa-tab" data-tab="variants" role="tab">Variants <b>{{ families|length }}</b></button>{% endif %}
     </div></div>
 {% if now.rows %}{% set diff = now.today - now.sheet %}
-<form method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/now" class="qa-panel nw" id="now" data-cur="{{ cur }}" data-tab="now">
+<form method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/now" class="qa-panel nw" id="now" data-cur="{{ cur }}" data-rate="{{ p.rate or 1 }}" data-tab="now">
   <p class="small muted qa-intro"><b>What it comes to now</b>: this shop's prices against the design as it is today. Untick a room or change a quantity to try it; nothing changes until you press <b>Apply to the design</b>.</p>
   <div class="nw-kpis">
-    <div><span class="l">On the sheet</span><span class="v">{{ cur }} {{ now.sheet|money(2) }}</span><span class="d">the lines that price products</span></div>
-    <div><span class="l">At today's design</span><span class="v">{{ cur }} {{ now.today|money(2) }}</span><span class="d{{ ' red' if diff > 0.5 else (' green' if diff < -0.5 else '') }}">{% if diff|abs > 0.5 %}{{ '+' if diff > 0 }}{{ diff|money(2) }} against the sheet{% else %}as on the sheet{% endif %}</span></div>
+    <div><span class="l">On the sheet</span><span class="v">{{ cur }} {{ now.sheet|money(2) }}{{ now.sheet|usd(cur) }}</span><span class="d">the lines that price products</span></div>
+    <div><span class="l">At today's design</span><span class="v">{{ cur }} {{ now.today|money(2) }}{{ now.today|usd(cur) }}</span><span class="d{{ ' red' if diff > 0.5 else (' green' if diff < -0.5 else '') }}">{% if diff|abs > 0.5 %}{{ '+' if diff > 0 }}{{ diff|money(2) }}{{ (diff|abs)|usd(cur) }} against the sheet{% else %}as on the sheet{% endif %}</span></div>
     <div class="try"><span class="l">With your changes</span><span class="v" id="nw-total">{{ cur }} {{ now.today|money(2) }}</span><span class="d" id="nw-delta">no change tried yet</span></div>
   </div>
-  {% if now.charges %}<p class="small muted">Plus the sheet's extra charges, {{ cur }} {{ now.charges|money(2) }}, which belong to no product.</p>{% endif %}
+  {% if now.charges %}<p class="small muted">Plus the sheet's extra charges, {{ cur }} {{ now.charges|money(2) }}{{ now.charges|usd(cur) }}, which belong to no product.</p>{% endif %}
   {% if now.chips %}<div class="nw-chips"><span class="small muted">Leave out:</span>{% for ch in now.chips %}<button type="button" class="pick-chip" data-ids="{{ ch.ids|join(' ') }}">{{ ch.label }} <b>{{ ch.ids|length }}</b></button>{% endfor %}<button type="button" class="pick-chip" data-reset>Reset</button></div>{% endif %}
   <div class="nw-list">
   {% for r in now.rows %}{% set t = now_amount(r) %}
     <details class="nw-prod" data-pid="{{ r.pid }}">
       <summary><span class="nw-name"><svg class="ic sm nw-chev"><use href="#i-chevron-down"/></svg><b>{{ r.title }}</b>{% if r.options %} <span class="pill gold">options</span>{% endif %}</span>
         <span class="nw-meta small muted">{{ r.rooms|length }} room line{{ 's' if r.rooms|length != 1 }} · {{ r.price|num(2) }} per {{ r.unit or 'unit' }}</span>
-        <span class="nw-fig nw-sheet"><span class="l">Sheet</span> {{ r.sheet_qty|num(2) }} · {{ r.sheet_amount|money(2) }}</span>
+        <span class="nw-fig nw-sheet"><span class="l">Sheet</span> {{ r.sheet_qty|num(2) }} · {{ r.sheet_amount|money(2) }}{{ r.sheet_amount|usd(cur) }}</span>
         <span class="nw-fig nw-today"><span class="l">Today</span> {{ t[0]|num(2) }} · {{ t[1]|money(2) }}</span>
         <span class="nw-fig nw-new" data-pid="{{ r.pid }}"></span></summary>
       <div class="nw-rooms">
@@ -272,6 +272,7 @@
 (function(){
   var form=document.getElementById('now'); if(!form) return; var rows=[]; try{ rows=JSON.parse(document.getElementById('nw-data').textContent); }catch(e){ return; }
   var cur=form.dataset.cur, fmt=function(v){ return v.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  var cm=function(v,f){ return cur+' '+f(v)+(cur==='USD'?'':' ($'+f(v/(parseFloat(form.dataset.rate)||1))+')'); };
   function qtyOf(id){ var k=form.querySelector('input[name="keep_'+id+'"]'), q=form.querySelector('input[name="qty_'+id+'"]'); if(!k||k.disabled) return null; if(!k.checked) return 0; var v=parseFloat(q.value); return isNaN(v)||v<0?0:v; }
   function order(r, sum){ var base=sum*(1+(r.allow||0)); if(r.pack>0) return Math.ceil(Math.round(base/r.pack*1e6)/1e6)*r.pack; if(r.whole) return Math.ceil(Math.round(base*1e6)/1e6); return Math.round(base*100)/100; }
   function amount(r, tried){ var q=function(x){ var v=tried?qtyOf(x.id):null; return v===null?x.qty:v; };
@@ -281,9 +282,9 @@
     rows.forEach(function(r){ var a=amount(r,false), b=amount(r,true); today+=a[1]; tried+=b[1]; var cell=form.querySelector('.nw-new[data-pid="'+r.pid+'"]'), d=b[1]-a[1];
       if(cell){ cell.innerHTML=Math.abs(d)>0.005?'<span class="l">New</span> '+(Math.round(b[0]*100)/100)+' · <b>'+fmt(b[1])+'</b> <span class="'+(d<0?'green':'red')+'">'+(d>0?'+':'')+fmt(d)+'</span>':''; }
       r.rooms.forEach(function(x){ var v=qtyOf(x.id); var lab=form.querySelector('input[name="keep_'+x.id+'"]'); if(lab) lab.closest('.nw-room').classList.toggle('out', v===0); if(v!==null&&Math.abs(v-x.qty)>1e-9) changed++; }); });
-    var d=tried-today; document.getElementById('nw-total').textContent=cur+' '+fmt(tried);
+    var d=tried-today; document.getElementById('nw-total').textContent=cm(tried,fmt);
     document.getElementById('nw-delta').innerHTML=changed?'<span class="'+(d<0?'green':'red')+'">'+(d>0?'+':'')+fmt(d)+'</span> against today · '+changed+' room line'+(changed===1?'':'s')+' changed':'no change tried yet';
-    document.getElementById('nw-bar-total').textContent=cur+' '+fmt(tried); document.getElementById('nw-bar-delta').innerHTML=changed?'<span class="'+(d<0?'green':'red')+'">'+(d>0?'+':'')+fmt(d)+'</span> · '+changed+' changed':'';
+    document.getElementById('nw-bar-total').textContent=cm(tried,fmt); document.getElementById('nw-bar-delta').innerHTML=changed?'<span class="'+(d<0?'green':'red')+'">'+(d>0?'+':'')+fmt(d)+'</span> · '+changed+' changed':'';
     form.classList.toggle('tried', changed>0); }
   form.addEventListener('input', update); form.addEventListener('change', update);
   form.addEventListener('click', function(e){ var chip=e.target.closest('.nw-chips .pick-chip'); if(!chip) return;

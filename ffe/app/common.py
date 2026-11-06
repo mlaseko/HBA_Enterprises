@@ -6,6 +6,7 @@ from fastapi import Request, HTTPException, Depends
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 import jinja2
+import markupsafe
 from itsdangerous import URLSafeSerializer, BadSignature
 from sqlalchemy.orm import Session
 from . import config, drawings, help_tips, layers, lists
@@ -130,30 +131,83 @@ def show_usd(p) -> bool:
     return getattr(p, "show_currency", "CNY") == "USD"
 
 
-def fmt_cur(p, cny, dec=0) -> str:
-    """An amount stored in CNY as the project shows it: "$1,234" in USD (at the project rate) or "¥8,762"."""
+def _rate(p) -> float:
+    return float((getattr(p, "rate", 0) if p is not None else 0) or 0) or 1.0
+
+
+def _cny(v):
     try:
-        v = float(cny or 0)
+        return float(v or 0)
     except (TypeError, ValueError):
+        return None
+
+
+def fmt_cur(p, cny, dec=0) -> str:
+    """An amount stored in CNY as plain text, always with its USD: "$1,234" in a project shown in USD (at the project
+    rate), "¥8,762 ($1,234)" in one shown in CNY. For Python strings (the Tracker's lines) and attributes."""
+    v = _cny(cny)
+    if v is None:
         return "-"
-    if show_usd(p):
-        return f"${v / (p.rate or 1):,.{dec}f}"
-    return f"¥{v:,.{dec}f}"
+    usd = f"${v / _rate(p):,.{dec}f}"
+    return usd if show_usd(p) else f"¥{v:,.{dec}f} ({usd})"
+
+
+def fmt_main(p, cny, dec=0) -> str:
+    """The amount in the project's currency alone: for a big figure whose USD (or CNY) sits under it (cur_other)."""
+    v = _cny(cny)
+    if v is None:
+        return "-"
+    return f"${v / _rate(p):,.{dec}f}" if show_usd(p) else f"¥{v:,.{dec}f}"
 
 
 def fmt_other(p, cny, dec=0) -> str:
     """The same amount in the other currency (the small line under it)."""
-    try:
-        v = float(cny or 0)
-    except (TypeError, ValueError):
+    v = _cny(cny)
+    if v is None:
         return ""
-    return f"¥{v:,.{dec}f}" if show_usd(p) else f"${v / ((p.rate if p is not None else 0) or 1):,.{dec}f}"
+    return f"¥{v:,.{dec}f}" if show_usd(p) else f"${v / _rate(p):,.{dec}f}"
+
+
+def html_cur(p, cny, dec=0, sym=True):
+    """The pages' amount: in a project shown in CNY the USD equivalent follows in a small grey span (`.usd`), so a
+    price is never read in CNY alone; in USD only the dollars."""
+    v = _cny(cny)
+    if v is None:
+        return "-"
+    if show_usd(p):
+        t = f"{v / _rate(p):,.{dec}f}"
+        return ("$" if sym else "") + t
+    return markupsafe.Markup('{}<span class="usd">${}</span>').format(("¥" if sym else "") + f"{v:,.{dec}f}", f"{v / _rate(p):,.{dec}f}")
+
+
+def usd_of(p, amount, currency="CNY", dec=0):
+    """The USD equivalent of an amount typed in a document's own currency (a quotation's CNY lines): a small grey
+    span "$1,234", nothing when the amount is already in USD."""
+    v = _cny(amount)
+    if v is None or (currency or "CNY").upper() == "USD":
+        return ""
+    return markupsafe.Markup('<span class="usd">${}</span>').format(f"{v / _rate(p):,.{dec}f}")
+
+
+def html_range(p, lo, hi, dec=0, sym=True):
+    """A price range "¥10–20" with "$1.41–2.82" after it (one USD span for the pair)."""
+    a, b = _cny(lo), _cny(hi)
+    if a is None or b is None or abs(a - b) < 0.005:
+        return html_cur(p, lo, dec, sym)
+    r = _rate(p)
+    if show_usd(p):
+        return ("$" if sym else "") + f"{a / r:,.{dec}f}–{b / r:,.{dec}f}"
+    return markupsafe.Markup('{}<span class="usd">${}</span>').format(("¥" if sym else "") + f"{a:,.{dec}f}–{b:,.{dec}f}", f"{a / r:,.{dec}f}–{b / r:,.{dec}f}")
 
 
 templates.env.filters["money"] = fmt_money
-templates.env.filters["cur"] = jinja2.pass_context(lambda ctx, v, dec=0: fmt_cur(ctx.get("p"), v, dec))  # an amount in CNY as the project shows it
-templates.env.filters["cur_num"] = jinja2.pass_context(lambda ctx, v, dec=0: fmt_cur(ctx.get("p"), v, dec)[1:])  # the same, no symbol (the column says the currency)
+templates.env.globals["cur_range"] = jinja2.pass_context(lambda ctx, lo, hi, dec=0, sym=True: html_range(ctx.get("p"), lo, hi, dec, sym))
+templates.env.filters["cur"] = jinja2.pass_context(lambda ctx, v, dec=0: html_cur(ctx.get("p"), v, dec))  # an amount in CNY as the project shows it, with its USD
+templates.env.filters["cur_num"] = jinja2.pass_context(lambda ctx, v, dec=0: html_cur(ctx.get("p"), v, dec, sym=False))  # the same, no symbol (the column says the currency)
+templates.env.filters["cur_main"] = jinja2.pass_context(lambda ctx, v, dec=0: fmt_main(ctx.get("p"), v, dec))  # the big figure alone (cur_other under it)
+templates.env.filters["cur_txt"] = jinja2.pass_context(lambda ctx, v, dec=0: fmt_cur(ctx.get("p"), v, dec))  # plain text, for attributes
 templates.env.filters["cur_other"] = jinja2.pass_context(lambda ctx, v, dec=0: fmt_other(ctx.get("p"), v, dec))
+templates.env.filters["usd"] = jinja2.pass_context(lambda ctx, v, currency="CNY", dec=0: usd_of(ctx.get("p"), v, currency, dec))  # after a document's own amount
 templates.env.globals.update(show_usd=lambda p: show_usd(p))
 templates.env.filters["num"] = fnum
 templates.env.filters["status_label"] = lambda st: config.STATUS_LABELS.get(st, st)  # a status as people read it (stored values unchanged)

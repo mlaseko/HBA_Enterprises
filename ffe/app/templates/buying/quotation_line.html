@@ -22,7 +22,7 @@
     <div>
       <div class="small muted">L{{ ln.no }}{% if ln.section %} · {{ ln.section }}{% endif %}{% if ln.ref %} · <b>{{ ln.ref }}</b>{% endif %}</div>
       <div class="b">{{ ln.name }}{% if ln.size %} <span class="muted">· {{ ln.size }}</span>{% endif %}</div>
-      <div>{{ ln.qty|num(2) }} {{ ln.unit }} × {{ cur }} {{ ln.unit_price|num(2) }} = <b>{{ cur }} {{ ln.amount|money(2) }}</b></div>
+      <div>{{ ln.qty|num(2) }} {{ ln.unit }} × {{ cur }} {{ ln.unit_price|num(2) }}{{ ln.unit_price|usd(cur, 2) }} = <b>{{ cur }} {{ ln.amount|money(2) }}</b>{{ ln.amount|usd(cur) }}</div>
       {% if ln.detail %}<details class="qi-detail"><summary class="small">Description</summary><div class="small">{{ ln.detail }}</div></details>{% endif %}
       <div class="small mt">Now: <b>{% if ln.action in ('quote', 'new') and ln.product %}{{ 'new item · ' if ln.action == 'new' }}{{ ln.product.title }}{% elif ln.action == 'merge' %}part of another line{% elif ln.action == 'extra' %}an extra charge{% else %}skipped{% endif %}</b>{% if merged %} · with {% for x in merged %}L{{ x.no }}{{ ', ' if not loop.last }}{% endfor %} merged into it{% endif %}</div>
     </div>

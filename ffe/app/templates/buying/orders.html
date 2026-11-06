@@ -16,9 +16,9 @@
 {% if err %}<div class="alert err">{{ err }}</div>{% endif %}
 
 <div class="grid g4 kpis od-kpis">
-  <div class="kpi"><svg class="ic"><use href="#i-receipt"/></svg><div class="v">{{ money.ordered|cur }}</div><div class="l">On confirmed orders</div><div class="d">{{ (money.ordered)|cur_other }}</div></div>
+  <div class="kpi"><svg class="ic"><use href="#i-receipt"/></svg><div class="v">{{ money.ordered|cur_main }}</div><div class="l">On confirmed orders</div><div class="d">{{ (money.ordered)|cur_other }}</div></div>
   <div class="kpi sage"><svg class="ic"><use href="#i-check"/></svg><div class="v">{{ money.paid|cur }}</div><div class="l">Paid against them</div>{% if money.ordered %}<div class="bar"><i style="width:{{ [100, (100 * money.paid / money.ordered)|round|int]|min }}%"></i></div>{% endif %}</div>
-  <div class="kpi ink"><svg class="ic"><use href="#i-card"/></svg><div class="v">{{ money.balance|cur }}</div><div class="l">Still to pay</div><div class="d">{{ (money.balance)|cur_other }}</div></div>
+  <div class="kpi ink"><svg class="ic"><use href="#i-card"/></svg><div class="v">{{ money.balance|cur_main }}</div><div class="l">Still to pay</div><div class="d">{{ (money.balance)|cur_other }}</div></div>
   <div class="kpi gold"><svg class="ic"><use href="#i-file"/></svg><div class="v">{{ money.drafts|cur }}</div><div class="l">In draft orders</div><div class="d">{% set nd = ovs|rejectattr('o.confirmed')|list|length %}{{ nd }} draft{{ 's' if nd != 1 }} to confirm</div></div>
 </div>
 
@@ -31,7 +31,7 @@
       <div class="od-shop-head">
         <div class="who"><svg class="ic"><use href="#i-truck"/></svg><div><div class="shop">{{ e.supplier.name if e.supplier else 'Shop not known' }}</div>
           <div class="m">{{ e.views|length }} product{{ 's' if e.views|length != 1 }} · {% set nr = e.views|map(attribute='lines')|map('length')|sum %}{{ nr }} room line{{ 's' if nr != 1 }}</div></div></div>
-        <div class="amt"><span class="v">{{ e.total|cur }}</span><span class="small muted">{{ (e.total)|cur_other }}</span></div>
+        <div class="amt"><span class="v">{{ e.total|cur_main }}</span><span class="small muted">{{ (e.total)|cur_other }}</span></div>
       </div>
       <ul class="od-prods">
         {% for v in e.views %}{% set it = v.lines[0] %}

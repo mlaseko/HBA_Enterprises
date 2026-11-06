@@ -137,7 +137,7 @@
     <div class="row between"><b>For all the rooms</b><span class="small muted">the rooms' quantity with the allowance and whole packs, at each shop's price{% if by_quote %} · <span class="qkey"></span> buying here{% endif %}</span></div>
     <div class="hbars mt">
       {% for q in priced %}{% set t = g.quote_total(q) %}{% set v = by_quote.get(q.id) %}
-      <a class="hbar{{ ' best' if best and q.id == best.id }}{{ ' chosen' if v }}" href="#quote-{{ q.id }}" title="{{ q.supplier.name if q.supplier else 'Shop not known' }}{% if q.option_label %} · {{ q.option_label }}{% endif %}: {{ t.total|cur }} for {{ t.qty|num(2) }} {{ unit }}">
+      <a class="hbar{{ ' best' if best and q.id == best.id }}{{ ' chosen' if v }}" href="#quote-{{ q.id }}" title="{{ q.supplier.name if q.supplier else 'Shop not known' }}{% if q.option_label %} · {{ q.option_label }}{% endif %}: {{ t.total|cur_txt }} for {{ t.qty|num(2) }} {{ unit }}">
         <span class="k">{{ q.supplier.name if q.supplier else 'Shop not known' }}{% if q.option_label %} · {{ q.option_label }}{% endif %}</span>
         <span class="track"><i style="width:{{ [2, (100 * t.total / top)|round(1)]|max if top else 2 }}%"></i></span>
         <span class="n">{{ t.total|cur }}{% if v %} <span class="tag">{{ v.lines|length }} room{{ 's' if v.lines|length != 1 }}</span>{% endif %}{% if best and q.id == best.id %} <span class="tag low">lowest</span>{% endif %}</span></a>
@@ -162,7 +162,7 @@
         </div>
       </td>
       <td class="num price" data-l="Price {{ per }}">
-        {% if q.unit_price %}<span class="v">{% if show_usd(p) and q.currency == 'USD' %}${{ q.amount|money(2) }}{% else %}{{ q.unit_price|cur(2) }}{% endif %}</span>
+        {% if q.unit_price %}<span class="v">{% if show_usd(p) and q.currency == 'USD' %}${{ q.amount|money(2) }}{% else %}{{ q.unit_price|cur_main(2) }}{% endif %}</span>
           <span class="alt">{% if show_usd(p) %}{{ q.unit_price|cur_other(2) }}{% if q.currency != 'USD' %} as typed{% endif %}{% elif q.currency == 'USD' %}typed as ${{ q.amount|money(2) }}{% else %}${{ (q.unit_price / rate)|money(2) }}{% endif %}</span>
         {% else %}<span class="v none">No price yet</span>{% endif %}
       </td>
@@ -222,7 +222,7 @@
 <section class="bu-sec" id="buying-from">
   <div class="bu-sec-head">
     <div><h2>Buying from <span class="n">{{ views|length }}</span></h2><p class="small muted">Each shop supplies whole rooms. Their lines take its price, brand and lead time, on every page and document.</p></div>
-    {% if committed %}<div class="bu-sum"><span class="eyebrow">Committed</span><span class="v">{{ committed|cur }}</span><span class="small muted">{{ committed|cur_other }}</span></div>{% endif %}
+    {% if committed %}<div class="bu-sum"><span class="eyebrow">Committed</span><span class="v">{{ committed|cur_main }}</span><span class="small muted">{{ committed|cur_other }}</span></div>{% endif %}
   </div>
   {% for v in views %}{% set pu = v.purchase %}
   <article class="card pu" id="purchase-{{ pu.id }}">
