@@ -298,17 +298,20 @@ def _upload_of(db: Session, p: Project, key: str) -> QuotationUpload | None:
     return db.query(QuotationUpload).filter(QuotationUpload.project_id == p.id, QuotationUpload.state_key == key).first()
 
 
-def _stash(db: Session, p: Project, form, state: dict, key: str) -> str:
+def _stash(db: Session, p: Project, form, state: dict, key: str, draft: bool = True, currency: str = "") -> str:
     """Write the preview as posted (every choice, the document fields, the shop) into the state under a new key and
     point the upload row at it (made when the row is gone, so Drafts lists it). Returns the new key."""
     choices, head = _read_form(form, state["parsed"])
     state["choices"] = {str(n): ch for n, ch in choices.items()}
     state["head"] = head
+    if currency:  # the warning's USD / CNY buttons: the hidden document field still says what was assumed
+        head["currency"] = currency
     state["decisions"] = _read_decisions(form)
     sid = fint(form.get("supplier_id"))
     state["supplier_id"] = sid if sid and db.get(Supplier, sid) is not None else None
     state["new_supplier"] = dict(name=form.get("supplier_name", "")[:160], city=form.get("supplier_city", "")[:120]) if form.get("supplier_id") == "__new__" else None
-    state["draft_at"] = __import__("datetime").datetime.now().isoformat(timespec="minutes")
+    if draft:
+        state["draft_at"] = __import__("datetime").datetime.now().isoformat(timespec="minutes")
     # a new key each time: the served-file cache would otherwise hand back the old state
     new_key = re.sub(r"(\.d[0-9a-f]+)?\.json$", "", key) + f".d{uuid.uuid4().hex[:8]}.json"
     storage.save_blob(json.dumps(state, ensure_ascii=False).encode("utf-8"), new_key, "application/json")
@@ -318,7 +321,8 @@ def _stash(db: Session, p: Project, form, state: dict, key: str) -> str:
                              lines=len(state["parsed"]["lines"]), claude=bool(state.get("claude")))
         db.add(up)
     up.state_key = new_key
-    up.message = "draft"
+    if draft:
+        up.message = "draft"
     db.commit()
     storage.delete_image(key)
     return new_key
@@ -334,6 +338,24 @@ async def save_draft(request: Request, p: Project = Depends(get_project), db: Se
         return redirect(f"/p/{p.id}/quotations?err=" + urlquote("That preview is no longer here. Upload the file again."))
     _stash(db, p, form, state, key)
     return redirect(f"/p/{p.id}/quotations?ok=" + urlquote(f"Draft saved: {state['parsed'].get('title') or state['parsed'].get('filename', '')}. Open it from Drafts to carry on."))
+
+
+@router.post("/p/{project_id}/quotations/currency")
+async def set_currency(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """The sheet named no currency: the designer says which (a button in the warning, posting the whole preview form so
+    the choices made so far are kept). The lines' prices then read in that currency; nothing is posted."""
+    form = await request.form()
+    key = _state_key(p, form.get("key", ""))
+    state = _load_state(key) if key else None
+    if state is None:
+        return redirect(f"/p/{p.id}/quotations?err=" + urlquote("That preview is no longer here. Upload the file again."))
+    cur = form.get("set_currency", "")
+    if cur not in ("USD", "CNY"):
+        cur = state["parsed"].get("currency", "USD")
+    state["parsed"]["currency"] = cur
+    state["parsed"]["warnings"] = [w for w in state["parsed"].get("warnings") or [] if w != qz.CURRENCY_GUESS and "USD assumed" not in w]
+    new_key = _stash(db, p, form, state, key, draft=bool(state.get("draft_at")), currency=cur)
+    return redirect(f"/p/{p.id}/quotations/preview?key={urlquote(new_key)}")
 
 
 @router.post("/p/{project_id}/quotations/apply")

@@ -2047,6 +2047,15 @@ def flow(c):
     loc3,_=upload_quote("Tile quotation v3.xlsx", quote_sheet(), str(shop.id)); key3=_unq(loc3.split("key=")[1])
     r=c.post(f"/p/{pid_q}/quotations/cancel", data={"key":key3}, follow_redirects=False); assert r.headers["location"]==f"/p/{pid_q}/quotations"
     r=c.get(f"/p/{pid_q}/quotations/preview?key={key3}", follow_redirects=False); assert "no%20longer%20here" in r.headers["location"]
+    # a sheet naming no currency: the warning asks USD or CNY with a button each; the answer keeps the choices and reads the prices in it
+    nc=openpyxl.Workbook(); nws=nc.active; nws.append(["No","Item","Size(mm)","Qty","Unit","Unit Price","Amount"]); nws.append([1,"Down light","D90",150,"pcs",60,9000]); nws.append([2,"Garden light",None,10,"pcs",350,3500]); ncb=io.BytesIO(); nc.save(ncb)
+    locn,_=upload_quote("Lights no currency.xlsx", ncb.getvalue(), str(shop.id)); keyn=_unq(locn.split("key=")[1])
+    h=c.get(f"/p/{pid_q}/quotations/preview?key={keyn}").text; assert 'id="qi-curq"' in h and 'name="set_currency" value="CNY"' in h and f'formaction="/p/{pid_q}/quotations/currency"' in h
+    r=c.post(f"/p/{pid_q}/quotations/currency", data={"key":keyn,"set_currency":"CNY","currency":"USD","supplier_id":str(shop.id),"act_1":"skip","act_2":"skip","title":"Lights"}, follow_redirects=False)
+    assert r.status_code==303 and "/quotations/preview?key=" in r.headers["location"], r.headers.get("location"); keyn2=_unq(r.headers["location"].split("key=")[1])
+    h=c.get(r.headers["location"]).text; assert 'id="qi-curq"' not in h and "USD assumed" not in h and "A draft saved" not in h and re.search(r'<option selected>CNY</option>', h) and 'value="Lights"' in h
+    assert re.search(r'name="act_2"[^>]*>(?:(?!</select>).)*value="skip" selected', h, re.S) and _st.read_image(keyn) is None
+    c.post(f"/p/{pid_q}/quotations/cancel", data={"key":keyn2}, follow_redirects=False)
     r=c.post(f"/p/{pid_q}/quotations/{qd2_id}/delete", follow_redirects=False); assert "0%20quotes%20nothing%20was%20bought%20from" in r.headers["location"], r.headers["location"]  # the second document corrected the first's quotes: they stay with it
     db=SessionLocal(); assert db.get(_Qt, q1.id) is not None and db.get(_Qt, q2.id) is not None and db.get(_Qt, q4.id) is not None; db.close()
     # the first document still holds q2 and q4: deleting it takes them (q1 is bought from)

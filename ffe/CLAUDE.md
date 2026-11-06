@@ -975,6 +975,8 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   header, line notes in `details.qi-flags`. Preview: sure lines accepted on load (not on a draft), `.qi-decs` under red
   notes, `#qi-diffs` folded, `.qi-views` hidden (By product lives on step 3), `#sim-sum` / `#sim-warn` + folded
   `details.qi-s3more`, `details.qi-docmore`. Hidden flex/pill elements need their own `[hidden]{display:none!important}`.
+  A sheet naming no currency (`quotations.CURRENCY_GUESS` warning) gets CNY / USD buttons in the warning (`#qi-curq`, `form="qi-form"`
+  `formaction` → `POST /quotations/currency`: `_stash(..., draft=False, currency=)` sets `parsed.currency` and `head.currency`).
 - **Speed, round 2.** Starts skip the schema checks unless `main.schema_fingerprint()` changed (models' tables and columns,
   `COLUMN_MIGRATIONS`, `DATA_MIGRATIONS`, the source of `main.full_start`; mark `start:<hash>` in `schema_marks`): **a new
   one-time upgrade must be called from `full_start()`**, never from `startup()`. `services.project_cards` (grouped queries)
