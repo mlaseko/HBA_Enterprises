@@ -137,6 +137,21 @@ Pushing new commits to GitHub and re-deploying updates the app. The database and
 * What remains: Replit Autoscale starts the app on the first visit after a quiet spell and Neon wakes its compute;
   an always-on (Reserved VM) deployment and a longer Neon autosuspend remove those seconds.
 
+## Items deleted by mistake
+
+Deleting an item removes it for good (its product, the shops' quotes and the quotation sheets stay; the photo files go
+with a product's last line). To bring items back, make an earlier copy of the database and let `tools/restore_items.py`
+copy the missing lines back:
+
+1. Neon console → the project → **Branches** → **Create branch**, from a **point in time** just before the delete
+   (the free plan keeps only a few hours of history, so do it soon). Copy the branch's connection string.
+2. Replit → **Tools → Secrets**: add `RESTORE_URL` = that connection string.
+3. Replit **Shell**, in `ffe/`: `python tools/restore_items.py --project Kinondoni --like tile` lists what it would bring
+   back; add `--apply` to do it. Lines come back with their ids, rooms, quantities, codes, status, the shop chosen and the
+   draft order when that shop's quote still exists (else To buy), dots on the plans, and the photos whose files are still
+   there (else the quotation line's or the shop's picture). Nothing else changes.
+4. Delete the Neon branch and the `RESTORE_URL` secret afterwards.
+
 ## Notes for use in China
 
 * No Google services are used anywhere (fonts, maps, auth, storage). Everything is served by the app.

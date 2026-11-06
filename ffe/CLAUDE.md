@@ -160,6 +160,8 @@ app/static/app.js      photo compression (also exposed as window.compressPhoto),
 app/static/plan.js     Plan page + client plan: zoom, tap-a-room panel (fetches plan/_room.html), item dots (place / drag /
                        locate / remove), draw / move / resize room boxes in mark mode; reads data-base / data-room-base /
                        data-readonly from #plan so the same script serves /p/<id>/plan and /c/<token>
+tools/restore_items.py brings back items deleted by mistake from an earlier copy of the database (RESTORE_URL: a Neon
+                       branch from a point in time): rows with their ids, purchases / draft orders, photos still stored, pins; README
 tests/test_flow.py     end-to-end test with TestClient + SQLite (login, import, items, photos, links, PDFs, guide + help drawer)
 tools/help_shots.py    regenerates the guide's screenshots (app/static/help/*.webp + shots.json) from a seeded fictional demo
 tools/help_shots.js    project: SQLite in a temp dir, uvicorn on 8777, Playwright through the pages, pypdfium2 for the PDFs
