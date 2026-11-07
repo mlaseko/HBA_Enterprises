@@ -323,7 +323,8 @@ lines are locked.
   them and refuses to post with none) to `POST /quotations/<q>/choose` → `quotations.choose_lines()` per touched product (the lines made options first through `set_options`, then
   `buying.choose_options` with the option quotes; a room with nothing of this sheet ticked keeps another sheet's option)
   + `_placed` (the shop's draft order) + `settle`. **Adjust this quotation** (`#advanced`) holds What it comes to now
-  (`#now`) and Products and variants (`#variants`) as tabs; Not quoted (`#gaps`) is a folded `details`. The choose and
+  (`#now`: the products whose amount at today's design differs from the sheet first, biggest first, with a +/− pill and a
+  Show only the ones that differ box) and Products and variants (`#variants`) as tabs; Not quoted (`#gaps`) is a folded `details`. The choose and
   options routes redirect with `at=choices`, and the page then shows the result inside the card (where `#choices` lands)
   instead of at the top. The options buttons post `opt=<product>:<0|1>` (the old `product` + `on` still work). The cells'
   checkboxes cover the whole cell (a hidden input with `pointer-events:none` missed taps on iPhone Safari). (`.qa-tab` / `.qa-panel`; `#now` or `#variants` in the address
