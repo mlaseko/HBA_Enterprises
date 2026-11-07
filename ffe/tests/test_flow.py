@@ -10,6 +10,8 @@ os.environ["ANTHROPIC_API_KEY"]=""  # start with AI off regardless of workspace 
 os.environ["PLAN_MAX_PX"]="2400"  # PDF pages rendered at 2400 px rather than 3200: the same rules, half the pixels
 from fastapi.testclient import TestClient
 from app.main import app
+from app import lists as _lists_mod
+_lists_mod.ALLOWANCE["Tiles"] = 0.10  # the suite tests the allowance arithmetic with tiles at 10 %; the shipped default is none (see the last section)
 from PIL import Image
 import openpyxl
 
@@ -2124,6 +2126,11 @@ def flow(c):
     class _RmP: rooms=[_Rm(1,"GF-LIV"), _Rm(2,"BQ"), _Rm(3,"BQ-BA")]
     assert _qz.rooms_by_code("Living Room GF-LIV", _RmP)==[1] and _qz.rooms_by_code("Boys' Quarter BQ", _RmP)==[2] and _qz.rooms_by_code("BQ-BA", _RmP)==[3] and _qz.rooms_by_code("gf-liv; bq-ba", _RmP)==[1,3] and _qz.rooms_by_code("Living room", _RmP)==[]
     assert _qz.room_hints({"place":"Boys' Quarter BQ","name":"Floor tile","section":"Staff quarters","detail":""}, _RmP)==[2]
+    # a product of another kind than the line names (a tile line onto a window) is never trusted, even when remembered
+    from types import SimpleNamespace as _NS
+    _win=_NS(name="Sliding window", category="Windows & doors"); _tile=_NS(name="Bathroom floor tile", category="Tiles"); _cs=[_win, _tile]
+    assert _qz.kind_clash({"name":"Porcelain tile","detail":"Surface: Matte"}, _win, _cs)=="Tiles" and _qz.kind_clash({"name":"Porcelain tile","detail":""}, _tile, _cs)==""
+    assert _qz.kind_clash({"name":"Window glass","detail":""}, _win, _cs)=="" and _qz.kind_clash({"name":"Item 4","detail":""}, _win, _cs)==""  # no kind named: nothing to say
     assert _qz.amt(_pj, "CNY", 575)=="CNY 575 ($82.14)" and _qz.amt(_pj, "USD", 5)=="USD 5"
     r=c.post(f"/p/{pid_q}/quotations/{qd2_id}/delete", follow_redirects=False); assert "0%20quotes%20nothing%20was%20bought%20from" in r.headers["location"], r.headers["location"]  # the second document corrected the first's quotes: they stay with it
     db=SessionLocal(); assert db.get(_Qt, q1.id) is not None and db.get(_Qt, q2.id) is not None and db.get(_Qt, q4.id) is not None; db.close()
@@ -2549,6 +2556,15 @@ def flow(c):
     db=SessionLocal(); _its=[db.get(_OI, i) for i in _open_ids]; assert all(i.purchase is not None and i.purchase.quote_id==_qids[i.product_id] and i.purchase.order is not None and not i.purchase.order.confirmed for i in _its), [(i.code, i.purchase_id) for i in _its]; db.close()
     h=c.get(f"/p/{pid_q}/quotations/{_qo}").text; assert f'/quotations/{_qo}/order-all"' not in h and "Draft order" in h and "Open the order" in h  # the button goes (the help drawer still names it)
     r=c.post(f"/p/{pid_q}/quotations/{_qo}/order-all", follow_redirects=False); assert "Nothing%20to%20order" in r.headers["location"]
+    # no allowance by default: a new project's tiles carry none, and the one-time upgrade sets every allowance to 0
+    from app import lists as _ls
+    from app.models import SchemaMark as _SMk, ListEntry as _LE
+    _ls.ALLOWANCE.pop("Tiles", None)
+    r=c.post("/projects/new", data={"client_name":"NA","name":"No allowance","rate":"7"}, follow_redirects=False); _pna=int(r.headers["location"].split("/")[-1])
+    db=SessionLocal(); assert _ls.allowance(db.get(_P,_pna), "Tiles")==0; db.close()
+    _ls.ALLOWANCE["Tiles"]=0.10
+    db=SessionLocal(); assert db.query(_LE).filter(_LE.kind=="category", _LE.num>0).count()>0; db.query(_SMk).filter(_SMk.key==_ls.NO_ALLOWANCE_MARK).delete(); db.commit()
+    assert _ls.drop_allowances(db)>0 and db.query(_LE).filter(_LE.kind=="category", _LE.num>0).count()==0 and _ls.drop_allowances(db)==0; db.close()  # once only
     print("quotation amendments ok")
 
 

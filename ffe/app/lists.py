@@ -15,7 +15,7 @@ from .models import Item, ListEntry, Payment, Project, SchemaMark, Shipment
 
 # the standard lists a new project starts from
 CATEGORIES = list(config.CATEGORIES)
-ALLOWANCE = {"Tiles": 0.10}  # extra on top of the rooms' quantities; every other category 0
+ALLOWANCE: dict[str, float] = {}  # extra on top of the rooms' quantities by category: none by default (orders are the rooms' quantities, in whole boxes); the Lists page can still set one
 UNITS = list(config.UNITS)
 WHOLE_UNITS = {"pcs", "set", "box", "roll"}
 PAYMENT_KINDS = list(config.PAYMENT_KINDS)
@@ -207,6 +207,32 @@ def upgrade(db: Session) -> int:
             seed(db, p)
         db.commit()
         return len(projects)
+    except IntegrityError:
+        db.rollback()
+        return 0
+
+
+NO_ALLOWANCE_MARK = "allowance.none.v1"
+
+
+def drop_allowances(db: Session) -> int:
+    """Once: the 10 % added to tiles (and any other category or product allowance) goes, so every order is the rooms'
+    quantities in whole boxes. Later allowances typed on the Lists page are the studio's own and stay."""
+    from .models import Product
+    if db.get(SchemaMark, NO_ALLOWANCE_MARK) is not None:
+        return 0
+    try:
+        db.add(SchemaMark(key=NO_ALLOWANCE_MARK))
+        db.flush()
+        n = 0
+        for e in db.query(ListEntry).filter(ListEntry.kind == "category", ListEntry.num > 0).all():
+            e.num = 0.0
+            n += 1
+        for pr in db.query(Product).filter(Product.allowance.isnot(None), Product.allowance > 0).all():
+            pr.allowance = None
+            n += 1
+        db.commit()
+        return n
     except IntegrityError:
         db.rollback()
         return 0

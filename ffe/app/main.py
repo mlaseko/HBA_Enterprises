@@ -127,6 +127,8 @@ def full_start():
         buying.link_products(db)  # once: every room line linked to its product by id (Item.product_id)
     with SessionLocal() as db:
         lists.upgrade(db)  # once: every project gets its own lists (categories, units, payment types, containers)
+    with SessionLocal() as db:
+        lists.drop_allowances(db)  # once: no allowance on top of the rooms' quantities (the 10 % on tiles goes); orders are the rooms' quantities in whole boxes
 
 
 def prepare_photos(db: Session, limit: int = 60) -> tuple[int, int]:

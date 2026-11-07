@@ -731,7 +731,8 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   identity. `buying.py` + `routers/buy.py` + `templates/buying/` (list.html, product.html with `_parts.html` macros
   `line_picks` / `quote_fields`, schedule.html): products by stage (To source, Quoting, Part sourced, Sourced), quotes
   recorded on the spot (new shop by name → `find_supplier`, photo via `storage.save_photo` under `p<id>/quotes`), purchases
-  for whole rooms (split between shops room by room), what to order (allowance 10 % for Tiles by default, packs from the
+  for whole rooms (split between shops room by room), what to order (no allowance by default since `lists.drop_allowances` (SchemaMark "allowance.none.v1", once from `full_start`)
+  set every category's and product's to 0: an allowance is only one typed on the Lists page or a product; packs from the
   quote or the product), the Purchase schedule (category sections, CNY/USD, browser print). Nav: **Buying** after Items in
   the sidebar and in the phone's bottom bar (Packing moved to More). The client schedule and link print no price for a line
   without a shop; the export keeps Price / Supplier / Lead time as grey columns the import ignores (with a warning). One-time
@@ -935,6 +936,10 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   Finding a product on a line: `.qi-find` search box (words, room code, our code: `data-s` on the options = codes, rooms, spec),
   chips of the hits; `data-same` (item number + unit, else name + size + unit) drives the "Also for L…" chip. Memory: `remember()`
   writes the shop's row and a supplier-less row by wording (`memory()` returns both, the shop's first; shortlist 0.9 / 0.85).
+  `kind_clash(line, c, cands)`: the category the line's own words name ("Porcelain tile" → Tiles, from the products' categories)
+  when the product is of another and shares no name word; `shortlist` never returns a clashing remembered match at 0.97 and
+  caps any clashing entry at 0.3, and `suggest` caps Claude's / the memory's clashing pick at 0.3 (never auto-accepted): one
+  wrong match remembered once (a tile item number onto a window) used to come back sure on every later sheet.
 
 - **Usability, phase 1.** Users found the app hard to follow. The project's 14 menu entries became five places (see
   Navigation above), Home (`projects/dashboard.html`) became a to-do list (`routers/buy.tracker_figures` = the Tracker's

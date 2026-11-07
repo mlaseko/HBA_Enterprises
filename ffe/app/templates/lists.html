@@ -55,7 +55,7 @@
     <span class="ls-pct"><input class="in" type="number" name="allowance" value="0" min="0" max="500" step="0.5" inputmode="decimal" aria-label="Extra to order, %"><span class="small muted">% extra</span></span>
     <button class="btn sm"><svg class="ic"><use href="#i-plus"/></svg>Add category</button>
   </form>
-  <p class="small muted mt mb-0"><b>Extra to order</b> is added on top of the rooms' quantities on Buying (10 % for tiles, for cuts and breakage); a product can still set its own. Which plan sheet prints before a category is set for the whole studio, by category name, under <a href="/settings#sheets">Studio settings → Plan sheet types</a>.</p>
+  <p class="small muted mt mb-0"><b>Extra to order</b> is added on top of the rooms' quantities on Buying (none by default; set one here if a category needs extra for cuts and breakage); a product can still set its own. Which plan sheet prints before a category is set for the whole studio, by category name, under <a href="/settings#sheets">Studio settings → Plan sheet types</a>.</p>
 </section>
 
 {% set units_ = entries['unit'] %}{% set unit_names = units_|map(attribute='name')|list %}
