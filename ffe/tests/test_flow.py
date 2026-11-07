@@ -1749,6 +1749,29 @@ def flow(c):
     _own=_buy_new("Pendant A", "new"); assert _own!=ob  # an order of its own, though Shop B has a draft
     assert _buy_new("Pendant B", str(ob))==ob and _buy_new("Pendant C", str(_own))==_own  # added to the draft chosen
     assert _buy_new("Pendant D", None)==max(ob, _own, key=lambda i: SessionLocal().get(_O,i).number)  # no choice: the shop's latest draft, as before
+    # Fit the budget: every product's cost in one place; a room dropped is Not buying (off its order, out of every total), a
+    # quantity changed, a cheaper shop chosen, a dropped room brought back; paid / shipped / received lines are locked
+    from app import budget as _bg
+    from app.config import NOT_BUYING as _NB
+    h=c.get(f"/p/{pid_o}/buying/budget").text; assert "Fit the budget" in h and 'id="bg-form"' in h and 'class="bg-row' in h and '/buying/budget" class="on"' in h
+    db=SessionLocal(); _pp=db.get(_P,pid_o); _pl=_bg.plan(_pp); _tr=_od.tracker(_pp, _bz.Ledger(_pp), _bz.groups(_pp), _od.views(_pp, _bz.Ledger(_pp)))
+    assert abs(_pl["total"]-_tr["estimated"])<0.01, (_pl["total"], _tr["estimated"])  # the page's "Now" is the Tracker's estimate
+    _pa=db.query(Item).filter(Item.project_id==pid_o, Item.name=="Pendant A").one(); _pb=db.query(Item).filter(Item.project_id==pid_o, Item.name=="Pendant B").one(); _pa_id, _pb_id, _pa_pu=_pa.id, _pb.id, _pa.purchase_id; db.close()
+    r=c.post(f"/p/{pid_o}/buying/budget", data={f"drop_{_pa_id}":"1", f"qty_{_pb_id}":"5"}, follow_redirects=False); assert "set%20to%20Not%20buying" in r.headers["location"] and "1%20quantity%20changed" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); _x=db.get(Item,_pa_id); assert _x.status==_NB and _x.purchase_id is None and db.get(_Pu,_pa_pu) is None and db.get(Item,_pb_id).qty==5
+    _pp=db.get(_P,pid_o); assert _pa_id not in {i.id for g in _bz.groups(_pp) for i in g.lines} and _bg.plan(_pp)["total"]<_pl["total"]+5*10; db.close()
+    assert "Not buying" in c.get(f"/p/{pid_o}/buying/budget").text and f'name="restore_{_pa_id}"' in c.get(f"/p/{pid_o}/buying/budget").text
+    r=c.post(f"/p/{pid_o}/buying/budget", data={f"restore_{_pa_id}":"1"}, follow_redirects=False); assert "brought%20back" in r.headers["location"]
+    db=SessionLocal(); assert db.get(Item,_pa_id).status=="To buy"; db.close()
+    # a cheaper shop for the product: the suggestion offers it and switching buys its rooms there
+    db=SessionLocal(); _pr=db.get(_Pr, db.get(Item,_pb_id).product_id); _sa=_bz.find_supplier(db, None, "Cheap Lights"); _qc=_Q(project_id=pid_o, product=_pr, supplier_id=_sa.id, supplier=_sa); _bz.set_quote(_qc, db.get(_P,pid_o), supplier=_sa, amount=4, currency="CNY"); db.add(_qc); db.commit(); _qcid, _prid=_qc.id, _pr.id; db.close()
+    db=SessionLocal(); _sg=[x for x in _bg.plan(db.get(_P,pid_o))["suggestions"] if x["kind"]=="cheaper" and x["pid"]==_prid]; db.close(); assert _sg and _sg[0]["quote"]==_qcid and _sg[0]["saves"]>0, _sg
+    r=c.post(f"/p/{pid_o}/buying/budget", data={f"switch_{_prid}":str(_qcid)}, follow_redirects=False); assert "cheaper%20shop" in r.headers["location"]
+    db=SessionLocal(); assert db.get(Item,_pb_id).purchase.quote_id==_qcid and db.get(Item,_pb_id).unit_price==4; db.close()
+    # a locked line (paid, shipped or received) is never cut
+    db=SessionLocal(); _lk=db.get(Item,_pb_id); _lk.status="Shipped"; db.commit(); db.close()
+    r=c.post(f"/p/{pid_o}/buying/budget", data={f"drop_{_pb_id}":"1"}, follow_redirects=False); assert "left%20as%20it%20was" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); assert db.get(Item,_pb_id).status=="Shipped" and db.get(Item,_pb_id).purchase_id; db.close()
     print("orders ok")
     # ---- Shipping: boxes to the warehouse, into a shipment, to site; the rooms follow their boxes ----
     from app import shipping as _sh

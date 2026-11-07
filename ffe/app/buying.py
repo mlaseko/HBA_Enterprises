@@ -30,6 +30,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, object_session
 
 from . import config, drawings, lists, storage
+from .config import NOT_BUYING
 from .models import Item, ItemPrice, Payment, Carton, Order, Product, Project, Purchase, Quote, SchemaMark, Supplier, SupplierLink, QuotationLine
 from .services import content_key, product_key, sort_items
 
@@ -331,6 +332,8 @@ def groups(p: Project, products: dict | None = None, ledger: Ledger | None = Non
         ledger = Ledger(p)
     by_key: dict[str, list[Item]] = {}
     for i in sort_items(p.live_items, p):
+        if i.status == NOT_BUYING:  # dropped to fit the budget: out of buying, orders and every estimate until brought back
+            continue
         by_key.setdefault(product_key(i) or f"#{i.id}", []).append(i)
     return [Group(k, lines, products.get(k), ledger) for k, lines in by_key.items()]
 

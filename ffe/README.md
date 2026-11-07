@@ -277,6 +277,19 @@ small grey type (`.usd`, from the `cur` / `cur_num` filters, `cur_range`, and `u
 amounts); big figures keep one currency with the other on the line under them. Messages and hover titles read
 "¥8,762 ($1,234)". The shop's purchase order and WeChat text stay in CNY.
 
+## Fit the budget
+
+**Sourcing → Budget** (`/p/<id>/buying/budget`, `app/budget.py`, `templates/buying/budget.html`) brings the total back
+within the project's budget from one page. "Now" is the Tracker's estimate: purchases as the orders count them, plus the
+estimate quote for rooms with no shop. **Where to cut** lists the savings, biggest first: a cheaper shop that already
+quoted, lines marked optional, quantities typed by hand above the rooms' need; **Try it** sets the change on the page.
+Every product, the dearest first, opens to change a room's quantity, drop a room, or buy its open rooms from another
+shop; the page's script recomputes the totals as you go and nothing is saved until **Apply changes** (`POST` the same
+URL: `qty_<line>`, `drop_<line>`, `switch_<product>`, `reset_<purchase>`, `restore_<line>`). A dropped room gets the
+status **Not buying** (`config.NOT_BUYING`): it leaves its purchase and order, and `buying.groups` leaves it out of
+buying, the Tracker and every estimate; ticking it under Not buying brings it back as To buy. Paid, shipped and received
+lines are locked.
+
 ## Supplier quotations
 
 - Tests: `python tests/test_flow.py` runs the whole walk (prints ALL OK); `python tests/test_flow.py quotations` runs

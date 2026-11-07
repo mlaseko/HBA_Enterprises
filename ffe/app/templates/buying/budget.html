@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% from "buying/_tabs.html" import tabs %}
+{% block title %}Budget · Sourcing · {{ p.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/buying">Sourcing</a></div>
+    <h1>Fit the budget</h1>
+    <p class="sub">Try cuts across every order and shop here; nothing changes until you press Apply.</p>
+  </div>
+</div>
+{{ tabs(p, 'budget') }}
+{% if ok %}<div class="alert info">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert err">{{ err }}</div>{% endif %}
+
+<form method="post" action="/p/{{ p.id }}/buying/budget" id="bg-form" data-confirm="Apply these changes? Quantities, shops and the rooms set to Not buying change on their orders at once; confirmed orders that change say so until the shop agrees." data-confirm-ok="Apply">
+
+<section class="card bg-top" id="bg-top">
+  <div class="bg-figs">
+    <div><span class="l">Budget</span><span class="v">{% if pl.budget %}{{ pl.budget|cur_main }}{% else %}—{% endif %}</span><span class="s">{% if pl.budget %}{{ pl.budget|cur_other }}{% else %}<a href="/p/{{ p.id }}/edit">set it in Project settings</a>{% endif %}</span></div>
+    <div><span class="l">Now</span><span class="v">{{ pl.total|cur_main }}</span><span class="s">{{ pl.total|cur_other }} · orders, shops chosen and estimates</span></div>
+    <div class="{{ 'over' if pl.budget and pl.gap > 0 else 'under' }}"><span class="l">{{ 'Over by' if not pl.budget or pl.gap > 0 else 'Under by' }}</span><span class="v">{% if pl.budget %}{{ (pl.gap|abs)|cur_main }}{% else %}—{% endif %}</span><span class="s">{% if pl.budget %}{{ (pl.gap|abs)|cur_other }}{% endif %}</span></div>
+    <div class="after"><span class="l">After your changes</span><span class="v" id="bg-after">{{ pl.total|cur_main }}</span><span class="s" id="bg-after-d">{{ pl.total|cur_other }} · nothing tried yet</span></div>
+  </div>
+  {% if pl.budget %}<div class="bg-bar" role="img" aria-label="What everything comes to against the budget"><i id="bg-bar-now" style="width:{{ [100, (100 * pl.total / ([pl.total, pl.budget]|max))|round(1)]|min }}%"></i><b style="left:{{ (100 * pl.budget / ([pl.total, pl.budget]|max))|round(1) }}%" title="Budget"></b></div>{% endif %}
+</section>
+
+{% if pl.suggestions %}
+<section class="card bg-sug" id="suggestions">
+  <h2>Where to cut <span class="small muted">biggest saving first</span></h2>
+  <ul class="bg-sug-list">
+    {% for s in pl.suggestions[:12] %}
+    <li data-sug="{{ loop.index0 }}"><span class="pill {{ 'gold' if s.kind == 'drop' else ('green' if s.kind == 'cheaper' else '') }}">{{ {'cheaper': 'Cheaper shop', 'drop': 'Optional', 'auto': 'Over the need'}[s.kind] }}</span>
+      <span class="t">{{ s.text }}</span><span class="n">saves {{ s.saves|cur }}</span>
+      <button type="button" class="btn sm sec bg-try">Try it</button></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="card bg-prods" id="products">
+  <div class="row between bg-head"><h2>Every product <span class="small muted">{{ pl.rows|length }}, the dearest first (paid or shipped ones last)</span></h2>
+    <div class="row bg-filters"><input class="in sm" type="search" id="bg-q" placeholder="Search a product, room or shop" aria-label="Search"><select class="in sm" id="bg-cat" aria-label="Category"><option value="">All categories</option>{% for c in pl.rows|map(attribute='category')|unique|sort %}<option>{{ c }}</option>{% endfor %}</select></div></div>
+  <div class="bg-list">
+  {% for r in pl.rows %}
+  <details class="bg-row{{ ' locked' if r.locked }}" data-pid="{{ r.pid }}" data-cat="{{ r.category }}" data-s="{{ (r.name ~ ' ' ~ r.size ~ ' ' ~ r.finish ~ ' ' ~ r.category ~ ' ' ~ (r.lines|map(attribute='code')|join(' ')) ~ ' ' ~ (r.lines|map(attribute='room')|join(' ')) ~ ' ' ~ (r.buys.values()|map(attribute='shop')|join(' ')))|lower }}">
+    <summary>
+      <span class="pic">{% if r.thumb %}<img src="/media/{{ r.thumb }}" alt="" loading="lazy" decoding="async">{% endif %}</span>
+      <span class="nm"><b>{{ r.name }}</b><span class="small muted">{{ [r.size, r.finish]|select|join(' · ') }}{% if r.size or r.finish %} · {% endif %}{{ r.lines|length }} room{{ 's' if r.lines|length != 1 }} · {{ r.buys.values()|map(attribute='shop')|join(', ') }}</span></span>
+      <span class="sh"><i style="width:{{ [100, (100 * r.total / ([pl.total, 1]|max) * 4)|round(1)]|min }}%"></i></span>
+      <span class="tot"><b class="bg-tot" data-was="{{ r.total }}">{{ r.total|cur }}</b>{% if r.locked %}<span class="small muted">paid or on its way</span>{% endif %}</span>
+    </summary>
+    <div class="bg-edit">
+      {% if r.quotes|length > 1 and not r.locked %}
+      <label class="bg-switch"><span>Buy its open rooms from</span><select class="in sm" name="switch_{{ r.pid }}">
+        <option value="">the shop chosen now</option>
+        {% for q in r.quotes|sort(attribute='price') %}<option value="{{ q.id }}">{{ q.shop }} · {{ q.price|cur_txt(2) }} / {{ r.unit }}</option>{% endfor %}
+      </select></label>{% endif %}
+      {% for k, kv in r.buys.items() %}{% if kv.override is not none and k != 'est' %}
+      <label class="check bg-reset"><input type="checkbox" name="reset_{{ k }}" value="1" data-key="{{ k }}"><span>Order what the rooms need from {{ kv.shop }}, not the {{ kv.override|num(2) }} {{ r.unit }} typed by hand</span></label>
+      {% endif %}{% endfor %}
+      <div class="tbl"><table class="bg-lines"><thead><tr><th>Room</th><th>Shop</th><th class="num">Quantity</th><th class="num">Drop</th></tr></thead><tbody>
+      {% for l in r.lines %}
+      <tr data-line="{{ l.id }}" class="{{ 'locked' if l.locked }}">
+        <td><b>{{ l.code }}</b> <span class="small muted">{{ l.room }}</span>{% if l.optional %} <span class="pill gold">optional</span>{% endif %}</td>
+        <td class="small">{{ r.buys[l.key].shop }}</td>
+        <td class="num">{% if l.locked %}{{ l.qty|num(2) }} {{ l.unit }} <span class="small muted">{{ l.status|status_label }}</span>{% else %}<input class="in sm bg-qty" type="number" step="any" min="0" inputmode="decimal" name="qty_{{ l.id }}" value="{{ l.qty|plain }}" data-was="{{ l.qty|plain }}" aria-label="Quantity in {{ l.code }}"> {{ l.unit }}{% endif %}</td>
+        <td class="num">{% if not l.locked %}<label class="bg-drop" title="Not buying"><input type="checkbox" name="drop_{{ l.id }}" value="1" aria-label="Drop {{ l.code }}"></label>{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody></table></div>
+      {% if not r.locked and r.lines|length > 1 %}<button type="button" class="btn sm ghost bg-dropall">Drop it in every room</button>{% endif %}
+    </div>
+  </details>
+  {% else %}
+  <div class="empty">No products to buy yet.</div>
+  {% endfor %}
+  </div>
+</section>
+
+{% if pl.dropped %}
+<section class="card bg-dropped" id="not-buying">
+  <h2>Not buying <span class="n">{{ pl.dropped|length }}</span></h2>
+  <p class="small muted">Dropped to fit the budget: off the orders and out of every total. Tick one to bring it back.</p>
+  <div class="bg-picks">{% for i in pl.dropped %}<label class="check"><input type="checkbox" name="restore_{{ i.id }}" value="1"><span><b>{{ i.code }}</b> {{ i.name }}{% if i.size %} · {{ i.size }}{% endif %} <span class="muted small">{{ i.qty|num(2) }} {{ i.unit }}</span></span></label>{% endfor %}</div>
+</section>
+{% endif %}
+
+<div class="bg-bar-apply" id="bg-apply"><span class="small" id="bg-n">Try changes above: the totals follow.</span><button class="btn accent" id="bg-go" disabled><svg class="ic"><use href="#i-check"/></svg>Apply changes</button></div>
+</form>
+<script type="application/json" id="bg-data">{{ data|tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+  var D=JSON.parse(document.getElementById('bg-data').textContent), form=document.getElementById('bg-form'), rows={};
+  D.rows.forEach(function(r){ rows[r.pid]=r; });
+  var SUG={{ pl.suggestions[:12]|tojson }};
+  function fmt(v){ var cny=Math.round(v), usd=Math.round(v/(D.rate||1)); return D.usd?('$'+usd.toLocaleString()):('¥'+cny.toLocaleString()+' ($'+usd.toLocaleString()+')'); }
+  function main(v){ return D.usd?('$'+Math.round(v/(D.rate||1)).toLocaleString()):('¥'+Math.round(v).toLocaleString()); }
+  function other(v){ return D.usd?('¥'+Math.round(v).toLocaleString()):('$'+Math.round(v/(D.rate||1)).toLocaleString()); }
+  function oq(need, allow, pack, whole, over){ var base=(over!==null&&over!==undefined)?over:need*(1+(allow||0)); if(pack>0) return Math.ceil(Math.round(base/pack*1e6)/1e6)*pack; if(whole) return Math.ceil(Math.round(base*1e6)/1e6); return Math.round(base*100)/100; }
+  function rowTotal(r){
+    var box=form.querySelector('.bg-row[data-pid="'+r.pid+'"]'), sw=box&&box.querySelector('[name="switch_'+r.pid+'"]'), q=sw&&sw.value?r.quotes.filter(function(x){ return String(x.id)===sw.value; })[0]:null;
+    var groups={}, changed=false;
+    r.lines.forEach(function(l){
+      var drop=box&&box.querySelector('[name="drop_'+l.id+'"]'), inp=box&&box.querySelector('[name="qty_'+l.id+'"]');
+      var qty=inp?(parseFloat(inp.value)||0):l.qty; if(inp&&Math.abs(qty-l.qty)>0.0005) changed=true;
+      if(drop&&drop.checked){ changed=true; return; }
+      var k=l.key; if(q&&!l.locked&&(k==='est'||r.buys[k].quote!==q.id)){ k='q'+q.id; changed=true; }
+      (groups[k]=groups[k]||{need:0,n:0}).need+=qty; groups[k].n++;
+    });
+    var tot=0;
+    Object.keys(groups).forEach(function(k){
+      var kv=k.charAt(0)==='q'?{price:q.price,pack:q.pack,override:null}:r.buys[k], over=kv.override;
+      var rs=box&&box.querySelector('[name="reset_'+k+'"]'); if(rs&&rs.checked){ over=null; changed=true; }
+      var orig=r.lines.filter(function(l){ return l.key===k; }).length; if(over!==null&&over!==undefined&&(groups[k].n!==orig)) over=null;
+      tot+=oq(groups[k].need, r.allow, kv.pack||0, r.whole, over)*(kv.price||0);
+    });
+    return {total:Math.round(tot*100)/100, changed:changed};
+  }
+  function update(){
+    var all=0, was=0, n=0;
+    D.rows.forEach(function(r){ var t=rowTotal(r), el=form.querySelector('.bg-row[data-pid="'+r.pid+'"] .bg-tot'); all+=t.total; was+=r.total; if(t.changed){ n++; } if(el){ el.textContent=fmt(t.total); el.classList.toggle('cut', t.total<r.total-0.5); el.classList.toggle('up', t.total>r.total+0.5); } });
+    var restore=form.querySelectorAll('[name^="restore_"]:checked').length; n+=restore;
+    var saved=was-all;
+    document.getElementById('bg-after').textContent=main(all);
+    var d=document.getElementById('bg-after-d');
+    d.textContent=other(all)+' · '+(n?((saved>=0?'saves ':'adds ')+fmt(Math.abs(saved))+(D.budget?(all>D.budget?' · still '+fmt(all-D.budget)+' over':' · within the budget, '+fmt(D.budget-all)+' to spare'):'')+(restore?' · '+restore+' brought back (priced when a shop is chosen)':'')):'nothing tried yet');
+    document.getElementById('bg-n').textContent=n?(n+' product'+(n===1?'':'s')+' changed · '+(saved>=0?'saves ':'adds ')+fmt(Math.abs(saved))):'Try changes above: the totals follow.';
+    document.getElementById('bg-go').disabled=!n;
+    document.getElementById('bg-apply').classList.toggle('on', !!n);
+  }
+  form.addEventListener('input', update); form.addEventListener('change', update);
+  form.querySelectorAll('.bg-dropall').forEach(function(b){ b.addEventListener('click', function(){ var box=b.closest('.bg-row'), boxes=box.querySelectorAll('[name^="drop_"]'), on=Array.prototype.some.call(boxes,function(x){ return !x.checked; }); boxes.forEach(function(x){ x.checked=on; }); b.textContent=on?'Keep it in every room':'Drop it in every room'; update(); }); });
+  form.querySelectorAll('.bg-try').forEach(function(b){ b.addEventListener('click', function(){
+    var s=SUG[parseInt(b.closest('li').dataset.sug,10)], box=form.querySelector('.bg-row[data-pid="'+s.pid+'"]'); if(!box) return;
+    if(s.kind==='cheaper'){ var sw=box.querySelector('[name="switch_'+s.pid+'"]'); if(sw) sw.value=String(s.quote); }
+    if(s.kind==='drop'){ s.lines.forEach(function(id){ var x=box.querySelector('[name="drop_'+id+'"]'); if(x) x.checked=true; }); }
+    if(s.kind==='auto'){ var x=box.querySelector('[name="reset_'+s.key+'"]'); if(x) x.checked=true; }
+    box.open=true; b.textContent='Tried'; b.disabled=true; update();
+  }); });
+  var q=document.getElementById('bg-q'), cat=document.getElementById('bg-cat');
+  function filt(){ var w=(q.value||'').toLowerCase().split(/\s+/).filter(Boolean), c=cat.value; form.querySelectorAll('.bg-row').forEach(function(r){ var ok=(!c||r.dataset.cat===c)&&w.every(function(x){ return r.dataset.s.indexOf(x)>=0; }); r.hidden=!ok; }); }
+  q.addEventListener('input', filt); cat.addEventListener('change', filt);
+  update();
+})();
+</script>
+{% endblock %}

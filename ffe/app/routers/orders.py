@@ -13,6 +13,7 @@ from .. import ordering as od
 from .. import storage
 from ..common import fmt_cur, content_disposition, ffloat, fint, get_project, get_settings, redirect, render, require_login
 from ..db import get_db
+from ..config import NOT_BUYING
 from ..models import Item, Order, Project, Purchase, Quote, Supplier
 from .exports import build_error, try_build
 
@@ -108,7 +109,7 @@ def _addable(db: Session, p: Project, o: Order) -> list[dict]:
     if not o.supplier_id:
         return []
     open_by: dict[int, list[Item]] = {}
-    for i in db.query(Item).filter(Item.project_id == p.id, Item.draft == False, Item.purchase_id.is_(None), Item.product_id.isnot(None)):  # noqa: E712
+    for i in db.query(Item).filter(Item.project_id == p.id, Item.draft == False, Item.purchase_id.is_(None), Item.product_id.isnot(None), Item.status != NOT_BUYING):  # noqa: E712
         open_by.setdefault(i.product_id, []).append(i)
     out = []
     for q in db.query(Quote).filter(Quote.project_id == p.id, Quote.supplier_id == o.supplier_id, Quote.unit_price > 0).order_by(Quote.id):
@@ -130,7 +131,7 @@ async def add_product(request: Request, order_id: int, p: Project = Depends(get_
     if q is None or q.project_id != p.id or q.supplier_id != o.supplier_id or not q.unit_price or q.option_label:
         return _to(p, order_id, "#products", err="Choose one of this shop's quotes to add.")
     lines = [i for i in db.query(Item).filter(Item.project_id == p.id, Item.product_id == q.product_id, Item.draft == False,  # noqa: E712
-                                              Item.purchase_id.is_(None))]
+                                              Item.purchase_id.is_(None), Item.status != NOT_BUYING)]
     if not lines:
         return _to(p, order_id, "#products", err="Every room of that product already has a shop.")
     pu = bz.buy(db, p, q.product, q, lines)

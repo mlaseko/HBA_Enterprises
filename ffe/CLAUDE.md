@@ -1024,6 +1024,17 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   (`.setup-steps`: rooms, items, a quote, a shop chosen, an order confirmed; read from `p` and the Tracker figures) shows
   until all five are done. The guide opens with a Quick guide (five places, item to site, good to know) before the walkthrough.
 
+- **Fit the budget.** `app/budget.py`: `plan(p)` (a row per product of `buying.groups`: `buys` = its purchases by id plus
+  `est` for rooms with no shop at `Group.estimate_quote`, each with price / pack / override / shop / total by `order_qty`, so
+  the total equals the Tracker's estimated; its lines with `key`, `locked` = Paid / Shipped / Received, `optional`; priced
+  non-option quotes; rows sorted locked last, dearest first), `suggestions(rows)` (cheaper / auto / drop, biggest saving
+  first) and `apply(db, p, form, warehouse)` (restore → qty (clears a purchase's hand-typed qty) → drop (uncover + status
+  `config.NOT_BUYING`) → reset → switch (`buy` the product's unlocked lines from the quote, `follow_choice`) → `prune`).
+  Routes `GET/POST /p/<id>/buying/budget` (before `/buying/{product_id}`), tab **Budget** in `_sections.html`. The page script
+  mirrors `order_qty` (override kept only while a purchase's lines are unchanged). **Not buying** is a status in
+  `config.STATUSES`; `buying.groups` skips such lines (so orders, the Tracker, quotations' order plans and estimates leave them
+  out) and `routers/orders` filters them in its own queries; a line's status is set back to To buy to restore it.
+
 ## Backlog (in priority order)
 
 1. **Installing on the phone.** Per-room checklist page with tap-to-tick for installed per item (store a date on

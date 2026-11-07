@@ -244,6 +244,16 @@ TIPS = {
                "Below, the products by stage (tap one to list them), each shop's money and next ready date, and each category."],
         tips=["Estimated counts the shops you chose and, for the rest, the lowest quote; products with no quote yet count nothing.",
               "Set the budget (in USD) and <b>Show amounts in</b> (USD or CNY) in Project settings: every amount on the designer's pages follows, and a CNY amount always carries its USD. Prices are still kept in CNY."]),
+    "budget": dict(
+        title="Fit the budget", anchor="budget",
+        what="Bring the total back within the budget from one page: every product's cost across all orders and shops, where to cut, and the changes saved at once.",
+        steps=["The top shows the budget, what everything comes to now (orders, shops chosen and estimates for the rest), how far over it is, and <b>After your changes</b>, which follows every change you try.",
+               "<b>Where to cut</b> lists the biggest savings first: a cheaper shop that already quoted, the lines marked optional, quantities typed above what the rooms need. <b>Try it</b> sets the change below, without saving.",
+               "Open a product to change a room's <b>quantity</b>, tick <b>Drop</b> for a room (or drop it in every room), or buy its open rooms from another shop that quoted.",
+               "Press <b>Apply changes</b>: the quantities, the shops and the rooms set to <b>Not buying</b> change on their orders at once."],
+        tips=["Paid, shipped and received lines are locked: money already paid is not cut.",
+              "A line set to Not buying leaves its order and every total, and stays listed under <b>Not buying</b>: tick it to bring it back.",
+              "A confirmed order that changes says so until you press The shop agreed on it: tell the shop first."]),
     "capture": dict(
         title="Quick capture", anchor="capture",
         what="Shoot first, fill in later. Every photo is saved at once as a draft item.",
@@ -381,7 +391,7 @@ TEMPLATE_KEYS = {
     "suppliers/list.html": "suppliers", "suppliers/detail.html": "supplier", "payments.html": "payments", "cartons.html": "cartons",
     "import.html": "import", "settings.html": "settings", "clip.html": "clip", "share/supplier.html": "share_supplier", "plan/match.html": "plan_match",
     "share/client.html": "share_client", "buying/list.html": "buying", "buying/product.html": "buying_product", "buying/schedule.html": "buying_schedule",
-    "buying/orders.html": "orders", "buying/order.html": "order", "buying/tracker.html": "tracker",
+    "buying/orders.html": "orders", "buying/order.html": "order", "buying/tracker.html": "tracker", "buying/budget.html": "budget",
     "buying/quotations.html": "quotations", "buying/quotation_compare.html": "quotation_compare", "buying/quotation_preview.html": "quotation_preview", "buying/quotation_working.html": "quotation_working", "buying/quotation.html": "quotation",
     "carton.html": "carton", "shipping/list.html": "shipments", "shipping/shipment.html": "shipment", "lists.html": "lists",
 }
