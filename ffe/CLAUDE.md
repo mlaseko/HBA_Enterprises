@@ -968,7 +968,8 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   `routers/buy._placed()` → `ordering.follow_choice(db, p, before, warehouse)`: the purchases the change made join their
   shop's draft (the latest unconfirmed order of that supplier) or a new draft (`new_order`, the studio's warehouse);
   `follow_choice(..., into=)` / `_placed(..., into)`: "new" = an order of their own, a draft's id = that draft (the saved
-  quotation's Put on select, `routers.quotations._into(form)` on order-all and choose; new by default there), None = the
+  quotation's Put on select, `routers.quotations._into(form)` on order-all and choose; new by default there, except that
+  `quotations.sheet_draft(p, q)`, the shop's draft already holding this sheet's quotes, is preselected: one sheet, one order), None = the
   latest draft as before;
   purchases already loose before (taken off an order) stay under Ready to order, which the Orders page
   shows only when something waits. `ordering.tidy_drafts()` (also after a purchase's rooms change or it is deleted) removes

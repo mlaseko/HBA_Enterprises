@@ -461,12 +461,13 @@ def quotation_page(request: Request, quotation_id: int, p: Project = Depends(get
         for o in p.orders:
             if o.supplier_id == q.supplier_id and not o.confirmed:
                 orders[o.id] = o
+    sheet_draft = qz.sheet_draft(p, q)
     asks = [(ln, [f for f in ln.notes.split("; ") if f.endswith("(asked the shop)")]) for ln in q.lines if ln.notes and "(asked the shop)" in ln.notes]
     nxt = next((u for u in db.query(QuotationUpload).filter(QuotationUpload.project_id == p.id).order_by(QuotationUpload.id).all() if u.stage == "done"), None)
     next_up = dict(name=nxt.filename, url=f"/p/{p.id}/quotations/preview?key={urlquote(nxt.state_key)}") if nxt is not None else None
     return render(request, "buying/quotation.html", p=p, q=q, gaps=gaps, counts=counts, ok=ok[:200], err=err[:300], warn=warn[:600], by_quote=by_quote,
                   revises=revises, revised_by=revised_by, cmp_cat=cmp_cat, families=qz.families(db, p, q), dropped=dropped, qty_fine=qty_fine,
-                  lines_total=round(sum(ln.amount or 0 for ln in q.lines), 2), multi=multi, choice=choice, plan=plan, open_choice=open_choice, drafts_open=list(orders.values()), asks=asks, next_up=next_up, at=at if at == "choices" and multi else "", now=now, now_amount=qz.now_amount, now_json=json.dumps(now_data))
+                  lines_total=round(sum(ln.amount or 0 for ln in q.lines), 2), multi=multi, choice=choice, plan=plan, open_choice=open_choice, drafts_open=list(orders.values()), sheet_draft=sheet_draft, asks=asks, next_up=next_up, at=at if at == "choices" and multi else "", now=now, now_amount=qz.now_amount, now_json=json.dumps(now_data))
 
 
 @router.post("/p/{project_id}/quotations/{quotation_id}/options")

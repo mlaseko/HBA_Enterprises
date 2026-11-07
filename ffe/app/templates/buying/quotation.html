@@ -2,10 +2,11 @@
 {% from "buying/_tabs.html" import tabs %}
 {% block title %}{{ q.title or 'Quotation' }} · {{ p.name }}{% endblock %}
 {% block content %}
-{# where this quotation's purchases go: a new order of their own, or one of the shop's drafts (asked only when it has one) #}
+{# where this quotation's purchases go: a new order of their own, or one of the shop's drafts (asked only when it has one).
+   Once a draft holds this sheet's products, it is the one chosen, so one sheet makes one order (choices per room, then Order all). #}
 {% macro into_select() %}{% if drafts_open %}<label class="qn-into small"><span>Put on</span><select class="in sm" name="into" aria-label="Order to put them on">
-  <option value="new" selected>A new order for this quotation</option>
-  {% for o in drafts_open %}<option value="{{ o.id }}">Draft {{ order_ref(o) }} (add to it)</option>{% endfor %}
+  <option value="new"{{ ' selected' if not sheet_draft }}>A new order for this quotation</option>
+  {% for o in drafts_open %}<option value="{{ o.id }}"{{ ' selected' if sheet_draft and o.id == sheet_draft.id }}>Draft {{ order_ref(o) }} ({{ "this sheet's order" if sheet_draft and o.id == sheet_draft.id else 'add to it' }})</option>{% endfor %}
 </select></label>{% else %}<input type="hidden" name="into" value="new">{% endif %}{% endmacro %}
 {% set cur = q.currency %}
 <div class="page-head">
