@@ -530,6 +530,8 @@ def tracker(p: Project, led: buying.Ledger, gs: list, ovs: list[OrderView], toda
     budget = round((p.budget_usd or 0) * rate, 2)
     order = lists.category_order(p)
     n_all = len(gs)
+    for c in cats.values():  # a category every product of which has a quote (the Tracker folds those)
+        c["full"] = bool(c["products"]) and c["quoted"] >= c["products"]
     sourcing = dict(products=n_all, quoted=sum(1 for g in gs if g.quotes or g.purchases), unpriced=unpriced,
                     left=round(budget - estimated, 2), over=bool(budget) and estimated > budget,
                     cats=sorted(cats.values(), key=lambda c: (c["quoted"] >= c["products"], c["quoted"] / (c["products"] or 1), order.get(c["category"], len(order)))))

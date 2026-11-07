@@ -1704,7 +1704,9 @@ def flow(c):
     # the tracker: the money, what needs attention, the stages, the shops, the categories
     h=c.get(f"/p/{pid_o}/buying/tracker").text
     assert 'data-key="tracker"' in h and "Needs attention" in h and "Draft KH-002 to confirm with the shop" in h and "By stage" in h and "By shop" in h and "By category" in h and "¥35,000" in h, h[:300]
+    assert h.count('class="tbl tr-stack"')>=2 and 'data-l="To pay"' in h and 'data-l="Estimated"' in h  # the shop and category tables turn into cards on a phone
     db=SessionLocal(); P=db.get(_P,pid_o); led=_bz.Ledger(P); t=_od.tracker(P, led, _bz.groups(P, ledger=led), _od.views(P, led, _dt.date(2026,10,25)), _dt.date(2026,10,25)); db.close()
+    assert all(c["full"]==(c["quoted"]>=c["products"]>0) for c in t["sourcing"]["cats"])  # fully quoted categories fold on the Tracker
     assert t["ordered"]==6794.4 and t["paid"]==2628.48 and t["to_pay"]==4165.92 and t["stages"]["Ordered"]["products"]==2 and t["stages"]["Sourced"]["products"]==1
     assert t["attention"][0]["tone"]=="red" and t["attention"][0]["title"]=="KH-001 was due 5 days ago" and sum(1 for a in t["attention"] if "KH-001" in a["title"])==1, t["attention"]
     # a payment to the shop on no order (made before orders existed, say) can be counted toward the order
