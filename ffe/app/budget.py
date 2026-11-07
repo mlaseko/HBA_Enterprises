@@ -20,9 +20,13 @@ LOCKED = ("Paid", "Shipped", "Received")  # money paid or goods on their way: ne
 EST = "est"  # the key of a product's rooms with no shop yet
 
 
+def _order(needed: float, allow: float, pack: float, unit: str, whole: set, override=None) -> float:
+    """The quantity to order: the rooms' need with the allowance and whole packs, or the one typed by hand."""
+    return bz.order_qty(needed, allow, pack, unit, override, whole=whole)["qty"]
+
+
 def _total(needed: float, allow: float, pack: float, unit: str, price: float, whole: set, override=None) -> float:
-    o = bz.order_qty(needed, allow, pack, unit, override, whole=whole)
-    return round(o["qty"] * (price or 0), 2)
+    return round(_order(needed, allow, pack, unit, whole, override) * (price or 0), 2)
 
 
 def plan(p: Project) -> dict:
@@ -52,19 +56,95 @@ def plan(p: Project) -> dict:
         row_total = 0.0
         for k, kv in keys.items():
             need = sum(l["qty"] for l in lines if l["key"] == k)
-            kv["total"] = _total(need, allow, kv["pack"], unit, kv["price"], whole, kv["override"]) if need or kv["override"] else 0.0
+            kv["need"] = round(need, 3)
+            kv["qty"] = _order(need, allow, kv["pack"], unit, whole, kv["override"]) if need or kv["override"] else 0.0
+            kv["total"] = round(kv["qty"] * (kv["price"] or 0), 2)
             row_total += kv["total"]
         cover = g.cover
         rows.append(dict(pid=g.product.id if g.product else 0, name=g.name, size=g.item.size or "", finish=g.item.finish or "",
                          category=g.category, unit=unit, allow=allow, pack=g.pack_size, whole=unit in whole, buys=keys, lines=lines,
                          quotes=quotes, total=round(row_total, 2), locked=all(l["locked"] for l in lines),
-                         thumb=cover.thumb if cover is not None else "", priced=bool(any(k["price"] for k in keys.values()))))
+                         thumb=cover.thumb if cover is not None else "", priced=bool(any(k["price"] for k in keys.values())),
+                         qty=round(sum(k["qty"] for k in keys.values()), 3),
+                         paid=round(sum(kv["total"] for k, kv in keys.items() if any(l["key"] == k and l["locked"] for l in lines)), 2)))
         total += row_total
     rows.sort(key=lambda r: (r["locked"], -r["total"]))  # what can still be cut first, the dearest first; paid / shipped ones last
     budget = round((p.budget_usd or 0) * rate, 2)
     dropped = [i for i in p.live_items if i.status == NOT_BUYING]
+    cats: dict[str, dict] = {}
+    for r in rows:
+        c = cats.setdefault(r["category"] or "Other", dict(name=r["category"] or "Other", products=0, total=0.0))
+        c["products"] += 1
+        c["total"] = round(c["total"] + r["total"], 2)
     return dict(rows=rows, total=round(total, 2), budget=budget, gap=round(total - budget, 2) if budget else 0.0, rate=rate,
-                suggestions=suggestions(rows, whole), dropped=dropped)
+                suggestions=suggestions(rows, whole), dropped=dropped, unpriced=sum(1 for r in rows if not r["priced"]),
+                locked=round(sum(r["paid"] for r in rows), 2), cats=sorted(cats.values(), key=lambda c: -c["total"]))
+
+
+def workbook(p: Project, pl: dict) -> bytes:
+    """The budget as an Excel sheet: a line per product and shop (quantity to order × unit price = amount), the rooms,
+    then the totals by category and the grand total against the budget. Amounts in CNY with the USD beside them."""
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    rate = pl["rate"] or 1
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Budget"
+    bold, head = Font(bold=True), PatternFill("solid", fgColor="EDEFF2")
+    ws.append([f"{p.name}: budget"])
+    ws["A1"].font = Font(bold=True, size=14)
+    ws.append([f"Budget {pl['budget']:,.2f} CNY ({pl['budget'] / rate:,.2f} USD)" if pl["budget"] else "No budget set",
+               f"Now {pl['total']:,.2f} CNY ({pl['total'] / rate:,.2f} USD)"])
+    ws.append([])
+    cols = ["Product", "Size", "Finish", "Category", "Shop", "Rooms", "Rooms need", "To order", "Unit", "Unit price (CNY)",
+            "Amount (CNY)", "Amount (USD)", "Paid or on its way"]
+    ws.append(cols)
+    for c in ws[ws.max_row]:
+        c.font, c.fill = bold, head
+    for r in pl["rows"]:
+        for k, kv in r["buys"].items():
+            mine = [l for l in r["lines"] if l["key"] == k]
+            if not mine:
+                continue
+            ws.append([r["name"], r["size"], r["finish"], r["category"], kv["shop"], ", ".join(l["code"] for l in mine), kv["need"],
+                       kv["qty"], r["unit"], kv["price"] or None, kv["total"], round(kv["total"] / rate, 2),
+                       "yes" if all(l["locked"] for l in mine) else ""])
+    ws.append([])
+    ws.append(["Total", "", "", "", "", "", "", "", "", "", pl["total"], round(pl["total"] / rate, 2)])
+    for c in ws[ws.max_row]:
+        c.font = bold
+    if pl["budget"]:
+        ws.append(["Budget", "", "", "", "", "", "", "", "", "", pl["budget"], round(pl["budget"] / rate, 2)])
+        ws.append(["Over by" if pl["gap"] > 0 else "Under by", "", "", "", "", "", "", "", "", "", abs(pl["gap"]), round(abs(pl["gap"]) / rate, 2)])
+    for row in ws.iter_rows(min_row=5):
+        for c in row[6:12]:
+            c.number_format = "#,##0.00"
+    for col, w in zip("ABCDEFGHIJKLM", (34, 14, 16, 16, 22, 30, 11, 10, 7, 15, 15, 14, 10)):
+        ws.column_dimensions[col].width = w
+    ws.freeze_panes = "A5"
+    cs = wb.create_sheet("By category")
+    cs.append(["Category", "Products", "Amount (CNY)", "Amount (USD)", "Share"])
+    for c in cs[1]:
+        c.font, c.fill = bold, head
+    for c in pl["cats"]:
+        cs.append([c["name"], c["products"], c["total"], round(c["total"] / rate, 2), round(c["total"] / pl["total"], 4) if pl["total"] else 0])
+    cs.append(["Total", len(pl["rows"]), pl["total"], round(pl["total"] / rate, 2), 1 if pl["total"] else 0])
+    for c in cs[cs.max_row]:
+        c.font = bold
+    for row in cs.iter_rows(min_row=2):
+        row[2].number_format = row[3].number_format = "#,##0.00"
+        row[4].number_format = "0.0%"
+    cs.column_dimensions["A"].width = 24
+    for col in "BCDE":
+        cs.column_dimensions[col].width = 15
+    for ws_ in (ws, cs):
+        for row in ws_.iter_rows():
+            for c in row:
+                c.alignment = Alignment(vertical="top")
+    out = io.BytesIO()
+    wb.save(out)
+    return out.getvalue()
 
 
 def suggestions(rows: list[dict], whole: set) -> list[dict]:

@@ -601,7 +601,7 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   from `_scope_rooms`, then each floor). The route sets `row["diff"]` (today − sheet) and sorts the products that differ
   first, the biggest first (`now.differ` counts them; `.nw-prod.differs` / `.same`, `.nw-dif.up|down`, `#nw-only` → `.nw-onlydiff`). `data-match` /
   `data-match-all` buttons run the script's `matchSheet(r)` (`r.sheet` = the sheet's quantity ÷ (1 + allowance) less the
-  locked rooms, shared in proportion to the rooms' quantities, whole units by largest remainder). Room rows carry `locked`
+  locked rooms, shared in proportion to the rooms' quantities, whole units by largest remainder); pressed again they undo it: `matched`, `restore(r)`, `labels()`). Room rows carry `locked`
   (Shipped / Received: untouched) and `confirmed` (on a confirmed order: the quantity changes, never removed; `apply_now`
   counts them and clears a hand-typed `Purchase.qty` of any line it changes). The page's script simulates; `tried_quantities(form, rows)` reads `keep_<item>` /
   `qty_<item>`; `POST /quotations/<q>/now` → `apply_now` (sets qty, deletes lines at 0 with `release_photos`) + `settle`;
@@ -1042,6 +1042,12 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   mirrors `order_qty` (override kept only while a purchase's lines are unchanged). **Not buying** is a status in
   `config.STATUSES`; `buying.groups` skips such lines (so orders, the Tracker, quotations' order plans and estimates leave them
   out) and `routers/orders` filters them in its own queries; a line's status is set back to To buy to restore it.
+  The money shown worked out: each `buys` entry carries `need` and `qty` (`_order`: what is ordered) so the page prints
+  `qty × price = total` per shop (`.bg-calc`, rewritten by the script while a change is tried), each room line its amount
+  (`.bg-amt`) with an All rooms footer, `#bg-sum` the total (of the rows shown, with the grand total, when filtered); `pl`
+  adds `cats` (By category `.bg-cats` hbars that filter the list; past 8 folded), `locked` (paid or on its way) and
+  `unpriced`; `#bg-sort` reorders client-side. `GET /p/<id>/buying/budget.xlsx` → `budget.workbook(p, pl)` (Budget sheet a
+  line per product and shop, totals and the gap; By category sheet).
 
 ## Backlog (in priority order)
 

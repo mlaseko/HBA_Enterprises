@@ -175,9 +175,18 @@ def budget_page(request: Request, p: Project = Depends(get_project), db: Session
     """Fit the budget: every product's cost, the gap to the budget, where to cut, and the changes tried before they are saved."""
     from .. import budget as bg
     pl = bg.plan(p)
-    data = dict(rows=[dict(r, buys={k: {x: v[x] for x in ("price", "pack", "override", "shop", "quote", "total")} for k, v in r["buys"].items()})
+    data = dict(rows=[dict(r, buys={k: {x: v[x] for x in ("price", "pack", "override", "shop", "quote", "total", "qty")} for k, v in r["buys"].items()})
                       for r in pl["rows"]], budget=pl["budget"], rate=pl["rate"], usd=p.show_currency == "USD")
     return render(request, "buying/budget.html", p=p, pl=pl, data=data, ok=ok[:300], err=err[:300])
+
+
+@router.get("/p/{project_id}/buying/budget.xlsx")
+def budget_xlsx(p: Project = Depends(get_project)):
+    """The budget as an Excel sheet: quantity to order × unit price per product and shop, totals by category and in all."""
+    from fastapi.responses import Response
+    from .. import budget as bg
+    return Response(bg.workbook(p, bg.plan(p)), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers=content_disposition(f"{p.name} budget.xlsx"))
 
 
 @router.post("/p/{project_id}/buying/budget")
