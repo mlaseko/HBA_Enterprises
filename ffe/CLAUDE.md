@@ -160,6 +160,8 @@ app/static/app.js      photo compression (also exposed as window.compressPhoto),
 app/static/plan.js     Plan page + client plan: zoom, tap-a-room panel (fetches plan/_room.html), item dots (place / drag /
                        locate / remove), draw / move / resize room boxes in mark mode; reads data-base / data-room-base /
                        data-readonly from #plan so the same script serves /p/<id>/plan and /c/<token>
+tools/restore_items.py brings back items deleted by mistake from an earlier copy of the database (RESTORE_URL: a Neon
+                       branch from a point in time): rows with their ids, purchases / draft orders, photos still stored, pins; README
 tests/test_flow.py     end-to-end test with TestClient + SQLite (login, import, items, photos, links, PDFs, guide + help drawer)
 tools/help_shots.py    regenerates the guide's screenshots (app/static/help/*.webp + shots.json) from a seeded fictional demo
 tools/help_shots.js    project: SQLite in a temp dir, uvicorn on 8777, Playwright through the pages, pypdfium2 for the PDFs
@@ -220,7 +222,8 @@ components. No external fonts or assets.
   links and keeps products: a new or unlinked line joins the product whose lines read the same (or a product from before
   keyed by that reading), else a new one; a line given its own name, size or finish leaves for the product that reads like
   it and is uncovered; two products that come to read the same merge (the one whose own details already read so keeps its
-  id: `_merge_product` moves rooms, quotes, purchases, quotation lines); a product renamed in every room keeps its id. The
+  id: `_merge_product` moves rooms, quotes, purchases, quotation lines); a product renamed in every room keeps its id. A product left without lines (all deleted) keeps its quotes and quotation lines, and a new line
+  that reads like its own details rejoins it (`orphans` in `sync_products`; the one with quotes first). The
   product's `name/size/finish/spec/brand/category/unit` are its first line's; the lines keep their copies, which every page
   reads. Call it (or `follow_renames`, which now just calls it and `prune`) after anything that creates, names or renames
   lines; the Items list and item page link stray lines on GET. An explicit move (the variants card) sets `product_id`

@@ -1209,6 +1209,7 @@ def flow(c):
     assert "bulk" not in c.get(f"/p/{pid_big}/items?category=Curtains").text  # nothing shown, no bar
     r=c.post(f"/p/{pid_big}/items/delete-selected", data={"category":"Lighting"}, follow_redirects=False); assert r.status_code==303 and r.headers["location"]==f"/p/{pid_big}/items?category=Lighting", r.headers  # nothing ticked: nothing happens
     db=SessionLocal(); assert db.query(Item).filter(Item.project_id==int(pid_big)).count()==72; db.close()
+    import shutil as _shu; _shu.copy(f"{_tmp}/test.db", f"{_tmp}/before_delete.db")  # the earlier copy tools/restore_items.py reads
     others=[x for x in m.group(1).split() if int(x)!=first_id]
     r=c.post(f"/p/{pid_big}/items/delete-selected", data={"ids":[" ".join(others[:30])]+others[30:]+[str(other_id),"abc"],"category":"Lighting","view":"table"}, follow_redirects=False)
     assert r.status_code==303 and r.headers["location"]==f"/p/{pid_big}/items?category=Lighting&view=table&deleted=70", r.headers
@@ -1217,6 +1218,29 @@ def flow(c):
     r=c.post(f"/p/{pid_big}/items/delete-selected", data={"ids":[str(first_id)],"category":"Lighting"}, follow_redirects=False); assert r.status_code==303 and r.headers["location"].endswith("category=Lighting&deleted=1")
     db=SessionLocal(); left=db.query(Item).filter(Item.project_id==int(pid_big)).all(); assert [i.id for i in left]==[keep_id]; db.close()
     assert _st.read_image(ph_key) is None and "70 items deleted." in c.get(f"/p/{pid_big}/items?deleted=70").text and "1 item deleted." in c.get(f"/p/{pid_big}/items?category=Lighting&deleted=1").text
+    # deleted by mistake: tools/restore_items.py brings the lines back from an earlier copy, rooms, quantities and codes as they were
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tools")); import restore_items as _ri
+    db=SessionLocal(); _was=sorted((i.id, i.code, i.room_id, i.qty) for i in db.query(Item).filter(Item.project_id==int(pid_big), Item.category=="Lighting")); db.close(); assert _was==[]
+    assert _ri.main(["--project", str(pid_big), "--like", "pendant", "--restore-url", f"sqlite:///{_tmp}/before_delete.db"])==0  # lists only
+    db=SessionLocal(); assert db.query(Item).filter(Item.project_id==int(pid_big)).count()==1; db.close()
+    assert _ri.main(["--project", str(pid_big), "--like", "pendant", "--restore-url", f"sqlite:///{_tmp}/before_delete.db", "--apply"])==0
+    import sqlite3 as _sq3; _bc=_sq3.connect(f"{_tmp}/before_delete.db"); _before=sorted(_bc.execute("select id, code, room_id, qty from items where project_id=? and category='Lighting'", (int(pid_big),)).fetchall()); _bc.close()
+    db=SessionLocal(); _now=sorted((i.id, i.code, i.room_id, i.qty) for i in db.query(Item).filter(Item.project_id==int(pid_big), Item.category=="Lighting")); db.close()
+    assert _now==_before and len(_now)==71, (len(_now), len(_before))
+    assert _ri.main(["--project", str(pid_big), "--restore-url", f"sqlite:///{_tmp}/before_delete.db"])==0  # nothing left to bring back
+    c.post(f"/p/{pid_big}/items/delete-selected", data={"ids":[str(x[0]) for x in _now]}, follow_redirects=False)  # as the sections after expect
+    db=SessionLocal(); assert [i.id for i in db.query(Item).filter(Item.project_id==int(pid_big))]==[keep_id]; db.close()
+    # a product whose lines were all deleted keeps its quotes; lines that read like it again (typed or imported anew) rejoin it
+    from app.models import Quote as _Qo
+    r=c.post(f"/p/{pid_big}/items/new", data={"room_ids":[big_rids[1]],"category":"Tiles","name":"Marble slab","qty":"12","unit":"m²","status":"To buy"}, follow_redirects=False)
+    c.get(f"/p/{pid_big}/items"); db=SessionLocal(); _ms=db.query(Item).filter(Item.project_id==int(pid_big), Item.name=="Marble slab").one(); _mp=_ms.product_id; _mid=_ms.id; db.close(); assert _mp
+    c.post(f"/p/{pid_big}/buying/{_mp}/quotes", data={"supplier_name":"Kariakoo Stone","amount":"90","currency":"CNY"})
+    c.post(f"/p/{pid_big}/items/delete-selected", data={"ids":[str(_mid)]}, follow_redirects=False)
+    db=SessionLocal(); assert db.query(_Qo).filter(_Qo.product_id==_mp).count()==1; db.close()  # the product and its quote stay
+    r=c.post(f"/p/{pid_big}/items/new", data={"room_ids":[big_rids[2], big_rids[3]],"category":"Tiles","name":"marble  SLAB","qty":"5","unit":"m²","status":"To buy"}, follow_redirects=False)
+    c.get(f"/p/{pid_big}/items"); db=SessionLocal(); _back=db.query(Item).filter(Item.project_id==int(pid_big), Item.category=="Tiles", Item.id!=keep_id).all()
+    assert len(_back)==2 and {i.product_id for i in _back}=={_mp} and db.query(_Qo).filter(_Qo.product_id==_mp).one().amount==90, [(i.name, i.product_id) for i in _back]; db.close()
+    c.post(f"/p/{pid_big}/items/delete-selected", data={"ids":[str(i.id) for i in _back]}, follow_redirects=False)
     print("delete selected ok")
     # messages and confirmations are the app's own dialog (app.js appConfirm/appAlert, .modal), never the browser's system boxes
     import re as _re; from pathlib import Path

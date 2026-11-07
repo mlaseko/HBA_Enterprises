@@ -395,13 +395,19 @@ def sync_products(db: Session, p: Project) -> dict[str, Product]:
             _merge_product(db, prods[pid], owner[k], prods, lines)
         else:
             owner[k] = prods[pid]
+    # a product left without rooms (its lines deleted) keeps its quotes and quotation lines: a line that reads like it again
+    # (added or imported anew) rejoins it rather than starting a product without the shops' prices; the one with quotes first
+    orphans: dict[str, Product] = {}
+    for pr in sorted(prods.values(), key=lambda x: (len(x.quotes or []), x.id)):
+        if pr.id not in by_prod and _reads(pr):
+            orphans[_reads(pr)] = pr
     changed = False
     for i in lines:
         k = reads[i.id]
         cur = prods.get(i.product_id)
         if cur is not None and owner.get(k) is cur:
             continue
-        target = owner.get(k) or legacy.get(k)
+        target = owner.get(k) or legacy.get(k) or (orphans.pop(k, None) if cur is None else None)
         if target is None:
             from uuid import uuid4
             target = Product(project_id=p.id, key=f"#n{uuid4().hex}")
