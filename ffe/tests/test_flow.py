@@ -2427,6 +2427,9 @@ def flow(c):
     db=SessionLocal(); assert sorted(i.qty for i in db.query(_OI).filter(_OI.project_id==pid_q, _OI.name=="Wall lamp"))==[2, 2, 2]; db.close()  # the Excel changed nothing
     r=c.post(f"/p/{pid_q}/quotations/{qdw}/now", data=tried, follow_redirects=False); loc=_unq(r.headers["location"]); assert "1 quantity changed, 1 room line removed" in loc and "USD 30.00 (was 60.00)" in loc, loc
     db=SessionLocal(); assert sorted(i.qty for i in db.query(_OI).filter(_OI.project_id==pid_q, _OI.name=="Wall lamp"))==[1, 2]; db.close()
+    h=c.get(f"/p/{pid_q}/quotations/{qdw}").text; _nw=h.split('id="now"')[1].split('id="nw-data"')[0]  # the products that differ from the sheet come first, with what they differ by
+    assert "differs from the sheet" in _nw and 'class="nw-prod differs"' in _nw and '<span class="nw-dif down"' in _nw and "-30.00" in _nw, _nw[:600]
+    assert _nw.index('nw-prod differs') < (_nw.index('nw-prod same') if 'nw-prod same' in _nw else len(_nw))
     r=c.post(f"/p/{pid_q}/quotations/{qdw}/now", data={f"keep_{_wl[_acr[1][0]]}":"1", f"qty_{_wl[_acr[1][0]]}":"1", f"keep_{_wl[_acr[2][0]]}":"1", f"qty_{_wl[_acr[2][0]]}":"2"}, follow_redirects=False); assert "Nothing%20changed" in r.headers["location"]
     # a sheet saved with two carpet lines averaged into one quote: made options to choose on the saved page, then back to one
     locc2,_=upload_quote("Carpet options 2.xlsx", carpet_sheet()); keyc2b=_unq(locc2.split("key=")[1])

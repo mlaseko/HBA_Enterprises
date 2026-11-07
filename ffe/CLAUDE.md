@@ -598,7 +598,8 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   quotes: its lines, the shop's unit price in the sheet's currency via `_sheet_price`, allowance, pack, the sheet's quantity
   and amount — options count the dearest — and the product's room lines with `locked` for a confirmed order),
   `now_amount(row, qtys)` (the quantity to order and the amount, mirrored by the page script), `now_chips` (Staff quarters
-  from `_scope_rooms`, then each floor). The page's script simulates; `tried_quantities(form, rows)` reads `keep_<item>` /
+  from `_scope_rooms`, then each floor). The route sets `row["diff"]` (today − sheet) and sorts the products that differ
+  first, the biggest first (`now.differ` counts them; `.nw-prod.differs` / `.same`, `.nw-dif.up|down`, `#nw-only` → `.nw-onlydiff`). The page's script simulates; `tried_quantities(form, rows)` reads `keep_<item>` /
   `qty_<item>`; `POST /quotations/<q>/now` → `apply_now` (sets qty, deletes lines at 0 with `release_photos`) + `settle`;
   `POST /quotations/<q>/revised.xlsx` → `revised_workbook` (`revised_lines`: a line whose place names rooms of its product,
   disjoint across the product's lines, follows those rooms; else the product's order ratio; merged parts follow; pcs whole).

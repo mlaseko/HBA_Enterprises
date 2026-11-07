@@ -443,8 +443,12 @@ def quotation_page(request: Request, quotation_id: int, p: Project = Depends(get
     revises = db.get(Quotation, q.replaces_id) if q.replaces_id else None
     revised_by = db.query(Quotation).filter(Quotation.replaces_id == q.id).order_by(Quotation.id.desc()).first()
     nrows = qz.now_rows(db, p, q)
+    for r in nrows:  # what each product comes to at today's design against the sheet: the ones that differ come first, the biggest first
+        r["diff"] = round(qz.now_amount(r)[1] - r["sheet_amount"], 2)
+    nrows.sort(key=lambda r: (abs(r["diff"]) <= 0.5, -abs(r["diff"])))
     now = dict(rows=nrows, chips=qz.now_chips(p, nrows), sheet=round(sum(r["sheet_amount"] for r in nrows), 2),
-               today=round(sum(qz.now_amount(r)[1] for r in nrows), 2), charges=round(q.charges or 0, 2))
+               today=round(sum(qz.now_amount(r)[1] for r in nrows), 2), charges=round(q.charges or 0, 2),
+               differ=sum(1 for r in nrows if abs(r["diff"]) > 0.5))
     now_data = [dict(pid=r["pid"], unit=r["unit"], price=r["price"], allow=r["allow"], pack=r["pack"], whole=r["whole"], options=r["options"],
                      rooms=[dict(id=x["id"], qty=x["qty"], price=x["price"]) for x in r["rooms"]]) for r in nrows]
     multi = qz.multi_line_products(q)
