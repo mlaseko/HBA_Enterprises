@@ -13,6 +13,7 @@ from .. import ordering as od
 from .. import storage
 from ..common import fmt_cur, content_disposition, ffloat, fint, get_project, get_settings, redirect, render, require_login
 from ..db import get_db
+from ..config import NOT_BUYING
 from ..models import Item, Order, Project, Purchase, Quote, Supplier
 from .exports import build_error, try_build
 
@@ -67,6 +68,17 @@ async def new_order(request: Request, p: Project = Depends(get_project), db: Ses
     return _to(p, oid, ok="Draft order made: check it, then confirm it with the shop.")
 
 
+@router.post("/p/{project_id}/orders/release")
+async def release_ready(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """Ready to order cleared for a shop: those rooms have no shop again (To buy), to be ordered from a quotation."""
+    form = await request.form()
+    ids = {fint(x) for x in form.getlist("pu")} - {None, 0}
+    n = od.release(db, p, db.query(Purchase).filter(Purchase.id.in_(ids or {0})).all())
+    bz.settle(db, p)
+    db.commit()
+    return _to(p, ok=f"{n} room line{'s have' if n != 1 else ' has'} no shop again (To buy): order {'them' if n != 1 else 'it'} from a quotation." if n else "Nothing to clear.")
+
+
 @router.get("/p/{project_id}/orders/{order_id}")
 def order_page(request: Request, order_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), ok: str = "", err: str = ""):
     o = _order(db, p, order_id)
@@ -108,7 +120,7 @@ def _addable(db: Session, p: Project, o: Order) -> list[dict]:
     if not o.supplier_id:
         return []
     open_by: dict[int, list[Item]] = {}
-    for i in db.query(Item).filter(Item.project_id == p.id, Item.draft == False, Item.purchase_id.is_(None), Item.product_id.isnot(None)):  # noqa: E712
+    for i in db.query(Item).filter(Item.project_id == p.id, Item.draft == False, Item.purchase_id.is_(None), Item.product_id.isnot(None), Item.status != NOT_BUYING):  # noqa: E712
         open_by.setdefault(i.product_id, []).append(i)
     out = []
     for q in db.query(Quote).filter(Quote.project_id == p.id, Quote.supplier_id == o.supplier_id, Quote.unit_price > 0).order_by(Quote.id):
@@ -130,7 +142,7 @@ async def add_product(request: Request, order_id: int, p: Project = Depends(get_
     if q is None or q.project_id != p.id or q.supplier_id != o.supplier_id or not q.unit_price or q.option_label:
         return _to(p, order_id, "#products", err="Choose one of this shop's quotes to add.")
     lines = [i for i in db.query(Item).filter(Item.project_id == p.id, Item.product_id == q.product_id, Item.draft == False,  # noqa: E712
-                                              Item.purchase_id.is_(None))]
+                                              Item.purchase_id.is_(None), Item.status != NOT_BUYING)]
     if not lines:
         return _to(p, order_id, "#products", err="Every room of that product already has a shop.")
     pu = bz.buy(db, p, q.product, q, lines)
@@ -239,11 +251,18 @@ def delete_order(order_id: int, p: Project = Depends(get_project), db: Session =
     o = _order(db, p, order_id)
     if o is not None:
         ref = od.ref(o)
-        od.delete(db, o)
+        n = od.delete(db, o)
         bz.settle(db, p)
         db.commit()
-        return _to(p, ok=f"Order {ref} deleted. Its products wait for another order; its payments stay with the supplier.")
+        msg = f"Order {ref} deleted. "
+        msg += (f"Its {n} room line{'s have' if n != 1 else ' has'} no shop again (To buy): order {'them' if n != 1 else 'it'} again from the saved quotation "
+                "(Order everything from this sheet) or from a new one." if n else "Its products had already shipped: they stay with the shop, under Ready to order.")
+        msg += " Its payments stay with the supplier." if o.payments else ""
+        return _to(p, ok=msg)
     return _to(p)
+
+
+
 
 
 @router.post("/p/{project_id}/orders/{order_id}/payments")

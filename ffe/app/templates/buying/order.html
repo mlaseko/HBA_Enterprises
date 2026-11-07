@@ -181,7 +181,7 @@
   </details>
 </section>
 
-<form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/delete" class="card tight row between od-delete" data-confirm="Delete order {{ ov.ref }}? Its products stay bought and wait for another order{% if o.confirmed %} (their rooms go back to Quoted){% endif %}; its {{ o.payments|length }} payment{{ 's' if o.payments|length != 1 }} stay with {{ shop }}.">
+<form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/delete" class="card tight row between od-delete" data-confirm="Delete order {{ ov.ref }}? Its rooms have no shop again (To buy): order them again from the saved quotation (Order everything from this sheet) or from a new one. Rooms already shipped keep their shop; its {{ o.payments|length }} payment{{ 's' if o.payments|length != 1 }} stay with {{ shop }}.">
   <span class="small muted">Delete the order. The products stay bought and the payments stay with the shop.</span>
   <button class="btn sm danger"><svg class="ic"><use href="#i-trash"/></svg>Delete order</button>
 </form>

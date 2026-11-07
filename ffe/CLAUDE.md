@@ -99,7 +99,7 @@ app/routers/quotations.py /p/<id>/quotations (list, upload form, inquiry form; P
                        (claude=1|0 for an upload waiting on Claude), /quotations/compare (shops × products of a category), /quotations/inquiry.xlsx,
                        /quotations/<q> (document page), /<q>/file, /<q>/delete
 app/routers/orders.py  /p/<id>/orders (ready to order + orders by stage), /orders/new, /orders/<o> (page; POST details),
-                       /orders/<o>/add|remove/<pu>|confirm|unconfirm|delete|payments|claim, /orders/<o>/po.pdf
+                       /orders/<o>/add|remove/<pu>|confirm|unconfirm|delete|payments|claim, /orders/<o>/po.pdf, /orders/release
 app/routers/cartons.py Shipping › Boxes: /p/<id>/cartons (?supplier= &room= &where= &shipment=; POST adds a box), /cartons/bulk
                        (action warehouse | not-warehouse | ship (shipment_id or "new") | unship | received | not-received),
                        /cartons/<c> (box page; POST saves), /cartons/<c>/received, /cartons/<c>/delete; all take `next`
@@ -263,8 +263,11 @@ components. No external fonts or assets.
 - **Statuses follow the orders.** On a line whose purchase is on a confirmed order, To buy / Quoted / Ordered / Paid
   (`buying.AUTO_STATUSES`) are the order's: Ordered, or Paid once paid in full; a draft only lifts To buy to Quoted, so
   a status set by hand before the order (older projects) stays until it is confirmed. Back to a draft
-  (`ordering.unconfirm`), taking a purchase off and deleting a confirmed order (`buying.leave_order`) set Ordered / Paid
-  back to Quoted. Every route that changes purchases, orders or payments calls `buying.settle(db, p)` before
+  (`ordering.unconfirm`), taking a purchase off (`buying.leave_order`) set Ordered / Paid
+  back to Quoted. Deleting an order (`ordering.delete`) removes its purchases (`buying.remove_purchase`), so its rooms
+  are To buy again, to be ordered again from the saved quotation or a new one; a purchase with a room Shipped / Received
+  (`ordering.KEEP_ON_DELETE`) only leaves the order. `ordering.release` (`POST /orders/release`, the Clear button under
+  Ready to order) does the same for loose purchases. Every route that changes purchases, orders or payments calls `buying.settle(db, p)` before
   `db.commit()` (it prunes, flushes, expires the session and sets those statuses; capture ids you need afterwards before
   calling it). Shipped and Received belong to the boxes (next rule), and lines on no order are never touched. Payments recorded on no order (before
   orders existed) are counted toward an order only when the designer ticks them on it (`ordering.claim`). Money is read through one `buying.Ledger(p)` per request (order totals include
@@ -961,7 +964,7 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   `follow_choice(..., into=)` / `_placed(..., into)`: "new" = an order of their own, a draft's id = that draft (the saved
   quotation's Put on select, `routers.quotations._into(form)` on order-all and choose; new by default there), None = the
   latest draft as before;
-  purchases already loose before (taken off an order, a deleted order's) stay under Ready to order, which the Orders page
+  purchases already loose before (taken off an order) stay under Ready to order, which the Orders page
   shows only when something waits. `ordering.tidy_drafts()` (also after a purchase's rooms change or it is deleted) removes
   drafts with no purchases, no payments and nothing typed (ready date, shop's reference, notes); numbers stay used.
   The product page (`buying/product.html`) has the rooms table at the top beside the design, with what to order under it,
@@ -1023,6 +1026,17 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   sheet and Plan leaves the Design tabs (the pages still open by URL; nothing is deleted). Home's **Getting started**
   (`.setup-steps`: rooms, items, a quote, a shop chosen, an order confirmed; read from `p` and the Tracker figures) shows
   until all five are done. The guide opens with a Quick guide (five places, item to site, good to know) before the walkthrough.
+
+- **Fit the budget.** `app/budget.py`: `plan(p)` (a row per product of `buying.groups`: `buys` = its purchases by id plus
+  `est` for rooms with no shop at `Group.estimate_quote`, each with price / pack / override / shop / total by `order_qty`, so
+  the total equals the Tracker's estimated; its lines with `key`, `locked` = Paid / Shipped / Received, `optional`; priced
+  non-option quotes; rows sorted locked last, dearest first), `suggestions(rows)` (cheaper / auto / drop, biggest saving
+  first) and `apply(db, p, form, warehouse)` (restore → qty (clears a purchase's hand-typed qty) → drop (uncover + status
+  `config.NOT_BUYING`) → reset → switch (`buy` the product's unlocked lines from the quote, `follow_choice`) → `prune`).
+  Routes `GET/POST /p/<id>/buying/budget` (before `/buying/{product_id}`), tab **Budget** in `_sections.html`. The page script
+  mirrors `order_qty` (override kept only while a purchase's lines are unchanged). **Not buying** is a status in
+  `config.STATUSES`; `buying.groups` skips such lines (so orders, the Tracker, quotations' order plans and estimates leave them
+  out) and `routers/orders` filters them in its own queries; a line's status is set back to To buy to restore it.
 
 ## Backlog (in priority order)
 

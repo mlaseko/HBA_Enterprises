@@ -162,15 +162,42 @@ def unconfirm(db: Session, o: Order) -> None:
                 i.status = "Quoted"
 
 
-def delete(db: Session, o: Order) -> None:
-    """The order goes: its purchases stay (off any order, Quoted again), its payments stay with the supplier."""
+KEEP_ON_DELETE = ("Shipped", "Received")  # goods on their way or on site keep their shop when their order is deleted
+
+
+def delete(db: Session, o: Order) -> int:
+    """The order goes and its rooms are released: its purchases go too, so their rooms have no shop again (To buy) and the
+    saved quotation, or a new one, orders them again (its quotes stay). A purchase with a room already Shipped or
+    Received stays, off any order. Its payments stay with the supplier. Returns the room lines released."""
+    released = 0
     for pu in list(o.purchases):
-        buying.leave_order(db, pu)
+        lines = buying.lines_of(db, pu)
+        if any(i.status in KEEP_ON_DELETE for i in lines):
+            buying.leave_order(db, pu)
+            continue
+        released += len(lines)
+        buying.remove_purchase(db, o.project, pu)
     for pay in list(o.payments):
         pay.order, pay.order_id = None, None
     db.flush()
     db.delete(o)
     db.flush()
+    return released
+
+
+def release(db: Session, p: Project, purchases: list[Purchase]) -> int:
+    """Purchases on no order (Ready to order) dropped: their rooms have no shop again (To buy), to be ordered again from a
+    quotation. Only this project's, only those on no order, never one with a room Shipped or Received. Returns the lines."""
+    n = 0
+    for pu in purchases:
+        if pu.project_id != p.id or pu.order_id is not None:
+            continue
+        lines = buying.lines_of(db, pu)
+        if any(i.status in KEEP_ON_DELETE for i in lines):
+            continue
+        n += len(lines)
+        buying.remove_purchase(db, p, pu)
+    return n
 
 
 def claim(db: Session, p: Project, o: Order, ids: set[int]) -> int:

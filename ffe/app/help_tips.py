@@ -219,7 +219,7 @@ TIPS = {
     "orders": dict(
         title="Orders", anchor="purchasing",
         what="What you bought, put together by shop into numbered orders, from the draft to paid in full.",
-        steps=["Choosing a shop in Sourcing puts its products on its draft order by itself, one draft per shop. <b>Ready to order</b> appears only for products taken off an order or left by a deleted one: <b>Add to draft</b> or <b>Start an order</b>.",
+        steps=["Choosing a shop in Sourcing puts its products on its draft order by itself, one draft per shop. <b>Ready to order</b> appears only for products taken off an order: <b>Add to draft</b>, <b>Start an order</b>, or <b>Clear</b> to give their rooms no shop again.",
                "Open the draft, check it, set the ready date and send the shop the purchase order. Confirm it once the shop agrees: its rooms become Ordered.",
                "The orders are grouped by stage: Draft, Deposit due, Balance due, Paid. A red ready date has passed with money still to pay."],
         tips=["The tiles count only confirmed orders; drafts are on their own tile.",
@@ -234,7 +234,7 @@ TIPS = {
                "<b>Record a payment</b> comes filled in with what is due; once the order is paid in full its rooms become Paid."],
         tips=["Changed after it was confirmed? The order shows both totals: send the new purchase order, then press <b>The shop agreed</b>.",
               "Payments to the shop recorded before the order show under <b>Paid to … before</b>: tick them and count them toward this order.",
-              "<b>Back to a draft</b> puts its rooms back to Quoted; deleting the order keeps the products bought and the payments."]),
+              "<b>Back to a draft</b> puts its rooms back to Quoted; deleting the order sends its rooms back to To buy (order them again from the saved quotation, or a new one) and keeps the payments."]),
     "tracker": dict(
         title="Tracker", anchor="purchasing",
         what="Where the buying stands: the money from budget to paid, what needs you now, and the breakdown by stage, shop and category.",
@@ -244,6 +244,16 @@ TIPS = {
                "Below, the products by stage (tap one to list them), each shop's money and next ready date, and each category."],
         tips=["Estimated counts the shops you chose and, for the rest, the lowest quote; products with no quote yet count nothing.",
               "Set the budget (in USD) and <b>Show amounts in</b> (USD or CNY) in Project settings: every amount on the designer's pages follows, and a CNY amount always carries its USD. Prices are still kept in CNY."]),
+    "budget": dict(
+        title="Fit the budget", anchor="budget",
+        what="Bring the total back within the budget from one page: every product's cost across all orders and shops, where to cut, and the changes saved at once.",
+        steps=["The top shows the budget, what everything comes to now (orders, shops chosen and estimates for the rest), how far over it is, and <b>After your changes</b>, which follows every change you try.",
+               "<b>Where to cut</b> lists the biggest savings first: a cheaper shop that already quoted, the lines marked optional, quantities typed above what the rooms need. <b>Try it</b> sets the change below, without saving.",
+               "Open a product to change a room's <b>quantity</b>, tick <b>Drop</b> for a room (or drop it in every room), or buy its open rooms from another shop that quoted.",
+               "Press <b>Apply changes</b>: the quantities, the shops and the rooms set to <b>Not buying</b> change on their orders at once."],
+        tips=["Paid, shipped and received lines are locked: money already paid is not cut.",
+              "A line set to Not buying leaves its order and every total, and stays listed under <b>Not buying</b>: tick it to bring it back.",
+              "A confirmed order that changes says so until you press The shop agreed on it: tell the shop first."]),
     "capture": dict(
         title="Quick capture", anchor="capture",
         what="Shoot first, fill in later. Every photo is saved at once as a draft item.",
@@ -381,7 +391,7 @@ TEMPLATE_KEYS = {
     "suppliers/list.html": "suppliers", "suppliers/detail.html": "supplier", "payments.html": "payments", "cartons.html": "cartons",
     "import.html": "import", "settings.html": "settings", "clip.html": "clip", "share/supplier.html": "share_supplier", "plan/match.html": "plan_match",
     "share/client.html": "share_client", "buying/list.html": "buying", "buying/product.html": "buying_product", "buying/schedule.html": "buying_schedule",
-    "buying/orders.html": "orders", "buying/order.html": "order", "buying/tracker.html": "tracker",
+    "buying/orders.html": "orders", "buying/order.html": "order", "buying/tracker.html": "tracker", "buying/budget.html": "budget",
     "buying/quotations.html": "quotations", "buying/quotation_compare.html": "quotation_compare", "buying/quotation_preview.html": "quotation_preview", "buying/quotation_working.html": "quotation_working", "buying/quotation.html": "quotation",
     "carton.html": "carton", "shipping/list.html": "shipments", "shipping/shipment.html": "shipment", "lists.html": "lists",
 }

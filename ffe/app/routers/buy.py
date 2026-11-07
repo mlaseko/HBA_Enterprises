@@ -170,6 +170,38 @@ def tracker(request: Request, p: Project = Depends(get_project), db: Session = D
                   ORDER_COLORS=od.STAGE_COLORS, SHIP_COLORS=sh.STAGE_COLORS)
 
 
+@router.get("/p/{project_id}/buying/budget")
+def budget_page(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), ok: str = "", err: str = ""):
+    """Fit the budget: every product's cost, the gap to the budget, where to cut, and the changes tried before they are saved."""
+    from .. import budget as bg
+    pl = bg.plan(p)
+    data = dict(rows=[dict(r, buys={k: {x: v[x] for x in ("price", "pack", "override", "shop", "quote", "total")} for k, v in r["buys"].items()})
+                      for r in pl["rows"]], budget=pl["budget"], rate=pl["rate"], usd=p.show_currency == "USD")
+    return render(request, "buying/budget.html", p=p, pl=pl, data=data, ok=ok[:300], err=err[:300])
+
+
+@router.post("/p/{project_id}/buying/budget")
+async def budget_apply(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """The changes tried on the Budget page, saved at once on the orders they touch."""
+    from .. import budget as bg
+    form = await request.form()
+    st = bg.apply(db, p, form, get_settings(db).warehouse)
+    bz.settle(db, p)
+    db.commit()
+    parts = [f"{st['qty']} quantit{'ies' if st['qty'] != 1 else 'y'} changed" if st["qty"] else "",
+             f"{st['dropped']} room line{'s' if st['dropped'] != 1 else ''} set to Not buying" if st["dropped"] else "",
+             f"{st['switched']} product{'s' if st['switched'] != 1 else ''} moved to a cheaper shop" if st["switched"] else "",
+             f"{st['reset']} quantit{'ies' if st['reset'] != 1 else 'y'} back to what the rooms need" if st["reset"] else "",
+             f"{st['restored']} brought back" if st["restored"] else ""]
+    msg = ("; ".join(x for x in parts if x) + ".") if any(parts) else "Nothing changed."
+    msg = msg[0].upper() + msg[1:]
+    if st["locked"]:
+        msg += f" {st['locked']} paid, shipped or received line{'s' if st['locked'] != 1 else ''} left as {'they were' if st['locked'] != 1 else 'it was'}."
+    if any(st[k] for k in ("qty", "dropped", "switched", "reset")):
+        msg += " Confirmed orders that changed say so: tell the shop, then press The shop agreed."
+    return redirect(f"/p/{p.id}/buying/budget?ok=" + urlquote(msg))
+
+
 @router.get("/p/{project_id}/buying/item/{item_id}")
 def buying_for_item(item_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
     """From an item's page: the Buying page of its product."""

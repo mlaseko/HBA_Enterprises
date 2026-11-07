@@ -1708,12 +1708,14 @@ def flow(c):
     r=c.post(f"/p/{pid_o}/orders/{oid}/claim", data={"pay":[str(loose)]}, follow_redirects=False); assert "ok=" in r.headers["location"]
     db=SessionLocal(); assert db.get(_Pay,loose).order_id==oid and _od.OrderView(db.get(_O,oid), _bz.Ledger(db.get(_P,pid_o))).paid==3628.48; db.close()
     assert "Paid to Tile Shop before" not in c.get(f"/p/{pid_o}/orders/{oid}").text
-    c.post(f"/p/{pid_o}/orders/{oid2}/delete", follow_redirects=False); assert _sts([lamp])==["Ordered"]  # a draft deleted lowers nothing either
-    r=c.post(f"/p/{pid_o}/orders/new", data={"supplier_id":str(ls)}, follow_redirects=False); oid3=int(r.headers["location"].split("/orders/")[1].split("?")[0])
+    r=c.post(f"/p/{pid_o}/orders/{oid2}/delete", follow_redirects=False); assert "no%20shop%20again" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); assert _sts([lamp])==["To buy"] and db.get(Item, lamp).purchase_id is None; db.close()  # an order deleted releases its rooms, whatever their status was
+    buy(c, pid_o, lamp, ls, 300); db=SessionLocal(); oid3=db.get(_Pu,db.get(Item, lamp).purchase_id).order_id; db.close()  # bought again: onto a new draft
     db=SessionLocal(); assert _od.ref(db.get(_O,oid3))=="KH-003" and db.query(_O).filter(_O.project_id==pid_o, _O.number==2).count()==0; db.close()  # a number is never given twice
+    c.post(f"/p/{pid_o}/items/{oi[('Bed','BED')]}/status", data={"status":"Shipped"})  # on its way when its order is deleted
     c.post(f"/p/{pid_o}/orders/{oid}/delete", follow_redirects=False)
-    db=SessionLocal(); assert db.get(_O,oid) is None and db.get(_Pay,pay1.id).order_id is None and db.get(_Pay,pay1.id).supplier_id==ts and db.query(_Pu).filter(_Pu.supplier_id==ts).count()==2; db.close()
-    assert _sts(tile_bed)==["Quoted"]*3
+    db=SessionLocal(); assert db.get(_O,oid) is None and db.get(_Pay,pay1.id).order_id is None and db.get(_Pay,pay1.id).supplier_id==ts and db.query(_Pu).filter(_Pu.supplier_id==ts).count()==1; db.close()
+    assert _sts(tile_bed)==["To buy","To buy","Shipped"]  # released to order again from the quotation; the shipped one keeps its shop
     # another project's order is not reachable; a supplier deleted takes its orders with it
     assert c.get(f"/p/{pid_b}/orders/{oid3}", follow_redirects=False).headers["location"]==f"/p/{pid_b}/orders"
     c.post(f"/suppliers/{ls}/delete", follow_redirects=False)
@@ -1749,6 +1751,29 @@ def flow(c):
     _own=_buy_new("Pendant A", "new"); assert _own!=ob  # an order of its own, though Shop B has a draft
     assert _buy_new("Pendant B", str(ob))==ob and _buy_new("Pendant C", str(_own))==_own  # added to the draft chosen
     assert _buy_new("Pendant D", None)==max(ob, _own, key=lambda i: SessionLocal().get(_O,i).number)  # no choice: the shop's latest draft, as before
+    # Fit the budget: every product's cost in one place; a room dropped is Not buying (off its order, out of every total), a
+    # quantity changed, a cheaper shop chosen, a dropped room brought back; paid / shipped / received lines are locked
+    from app import budget as _bg
+    from app.config import NOT_BUYING as _NB
+    h=c.get(f"/p/{pid_o}/buying/budget").text; assert "Fit the budget" in h and 'id="bg-form"' in h and 'class="bg-row' in h and '/buying/budget" class="on"' in h
+    db=SessionLocal(); _pp=db.get(_P,pid_o); _pl=_bg.plan(_pp); _tr=_od.tracker(_pp, _bz.Ledger(_pp), _bz.groups(_pp), _od.views(_pp, _bz.Ledger(_pp)))
+    assert abs(_pl["total"]-_tr["estimated"])<0.01, (_pl["total"], _tr["estimated"])  # the page's "Now" is the Tracker's estimate
+    _pa=db.query(Item).filter(Item.project_id==pid_o, Item.name=="Pendant A").one(); _pb=db.query(Item).filter(Item.project_id==pid_o, Item.name=="Pendant B").one(); _pa_id, _pb_id, _pa_pu=_pa.id, _pb.id, _pa.purchase_id; db.close()
+    r=c.post(f"/p/{pid_o}/buying/budget", data={f"drop_{_pa_id}":"1", f"qty_{_pb_id}":"5"}, follow_redirects=False); assert "set%20to%20Not%20buying" in r.headers["location"] and "1%20quantity%20changed" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); _x=db.get(Item,_pa_id); assert _x.status==_NB and _x.purchase_id is None and db.get(_Pu,_pa_pu) is None and db.get(Item,_pb_id).qty==5
+    _pp=db.get(_P,pid_o); assert _pa_id not in {i.id for g in _bz.groups(_pp) for i in g.lines} and _bg.plan(_pp)["total"]<_pl["total"]+5*10; db.close()
+    assert "Not buying" in c.get(f"/p/{pid_o}/buying/budget").text and f'name="restore_{_pa_id}"' in c.get(f"/p/{pid_o}/buying/budget").text
+    r=c.post(f"/p/{pid_o}/buying/budget", data={f"restore_{_pa_id}":"1"}, follow_redirects=False); assert "brought%20back" in r.headers["location"]
+    db=SessionLocal(); assert db.get(Item,_pa_id).status=="To buy"; db.close()
+    # a cheaper shop for the product: the suggestion offers it and switching buys its rooms there
+    db=SessionLocal(); _pr=db.get(_Pr, db.get(Item,_pb_id).product_id); _sa=_bz.find_supplier(db, None, "Cheap Lights"); _qc=_Q(project_id=pid_o, product=_pr, supplier_id=_sa.id, supplier=_sa); _bz.set_quote(_qc, db.get(_P,pid_o), supplier=_sa, amount=4, currency="CNY"); db.add(_qc); db.commit(); _qcid, _prid=_qc.id, _pr.id; db.close()
+    db=SessionLocal(); _sg=[x for x in _bg.plan(db.get(_P,pid_o))["suggestions"] if x["kind"]=="cheaper" and x["pid"]==_prid]; db.close(); assert _sg and _sg[0]["quote"]==_qcid and _sg[0]["saves"]>0, _sg
+    r=c.post(f"/p/{pid_o}/buying/budget", data={f"switch_{_prid}":str(_qcid)}, follow_redirects=False); assert "cheaper%20shop" in r.headers["location"]
+    db=SessionLocal(); assert db.get(Item,_pb_id).purchase.quote_id==_qcid and db.get(Item,_pb_id).unit_price==4; db.close()
+    # a locked line (paid, shipped or received) is never cut
+    db=SessionLocal(); _lk=db.get(Item,_pb_id); _lk.status="Shipped"; db.commit(); db.close()
+    r=c.post(f"/p/{pid_o}/buying/budget", data={f"drop_{_pb_id}":"1"}, follow_redirects=False); assert "left%20as%20it%20was" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); assert db.get(Item,_pb_id).status=="Shipped" and db.get(Item,_pb_id).purchase_id; db.close()
     print("orders ok")
     # ---- Shipping: boxes to the warehouse, into a shipment, to site; the rooms follow their boxes ----
     from app import shipping as _sh

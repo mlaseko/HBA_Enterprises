@@ -263,8 +263,11 @@ name** (or set the Kind by hand): every existing entry starts as a room.
   purchases (`buying.Ledger`: allowance and whole packs included), its payments are `payments.order_id`. Every change to
   purchases, orders or payments ends with `buying.settle`: on lines that are on a confirmed order, To buy / Quoted /
   Ordered / Paid follow it (Ordered, Paid once paid in full); a draft only lifts To buy to Quoted; Shipped and Received,
-  and lines on no order, are left alone. Taking a purchase off a confirmed order, deleting it or
-  Back to a draft sets its lines back to Quoted. Order purchases and payments are read through the Ledger (from the
+  and lines on no order, are left alone. Taking a purchase off a confirmed order or
+  Back to a draft sets its lines back to Quoted. Deleting an order (`ordering.delete`) removes its purchases, so their
+  rooms are To buy again and the saved quotation (Order everything from this sheet) or a new one orders them again; a
+  purchase with a room Shipped or Received stays, off any order. `POST /p/<id>/orders/release` (`ordering.release`)
+  clears loose purchases under Ready to order the same way. Order purchases and payments are read through the Ledger (from the
   room lines and `p.payments`), never order by order.
 - Supplier money: **on orders** = the confirmed orders' totals, **paid** = every payment to the supplier on the project,
   **to pay** = on orders − paid (`services.summary`, `ordering.tracker`).
@@ -276,6 +279,19 @@ Every price on the designer's pages shows its USD. With amounts shown in CNY the
 small grey type (`.usd`, from the `cur` / `cur_num` filters, `cur_range`, and `usd` after a quotation's own CNY
 amounts); big figures keep one currency with the other on the line under them. Messages and hover titles read
 "¥8,762 ($1,234)". The shop's purchase order and WeChat text stay in CNY.
+
+## Fit the budget
+
+**Sourcing → Budget** (`/p/<id>/buying/budget`, `app/budget.py`, `templates/buying/budget.html`) brings the total back
+within the project's budget from one page. "Now" is the Tracker's estimate: purchases as the orders count them, plus the
+estimate quote for rooms with no shop. **Where to cut** lists the savings, biggest first: a cheaper shop that already
+quoted, lines marked optional, quantities typed by hand above the rooms' need; **Try it** sets the change on the page.
+Every product, the dearest first, opens to change a room's quantity, drop a room, or buy its open rooms from another
+shop; the page's script recomputes the totals as you go and nothing is saved until **Apply changes** (`POST` the same
+URL: `qty_<line>`, `drop_<line>`, `switch_<product>`, `reset_<purchase>`, `restore_<line>`). A dropped room gets the
+status **Not buying** (`config.NOT_BUYING`): it leaves its purchase and order, and `buying.groups` leaves it out of
+buying, the Tracker and every estimate; ticking it under Not buying brings it back as To buy. Paid, shipped and received
+lines are locked.
 
 ## Supplier quotations
 
