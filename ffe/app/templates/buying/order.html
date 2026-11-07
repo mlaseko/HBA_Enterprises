@@ -12,7 +12,7 @@
   </div>
   <div class="actions">
     <span class="badge" style="--c:{{ STAGE_COLORS[ov.stage] }}" title="{{ STAGE_HELP[ov.stage] }}">{{ ov.stage }}</span>
-    <a class="btn sec" href="/p/{{ p.id }}/orders/{{ o.id }}/po.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Purchase order</a>
+    <a class="btn sec" href="/p/{{ p.id }}/orders/{{ o.id }}/po.pdf?sort={{ sort }}" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Purchase order</a>
     <a class="btn accent" href="#wechat" data-open="wechat-box"><svg class="ic"><use href="#i-copy"/></svg>Send on WeChat</a>
   </div>
 </div>
@@ -57,7 +57,8 @@
 
 {# ---- products ---- #}
 <section class="bu-sec" id="products">
-  <div class="bu-sec-head"><div><h2>Products <span class="n">{{ ov.lines|length }}</span></h2><p class="small muted">What is ordered, for which rooms. Quantities include the allowance, in whole boxes: type another number to order more or less, empty goes back to what the rooms need.</p></div></div>
+  <div class="bu-sec-head"><div><h2>Products <span class="n">{{ ov.lines|length }}</span></h2><p class="small muted">What is ordered, for which rooms. Quantities include the allowance, in whole boxes: type another number to order more or less, empty goes back to what the rooms need.</p></div>
+    {% if ov.lines|length > 1 %}<form method="get" action="/p/{{ p.id }}/orders/{{ o.id }}#products" class="filters od-sort"><label class="small muted" for="od-sort">Sort</label><select class="in sm" id="od-sort" name="sort">{% for k, label in SORTS.items() %}<option value="{{ k }}"{{ ' selected' if k == sort }}>{{ label }}</option>{% endfor %}</select><noscript><button class="btn sm sec">Sort</button></noscript></form>{% endif %}</div>
   {% if ov.lines %}
   <div class="tbl od-lines"><table>
     <thead><tr><th></th><th>Product</th><th>For the rooms</th><th class="num">To order</th><th class="num">Unit price</th><th class="num">Amount</th><th></th></tr></thead>
@@ -174,8 +175,8 @@
       <pre class="wechat" id="wechat-text">{{ wechat }}</pre>
       <div class="row">
         <button type="button" class="btn sm" data-copy="wechat-text"><svg class="ic"><use href="#i-copy"/></svg>Copy the message</button>
-        <button type="button" class="btn sm sec" data-share-pdf="/p/{{ p.id }}/orders/{{ o.id }}/po.pdf" data-name="PO-{{ ov.ref }}.pdf" data-title="Purchase order {{ ov.ref }}" hidden><svg class="ic"><use href="#i-upload"/></svg>Share the PDF</button>
-        <a class="btn sm ghost" href="/p/{{ p.id }}/orders/{{ o.id }}/po.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Open the PDF</a>
+        <button type="button" class="btn sm sec" data-share-pdf="/p/{{ p.id }}/orders/{{ o.id }}/po.pdf?sort={{ sort }}" data-name="PO-{{ ov.ref }}.pdf" data-title="Purchase order {{ ov.ref }}" hidden><svg class="ic"><use href="#i-upload"/></svg>Share the PDF</button>
+        <a class="btn sm ghost" href="/p/{{ p.id }}/orders/{{ o.id }}/po.pdf?sort={{ sort }}" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Open the PDF</a>
       </div>
     </div>
   </details>

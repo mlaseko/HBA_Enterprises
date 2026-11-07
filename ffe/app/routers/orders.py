@@ -80,19 +80,20 @@ async def release_ready(request: Request, p: Project = Depends(get_project), db:
 
 
 @router.get("/p/{project_id}/orders/{order_id}")
-def order_page(request: Request, order_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), ok: str = "", err: str = ""):
+def order_page(request: Request, order_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), ok: str = "", err: str = "", sort: str = "amount"):
     o = _order(db, p, order_id)
     if o is None:
         return _to(p)
     led = bz.Ledger(p)
     ov = od.OrderView(o, led)
+    sort = od.sort_lines(ov, sort)
     more = [v for v in led.pv.values() if v["purchase"].order_id is None and v["purchase"].supplier_id == o.supplier_id]
     studio = get_settings(db)
     deposit_next = ov.deposit_left > 0.005
     due = ov.deposit_left if deposit_next else max(ov.balance, 0.0)
     return render(request, "buying/order.html", p=p, ov=ov, o=o, more=more, addable=_addable(db, p, o), wechat=od.wechat_text(ov, p, studio), studio=studio, loose=od.loose_payments(p, o),
                   today=date.today().isoformat(), due=round(due, 2), due_kind="Deposit" if deposit_next else "Balance",
-                  STAGE_COLORS=od.STAGE_COLORS, STAGE_HELP=od.STAGE_HELP, ok=ok[:200], err=err[:200])
+                  STAGE_COLORS=od.STAGE_COLORS, STAGE_HELP=od.STAGE_HELP, ok=ok[:200], err=err[:200], sort=sort, SORTS=od.LINE_SORTS)
 
 
 @router.post("/p/{project_id}/orders/{order_id}")
@@ -304,12 +305,13 @@ async def claim_payments(request: Request, order_id: int, p: Project = Depends(g
 
 
 @router.get("/p/{project_id}/orders/{order_id}/po.pdf")
-def order_pdf(request: Request, order_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+def order_pdf(request: Request, order_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), sort: str = "amount"):
     o = _order(db, p, order_id)
     if o is None:
         return _to(p)
     from ..pdf.order import order_pdf as build
     ov = od.OrderView(o, bz.Ledger(p))
+    od.sort_lines(ov, sort)
     data, err = try_build(build, p, get_settings(db), ov)
     if err:
         return build_error(request, p, f"Purchase order {ov.ref}", err)
