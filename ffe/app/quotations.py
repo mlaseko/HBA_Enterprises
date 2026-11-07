@@ -1879,6 +1879,16 @@ def sheet_quotes(q: Quotation) -> set[int]:
         {ln.quote_id for ln in q.lines if ln.quote_id and ln.quote is not None and ln.quote.option_label}
 
 
+def sheet_draft(p: Project, q: Quotation):
+    """The shop's draft order that already holds products bought from this sheet (the latest when several), or None. The
+    saved quotation's Put on choice defaults to it, so choosing per room and then Order all make one order, not two."""
+    if not q.supplier_id:
+        return None
+    mine = sheet_quotes(q)
+    drafts = [o for o in p.orders if o.supplier_id == q.supplier_id and not o.confirmed and any(pu.quote_id in mine for pu in o.purchases)]
+    return max(drafts, key=lambda o: o.id) if drafts else None
+
+
 def reprice(db: Session, p: Project, q: Quotation, product_ids, ours: set[int] | None = None) -> list[str]:
     """This quotation's quotes on these products made again from the lines now on them: the lines quoting the product (with
     the lines merged into them) and the lines that also price it (QuotationLineAlso), by price_lines like apply. A product

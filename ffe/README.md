@@ -335,7 +335,8 @@ lines are locked.
 - **What's next** on a saved quotation (`#next`): `quotations.order_plan(p, q, gs)` (per product the sheet quotes on one
   line, or lines kept as one quote: the rooms with no shop, the rooms already bought from it, those bought elsewhere;
   products on two lines or more are left to Choose per room) feeds **Order everything from this sheet** →
-  `POST /quotations/<q>/order-all` → `quotations.order_all()` (`buying.buy` per product) + `_placed` (the shop's draft
+  `POST /quotations/<q>/order-all` → `quotations.order_all()` (`buying.buy` per product; the Put on choice defaults to
+  `quotations.sheet_draft`, the shop's draft already holding this sheet's products, so one sheet makes one order) + `_placed` (the shop's draft
   order) + `settle`. The strip also lists the rooms to choose, the shop's draft orders, the lines whose difference was
   "asked the shop" as a message to copy, an expired sheet, the products not quoted and the next upload waiting. The
   Quotations page shows a status per sheet (`quotations.sheet_status`: rooms to order, rooms to choose, order to confirm,

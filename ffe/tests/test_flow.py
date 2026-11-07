@@ -2612,6 +2612,9 @@ def flow(c):
     db=SessionLocal(); _its=[db.get(_OI, i) for i in _open_ids]; assert all(i.purchase is not None and i.purchase.quote_id==_qids[i.product_id] and i.purchase.order is not None and not i.purchase.order.confirmed for i in _its), [(i.code, i.purchase_id) for i in _its]; db.close()
     h=c.get(f"/p/{pid_q}/quotations/{_qo}").text; assert f'/quotations/{_qo}/order-all"' not in h and "Draft order" in h and "Open the order" in h  # the button goes (the help drawer still names it)
     r=c.post(f"/p/{pid_q}/quotations/{_qo}/order-all", follow_redirects=False); assert "Nothing%20to%20order" in r.headers["location"]
+    # once a draft holds this sheet's products, the sheet's next order (choices per room, Order all) goes on it by default: one sheet, one order
+    db=SessionLocal(); _did=db.get(_OI, _open_ids[0]).purchase.order_id; _sd=_qz.sheet_draft(db.get(_P, pid_q), db.get(_QD, _qo)); db.close()
+    assert _sd is not None and _sd.id==_did, (_sd, _did)
     # no allowance by default: a new project's tiles carry none, and the one-time upgrade sets every allowance to 0
     from app import lists as _ls
     from app.models import SchemaMark as _SMk, ListEntry as _LE
