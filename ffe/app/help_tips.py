@@ -146,7 +146,7 @@ TIPS = {
                "The quotes are one table to compare. Press <b>Choose for the rooms without a shop</b> on the one you choose: its rooms go onto that shop's draft order by themselves. To split between shops, open <b>Choose the rooms to buy here</b> under each quote and tick its rooms.",
                "A product offered as <b>Options to choose</b> (two carpets for rooms that need one) shows a grid of rooms × options: tick the one each room takes, or two for a room that rotates them (it gets a second line and twice the quantity), and <b>Save the choices</b>.",
                "Under <b>Buying from</b>, each shop lists its rooms and what to order: <b>Rooms</b> moves rooms between shops, <b>Quantity &amp; notes</b> sets the quantity by hand, <b>Stop buying here</b> leaves those rooms without a shop.",
-               "<b>What to order</b> adds the allowance (10 % for tiles, nothing for the rest) and rounds up to whole boxes; change both under <b>Allowance, pack and buying notes</b>.",
+               "<b>What to order</b> is the rooms' quantities, with an allowance only where you set one and rounds up to whole boxes; change both under <b>Allowance, pack and buying notes</b>.",
                "Each shop you buy from shows its <b>order</b>: confirm it there when the shop agrees."],
         tips=["A room is bought whole from one shop: its line takes that shop's price, brand and lead time, and moves from To buy to Quoted; then Ordered and Paid with its order.",
               "Correcting a quote corrects every room bought from it. Deleting a quote keeps what was already bought from it.",
@@ -324,7 +324,7 @@ TIPS = {
                "The bin deletes an entry. One still in use asks where its items (payments, shipments) go first, then moves them.",
                "<b>Add what is missing</b> copies the entries another project has and this one lacks."],
         tips=["Renaming a category or unit renames it on every item of the project.",
-              "<b>Extra to order</b> on a category is the allowance Buying adds on top of the rooms' quantities (10 % for tiles).",
+              "<b>Extra to order</b> on a category is the allowance Buying adds on top of the rooms' quantities (none by default).",
               "A new project can start from the standard lists or from a copy of another project's."]),
     "import": dict(
         title="Import from Excel", anchor="project",

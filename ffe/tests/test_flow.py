@@ -10,6 +10,8 @@ os.environ["ANTHROPIC_API_KEY"]=""  # start with AI off regardless of workspace 
 os.environ["PLAN_MAX_PX"]="2400"  # PDF pages rendered at 2400 px rather than 3200: the same rules, half the pixels
 from fastapi.testclient import TestClient
 from app.main import app
+from app import lists as _lists_mod
+_lists_mod.ALLOWANCE["Tiles"] = 0.10  # the suite tests the allowance arithmetic with tiles at 10 %; the shipped default is none (see the last section)
 from PIL import Image
 import openpyxl
 
@@ -2554,6 +2556,15 @@ def flow(c):
     db=SessionLocal(); _its=[db.get(_OI, i) for i in _open_ids]; assert all(i.purchase is not None and i.purchase.quote_id==_qids[i.product_id] and i.purchase.order is not None and not i.purchase.order.confirmed for i in _its), [(i.code, i.purchase_id) for i in _its]; db.close()
     h=c.get(f"/p/{pid_q}/quotations/{_qo}").text; assert f'/quotations/{_qo}/order-all"' not in h and "Draft order" in h and "Open the order" in h  # the button goes (the help drawer still names it)
     r=c.post(f"/p/{pid_q}/quotations/{_qo}/order-all", follow_redirects=False); assert "Nothing%20to%20order" in r.headers["location"]
+    # no allowance by default: a new project's tiles carry none, and the one-time upgrade sets every allowance to 0
+    from app import lists as _ls
+    from app.models import SchemaMark as _SMk, ListEntry as _LE
+    _ls.ALLOWANCE.pop("Tiles", None)
+    r=c.post("/projects/new", data={"client_name":"NA","name":"No allowance","rate":"7"}, follow_redirects=False); _pna=int(r.headers["location"].split("/")[-1])
+    db=SessionLocal(); assert _ls.allowance(db.get(_P,_pna), "Tiles")==0; db.close()
+    _ls.ALLOWANCE["Tiles"]=0.10
+    db=SessionLocal(); assert db.query(_LE).filter(_LE.kind=="category", _LE.num>0).count()>0; db.query(_SMk).filter(_SMk.key==_ls.NO_ALLOWANCE_MARK).delete(); db.commit()
+    assert _ls.drop_allowances(db)>0 and db.query(_LE).filter(_LE.kind=="category", _LE.num>0).count()==0 and _ls.drop_allowances(db)==0; db.close()  # once only
     print("quotation amendments ok")
 
 
