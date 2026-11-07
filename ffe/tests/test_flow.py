@@ -1708,12 +1708,14 @@ def flow(c):
     r=c.post(f"/p/{pid_o}/orders/{oid}/claim", data={"pay":[str(loose)]}, follow_redirects=False); assert "ok=" in r.headers["location"]
     db=SessionLocal(); assert db.get(_Pay,loose).order_id==oid and _od.OrderView(db.get(_O,oid), _bz.Ledger(db.get(_P,pid_o))).paid==3628.48; db.close()
     assert "Paid to Tile Shop before" not in c.get(f"/p/{pid_o}/orders/{oid}").text
-    c.post(f"/p/{pid_o}/orders/{oid2}/delete", follow_redirects=False); assert _sts([lamp])==["Ordered"]  # a draft deleted lowers nothing either
-    r=c.post(f"/p/{pid_o}/orders/new", data={"supplier_id":str(ls)}, follow_redirects=False); oid3=int(r.headers["location"].split("/orders/")[1].split("?")[0])
+    r=c.post(f"/p/{pid_o}/orders/{oid2}/delete", follow_redirects=False); assert "no%20shop%20again" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); assert _sts([lamp])==["To buy"] and db.get(Item, lamp).purchase_id is None; db.close()  # an order deleted releases its rooms, whatever their status was
+    buy(c, pid_o, lamp, ls, 300); db=SessionLocal(); oid3=db.get(_Pu,db.get(Item, lamp).purchase_id).order_id; db.close()  # bought again: onto a new draft
     db=SessionLocal(); assert _od.ref(db.get(_O,oid3))=="KH-003" and db.query(_O).filter(_O.project_id==pid_o, _O.number==2).count()==0; db.close()  # a number is never given twice
+    c.post(f"/p/{pid_o}/items/{oi[('Bed','BED')]}/status", data={"status":"Shipped"})  # on its way when its order is deleted
     c.post(f"/p/{pid_o}/orders/{oid}/delete", follow_redirects=False)
-    db=SessionLocal(); assert db.get(_O,oid) is None and db.get(_Pay,pay1.id).order_id is None and db.get(_Pay,pay1.id).supplier_id==ts and db.query(_Pu).filter(_Pu.supplier_id==ts).count()==2; db.close()
-    assert _sts(tile_bed)==["Quoted"]*3
+    db=SessionLocal(); assert db.get(_O,oid) is None and db.get(_Pay,pay1.id).order_id is None and db.get(_Pay,pay1.id).supplier_id==ts and db.query(_Pu).filter(_Pu.supplier_id==ts).count()==1; db.close()
+    assert _sts(tile_bed)==["To buy","To buy","Shipped"]  # released to order again from the quotation; the shipped one keeps its shop
     # another project's order is not reachable; a supplier deleted takes its orders with it
     assert c.get(f"/p/{pid_b}/orders/{oid3}", follow_redirects=False).headers["location"]==f"/p/{pid_b}/orders"
     c.post(f"/suppliers/{ls}/delete", follow_redirects=False)

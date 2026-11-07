@@ -263,8 +263,11 @@ name** (or set the Kind by hand): every existing entry starts as a room.
   purchases (`buying.Ledger`: allowance and whole packs included), its payments are `payments.order_id`. Every change to
   purchases, orders or payments ends with `buying.settle`: on lines that are on a confirmed order, To buy / Quoted /
   Ordered / Paid follow it (Ordered, Paid once paid in full); a draft only lifts To buy to Quoted; Shipped and Received,
-  and lines on no order, are left alone. Taking a purchase off a confirmed order, deleting it or
-  Back to a draft sets its lines back to Quoted. Order purchases and payments are read through the Ledger (from the
+  and lines on no order, are left alone. Taking a purchase off a confirmed order or
+  Back to a draft sets its lines back to Quoted. Deleting an order (`ordering.delete`) removes its purchases, so their
+  rooms are To buy again and the saved quotation (Order everything from this sheet) or a new one orders them again; a
+  purchase with a room Shipped or Received stays, off any order. `POST /p/<id>/orders/release` (`ordering.release`)
+  clears loose purchases under Ready to order the same way. Order purchases and payments are read through the Ledger (from the
   room lines and `p.payments`), never order by order.
 - Supplier money: **on orders** = the confirmed orders' totals, **paid** = every payment to the supplier on the project,
   **to pay** = on orders − paid (`services.summary`, `ordering.tracker`).

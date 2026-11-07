@@ -219,7 +219,7 @@ TIPS = {
     "orders": dict(
         title="Orders", anchor="purchasing",
         what="What you bought, put together by shop into numbered orders, from the draft to paid in full.",
-        steps=["Choosing a shop in Sourcing puts its products on its draft order by itself, one draft per shop. <b>Ready to order</b> appears only for products taken off an order or left by a deleted one: <b>Add to draft</b> or <b>Start an order</b>.",
+        steps=["Choosing a shop in Sourcing puts its products on its draft order by itself, one draft per shop. <b>Ready to order</b> appears only for products taken off an order: <b>Add to draft</b>, <b>Start an order</b>, or <b>Clear</b> to give their rooms no shop again.",
                "Open the draft, check it, set the ready date and send the shop the purchase order. Confirm it once the shop agrees: its rooms become Ordered.",
                "The orders are grouped by stage: Draft, Deposit due, Balance due, Paid. A red ready date has passed with money still to pay."],
         tips=["The tiles count only confirmed orders; drafts are on their own tile.",
@@ -234,7 +234,7 @@ TIPS = {
                "<b>Record a payment</b> comes filled in with what is due; once the order is paid in full its rooms become Paid."],
         tips=["Changed after it was confirmed? The order shows both totals: send the new purchase order, then press <b>The shop agreed</b>.",
               "Payments to the shop recorded before the order show under <b>Paid to … before</b>: tick them and count them toward this order.",
-              "<b>Back to a draft</b> puts its rooms back to Quoted; deleting the order keeps the products bought and the payments."]),
+              "<b>Back to a draft</b> puts its rooms back to Quoted; deleting the order sends its rooms back to To buy (order them again from the saved quotation, or a new one) and keeps the payments."]),
     "tracker": dict(
         title="Tracker", anchor="purchasing",
         what="Where the buying stands: the money from budget to paid, what needs you now, and the breakdown by stage, shop and category.",

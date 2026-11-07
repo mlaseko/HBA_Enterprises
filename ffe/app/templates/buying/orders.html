@@ -24,7 +24,7 @@
 
 {% if ready %}
 <section class="bu-sec" id="ready">
-  <div class="bu-sec-head"><div><h2>Ready to order <span class="n">{{ ready|length }}</span></h2><p class="small muted">Chosen before orders were made by themselves, or taken off an order. Put them on the shop's draft, or start one.</p></div></div>
+  <div class="bu-sec-head"><div><h2>Ready to order <span class="n">{{ ready|length }}</span></h2><p class="small muted">Shops chosen but on no order (taken off an order, or chosen before orders were made by themselves). Put them on the shop's draft, start one, or clear them to order again from a quotation.</p></div></div>
   <div class="od-ready">
     {% for e in ready %}
     <article class="card od-shop">
@@ -47,6 +47,10 @@
         <span class="small muted">{{ 'Its draft is not confirmed yet.' if e.draft else 'A draft first: you confirm it once the shop agrees.' }}</span>
       </form>
       {% endif %}
+      <form method="post" action="/p/{{ p.id }}/orders/release" class="row mt" data-confirm="Clear these from Ready to order? Their rooms have no shop again (To buy): order them from the saved quotation (Order everything from this sheet) or a new one." data-confirm-ok="Clear">
+        {% for v in e.views %}<input type="hidden" name="pu" value="{{ v.purchase.id }}">{% endfor %}
+        <button class="btn sm ghost"><svg class="ic"><use href="#i-x"/></svg>Clear: no shop for these rooms</button>
+      </form>
     </article>
     {% endfor %}
   </div>
