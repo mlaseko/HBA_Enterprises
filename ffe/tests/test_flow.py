@@ -1740,6 +1740,15 @@ def flow(c):
     db=SessionLocal(); _pu2=db.get(Item,_sci).purchase; assert _pu2 is not None and _pu2.order_id==ob and _pu2.unit_price==75 and db.get(Item,_sci).status=="Quoted"; db.close()
     assert 'id="add-product"' not in c.get(f"/p/{pid_o}/orders/{ob}").text  # nothing left to add from this shop
     r=c.post(f"/p/{pid_o}/orders/{ob}/add-product", data={"quote_id":"999999"}, follow_redirects=False); assert "err=" in r.headers["location"]
+    # from a quotation the designer chooses where its purchases go: a new order of their own, or a chosen draft of the shop
+    def _buy_new(name, into):
+        c.post(f"/p/{pid_o}/items/new", data={"room_ids":[str(_rm)],"category":"Lighting","name":name,"qty":"2","unit":"pcs","status":"To buy"}, follow_redirects=False)
+        c.get(f"/p/{pid_o}/items"); db=SessionLocal(); it=db.query(Item).filter(Item.project_id==pid_o, Item.name==name).one(); pr=db.get(_Pr, it.product_id); pp=db.get(_P,pid_o)
+        q_=_bz.find_supplier(db, _sid("Shop B")); qu=_Q(project_id=pid_o, product=pr, supplier_id=q_.id, supplier=q_); _bz.set_quote(qu, pp, supplier=q_, amount=10, currency="CNY"); db.add(qu); db.flush()
+        before=_od.loose_ids(db, pp); _bz.buy(db, pp, pr, qu, [it]); os_=_od.follow_choice(db, pp, before, "", into=into); _bz.settle(db, pp); db.commit(); oid_=os_[0].id; db.close(); return oid_
+    _own=_buy_new("Pendant A", "new"); assert _own!=ob  # an order of its own, though Shop B has a draft
+    assert _buy_new("Pendant B", str(ob))==ob and _buy_new("Pendant C", str(_own))==_own  # added to the draft chosen
+    assert _buy_new("Pendant D", None)==max(ob, _own, key=lambda i: SessionLocal().get(_O,i).number)  # no choice: the shop's latest draft, as before
     print("orders ok")
     # ---- Shipping: boxes to the warehouse, into a shipment, to site; the rooms follow their boxes ----
     from app import shipping as _sh
@@ -2552,7 +2561,7 @@ def flow(c):
     _qo, _plan = next(((i, pl) for i, pl in _cand if pl["rooms"]), (None, None)); assert _qo, [(i, pl["rooms"]) for i, pl in _cand]
     _open_ids=[i.id for r_ in _plan["rows"] for i in r_["open"]]; _qids={r_["product"].id: r_["quote"].id for r_ in _plan["rows"]}; _n=_plan["rooms"]; db.close()
     h=c.get(f"/p/{pid_q}/quotations/{_qo}").text; assert 'id="next"' in h and "What's next" in h and "Order everything from this sheet" in h and f'action="/p/{pid_q}/quotations/{_qo}/order-all"' in h and f"{_n} room line" in h
-    r=c.post(f"/p/{pid_q}/quotations/{_qo}/order-all", follow_redirects=False); loc=_unq(r.headers["location"]); assert "Ordered from" in loc and f"{_n} room line" in loc, loc
+    r=c.post(f"/p/{pid_q}/quotations/{_qo}/order-all", data={"into":"new"}, follow_redirects=False); loc=_unq(r.headers["location"]); assert "Ordered from" in loc and f"{_n} room line" in loc, loc
     db=SessionLocal(); _its=[db.get(_OI, i) for i in _open_ids]; assert all(i.purchase is not None and i.purchase.quote_id==_qids[i.product_id] and i.purchase.order is not None and not i.purchase.order.confirmed for i in _its), [(i.code, i.purchase_id) for i in _its]; db.close()
     h=c.get(f"/p/{pid_q}/quotations/{_qo}").text; assert f'/quotations/{_qo}/order-all"' not in h and "Draft order" in h and "Open the order" in h  # the button goes (the help drawer still names it)
     r=c.post(f"/p/{pid_q}/quotations/{_qo}/order-all", follow_redirects=False); assert "Nothing%20to%20order" in r.headers["location"]

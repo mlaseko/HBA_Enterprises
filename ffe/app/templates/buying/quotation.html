@@ -2,6 +2,11 @@
 {% from "buying/_tabs.html" import tabs %}
 {% block title %}{{ q.title or 'Quotation' }} · {{ p.name }}{% endblock %}
 {% block content %}
+{# where this quotation's purchases go: a new order of their own, or one of the shop's drafts (asked only when it has one) #}
+{% macro into_select() %}{% if drafts_open %}<label class="qn-into small"><span>Put on</span><select class="in sm" name="into" aria-label="Order to put them on">
+  <option value="new" selected>A new order for this quotation</option>
+  {% for o in drafts_open %}<option value="{{ o.id }}">Draft {{ order_ref(o) }} (add to it)</option>{% endfor %}
+</select></label>{% else %}<input type="hidden" name="into" value="new">{% endif %}{% endmacro %}
 {% set cur = q.currency %}
 <div class="page-head">
   <div>
@@ -36,7 +41,7 @@
   {% if plan.rooms and not revised_by %}{% set ns_n.any = true %}
     <li class="qn-step main"><span class="qn-ic"><svg class="ic"><use href="#i-receipt"/></svg></span>
       <div class="qn-t"><b>Order everything from this sheet</b><div class="small muted">{{ plan.products }} product{{ 's' if plan.products != 1 }}, {{ plan.rooms }} room line{{ 's' if plan.rooms != 1 }} with no shop yet, at this sheet's prices{% if plan.other %} · {{ plan.other }} bought elsewhere stay{% endif %}{% if plan.choose %} · {{ plan.choose }} to choose per room below{% endif %}</div></div>
-      <form method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/order-all" data-confirm="Order everything from this sheet? {{ plan.rooms }} room line{{ 's' if plan.rooms != 1 }} of {{ plan.products }} product{{ 's' if plan.products != 1 }} get {{ q.supplier.name if q.supplier else 'this shop' }} and go on its draft order. Rooms already bought from another shop stay as they are; nothing is sent to the shop." data-confirm-ok="Order them"><button class="btn accent"><svg class="ic"><use href="#i-check"/></svg>Order all</button></form></li>
+      <form method="post" action="/p/{{ p.id }}/quotations/{{ q.id }}/order-all" data-confirm="Order everything from this sheet? {{ plan.rooms }} room line{{ 's' if plan.rooms != 1 }} of {{ plan.products }} product{{ 's' if plan.products != 1 }} get {{ q.supplier.name if q.supplier else 'this shop' }} and go on the order chosen beside the button. Rooms already bought from another shop stay as they are; nothing is sent to the shop." data-confirm-ok="Order them" class="qn-order">{{ into_select() }}<button class="btn accent"><svg class="ic"><use href="#i-check"/></svg>Order all</button></form></li>
   {% endif %}
   {% if multi and open_choice %}{% set ns_n.any = true %}
     <li class="qn-step"><span class="qn-ic gold"><svg class="ic"><use href="#i-layout"/></svg></span>
@@ -113,7 +118,7 @@
   </div>
   {% endfor %}
   {% if not revised_by %}<div class="qc-bar">
-    <span class="qc-bar-n small" id="qc-n">Tap the boxes, then save every product at once.</span>
+    <span class="qc-bar-n small" id="qc-n">Tap the boxes, then save every product at once.</span>{{ into_select() }}
     <button class="btn accent" id="qc-save"><svg class="ic"><use href="#i-check"/></svg><span>Save all choices</span></button>
   </div>{% endif %}
   </form>

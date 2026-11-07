@@ -1995,3 +1995,6 @@ details.qi-s3more>summary.row::before{margin-top:2px}
 /* the order page: quantities typed on the order, the product to add */
 .od-qty{display:inline-flex;align-items:center;gap:6px;justify-content:flex-end}.od-qty input{width:7.5em;text-align:right}
 .od-qty-bar{align-items:center;gap:10px;flex-wrap:wrap}.row.wrapish{flex-wrap:wrap;gap:8px}.row.wrapish select{flex:1;min-width:14em}
+/* the quotation's order choice: a new order of its own, or one of the shop's drafts */
+.qn-order{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}.qn-into{display:inline-flex;align-items:center;gap:6px;color:var(--muted)}.qn-into span{white-space:nowrap}.qn-into select{max-width:16em}
+.qc-bar .qn-into{margin-left:auto;margin-right:8px}

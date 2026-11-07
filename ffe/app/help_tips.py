@@ -197,7 +197,7 @@ TIPS = {
     "quotation": dict(
         title="A quotation", anchor="quotations",
         what="One supplier's sheet as received: every line as written, what it became, the money, the terms and the original file.",
-        steps=["<b>What's next</b> at the top: <b>Order everything from this sheet</b> (every room with no shop yet gets this shop and goes on its draft order), the rooms to choose per room, the draft order to send and confirm, the questions for the shop, the products not quoted and the next sheet waiting.",
+        steps=["<b>What's next</b> at the top: <b>Order everything from this sheet</b> (every room with no shop yet gets this shop; <b>Put on</b> chooses a new order for this quotation or one of the shop's drafts), the rooms to choose per room, the draft order to send and confirm, the questions for the shop, the products not quoted and the next sheet waiting.",
                "The tiles: the quoted total after discount, the quotes made, the date and validity, the lead time.",
                "The table: each line with its picture, quantity and price, and what it became: a green link opens the product's Buying page at that quote; <b>Part of</b>, <b>Extra charge</b> and <b>Skipped</b> say the rest. Gold flags repeat what differed.",
                "<b>Choose per room</b> (when the sheet quotes a product on two lines or more): tap the line each room takes, both for a room that rotates them, or <b>Every room</b> under a line; go through every product, then <b>Save all choices</b> once: the rooms are bought from those lines and put on the shop's draft order, and the card says what was saved.",
