@@ -1230,6 +1230,17 @@ def flow(c):
     assert _ri.main(["--project", str(pid_big), "--restore-url", f"sqlite:///{_tmp}/before_delete.db"])==0  # nothing left to bring back
     c.post(f"/p/{pid_big}/items/delete-selected", data={"ids":[str(x[0]) for x in _now]}, follow_redirects=False)  # as the sections after expect
     db=SessionLocal(); assert [i.id for i in db.query(Item).filter(Item.project_id==int(pid_big))]==[keep_id]; db.close()
+    # a product whose lines were all deleted keeps its quotes; lines that read like it again (typed or imported anew) rejoin it
+    from app.models import Quote as _Qo
+    r=c.post(f"/p/{pid_big}/items/new", data={"room_ids":[big_rids[1]],"category":"Tiles","name":"Marble slab","qty":"12","unit":"m²","status":"To buy"}, follow_redirects=False)
+    c.get(f"/p/{pid_big}/items"); db=SessionLocal(); _ms=db.query(Item).filter(Item.project_id==int(pid_big), Item.name=="Marble slab").one(); _mp=_ms.product_id; _mid=_ms.id; db.close(); assert _mp
+    c.post(f"/p/{pid_big}/buying/{_mp}/quotes", data={"supplier_name":"Kariakoo Stone","amount":"90","currency":"CNY"})
+    c.post(f"/p/{pid_big}/items/delete-selected", data={"ids":[str(_mid)]}, follow_redirects=False)
+    db=SessionLocal(); assert db.query(_Qo).filter(_Qo.product_id==_mp).count()==1; db.close()  # the product and its quote stay
+    r=c.post(f"/p/{pid_big}/items/new", data={"room_ids":[big_rids[2], big_rids[3]],"category":"Tiles","name":"marble  SLAB","qty":"5","unit":"m²","status":"To buy"}, follow_redirects=False)
+    c.get(f"/p/{pid_big}/items"); db=SessionLocal(); _back=db.query(Item).filter(Item.project_id==int(pid_big), Item.category=="Tiles", Item.id!=keep_id).all()
+    assert len(_back)==2 and {i.product_id for i in _back}=={_mp} and db.query(_Qo).filter(_Qo.product_id==_mp).one().amount==90, [(i.name, i.product_id) for i in _back]; db.close()
+    c.post(f"/p/{pid_big}/items/delete-selected", data={"ids":[str(i.id) for i in _back]}, follow_redirects=False)
     print("delete selected ok")
     # messages and confirmations are the app's own dialog (app.js appConfirm/appAlert, .modal), never the browser's system boxes
     import re as _re; from pathlib import Path

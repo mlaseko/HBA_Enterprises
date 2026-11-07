@@ -152,6 +152,10 @@ copy the missing lines back:
    there (else the quotation line's or the shop's picture). Nothing else changes.
 4. Delete the Neon branch and the `RESTORE_URL` secret afterwards.
 
+Without an earlier copy, add the lines again (the item form, or an import sheet: Import & export). A product whose lines
+were all deleted keeps its quotes and quotation lines, and new lines with the same name, size and finish rejoin it, so
+the shops' prices come back with them.
+
 ## Notes for use in China
 
 * No Google services are used anywhere (fonts, maps, auth, storage). Everything is served by the app.
