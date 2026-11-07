@@ -2099,6 +2099,13 @@ def flow(c):
     fw=openpyxl.Workbook(); fws=fw.active; fws.append(["No","Item","Qty","Unit Price","Total Price"]); fws.append([1,"Down light",150,60,"=D2*C2"]); fws.append([2,"Garden light",10,350,"=D3*C3"]); fws.append([None,None,None,None,"=SUM(E2:E3)"])
     fb=io.BytesIO(); fw.save(fb); _rs=_qz.read_sheets(fb.getvalue(), "f.xlsx"); assert _rs[0]["rows"][1][4]==9000 and _rs[0]["rows"][3][4]==12500, _rs[0]["rows"]
     _pf=_qz.parse(_rs, "f.xlsx"); assert [(l["qty"], l["amount"]) for l in _pf["lines"]]==[(150, 9000), (10, 3500)], _pf["lines"]
+    # one tile on a line per room at one price is where it goes, not options to choose; a room code on the line names the room
+    assert _qz.allocations([{"ref":"","unit_price":90},{"ref":"","unit_price":90},{"ref":"","unit_price":90.5}]) and not _qz.allocations([{"ref":"","unit_price":90},{"ref":"","unit_price":120}]) and not _qz.allocations([{"ref":"A-1","unit_price":90},{"ref":"B-2","unit_price":90}])
+    class _Rm:
+        def __init__(s, i, c): s.id, s.code = i, c
+    class _RmP: rooms=[_Rm(1,"GF-LIV"), _Rm(2,"BQ"), _Rm(3,"BQ-BA")]
+    assert _qz.rooms_by_code("Living Room GF-LIV", _RmP)==[1] and _qz.rooms_by_code("Boys' Quarter BQ", _RmP)==[2] and _qz.rooms_by_code("BQ-BA", _RmP)==[3] and _qz.rooms_by_code("gf-liv; bq-ba", _RmP)==[1,3] and _qz.rooms_by_code("Living room", _RmP)==[]
+    assert _qz.room_hints({"place":"Boys' Quarter BQ","name":"Floor tile","section":"Staff quarters","detail":""}, _RmP)==[2]
     assert _qz.amt(_pj, "CNY", 575)=="CNY 575 ($82.14)" and _qz.amt(_pj, "USD", 5)=="USD 5"
     r=c.post(f"/p/{pid_q}/quotations/{qd2_id}/delete", follow_redirects=False); assert "0%20quotes%20nothing%20was%20bought%20from" in r.headers["location"], r.headers["location"]  # the second document corrected the first's quotes: they stay with it
     db=SessionLocal(); assert db.get(_Qt, q1.id) is not None and db.get(_Qt, q2.id) is not None and db.get(_Qt, q4.id) is not None; db.close()

@@ -864,7 +864,8 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   "Products and variants" card; `set_variants(db, p, labels, moves)` behind `POST /quotations/<q>/variants` renames and
   moves (`follow_renames` repoints `QuotationLine.product_id` when products merge). `room_hints` reads the place before the
   section, returns the room whose whole name the place is (or is off by one letter: `_typo`, never on digits), counts
-  "bedroom 1" digits and the floor at half weight; the parser takes a Remarks "For <room>" as the place.
+  "bedroom 1" digits and the floor at half weight; the parser takes a Remarks "For <room>" as the place. A room code standing on its own in the place or remarks (`rooms_by_code`: "Living Room GF-LIV",
+  "BQ") decides `room_hints` before any word guessing.
   Preview script: `splits(per)` builds the `#qi-splits` cards (`vget` / `vrow` / `vsum`, `isSplit`), the quantities table
   groups a family (`data-fam` on the options) as one row with its variants under it.
   Families: `services.family_key(name, finish)` / `families(entries, name_finish)` group products that differ only by size
@@ -981,7 +982,9 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   checkbox covers the cell (iPhone Safari missed taps on a hidden input). Not quoted (`#gaps`) is a folded `details.qg`. `#advanced` is a
   `section.qa` with tabs (`.qa-tab[data-tab]`, `.qa-panel[data-tab]`; the page script shows one, a hash inside a panel opens it).
 - **Quotation simplification.** Saved page: `#next` What's next (`quotations.order_plan` / `order_all` behind
-  `POST /quotations/<q>/order-all`; `sheet_status` for the Quotations page; pass `gs` = `{g.key: g for g in buying.groups(p)}`
+  `POST /quotations/<q>/order-all`; `sheet_status` for the Quotations page; `multi_line_products` leaves out a product
+  whose lines are only `allocations()` (one price within 2 %, no two item numbers: a tile on a line per room), so Choose per
+  room does not ask and Order everything buys it; pass `gs` = `{g.key: g for g in buying.groups(p)}`
   to `order_plan` / `choice_rooms` instead of calling `group_of` in a loop), `#choices` above the lines, `.qn-menu` in the
   header, line notes in `details.qi-flags`. Preview: sure lines accepted on load (not on a draft), `.qi-decs` under red
   notes, `#qi-diffs` folded, `.qi-views` hidden (By product lives on step 3), `#sim-sum` / `#sim-warn` + folded
