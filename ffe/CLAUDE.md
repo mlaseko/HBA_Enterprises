@@ -935,6 +935,10 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   Finding a product on a line: `.qi-find` search box (words, room code, our code: `data-s` on the options = codes, rooms, spec),
   chips of the hits; `data-same` (item number + unit, else name + size + unit) drives the "Also for L…" chip. Memory: `remember()`
   writes the shop's row and a supplier-less row by wording (`memory()` returns both, the shop's first; shortlist 0.9 / 0.85).
+  `kind_clash(line, c, cands)`: the category the line's own words name ("Porcelain tile" → Tiles, from the products' categories)
+  when the product is of another and shares no name word; `shortlist` never returns a clashing remembered match at 0.97 and
+  caps any clashing entry at 0.3, and `suggest` caps Claude's / the memory's clashing pick at 0.3 (never auto-accepted): one
+  wrong match remembered once (a tile item number onto a window) used to come back sure on every later sheet.
 
 - **Usability, phase 1.** Users found the app hard to follow. The project's 14 menu entries became five places (see
   Navigation above), Home (`projects/dashboard.html`) became a to-do list (`routers/buy.tracker_figures` = the Tracker's

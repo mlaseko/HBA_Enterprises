@@ -921,9 +921,9 @@ def shortlist(line: dict, cands: list[Candidate], memo: list[QuoteMatch], n: int
         for m in by_ref:
             if m.product_key not in keys:
                 keys.append(m.product_key)
-        if exact:
+        if exact and not kind_clash(line, by_key[exact[0].product_key], cands):
             return [(by_key[exact[0].product_key], 0.97, "matched before by item number and wording")]
-        if len(keys) == 1:
+        if len(keys) == 1 and not kind_clash(line, by_key[keys[0]], cands):
             return [(by_key[keys[0]], 0.97, "matched before by item number")]
         out.extend((by_key[k], 0.6, "this item number was matched to several products before: check the place") for k in keys)
     for m in memo:
@@ -940,7 +940,33 @@ def shortlist(line: dict, cands: list[Candidate], memo: list[QuoteMatch], n: int
         if any(x[0].id == c.id for x in out):
             continue
         out.append((c, s, "words, size and rooms"))
-    return out[:n]
+    # a product of another kind than the line names (a tile line onto a window) is never trusted, however it came: it was
+    # remembered from a wrong match before, or words and rooms alone pointed at it
+    fixed = []
+    for c, s, why in out:
+        k = kind_clash(line, c, cands)
+        fixed.append((c, min(s, 0.3), f"{why}; but it is {c.category or 'another kind of product'}, the line reads as {k}") if k else (c, s, why))
+    fixed.sort(key=lambda x: -x[1])
+    return fixed[:n]
+
+
+KIND_GENERIC = {"other", "general", "misc", "item", "accessory", "fitting", "fixture", "decor", "finish", "material", "work"}
+
+
+def kind_clash(line: dict, c, cands) -> str:
+    """The category the line's own words name ("Porcelain tile" -> Tiles) when the product belongs to another and shares no
+    word of its name with the line; '' when there is no clash or the line names no category. The categories are the
+    products' own (the project's list as used)."""
+    cats = {x.category for x in cands if x.category}
+    words = tokens(f"{line.get('name', '')} {(line.get('detail') or '')[:120]}")
+    if not words or not c.category:
+        return ""
+    named = [cat for cat in cats if (tokens(cat) - KIND_GENERIC) & words]
+    if not named or c.category in named:
+        return ""
+    if tokens(c.name) & tokens(line.get("name", "")):
+        return ""
+    return named[0]
 
 
 _THICK_RE = re.compile(r"(?:thickness\s*[:：]?\s*|\bx\s*|\b)(\d+(?:\.\d+)?)\s*(?:±\s*\d+(?:\.\d+)?\s*)?mm\b(?!\s*[x×*])", re.I)
@@ -1291,6 +1317,10 @@ def suggest(db: Session, p: Project, parsed: dict, pictures: dict[int, bytes] | 
         if sug["action"] == "new" and not sug.get("category") and sl:  # the category of the nearest product, to be corrected
             sug["category"] = sl[0][0].category
         c = by_id.get(sug["product_id"]) if sug["product_id"] else None
+        clash = kind_clash(l, c, cands) if c is not None and sug["action"] == "quote" else ""
+        if clash:  # Claude's pick or the memory's, of another kind than the line names: never accepted on its own
+            sug["confidence"] = min(sug["confidence"], 0.3)
+            sug["reason"] = f"{c.category or 'another kind of product'}, but the line reads as {clash}: pick the product, make it a new item, or skip it"
         sug["flags"] = flags(l, c)
         sug["options"] = options(l, sug, sl, parsed["lines"], p) if (sug["action"] != "quote" or sug["confidence"] < SURE) and not out_of_scope(l, p) else []
         out[l["no"]] = sug
