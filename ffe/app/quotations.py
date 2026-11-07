@@ -790,10 +790,22 @@ def out_of_scope(line: dict, p: Project | None = None) -> bool:
     return any(w in t for w in OUT_OF_SCOPE) and not _scope_rooms(p)
 
 
+def rooms_by_code(text: str, p: Project) -> list[int]:
+    """The project's rooms whose code stands on its own in the text ("Living Room GF-LIV", "GF-GBA; GF-PWC", "BQ"), in the
+    project's order; [] when none does. A code must be a whole token: "BQ" is not found in "BQ-BA"."""
+    toks = {t.upper() for t in re.split(r"[\s,;/()]+", text or "") if t}
+    if not toks:
+        return []
+    return [r.id for r in p.rooms if r.code and r.code.upper() in toks]
+
+
 def room_hints(line: dict, p: Project) -> list[int]:
     """The rooms a line seems to be for, from the supplier's words ("kitchen wall" → the kitchen, "all bath floor" → every
     bathroom, "Master bath" → the master bathroom, "staff quarters" → the BQ rooms): the rooms sharing the most words with
     the line, ids in the project's order; [] when nothing points at a room."""
+    coded = rooms_by_code(f"{line.get('place', '')} {line.get('remarks', '')}", p)
+    if coded:  # the sheet names the room codes ("GF-LIV", "BQ-BA"): no guessing
+        return coded
     text = f"{line.get('place', '')} {line['name']} {line['section']}"
     if any(w in _norm(text) for w in OUT_OF_SCOPE):
         return [r.id for r in _scope_rooms(p)] or []
@@ -2567,6 +2579,16 @@ def apply_now(db: Session, p: Project, rows: list[dict], qtys: dict[int, float])
 
 
 # ---- lines of one product on a saved sheet: one quote, or options to choose ---------------------------------------------------
+def allocations(lns) -> bool:
+    """Lines quoting one product at one price (within 2 %) with no two item numbers apart: the sheet allocating it to rooms
+    ("Living Room 28.2 m²", "Gym 47.24 m²"), not models or options to choose between. The preview's split card uses the
+    same test (refs differ, or prices more than 2 % apart)."""
+    refs = {(getattr(ln, "ref", None) if not isinstance(ln, dict) else ln.get("ref")) or "" for ln in lns} - {""}
+    prices = [float((ln.get("unit_price") if isinstance(ln, dict) else ln.unit_price) or 0) for ln in lns]
+    prices = [x for x in prices if x > 0]
+    return len(refs) <= 1 and (not prices or max(prices) <= min(prices) * 1.02)
+
+
 def multi_line_products(q: Quotation) -> list[dict]:
     """The products two or more of this sheet's lines quote: [{pid, title, lines, options (bool), quote (the combined one)}],
     for the saved page's card that turns them into options to choose or back into one quote."""
@@ -2579,6 +2601,8 @@ def multi_line_products(q: Quotation) -> list[dict]:
         if len(lns) < 2:
             continue
         opts = all(ln.quote is not None and ln.quote.option_label for ln in lns)
+        if not opts and allocations(lns):
+            continue  # one tile on a line per room: where it goes, not alternatives to choose between
         out.append(dict(pid=pid, title=(lns[0].product.title if lns[0].product else lns[0].name), lines=lns, options=opts,
                         quote=None if opts else next((ln.quote for ln in lns if ln.quote is not None), None)))
     return out

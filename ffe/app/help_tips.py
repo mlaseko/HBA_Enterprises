@@ -227,7 +227,7 @@ TIPS = {
     "order": dict(
         title="An order", anchor="purchasing",
         what="One order to one shop: its products and rooms, the money, the status, the payments and the purchase order.",
-        steps=["Check the <b>products</b>: quantities are what to order (allowance and whole boxes included); change them on the product's Buying page. The × takes a product off the order.",
+        steps=["Check the <b>products</b>: quantities are what to order (allowance and whole boxes included). Type another number and press <b>Save quantities</b> to order more or less (empty goes back to what the rooms need). The × takes a product off the order; <b>Add a product</b> puts on another one this shop quoted for, for its rooms with no shop yet.",
                "Under <b>Details</b>, set the ready date, the deposit %, the shop's reference, the terms and where to deliver.",
                "Send the shop the <b>Purchase order</b> PDF, or <b>Send on WeChat</b> to copy the order as a message with the Chinese for each heading.",
                "When the shop agrees, press <b>Confirm the order</b>: its rooms become Ordered.",

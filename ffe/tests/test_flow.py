@@ -1,6 +1,7 @@
 """End-to-end smoke test. Run: python tests/test_flow.py  (prints ALL OK)."""
 import os, io, sys, tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))  # tools/restore_items.py
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _tmp=tempfile.mkdtemp()
 os.environ["DATABASE_URL"]=f"sqlite:///{_tmp}/test.db"; os.environ["LOCAL_UPLOAD_DIR"]=f"{_tmp}/uploads"; os.environ["STORAGE_BACKEND"]="local"
@@ -1219,7 +1220,7 @@ def flow(c):
     db=SessionLocal(); left=db.query(Item).filter(Item.project_id==int(pid_big)).all(); assert [i.id for i in left]==[keep_id]; db.close()
     assert _st.read_image(ph_key) is None and "70 items deleted." in c.get(f"/p/{pid_big}/items?deleted=70").text and "1 item deleted." in c.get(f"/p/{pid_big}/items?category=Lighting&deleted=1").text
     # deleted by mistake: tools/restore_items.py brings the lines back from an earlier copy, rooms, quantities and codes as they were
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tools")); import restore_items as _ri
+    import restore_items as _ri
     db=SessionLocal(); _was=sorted((i.id, i.code, i.room_id, i.qty) for i in db.query(Item).filter(Item.project_id==int(pid_big), Item.category=="Lighting")); db.close(); assert _was==[]
     assert _ri.main(["--project", str(pid_big), "--like", "pendant", "--restore-url", f"sqlite:///{_tmp}/before_delete.db"])==0  # lists only
     db=SessionLocal(); assert db.query(Item).filter(Item.project_id==int(pid_big)).count()==1; db.close()
@@ -1241,6 +1242,14 @@ def flow(c):
     c.get(f"/p/{pid_big}/items"); db=SessionLocal(); _back=db.query(Item).filter(Item.project_id==int(pid_big), Item.category=="Tiles", Item.id!=keep_id).all()
     assert len(_back)==2 and {i.product_id for i in _back}=={_mp} and db.query(_Qo).filter(_Qo.product_id==_mp).one().amount==90, [(i.name, i.product_id) for i in _back]; db.close()
     c.post(f"/p/{pid_big}/items/delete-selected", data={"ids":[str(i.id) for i in _back]}, follow_redirects=False)
+    # a line bought (so on its shop's draft order) and then deleted: the purchase goes and so does the draft it leaves empty
+    from app.models import Order as _Ord
+    r=c.post(f"/p/{pid_big}/items/new", data={"room_ids":[big_rids[4]],"category":"Tiles","name":"Terrazzo","qty":"3","unit":"m²","status":"To buy"}, follow_redirects=False)
+    c.get(f"/p/{pid_big}/items"); db=SessionLocal(); _tz=db.query(Item).filter(Item.project_id==int(pid_big), Item.name=="Terrazzo").one(); _tzp=_tz.product_id; _tzi=_tz.id; db.close()
+    c.post(f"/p/{pid_big}/buying/{_tzp}/quotes", data={"supplier_name":"Kariakoo Stone","amount":"40","currency":"CNY","buy":"open"})
+    db=SessionLocal(); assert db.query(_Ord).filter(_Ord.project_id==int(pid_big)).count()==1 and db.get(Item,_tzi).purchase_id; db.close()
+    c.post(f"/p/{pid_big}/items/{_tzi}/delete", follow_redirects=False)
+    db=SessionLocal(); assert db.query(_Ord).filter(_Ord.project_id==int(pid_big)).count()==0 and db.query(Purchase).filter(Purchase.project_id==int(pid_big)).count()==0; db.close()
     print("delete selected ok")
     # messages and confirmations are the app's own dialog (app.js appConfirm/appAlert, .modal), never the browser's system boxes
     import re as _re; from pathlib import Path
@@ -1710,7 +1719,25 @@ def flow(c):
     # a room moved to another shop leaves the first shop's draft empty: it goes, when nothing was typed or paid on it
     buy(c, pid_o, lamp, "Shop A", 300); oa=draft_of(pid_o, _sid("Shop A"))
     buy(c, pid_o, lamp, "Shop B", 280, lines=[lamp]); ob=draft_of(pid_o, _sid("Shop B"))
-    db=SessionLocal(); assert db.get(_O,oa) is None and _od.ref(db.get(_O,ob))=="KH-005" and db.query(_O).filter(_O.project_id==pid_o).count()==1; db.close()
+    db=SessionLocal(); _left=db.query(_O).filter(_O.project_id==pid_o).all(); assert [(x.id, x.supplier_id, _od.ref(x)) for x in _left]==[(ob, _sid("Shop B"), "KH-005")], [(x.id, x.supplier_id, _od.ref(x)) for x in _left]; db.close()  # Shop A's draft went (SQLite may give Shop B's the same row id: the number is what counts)
+    # the order is editable: quantities typed on it (empty = back to what the rooms need), and a product the shop quoted added
+    _lamp_pu=[x for x in SessionLocal().query(_Pu).filter(_Pu.order_id==ob).all()][0]
+    h=c.get(f"/p/{pid_o}/orders/{ob}").text; assert f'name="qty_{_lamp_pu.id}"' in h and f'action="/p/{pid_o}/orders/{ob}/quantities"' in h
+    r=c.post(f"/p/{pid_o}/orders/{ob}/quantities", data={f"qty_{_lamp_pu.id}":"5"}, follow_redirects=False); assert "1%20quantity%20saved" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); assert db.get(_Pu,_lamp_pu.id).qty==5 and _od.OrderView(db.get(_O,ob), _bz.Ledger(db.get(_P,pid_o))).total==5*280; db.close()
+    assert "set by hand" in c.get(f"/p/{pid_o}/orders/{ob}").text
+    c.post(f"/p/{pid_o}/orders/{ob}/quantities", data={f"qty_{_lamp_pu.id}":""}, follow_redirects=False)
+    db=SessionLocal(); assert db.get(_Pu,_lamp_pu.id).qty is None; db.close()
+    db=SessionLocal(); _rm=db.query(Room).filter(Room.project_id==pid_o).first().id; db.close()
+    r=c.post(f"/p/{pid_o}/items/new", data={"room_ids":[str(_rm)],"category":"Lighting","name":"Wall sconce","qty":"4","unit":"pcs","status":"To buy"}, follow_redirects=False)
+    c.get(f"/p/{pid_o}/items"); db=SessionLocal(); _sc=db.query(Item).filter(Item.project_id==pid_o, Item.name=="Wall sconce").one(); _scp, _sci=_sc.product_id, _sc.id; db.close()
+    c.post(f"/p/{pid_o}/buying/{_scp}/quotes", data={"supplier_id":str(_sid("Shop B")),"amount":"75","currency":"CNY"})  # quoted, not chosen yet
+    db=SessionLocal(); _scq=db.query(_Q).filter(_Q.product_id==_scp).one().id; assert db.get(Item,_sci).purchase_id is None; db.close()
+    h=c.get(f"/p/{pid_o}/orders/{ob}").text; assert 'id="add-product"' in h and f'<option value="{_scq}">Wall sconce' in h
+    r=c.post(f"/p/{pid_o}/orders/{ob}/add-product", data={"quote_id":str(_scq)}, follow_redirects=False); assert "Wall%20sconce%20added%20for%201%20room" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); _pu2=db.get(Item,_sci).purchase; assert _pu2 is not None and _pu2.order_id==ob and _pu2.unit_price==75 and db.get(Item,_sci).status=="Quoted"; db.close()
+    assert 'id="add-product"' not in c.get(f"/p/{pid_o}/orders/{ob}").text  # nothing left to add from this shop
+    r=c.post(f"/p/{pid_o}/orders/{ob}/add-product", data={"quote_id":"999999"}, follow_redirects=False); assert "err=" in r.headers["location"]
     print("orders ok")
     # ---- Shipping: boxes to the warehouse, into a shipment, to site; the rooms follow their boxes ----
     from app import shipping as _sh
@@ -2090,6 +2117,13 @@ def flow(c):
     fw=openpyxl.Workbook(); fws=fw.active; fws.append(["No","Item","Qty","Unit Price","Total Price"]); fws.append([1,"Down light",150,60,"=D2*C2"]); fws.append([2,"Garden light",10,350,"=D3*C3"]); fws.append([None,None,None,None,"=SUM(E2:E3)"])
     fb=io.BytesIO(); fw.save(fb); _rs=_qz.read_sheets(fb.getvalue(), "f.xlsx"); assert _rs[0]["rows"][1][4]==9000 and _rs[0]["rows"][3][4]==12500, _rs[0]["rows"]
     _pf=_qz.parse(_rs, "f.xlsx"); assert [(l["qty"], l["amount"]) for l in _pf["lines"]]==[(150, 9000), (10, 3500)], _pf["lines"]
+    # one tile on a line per room at one price is where it goes, not options to choose; a room code on the line names the room
+    assert _qz.allocations([{"ref":"","unit_price":90},{"ref":"","unit_price":90},{"ref":"","unit_price":90.5}]) and not _qz.allocations([{"ref":"","unit_price":90},{"ref":"","unit_price":120}]) and not _qz.allocations([{"ref":"A-1","unit_price":90},{"ref":"B-2","unit_price":90}])
+    class _Rm:
+        def __init__(s, i, c): s.id, s.code = i, c
+    class _RmP: rooms=[_Rm(1,"GF-LIV"), _Rm(2,"BQ"), _Rm(3,"BQ-BA")]
+    assert _qz.rooms_by_code("Living Room GF-LIV", _RmP)==[1] and _qz.rooms_by_code("Boys' Quarter BQ", _RmP)==[2] and _qz.rooms_by_code("BQ-BA", _RmP)==[3] and _qz.rooms_by_code("gf-liv; bq-ba", _RmP)==[1,3] and _qz.rooms_by_code("Living room", _RmP)==[]
+    assert _qz.room_hints({"place":"Boys' Quarter BQ","name":"Floor tile","section":"Staff quarters","detail":""}, _RmP)==[2]
     assert _qz.amt(_pj, "CNY", 575)=="CNY 575 ($82.14)" and _qz.amt(_pj, "USD", 5)=="USD 5"
     r=c.post(f"/p/{pid_q}/quotations/{qd2_id}/delete", follow_redirects=False); assert "0%20quotes%20nothing%20was%20bought%20from" in r.headers["location"], r.headers["location"]  # the second document corrected the first's quotes: they stay with it
     db=SessionLocal(); assert db.get(_Qt, q1.id) is not None and db.get(_Qt, q2.id) is not None and db.get(_Qt, q4.id) is not None; db.close()

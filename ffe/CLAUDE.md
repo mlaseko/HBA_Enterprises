@@ -255,7 +255,8 @@ components. No external fonts or assets.
   `buying.cover()` / `uncover()` (and the one-time `buying.upgrade`). A price is typed on a `Quote`, in CNY or USD
   (`buying.set_quote` converts at `project.rate`); `buy()` covers whole room lines (`Item.purchase_id`), one purchase per
   quote. After anything that changes lines' name / size / finish, call `buying.follow_renames(db, p, before)` with
-  `before = buying.keys(p)` taken first; after deleting lines, `buying.prune(db, p)`. The session does not autoflush:
+  `before = buying.keys(p)` taken first; after deleting lines, `buying.prune(db, p)` (it also removes a draft order the
+  purchases it drops leave empty, `ordering.tidy_drafts`). The session does not autoflush:
   the buying helpers flush before they query. Readers keep reading `item.supplier` / `unit_price` / `lead_time`.
 - **Choosing a shop orders it.** A route that makes purchases takes `ordering.loose_ids()` first and ends with
   `ordering.follow_choice()` (via `routers/buy._placed`) before `buying.settle`, so the new purchases sit on their shop's draft.
@@ -743,7 +744,9 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   draft (deposit % from the supplier's payment terms, `deliver_to` from Studio settings → Warehouse), the order page
   confirms it (rooms → Ordered), records payments (filled with what is due; paid in full → Paid), takes products off /
   adds the shop's other purchases, flags a change after confirming until **The shop agreed** re-confirms, and gives the
-  purchase order PDF (`pdf/order.py`) and a WeChat message (bilingual headings, copy button, Web Share of the PDF on
+  purchase order PDF (`pdf/order.py`), takes typed quantities (`POST /orders/<o>/quantities`: `qty_<purchase>` → `Purchase.qty`,
+  empty = the rooms' need) and a product the shop quoted for (`POST /orders/<o>/add-product`, `quote_id`: `_addable()` lists the
+  shop's priced non-option quotes on products with open rooms; `bz.buy` for those rooms + `od.add`), and a WeChat message (bilingual headings, copy button, Web Share of the PDF on
   phones: `[data-copy]` / `[data-share-pdf]` in app.js). Payments take an `order_id` (Payments page select; the order's
   shop wins); supplier money is on orders / paid / to pay everywhere (summary, Overview, Payments, Suppliers, supplier
   page with its orders card; the old per-supplier PO stays as "All their items (PDF)"). The Tracker
@@ -863,7 +866,8 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   "Products and variants" card; `set_variants(db, p, labels, moves)` behind `POST /quotations/<q>/variants` renames and
   moves (`follow_renames` repoints `QuotationLine.product_id` when products merge). `room_hints` reads the place before the
   section, returns the room whose whole name the place is (or is off by one letter: `_typo`, never on digits), counts
-  "bedroom 1" digits and the floor at half weight; the parser takes a Remarks "For <room>" as the place.
+  "bedroom 1" digits and the floor at half weight; the parser takes a Remarks "For <room>" as the place. A room code standing on its own in the place or remarks (`rooms_by_code`: "Living Room GF-LIV",
+  "BQ") decides `room_hints` before any word guessing.
   Preview script: `splits(per)` builds the `#qi-splits` cards (`vget` / `vrow` / `vsum`, `isSplit`), the quantities table
   groups a family (`data-fam` on the options) as one row with its variants under it.
   Families: `services.family_key(name, finish)` / `families(entries, name_finish)` group products that differ only by size
@@ -980,7 +984,9 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   checkbox covers the cell (iPhone Safari missed taps on a hidden input). Not quoted (`#gaps`) is a folded `details.qg`. `#advanced` is a
   `section.qa` with tabs (`.qa-tab[data-tab]`, `.qa-panel[data-tab]`; the page script shows one, a hash inside a panel opens it).
 - **Quotation simplification.** Saved page: `#next` What's next (`quotations.order_plan` / `order_all` behind
-  `POST /quotations/<q>/order-all`; `sheet_status` for the Quotations page; pass `gs` = `{g.key: g for g in buying.groups(p)}`
+  `POST /quotations/<q>/order-all`; `sheet_status` for the Quotations page; `multi_line_products` leaves out a product
+  whose lines are only `allocations()` (one price within 2 %, no two item numbers: a tile on a line per room), so Choose per
+  room does not ask and Order everything buys it; pass `gs` = `{g.key: g for g in buying.groups(p)}`
   to `order_plan` / `choice_rooms` instead of calling `group_of` in a loop), `#choices` above the lines, `.qn-menu` in the
   header, line notes in `details.qi-flags`. Preview: sure lines accepted on load (not on a draft), `.qi-decs` under red
   notes, `#qi-diffs` folded, `.qi-views` hidden (By product lives on step 3), `#sim-sum` / `#sim-warn` + folded

@@ -57,7 +57,7 @@
 
 {# ---- products ---- #}
 <section class="bu-sec" id="products">
-  <div class="bu-sec-head"><div><h2>Products <span class="n">{{ ov.lines|length }}</span></h2><p class="small muted">What is ordered, for which rooms. Quantities include the allowance, in whole boxes; change them on the product's Buying page.</p></div></div>
+  <div class="bu-sec-head"><div><h2>Products <span class="n">{{ ov.lines|length }}</span></h2><p class="small muted">What is ordered, for which rooms. Quantities include the allowance, in whole boxes: type another number to order more or less, empty goes back to what the rooms need.</p></div></div>
   {% if ov.lines %}
   <div class="tbl od-lines"><table>
     <thead><tr><th></th><th>Product</th><th>For the rooms</th><th class="num">To order</th><th class="num">Unit price</th><th class="num">Amount</th><th></th></tr></thead>
@@ -69,7 +69,7 @@
         <div class="small muted">{{ [it.size, it.finish]|select|join(' · ') }}</div>
         {% if pu.brand or pu.model %}<div class="small">Brand: {{ [pu.brand, pu.model]|select|join(' · ') }}</div>{% endif %}</td>
       <td class="rooms">{% for i in v.lines %}<a class="pill" href="/p/{{ p.id }}/items/{{ i.id }}" data-quick title="Quick view"><b>{{ i.code }}</b> {{ i.qty|num(2) }} {{ i.unit }}</a>{% endfor %}</td>
-      <td class="num qty"><b>{{ v.qty|num(2) }} {{ v.unit }}</b>{% if v.packs %}<div class="small muted">{{ packs(v.packs, word) }} of {{ v.pack|num(3) }}</div>{% endif %}</td>
+      <td class="num qty"><span class="od-qty"><input class="in sm" type="number" step="any" min="0" inputmode="decimal" name="qty_{{ pu.id }}" value="{{ v.qty|plain }}" form="od-qty" aria-label="Quantity of {{ it.name }} to order"> {{ v.unit }}</span>{% if pu.qty is not none %}<div class="small muted">set by hand</div>{% elif v.packs %}<div class="small muted">{{ packs(v.packs, word) }} of {{ v.pack|num(3) }}</div>{% endif %}</td>
       <td class="num price">{{ pu.unit_price|cur(2) }}</td>
       <td class="num b amt">{{ v.total|cur(2) }}</td>
       <td class="right x"><form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/remove/{{ pu.id }}" data-confirm="Take {{ it.name }} off this order? Its rooms keep the shop and wait for another order{% if o.confirmed %}; tell the shop{% endif %}."><button class="btn sm icon ghost danger" title="Take off the order" aria-label="Take {{ it.name }} off the order"><svg class="ic"><use href="#i-x"/></svg></button></form></td>
@@ -78,8 +78,21 @@
     </tbody>
     <tfoot><tr><td colspan="5" class="right">Total</td><td class="num b">{{ ov.total|cur(2) }}</td><td></td></tr></tfoot>
   </table></div>
+  <form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/quantities" id="od-qty" class="row between mt od-qty-bar"><span class="small muted">{% if o.confirmed %}A change after confirming is flagged until the shop agrees.{% else %}Changed a quantity? Save it here.{% endif %}</span><button class="btn sm"><svg class="ic"><use href="#i-check"/></svg>Save quantities</button></form>
   {% else %}
   <div class="card bu-none"><svg class="ic"><use href="#i-info"/></svg><div><b>No products on this order.</b> <span class="muted">Add what is waiting from {{ shop }} below, or delete the order.</span></div></div>
+  {% endif %}
+  {% if addable %}
+  <form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/add-product" class="card od-more" id="add-product">
+    <div class="eyebrow">Add a product {{ shop }} quoted for</div>
+    <div class="row wrapish">
+      <select class="in" name="quote_id" aria-label="Product to add">
+        {% for a in addable %}<option value="{{ a.quote.id }}">{{ a.name }} · {{ a.quote.unit_price|cur_txt(2) }} · {{ a.rooms|length }} room{{ 's' if a.rooms|length != 1 }} without a shop</option>{% endfor %}
+      </select>
+      <button class="btn sm sec"><svg class="ic"><use href="#i-plus"/></svg>Add for those rooms</button>
+    </div>
+    <div class="small muted mt">Its rooms with no shop yet are bought from {{ shop }} at that price and put on this order. Other products: add the shop's quote on the product's Buying page first.</div>
+  </form>
   {% endif %}
   {% if more %}
   <form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/add" class="card od-more">

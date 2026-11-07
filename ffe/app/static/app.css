@@ -1992,3 +1992,6 @@ details.qi-s3more>summary.row::before{margin-top:2px}
 .usd{font-size:.8em;font-weight:500;color:var(--muted,#6b7280);white-space:nowrap;margin-left:.35em;letter-spacing:0}
 .num .usd,td.num .usd{display:block;margin-left:0;line-height:1.2}
 .v .usd,.kpi .v .usd,.stat .v .usd{font-size:.55em;display:inline-block}
+/* the order page: quantities typed on the order, the product to add */
+.od-qty{display:inline-flex;align-items:center;gap:6px;justify-content:flex-end}.od-qty input{width:7.5em;text-align:right}
+.od-qty-bar{align-items:center;gap:10px;flex-wrap:wrap}.row.wrapish{flex-wrap:wrap;gap:8px}.row.wrapish select{flex:1;min-width:14em}
