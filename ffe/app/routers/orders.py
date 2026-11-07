@@ -13,7 +13,7 @@ from .. import ordering as od
 from .. import storage
 from ..common import fmt_cur, content_disposition, ffloat, fint, get_project, get_settings, redirect, render, require_login
 from ..db import get_db
-from ..models import Order, Project, Purchase, Supplier
+from ..models import Item, Order, Project, Purchase, Quote, Supplier
 from .exports import build_error, try_build
 
 router = APIRouter(dependencies=[Depends(require_login)])
@@ -78,7 +78,7 @@ def order_page(request: Request, order_id: int, p: Project = Depends(get_project
     studio = get_settings(db)
     deposit_next = ov.deposit_left > 0.005
     due = ov.deposit_left if deposit_next else max(ov.balance, 0.0)
-    return render(request, "buying/order.html", p=p, ov=ov, o=o, more=more, wechat=od.wechat_text(ov, p, studio), studio=studio, loose=od.loose_payments(p, o),
+    return render(request, "buying/order.html", p=p, ov=ov, o=o, more=more, addable=_addable(db, p, o), wechat=od.wechat_text(ov, p, studio), studio=studio, loose=od.loose_payments(p, o),
                   today=date.today().isoformat(), due=round(due, 2), due_kind="Deposit" if deposit_next else "Balance",
                   STAGE_COLORS=od.STAGE_COLORS, STAGE_HELP=od.STAGE_HELP, ok=ok[:200], err=err[:200])
 
@@ -100,6 +100,82 @@ async def save_order(request: Request, order_id: int, p: Project = Depends(get_p
     bz.settle(db, p)
     db.commit()
     return _to(p, order_id, "#details", ok="Order saved.")
+
+
+def _addable(db: Session, p: Project, o: Order) -> list[dict]:
+    """What else this shop has quoted for and could go on the order: its priced quotes (not options, which are chosen per
+    room on the product's page) for products with rooms no shop supplies yet. [{quote, name, rooms (open lines)}]."""
+    if not o.supplier_id:
+        return []
+    open_by: dict[int, list[Item]] = {}
+    for i in db.query(Item).filter(Item.project_id == p.id, Item.draft == False, Item.purchase_id.is_(None), Item.product_id.isnot(None)):  # noqa: E712
+        open_by.setdefault(i.product_id, []).append(i)
+    out = []
+    for q in db.query(Quote).filter(Quote.project_id == p.id, Quote.supplier_id == o.supplier_id, Quote.unit_price > 0).order_by(Quote.id):
+        if q.option_label or q.product_id not in open_by:
+            continue
+        ls = open_by[q.product_id]
+        out.append(dict(quote=q, name=" · ".join(x for x in (ls[0].name, ls[0].size, ls[0].finish) if x), rooms=ls))
+    return out
+
+
+@router.post("/p/{project_id}/orders/{order_id}/add-product")
+async def add_product(request: Request, order_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """A product this shop quoted for, bought for its rooms that have no shop yet, straight onto this order."""
+    o = _order(db, p, order_id)
+    if o is None:
+        return _to(p)
+    form = await request.form()
+    q = db.get(Quote, fint(form.get("quote_id")) or 0)
+    if q is None or q.project_id != p.id or q.supplier_id != o.supplier_id or not q.unit_price or q.option_label:
+        return _to(p, order_id, "#products", err="Choose one of this shop's quotes to add.")
+    lines = [i for i in db.query(Item).filter(Item.project_id == p.id, Item.product_id == q.product_id, Item.draft == False,  # noqa: E712
+                                              Item.purchase_id.is_(None))]
+    if not lines:
+        return _to(p, order_id, "#products", err="Every room of that product already has a shop.")
+    pu = bz.buy(db, p, q.product, q, lines)
+    n = od.add(db, o, [pu]) if pu is not None else 0
+    name = lines[0].name
+    bz.settle(db, p)
+    db.commit()
+    if not n:
+        return _to(p, order_id, "#products", err=f"{name} could not be added.")
+    return _to(p, order_id, "#products", ok=f"{name} added for {len(lines)} room{'s' if len(lines) != 1 else ''}" + (": tell the shop, then press The shop agreed." if o.confirmed else "."))
+
+
+@router.post("/p/{project_id}/orders/{order_id}/quantities")
+async def order_quantities(request: Request, order_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """The quantities to order, typed on the order: qty_<purchase> for each product on it. A changed number is kept on the
+    purchase (Purchase.qty, the same as on the product's Buying page); an emptied box goes back to what the rooms need."""
+    o = _order(db, p, order_id)
+    if o is None:
+        return _to(p)
+    form = await request.form()
+    led = bz.Ledger(p)
+    shown = {v["purchase"].id: v for v in led.by_order.get(o.id, [])}
+    changed = 0
+    for pu in db.query(Purchase).filter(Purchase.order_id == o.id).all():
+        key = f"qty_{pu.id}"
+        if key not in form:
+            continue
+        raw = (form.get(key) or "").strip()
+        if not raw:
+            if pu.qty is not None:
+                pu.qty = None
+                changed += 1
+            continue
+        v = ffloat(raw, -1)
+        if v < 0:
+            continue
+        now = shown.get(pu.id, {}).get("qty")
+        if now is None or abs(v - float(now)) > 0.0005:
+            pu.qty = round(v, 3)
+            changed += 1
+    bz.settle(db, p)
+    db.commit()
+    if not changed:
+        return _to(p, order_id, "#products", ok="No quantity changed.")
+    return _to(p, order_id, "#products", ok=f"{changed} quantit{'ies' if changed != 1 else 'y'} saved" + (": tell the shop, then press The shop agreed." if o.confirmed else "."))
 
 
 @router.post("/p/{project_id}/orders/{order_id}/add")

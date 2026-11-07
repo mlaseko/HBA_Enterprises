@@ -744,7 +744,9 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   draft (deposit % from the supplier's payment terms, `deliver_to` from Studio settings → Warehouse), the order page
   confirms it (rooms → Ordered), records payments (filled with what is due; paid in full → Paid), takes products off /
   adds the shop's other purchases, flags a change after confirming until **The shop agreed** re-confirms, and gives the
-  purchase order PDF (`pdf/order.py`) and a WeChat message (bilingual headings, copy button, Web Share of the PDF on
+  purchase order PDF (`pdf/order.py`), takes typed quantities (`POST /orders/<o>/quantities`: `qty_<purchase>` → `Purchase.qty`,
+  empty = the rooms' need) and a product the shop quoted for (`POST /orders/<o>/add-product`, `quote_id`: `_addable()` lists the
+  shop's priced non-option quotes on products with open rooms; `bz.buy` for those rooms + `od.add`), and a WeChat message (bilingual headings, copy button, Web Share of the PDF on
   phones: `[data-copy]` / `[data-share-pdf]` in app.js). Payments take an `order_id` (Payments page select; the order's
   shop wins); supplier money is on orders / paid / to pay everywhere (summary, Overview, Payments, Suppliers, supplier
   page with its orders card; the old per-supplier PO stays as "All their items (PDF)"). The Tracker

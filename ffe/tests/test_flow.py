@@ -1720,6 +1720,24 @@ def flow(c):
     buy(c, pid_o, lamp, "Shop A", 300); oa=draft_of(pid_o, _sid("Shop A"))
     buy(c, pid_o, lamp, "Shop B", 280, lines=[lamp]); ob=draft_of(pid_o, _sid("Shop B"))
     db=SessionLocal(); _left=db.query(_O).filter(_O.project_id==pid_o).all(); assert [(x.id, x.supplier_id, _od.ref(x)) for x in _left]==[(ob, _sid("Shop B"), "KH-005")], [(x.id, x.supplier_id, _od.ref(x)) for x in _left]; db.close()  # Shop A's draft went (SQLite may give Shop B's the same row id: the number is what counts)
+    # the order is editable: quantities typed on it (empty = back to what the rooms need), and a product the shop quoted added
+    _lamp_pu=[x for x in SessionLocal().query(_Pu).filter(_Pu.order_id==ob).all()][0]
+    h=c.get(f"/p/{pid_o}/orders/{ob}").text; assert f'name="qty_{_lamp_pu.id}"' in h and f'action="/p/{pid_o}/orders/{ob}/quantities"' in h
+    r=c.post(f"/p/{pid_o}/orders/{ob}/quantities", data={f"qty_{_lamp_pu.id}":"5"}, follow_redirects=False); assert "1%20quantity%20saved" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); assert db.get(_Pu,_lamp_pu.id).qty==5 and _od.OrderView(db.get(_O,ob), _bz.Ledger(db.get(_P,pid_o))).total==5*280; db.close()
+    assert "set by hand" in c.get(f"/p/{pid_o}/orders/{ob}").text
+    c.post(f"/p/{pid_o}/orders/{ob}/quantities", data={f"qty_{_lamp_pu.id}":""}, follow_redirects=False)
+    db=SessionLocal(); assert db.get(_Pu,_lamp_pu.id).qty is None; db.close()
+    db=SessionLocal(); _rm=db.query(Room).filter(Room.project_id==pid_o).first().id; db.close()
+    r=c.post(f"/p/{pid_o}/items/new", data={"room_ids":[str(_rm)],"category":"Lighting","name":"Wall sconce","qty":"4","unit":"pcs","status":"To buy"}, follow_redirects=False)
+    c.get(f"/p/{pid_o}/items"); db=SessionLocal(); _sc=db.query(Item).filter(Item.project_id==pid_o, Item.name=="Wall sconce").one(); _scp, _sci=_sc.product_id, _sc.id; db.close()
+    c.post(f"/p/{pid_o}/buying/{_scp}/quotes", data={"supplier_id":str(_sid("Shop B")),"amount":"75","currency":"CNY"})  # quoted, not chosen yet
+    db=SessionLocal(); _scq=db.query(_Q).filter(_Q.product_id==_scp).one().id; assert db.get(Item,_sci).purchase_id is None; db.close()
+    h=c.get(f"/p/{pid_o}/orders/{ob}").text; assert 'id="add-product"' in h and f'<option value="{_scq}">Wall sconce' in h
+    r=c.post(f"/p/{pid_o}/orders/{ob}/add-product", data={"quote_id":str(_scq)}, follow_redirects=False); assert "Wall%20sconce%20added%20for%201%20room" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); _pu2=db.get(Item,_sci).purchase; assert _pu2 is not None and _pu2.order_id==ob and _pu2.unit_price==75 and db.get(Item,_sci).status=="Quoted"; db.close()
+    assert 'id="add-product"' not in c.get(f"/p/{pid_o}/orders/{ob}").text  # nothing left to add from this shop
+    r=c.post(f"/p/{pid_o}/orders/{ob}/add-product", data={"quote_id":"999999"}, follow_redirects=False); assert "err=" in r.headers["location"]
     print("orders ok")
     # ---- Shipping: boxes to the warehouse, into a shipment, to site; the rooms follow their boxes ----
     from app import shipping as _sh
