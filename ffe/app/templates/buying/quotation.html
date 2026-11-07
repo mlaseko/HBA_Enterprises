@@ -178,7 +178,8 @@
   {% if now.charges %}<p class="small muted">Plus the sheet's extra charges, {{ cur }} {{ now.charges|money(2) }}{{ now.charges|usd(cur) }}, which belong to no product.</p>{% endif %}
   {% if now.chips %}<div class="nw-chips"><span class="small muted">Leave out:</span>{% for ch in now.chips %}<button type="button" class="pick-chip" data-ids="{{ ch.ids|join(' ') }}">{{ ch.label }} <b>{{ ch.ids|length }}</b></button>{% endfor %}<button type="button" class="pick-chip" data-reset>Reset</button></div>{% endif %}
   {% if now.differ %}<div class="nw-differ"><span><b>{{ now.differ }} product{{ 's' if now.differ != 1 }}</b> {{ 'differ' if now.differ != 1 else 'differs' }} from the sheet, listed first{% if now.differ < now.rows|length %}; the other {{ now.rows|length - now.differ }} are as the sheet{% endif %}.</span>
-    {% if now.differ < now.rows|length %}<label class="small"><input type="checkbox" id="nw-only"> Show only the ones that differ</label>{% endif %}</div>
+    <span class="row nw-differ-acts"><button type="button" class="btn sm sec" data-match-all>Use the sheet's quantities for all {{ now.differ }}</button>
+    {% if now.differ < now.rows|length %}<label class="small"><input type="checkbox" id="nw-only"> Show only the ones that differ</label>{% endif %}</span></div>
   {% else %}<p class="small muted nw-differ">Every product comes to what the sheet says.</p>{% endif %}
   <div class="nw-list">
   {% for r in now.rows %}{% set t = now_amount(r) %}{% set dif = r.diff|abs > 0.5 %}
@@ -189,9 +190,10 @@
         <span class="nw-fig nw-today"><span class="l">Today</span> {{ t[0]|num(2) }} · {{ t[1]|money(2) }}{% if dif %} <span class="nw-dif {{ 'up' if r.diff > 0 else 'down' }}" title="Today against the sheet">{{ '+' if r.diff > 0 }}{{ r.diff|money(2) }}</span>{% endif %}</span>
         <span class="nw-fig nw-new" data-pid="{{ r.pid }}"></span></summary>
       <div class="nw-rooms">
+      {% if dif and not r.options and r.rooms|rejectattr('locked')|list %}<div class="nw-match"><button type="button" class="btn sm ghost" data-match="{{ r.pid }}">Use the sheet's quantity: {{ r.sheet_qty|num(2) }} {{ r.unit }}</button><span class="small muted">or type each room's quantity below, up or down</span></div>{% endif %}
       {% for x in r.rooms %}
-        <label class="nw-room{{ ' locked' if x.locked }}"><input type="checkbox" name="keep_{{ x.id }}" value="1" checked{{ ' disabled' if x.locked }} data-id="{{ x.id }}">
-          <span><b>{{ x.code }}</b> {{ x.room }} <span class="small muted">{{ x.floor }}{% if x.locked %} · on a confirmed order{% endif %}</span></span>
+        <label class="nw-room{{ ' locked' if x.locked }}{{ ' confirmed' if x.confirmed and not x.locked }}"><input type="checkbox" name="keep_{{ x.id }}" value="1" checked{{ ' disabled' if x.locked or x.confirmed }} data-id="{{ x.id }}">
+          <span><b>{{ x.code }}</b> {{ x.room }} <span class="small muted">{{ x.floor }}{% if x.locked %} · shipped: stays as it is{% elif x.confirmed %} · on a confirmed order: a new quantity marks the order changed{% endif %}</span></span>
           <input class="in sm" type="number" step="any" min="0" name="qty_{{ x.id }}" value="{{ x.qty|plain }}" data-id="{{ x.id }}" data-was="{{ x.qty|plain }}"{{ ' disabled' if x.locked }} inputmode="decimal" aria-label="Quantity in {{ x.code }}"> <span class="small muted">{{ r.unit }}</span></label>
       {% endfor %}
       {% if not r.rooms %}<p class="small muted">No room line left in the design.</p>{% endif %}
@@ -281,7 +283,20 @@
   var form=document.getElementById('now'); if(!form) return; var only=document.getElementById('nw-only'); if(only) only.addEventListener('change', function(){ form.classList.toggle('nw-onlydiff', only.checked); }); var rows=[]; try{ rows=JSON.parse(document.getElementById('nw-data').textContent); }catch(e){ return; }
   var cur=form.dataset.cur, fmt=function(v){ return v.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); };
   var cm=function(v,f){ return cur+' '+f(v)+(cur==='USD'?'':' ($'+f(v/(parseFloat(form.dataset.rate)||1))+')'); };
-  function qtyOf(id){ var k=form.querySelector('input[name="keep_'+id+'"]'), q=form.querySelector('input[name="qty_'+id+'"]'); if(!k||k.disabled) return null; if(!k.checked) return 0; var v=parseFloat(q.value); return isNaN(v)||v<0?0:v; }
+  function qtyOf(id){ var k=form.querySelector('input[name="keep_'+id+'"]'), q=form.querySelector('input[name="qty_'+id+'"]'); if(!k||!q||q.disabled) return null; var v=parseFloat(q.value);
+    if(k.disabled) return isNaN(v)||v<=0?parseFloat(q.dataset.was):v; /* on a confirmed order: never removed here */ if(!k.checked) return 0; return isNaN(v)||v<0?0:v; }
+  function matchSheet(r){ if(r.options) return false; var ed=[], fixed=0;
+    r.rooms.forEach(function(x){ var q=form.querySelector('input[name="qty_'+x.id+'"]'), k=form.querySelector('input[name="keep_'+x.id+'"]'); if(!q||q.disabled){ fixed+=x.qty; return; } ed.push({x:x, q:q, k:k}); });
+    if(!ed.length) return false; var need=Math.max(0, r.sheet/(1+(r.allow||0))-fixed);
+    var base=ed.map(function(e){ return e.x.qty>0?e.x.qty:0; }), tot=base.reduce(function(a,b){ return a+b; },0);
+    if(tot<=0){ base=ed.map(function(){ return 1; }); tot=ed.length; }
+    var share=base.map(function(b){ return need*b/tot; });
+    if(r.whole){ var fl=share.map(Math.floor), left=Math.round(need)-fl.reduce(function(a,b){ return a+b; },0);
+      var idx=share.map(function(s,i){ return i; }).sort(function(a,b){ return (share[b]-fl[b])-(share[a]-fl[a]); });
+      for(var i=0;i<left;i++) fl[idx[i%idx.length]]++; share=fl; }
+    else share=share.map(function(s){ return Math.round(s*1000)/1000; });
+    ed.forEach(function(e,i){ var v=share[i]; if(e.k&&e.k.disabled&&v<=0) v=e.x.qty; e.q.value=v; if(e.k&&!e.k.disabled) e.k.checked=v>0; });
+    return true; }
   function order(r, sum){ var base=sum*(1+(r.allow||0)); if(r.pack>0) return Math.ceil(Math.round(base/r.pack*1e6)/1e6)*r.pack; if(r.whole) return Math.ceil(Math.round(base*1e6)/1e6); return Math.round(base*100)/100; }
   function amount(r, tried){ var q=function(x){ var v=tried?qtyOf(x.id):null; return v===null?x.qty:v; };
     if(r.options){ var s=0, a=0; r.rooms.forEach(function(x){ s+=q(x); a+=q(x)*x.price; }); return [s*(1+(r.allow||0)), a*(1+(r.allow||0))]; }
@@ -295,7 +310,10 @@
     document.getElementById('nw-bar-total').textContent=cm(tried,fmt); document.getElementById('nw-bar-delta').innerHTML=changed?'<span class="'+(d<0?'green':'red')+'">'+(d>0?'+':'')+fmt(d)+'</span> · '+changed+' changed':'';
     form.classList.toggle('tried', changed>0); }
   form.addEventListener('input', update); form.addEventListener('change', update);
-  form.addEventListener('click', function(e){ var chip=e.target.closest('.nw-chips .pick-chip'); if(!chip) return;
+  form.addEventListener('click', function(e){ var m=e.target.closest('[data-match],[data-match-all]'); if(m){ e.preventDefault();
+      var ids=m.hasAttribute('data-match-all')?Array.prototype.map.call(form.querySelectorAll('.nw-prod.differs'), function(d){ return d.dataset.pid; }):[m.dataset.match];
+      rows.forEach(function(r){ if(ids.indexOf(String(r.pid))>=0) matchSheet(r); }); update(); return; }
+    var chip=e.target.closest('.nw-chips .pick-chip'); if(!chip) return;
     if(chip.hasAttribute('data-reset')){ form.querySelectorAll('.nw-room input[type=checkbox]:not([disabled])').forEach(function(b){ b.checked=true; }); form.querySelectorAll('.nw-room input[type=number]:not([disabled])').forEach(function(i){ i.value=i.dataset.was; }); update(); return; }
     var ids=chip.dataset.ids.split(' '), boxes=ids.map(function(i){ return form.querySelector('input[name="keep_'+i+'"]'); }).filter(function(b){ return b&&!b.disabled; });
     var allIn=boxes.every(function(b){ return b.checked; }); boxes.forEach(function(b){ b.checked=!allIn; var d=b.closest('details'); if(d&&allIn) d.open=true; }); chip.classList.toggle('on', allIn); update(); });

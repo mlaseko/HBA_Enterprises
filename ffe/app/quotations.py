@@ -2412,7 +2412,8 @@ def now_rows(db: Session, p: Project, q: Quotation) -> list[dict]:
             rp = opts.get(pu.quote_id, price) if opts and pu is not None else price
             rooms.append(dict(id=i.id, code=i.code, room=(i.room.name if i.room is not None else "Whole house"), room_id=i.room_id or 0,
                               floor=(drawings.floor_title(i.room.floor, p) if i.room is not None and i.room.floor else "No floor"),
-                              qty=i.qty or 0, price=rp, locked=bool(pu is not None and pu.order is not None and pu.order.confirmed)))
+                              qty=i.qty or 0, price=rp, locked=i.status in ("Shipped", "Received"),
+                              confirmed=bool(pu is not None and pu.order is not None and pu.order.confirmed)))
         unit = c.unit if c is not None else (lns[0].unit or "")
         rows.append(dict(pid=pid, title=c.title if c is not None else (lns[0].product.title if lns[0].product else lns[0].name), unit=unit,
                          price=price, allow=c.g.allowance if c is not None else 0.0, pack=(lns[0].quote.pack_size or (c.g.pack_size if c else 0)) or 0,
@@ -2451,13 +2452,16 @@ def tried_quantities(form, rows: list[dict]) -> dict[int, float]:
     out: dict[int, float] = {}
     for row in rows:
         for r in row["rooms"]:
-            if r["locked"]:
+            if r["locked"]:  # shipped or received: as it is
                 continue
             raw = form.get(f"qty_{r['id']}")
             try:
                 v = max(0.0, float(raw)) if raw not in (None, "") else r["qty"]
             except ValueError:
                 v = r["qty"]
+            if r["confirmed"]:  # on a confirmed order: the quantity may change either way, the line is never removed here
+                out[r["id"]] = v if v > 0 else r["qty"]
+                continue
             out[r["id"]] = 0.0 if not form.get(f"keep_{r['id']}") else v
     return out
 
@@ -2577,11 +2581,12 @@ def revised_workbook(p: Project, q: Quotation, rows: list[dict], qtys: dict[int,
 
 def apply_now(db: Session, p: Project, rows: list[dict], qtys: dict[int, float]) -> dict:
     """The tried quantities written into the design: a room line set to 0 is deleted (its photos stay with the product's
-    other rooms), the others take the new quantity. Lines on a confirmed order are not touched. Returns {changed, removed,
-    locked}."""
+    other rooms), the others take the new quantity (a quantity typed by hand on their purchase gives way to what the rooms
+    need). Lines Shipped or Received are not touched; lines on a confirmed order change their quantity, and the order then
+    shows it changed until the shop agrees. Returns {changed, removed, locked, confirmed}."""
     from .services import release_photos
     by_id = {i.id: i for i in p.live_items}
-    st = dict(changed=0, removed=0, locked=0)
+    st = dict(changed=0, removed=0, locked=0, confirmed=0)
     doomed = []
     for row in rows:
         for r in row["rooms"]:
@@ -2596,7 +2601,10 @@ def apply_now(db: Session, p: Project, rows: list[dict], qtys: dict[int, float])
                 doomed.append(it)
             else:
                 it.qty = round(v, 3)
+                if it.purchase is not None and it.purchase.qty is not None:
+                    it.purchase.qty = None
                 st["changed"] += 1
+                st["confirmed"] += 1 if r.get("confirmed") else 0
     if doomed:
         gone = {i.id for i in doomed}
         survivors = [i for i in p.live_items if i.id not in gone]

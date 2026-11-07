@@ -449,7 +449,7 @@ def quotation_page(request: Request, quotation_id: int, p: Project = Depends(get
     now = dict(rows=nrows, chips=qz.now_chips(p, nrows), sheet=round(sum(r["sheet_amount"] for r in nrows), 2),
                today=round(sum(qz.now_amount(r)[1] for r in nrows), 2), charges=round(q.charges or 0, 2),
                differ=sum(1 for r in nrows if abs(r["diff"]) > 0.5))
-    now_data = [dict(pid=r["pid"], unit=r["unit"], price=r["price"], allow=r["allow"], pack=r["pack"], whole=r["whole"], options=r["options"],
+    now_data = [dict(pid=r["pid"], sheet=r["sheet_qty"], unit=r["unit"], price=r["price"], allow=r["allow"], pack=r["pack"], whole=r["whole"], options=r["options"],
                      rooms=[dict(id=x["id"], qty=x["qty"], price=x["price"]) for x in r["rooms"]]) for r in nrows]
     multi = qz.multi_line_products(q)
     gs = {g.key: g for g in bz.groups(p)}
@@ -606,8 +606,10 @@ async def apply_now(request: Request, quotation_id: int, p: Project = Depends(ge
         return redirect(f"/p/{p.id}/quotations/{q.id}?ok=" + urlquote("Nothing changed in the design.") + "#now")
     msg = [f"Design changed: {st['changed']} quantit{'ies' if st['changed'] != 1 else 'y'} changed, {st['removed']} room line{'s' if st['removed'] != 1 else ''} removed."]
     msg.append(f"At this shop's prices it comes to {qz.amt(p, q.currency, after, ',.2f')} (was {before:,.2f}).")
+    if st["confirmed"]:
+        msg.append(f"{st['confirmed']} of them {'are' if st['confirmed'] != 1 else 'is'} on a confirmed order: the order shows it changed until you press The shop agreed.")
     if st["locked"]:
-        msg.append(f"{st['locked']} line{'s' if st['locked'] != 1 else ''} on a confirmed order left as {'they were' if st['locked'] != 1 else 'it was'}.")
+        msg.append(f"{st['locked']} line{'s' if st['locked'] != 1 else ''} already shipped left as {'they were' if st['locked'] != 1 else 'it was'}.")
     return redirect(f"/p/{p.id}/quotations/{q.id}?ok=" + urlquote(" ".join(msg)) + "#now")
 
 
