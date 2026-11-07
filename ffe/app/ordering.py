@@ -94,12 +94,13 @@ def loose_ids(db: Session, p: Project) -> set[int]:
     return {i for (i,) in db.query(Purchase.id).filter(Purchase.project_id == p.id, Purchase.order_id.is_(None))}
 
 
-def follow_choice(db: Session, p: Project, before: set[int], warehouse: str = "") -> list[Order]:
+def follow_choice(db: Session, p: Project, before: set[int], warehouse: str = "", into=None) -> list[Order]:
     """Choosing a shop puts its rooms on an order. The purchases the last change made (on no order, and not on no order
     before it: `before` = loose_ids() taken first) join their shop's draft order, or a new draft when the shop has none.
     Purchases already waiting (an order deleted, a product taken off) stay under Ready to order. A draft left empty by the
     change (its rooms moved to another shop) goes when nothing was typed on it and nothing was paid against it; its number
-    is not given again. Returns the orders that received purchases."""
+    is not given again. `into` (from a quotation's page): "new" = a new order of their own, an order id = that draft of the
+    same shop; None = the shop's latest draft, as before. Returns the orders that received purchases."""
     db.flush()
     new = [pu for pu in db.query(Purchase).filter(Purchase.project_id == p.id, Purchase.order_id.is_(None)).order_by(Purchase.id)
            if pu.id not in before and pu.supplier_id]
@@ -108,8 +109,14 @@ def follow_choice(db: Session, p: Project, before: set[int], warehouse: str = ""
     for pu in new:
         by_sup.setdefault(pu.supplier_id, []).append(pu)
     for sid, pus in by_sup.items():
-        draft = (db.query(Order).filter(Order.project_id == p.id, Order.supplier_id == sid, Order.confirmed_on.is_(None))
-                 .order_by(Order.number.desc()).first())
+        draft = None
+        if into != "new":
+            chosen = db.get(Order, int(into)) if str(into or "").isdigit() else None
+            if chosen is not None and chosen.project_id == p.id and chosen.supplier_id == sid and not chosen.confirmed:
+                draft = chosen
+            else:
+                draft = (db.query(Order).filter(Order.project_id == p.id, Order.supplier_id == sid, Order.confirmed_on.is_(None))
+                         .order_by(Order.number.desc()).first())
         if draft is not None:
             add(db, draft, pus)
         else:

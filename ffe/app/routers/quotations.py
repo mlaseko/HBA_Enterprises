@@ -485,14 +485,22 @@ async def quotation_options(request: Request, quotation_id: int, p: Project = De
     return redirect(f"/p/{p.id}/quotations/{q.id}?at=choices&ok=" + urlquote(msg) + (("&warn=" + urlquote(" ".join(warns))) if warns else "") + "#choices")
 
 
+def _into(form) -> str | None:
+    """Where a quotation's purchases go (the page's choice): "new" = an order of their own, a draft's id, else None (the
+    shop's latest draft)."""
+    v = (form.get("into") or "").strip()
+    return v if v == "new" or v.isdigit() else None
+
+
 @router.post("/p/{project_id}/quotations/{quotation_id}/order-all")
-def quotation_order_all(quotation_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+async def quotation_order_all(request: Request, quotation_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
     """Order everything from this sheet: the rooms with no shop yet, of every product it quotes on one line, bought from
-    it and put on the shop's draft order."""
+    it and put on the order chosen on the page (a draft of the shop, or a new order of its own)."""
     from .buy import _placed
     q = _quotation(db, p, quotation_id)
     if q is None:
         return redirect(f"/p/{p.id}/quotations")
+    into = _into(await request.form())
     before = od.loose_ids(db, p)
     try:
         plan = qz.order_all(db, p, q)
@@ -501,7 +509,7 @@ def quotation_order_all(quotation_id: int, p: Project = Depends(get_project), db
         return redirect(f"/p/{p.id}/quotations/{q.id}?err=" + urlquote(str(e)))
     if not plan["rooms"]:
         return redirect(f"/p/{p.id}/quotations/{q.id}?ok=" + urlquote("Nothing to order: every room of these products already has a shop."))
-    placed = _placed(db, p, before)
+    placed = _placed(db, p, before, into)
     bz.settle(db, p)
     db.commit()
     msg = [f"Ordered from {q.supplier.name if q.supplier else 'this shop'}: {plan['products']} product{'s' if plan['products'] != 1 else ''}, {plan['rooms']} room line{'s' if plan['rooms'] != 1 else ''}.{placed}"]
@@ -563,7 +571,7 @@ async def quotation_choose(request: Request, quotation_id: int, p: Project = Dep
         multi = {mm["pid"]: mm for mm in qz.multi_line_products(q)}
     if not done and not errs:
         return redirect(back + "?at=choices&ok=" + urlquote("Nothing changed: tap a box under the line a room takes, then save.") + "#choices")
-    placed = _placed(db, p, before) if done else ""
+    placed = _placed(db, p, before, _into(form)) if done else ""
     bz.settle(db, p)
     db.commit()
     url = back + "?at=choices"

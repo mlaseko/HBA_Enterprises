@@ -288,9 +288,10 @@ async def add_quote(request: Request, product_id: int, p: Project = Depends(get_
     return _back(p, prod, "#quotes", ok=msg)
 
 
-def _placed(db: Session, p: Project, before: set[int]) -> str:
-    """After a shop is chosen: its new purchases go onto its draft order (ordering.follow_choice). The words for the message."""
-    os_ = od.follow_choice(db, p, before, get_settings(db).warehouse)
+def _placed(db: Session, p: Project, before: set[int], into=None) -> str:
+    """After a shop is chosen: its new purchases go onto its draft order (ordering.follow_choice; `into` = "new" or a draft's
+    id when the quotation's page chose). The words for the message."""
+    os_ = od.follow_choice(db, p, before, get_settings(db).warehouse, into=into)
     return (" On draft order " + ", ".join(od.ref(o) for o in os_) + ".") if os_ else ""
 
 
