@@ -1048,7 +1048,11 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
   `qty × price = total` per shop (`.bg-calc`, rewritten by the script while a change is tried), each room line its amount
   (`.bg-amt`) with an All rooms footer, `#bg-sum` the total (of the rows shown, with the grand total, when filtered); `pl`
   adds `cats` (By category `.bg-cats` hbars that filter the list; past 8 folded), `locked` (paid or on its way) and
-  `unpriced`; `#bg-sort` reorders client-side. `GET /p/<id>/buying/budget.xlsx` → `budget.workbook(p, pl)` (Budget sheet a
+  `unpriced`; `#bg-sort` reorders client-side.
+  The Tracker (`buying/tracker.html`): the Sourcing card's rows (`.tr-src-row`: name, n/m quoted, the next step, a full-width
+  `.tr-src-bar`) list the categories still to price; `ordering.tracker` marks `cats[].full` and those fold under
+  `details.tr-src-done`. Needs attention shows six lines, the rest under `details.att-more`. `.tbl.tr-stack` tables (shipments,
+  by shop, by category; cells carry `data-l`, the first `td.who`) become cards under 700 px. `GET /p/<id>/buying/budget.xlsx` → `budget.workbook(p, pl)` (Budget sheet a
   line per product and shop, totals and the gap; By category sheet).
 
 ## Backlog (in priority order)

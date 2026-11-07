@@ -45,16 +45,18 @@
     {% if t.budget %}
     <p class="tr-src-sum{{ ' over' if so.over }}">{% if so.over %}The prices so far, <b>{{ t.estimated|cur }}</b>, are already <b>{{ (t.estimated - t.budget)|cur }} over</b> the {{ t.budget|cur }} budget{% else %}<b>{{ t.estimated|cur }}</b> priced of the {{ t.budget|cur }} budget: <b>{{ so.left|cur }}</b> left{% endif %}{% if so.unpriced %} for the {{ so.unpriced }} product{{ 's' if so.unpriced != 1 }} not priced yet. The estimate counts them at nothing until a shop prices them{% endif %}.</p>
     {% elif so.unpriced %}<p class="tr-src-sum">The estimate, {{ t.estimated|cur }}, counts the {{ so.unpriced }} product{{ 's' if so.unpriced != 1 }} not priced yet at nothing. <a href="/p/{{ p.id }}/edit">Set a budget</a> to see what is left for them.</p>{% endif %}
-    <div class="tr-src-grid">
-      {% for c in so.cats %}
-      <div class="tr-src-row{{ ' none' if not c.quoted }}{{ ' full' if c.quoted >= c.products }}">
-        <a class="b" href="/p/{{ p.id }}/buying?category={{ c.category|urlencode }}">{{ c.category }}</a>
-        <span class="tr-mini" title="{{ c.quoted }} of {{ c.products }} quoted"><i class="q" style="width:{{ (100 * c.quoted / c.products)|round(1) if c.products else 0 }}%"></i></span>
-        <span class="small nowrap">{{ c.quoted }}/{{ c.products }}</span>
-        {% if not c.quoted %}<a class="small nowrap" href="/p/{{ p.id }}/quotations/inquiry.xlsx?category={{ c.category|urlencode }}{{ '&currency=USD' if show_usd(p) else '' }}">Inquiry sheet</a>{% elif c.quoted < c.products %}<a class="small nowrap" href="/p/{{ p.id }}/buying?category={{ c.category|urlencode }}&stage=To%20source">{{ c.products - c.quoted }} to source</a>{% else %}<span class="small muted">all quoted</span>{% endif %}
+    {% set open_cats = so.cats|rejectattr('full')|list %}{% set done_cats = so.cats|selectattr('full')|list %}
+    {% macro src_row(c) %}
+      <div class="tr-src-row{{ ' none' if not c.quoted }}{{ ' full' if c.full }}">
+        <div class="tr-src-top"><a class="b" href="/p/{{ p.id }}/buying?category={{ c.category|urlencode }}">{{ c.category }}</a>
+          <span class="tr-src-n small">{{ c.quoted }}/{{ c.products }} quoted</span>
+          {% if not c.quoted %}<a class="small nowrap" href="/p/{{ p.id }}/quotations/inquiry.xlsx?category={{ c.category|urlencode }}{{ '&currency=USD' if show_usd(p) else '' }}">Inquiry sheet</a>{% elif not c.full %}<a class="small nowrap" href="/p/{{ p.id }}/buying?category={{ c.category|urlencode }}&stage=To%20source">{{ c.products - c.quoted }} to source</a>{% endif %}</div>
+        <span class="tr-src-bar" title="{{ c.quoted }} of {{ c.products }} quoted"><i style="width:{{ (100 * c.quoted / c.products)|round(1) if c.products else 0 }}%"></i></span>
       </div>
-      {% endfor %}
-    </div>
+    {% endmacro %}
+    <div class="tr-src-grid">{% for c in open_cats %}{{ src_row(c) }}{% endfor %}</div>
+    {% if done_cats %}<details class="tr-src-done"><summary class="small">{{ done_cats|length }} categor{{ 'ies' if done_cats|length != 1 else 'y' }} fully quoted <span class="muted">· {{ done_cats|map(attribute='category')|join(', ')|truncate(70) }}</span></summary>
+      <div class="tr-src-grid">{% for c in done_cats %}{{ src_row(c) }}{% endfor %}</div></details>{% endif %}
   </div>
 </section>
 {% endif %}
@@ -62,10 +64,10 @@
 <section class="bu-sec">
   <div class="bu-sec-head"><div><h2>Needs attention <span class="n">{{ t.attention|length }}</span></h2><p class="small muted">Late and due first. Tap a line to deal with it.</p></div></div>
   {% if t.attention %}
+  {% macro att(a) %}<a class="att {{ a.tone }}" href="{{ a.href }}"><span class="tile"><svg class="ic"><use href="#i-{{ a.icon }}"/></svg></span><span class="txt"><span class="t">{{ a.title }}</span><span class="d">{{ a.detail }}</span></span><svg class="ic chev"><use href="#i-chevron-right"/></svg></a>{% endmacro %}
   <div class="card att-list">
-    {% for a in t.attention %}
-    <a class="att {{ a.tone }}" href="{{ a.href }}"><span class="tile"><svg class="ic"><use href="#i-{{ a.icon }}"/></svg></span><span class="txt"><span class="t">{{ a.title }}</span><span class="d">{{ a.detail }}</span></span><svg class="ic chev"><use href="#i-chevron-right"/></svg></a>
-    {% endfor %}
+    {% for a in t.attention[:6] %}{{ att(a) }}{% endfor %}
+    {% if t.attention|length > 6 %}<details class="att-more"><summary class="small">Show {{ t.attention|length - 6 }} more</summary>{% for a in t.attention[6:] %}{{ att(a) }}{% endfor %}</details>{% endif %}
   </div>
   {% else %}
   <div class="card bu-none"><svg class="ic"><use href="#i-check"/></svg><div><b>Nothing needs you right now.</b> <span class="muted">Every product has its shop, every order is confirmed and nothing is due.</span></div></div>
@@ -82,13 +84,13 @@
   </div>
   {% set going = t.shipments|rejectattr('stage', 'equalto', 'Delivered')|list %}
   {% if going %}
-  <div class="tbl"><table>
+  <div class="tbl tr-stack"><table>
     <thead><tr><th>Shipment</th><th>Stage</th><th class="num">Boxes</th><th class="num">CBM</th><th>Sails</th><th>Arrives</th></tr></thead>
     <tbody>{% for sv in going %}
-      <tr><td><a class="b" href="/p/{{ p.id }}/shipments/{{ sv.s.id }}">{{ sv.name }}</a><div class="small muted">{{ sv.s.mode }}{% if sv.s.container_no %} · {{ sv.s.container_no }}{% endif %}</div></td>
-        <td><span class="badge" style="--c:{{ SHIP_COLORS[sv.stage] }}">{{ sv.stage }}</span></td><td class="num">{{ sv.count }}</td><td class="num">{{ '%.2f'|format(sv.cbm) }}</td>
-        <td class="small nowrap">{{ sv.s.etd.strftime('%d %b') if sv.s.etd else '—' }}</td>
-        <td class="small nowrap{{ ' bu-late' if sv.late }}">{{ sv.s.eta.strftime('%d %b') if sv.s.eta else '—' }}{% if sv.eta_text %}<div class="muted">{{ sv.eta_text }}</div>{% endif %}</td></tr>
+      <tr><td class="who"><a class="b" href="/p/{{ p.id }}/shipments/{{ sv.s.id }}">{{ sv.name }}</a><div class="small muted">{{ sv.s.mode }}{% if sv.s.container_no %} · {{ sv.s.container_no }}{% endif %}</div></td>
+        <td data-l="Stage"><span class="badge" style="--c:{{ SHIP_COLORS[sv.stage] }}">{{ sv.stage }}</span></td><td class="num" data-l="Boxes">{{ sv.count }}</td><td class="num" data-l="CBM">{{ '%.2f'|format(sv.cbm) }}</td>
+        <td class="small nowrap" data-l="Sails">{{ sv.s.etd.strftime('%d %b') if sv.s.etd else '—' }}</td>
+        <td data-l="Arrives" class="small nowrap{{ ' bu-late' if sv.late }}">{{ sv.s.eta.strftime('%d %b') if sv.s.eta else '—' }}{% if sv.eta_text %}<div class="muted">{{ sv.eta_text }}</div>{% endif %}</td></tr>
     {% endfor %}</tbody>
   </table></div>
   {% endif %}
@@ -115,14 +117,14 @@
 <section class="bu-sec">
   <div class="bu-sec-head"><div><h2>By shop</h2><p class="small muted">Bought, ordered, paid and what is still to pay, with the next ready date.</p></div></div>
   {% if t.sups %}
-  <div class="tbl"><table class="tr-shops">
+  <div class="tbl tr-stack"><table class="tr-shops">
     <thead><tr><th>Shop</th><th class="num">Bought</th><th class="num">Ordered</th><th class="num">Paid</th><th class="num">To pay</th><th class="bar-col"></th><th>Next ready</th></tr></thead>
     <tbody>
     {% for r in t.sups %}
-    <tr><td>{% if r.supplier %}<a class="b" href="/suppliers/{{ r.supplier.id }}?project={{ p.id }}">{{ r.supplier.name }}</a>{% else %}<span class="muted">No shop</span>{% endif %}<div class="small muted">{{ r.orders }} order{{ 's' if r.orders != 1 }}</div></td>
-      <td class="num">{{ r.committed|cur }}</td><td class="num">{{ r.ordered|cur }}</td><td class="num">{{ r.paid|cur }}</td><td class="num b">{{ r.to_pay|cur }}</td>
+    <tr><td class="who">{% if r.supplier %}<a class="b" href="/suppliers/{{ r.supplier.id }}?project={{ p.id }}">{{ r.supplier.name }}</a>{% else %}<span class="muted">No shop</span>{% endif %}<div class="small muted">{{ r.orders }} order{{ 's' if r.orders != 1 }}</div></td>
+      <td class="num" data-l="Bought">{{ r.committed|cur }}</td><td class="num" data-l="Ordered">{{ r.ordered|cur }}</td><td class="num" data-l="Paid">{{ r.paid|cur }}</td><td class="num b" data-l="To pay">{{ r.to_pay|cur }}</td>
       <td class="bar-col"><span class="tr-mini" title="Paid {{ (100 * r.paid / r.committed)|round|int if r.committed else 0 }}% of what was bought"><i class="ord" style="width:{{ [100, (100 * r.ordered / r.committed)|round(1)]|min if r.committed else 0 }}%"></i><i class="paid" style="width:{{ [100, (100 * r.paid / r.committed)|round(1)]|min if r.committed else 0 }}%"></i></span></td>
-      <td class="small nowrap">{% if r.next %}<a href="/p/{{ p.id }}/orders/{{ r.next.o.id }}" class="{{ 'bu-late' if r.next.late }}">{{ r.next.o.ready_date.strftime('%d %b') }}</a><div class="muted">{{ r.next.ready_text }}</div>{% else %}<span class="muted">—</span>{% endif %}</td></tr>
+      <td class="small nowrap" data-l="Next ready">{% if r.next %}<a href="/p/{{ p.id }}/orders/{{ r.next.o.id }}" class="{{ 'bu-late' if r.next.late }}">{{ r.next.o.ready_date.strftime('%d %b') }}</a><div class="muted">{{ r.next.ready_text }}</div>{% else %}<span class="muted">—</span>{% endif %}</td></tr>
     {% endfor %}
     </tbody>
   </table></div>
@@ -131,12 +133,12 @@
 
 <section class="bu-sec">
   <div class="bu-sec-head"><div><h2>By category</h2><p class="small muted">Estimated is what each category will cost at the shops chosen and, for the rest, the lowest quote; paid is shared out over each order's products.</p></div></div>
-  <div class="tbl"><table class="tr-cats">
+  <div class="tbl tr-stack"><table class="tr-cats">
     <thead><tr><th>Category</th><th class="num">Products</th><th class="num">Quoted</th><th class="num">Still open</th><th class="num">Estimated</th><th class="num">Committed</th><th class="num">Ordered</th><th class="num">Paid</th><th class="bar-col"></th></tr></thead>
     <tbody>
     {% for c in t.cats %}
-    <tr><td><a class="b" href="/p/{{ p.id }}/buying?category={{ c.category|urlencode }}">{{ c.category }}</a></td><td class="num">{{ c.products }}</td><td class="num">{{ c.quoted }}</td><td class="num">{{ c.open or '' }}</td>
-      <td class="num">{{ c.estimated|cur }}</td><td class="num">{{ c.committed|cur }}</td><td class="num">{{ c.ordered|cur }}</td><td class="num">{{ c.paid|cur }}</td>
+    <tr><td class="who"><a class="b" href="/p/{{ p.id }}/buying?category={{ c.category|urlencode }}">{{ c.category }}</a><div class="small muted tr-sub">{{ c.products }} product{{ 's' if c.products != 1 }} · {{ c.quoted }} quoted{% if c.open %} · {{ c.open }} still open{% endif %}</div></td><td class="num tr-wide">{{ c.products }}</td><td class="num tr-wide">{{ c.quoted }}</td><td class="num tr-wide">{{ c.open or '' }}</td>
+      <td class="num" data-l="Estimated">{{ c.estimated|cur }}</td><td class="num" data-l="Committed">{{ c.committed|cur }}</td><td class="num" data-l="Ordered">{{ c.ordered|cur }}</td><td class="num" data-l="Paid">{{ c.paid|cur }}</td>
       <td class="bar-col"><span class="tr-mini" title="Paid {{ (100 * c.paid / c.estimated)|round|int if c.estimated else 0 }}% · ordered {{ (100 * c.ordered / c.estimated)|round|int if c.estimated else 0 }}%"><i class="ord" style="width:{{ (100 * c.ordered / c.estimated)|round(1) if c.estimated else 0 }}%"></i><i class="paid" style="width:{{ (100 * c.paid / c.estimated)|round(1) if c.estimated else 0 }}%"></i></span></td></tr>
     {% endfor %}
     </tbody>
