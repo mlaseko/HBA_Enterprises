@@ -236,7 +236,7 @@ class OrderView:
     def __init__(self, o: Order, led: buying.Ledger, today: date | None = None):
         today = today or date.today()
         self.o, self.ref = o, ref(o)
-        self.lines = led.by_order.get(o.id, [])
+        self.lines = list(led.by_order.get(o.id, []))
         self.total = led.total.get(o.id, 0.0)
         self.paid = led.paid.get(o.id, 0.0)
         self.deposit = round(self.total * (o.deposit_pct or 0) / 100, 2)
@@ -271,6 +271,25 @@ class OrderView:
             return "today"
         n = abs(self.days)
         return f"in {n} day{'s' if n != 1 else ''}" if self.days > 0 else f"{n} day{'s' if n != 1 else ''} ago"
+
+
+LINE_SORTS = {"amount": "Highest amount first", "amount_asc": "Lowest amount first", "name": "By name", "added": "As added"}
+
+
+def sort_lines(ov: "OrderView", how: str = "amount") -> str:
+    """The order's products in the order asked for (the page, its PO PDF and the WeChat text follow it): the highest
+    amount first by default, the lowest first, by name, or as they were added. Returns the key used."""
+    how = how if how in LINE_SORTS else "amount"
+    name = lambda v: ((v["lines"][0].name if v["lines"] else "") + " " + (v["lines"][0].size if v["lines"] else "")).lower()
+    if how == "amount":
+        ov.lines.sort(key=lambda v: (-(v["total"] or 0), name(v)))
+    elif how == "amount_asc":
+        ov.lines.sort(key=lambda v: ((v["total"] or 0), name(v)))
+    elif how == "name":
+        ov.lines.sort(key=name)
+    else:
+        ov.lines.sort(key=lambda v: v["purchase"].id)
+    return how
 
 
 def views(p: Project, led: buying.Ledger, today: date | None = None) -> list[OrderView]:

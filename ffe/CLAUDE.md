@@ -100,6 +100,7 @@ app/routers/quotations.py /p/<id>/quotations (list, upload form, inquiry form; P
                        /quotations/<q> (document page), /<q>/file, /<q>/delete
 app/routers/orders.py  /p/<id>/orders (ready to order + orders by stage), /orders/new, /orders/<o> (page; POST details),
                        /orders/<o>/add|remove/<pu>|confirm|unconfirm|delete|payments|claim, /orders/<o>/po.pdf, /orders/release
+                       (the order page and po.pdf take ?sort= amount (default) | amount_asc | name | added: ordering.sort_lines)
 app/routers/cartons.py Shipping › Boxes: /p/<id>/cartons (?supplier= &room= &where= &shipment=; POST adds a box), /cartons/bulk
                        (action warehouse | not-warehouse | ship (shipment_id or "new") | unship | received | not-received),
                        /cartons/<c> (box page; POST saves), /cartons/<c>/received, /cartons/<c>/delete; all take `next`

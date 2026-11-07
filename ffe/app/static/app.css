@@ -900,6 +900,7 @@ details.bu-more[open]>summary:after{transform:rotate(-135deg);margin:3px 0 0 3px
 details.bu-more>form{margin-top:8px}
 /* the sections of the product page */
 .bu-sec{margin:28px 0 0;scroll-margin-top:calc(var(--top-h) + 12px)}
+.od-sort{display:flex!important;gap:8px;align-items:center;margin:0;padding:0;background:none;border:0;box-shadow:none}.od-sort select{width:auto}
 .bu-sec-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--line)}
 .bu-sec-head h2{font-family:var(--serif);font-weight:500;font-size:1.3rem;margin:0}
 .bu-sec-head h2 .n{font-family:var(--sans);font-size:.74rem;font-weight:700;color:var(--muted);background:var(--surface-3);border-radius:999px;padding:1px 8px;vertical-align:3px;margin-left:4px}

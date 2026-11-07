@@ -1627,6 +1627,13 @@ def flow(c):
     r=c.get(f"/p/{pid_o}/orders/{oid}/po.pdf"); t=pdf_text(r.content)
     assert r.status_code==200 and r.headers["content-type"]=="application/pdf" and "PO-KH-001" in r.headers["content-disposition"]
     assert "KH-001" in t and "Floor tile" in t and "LIV-01" in t and "Baiyun Warehouse" in t and "Draft" in t and "6,571.20" in t and "31 boxes" in t, t[:600]
+    # the products sort: highest amount first by default, lowest first, by name, as added; the PO PDF and WeChat text follow the choice
+    db=SessionLocal(); _ov=_od.OrderView(db.get(_O,oid), _bz.Ledger(db.get(_P,pid_o))); _n=len(_ov.lines)
+    _od.sort_lines(_ov); _hi=[v["total"] for v in _ov.lines]; _od.sort_lines(_ov, "amount_asc"); _lo=[v["total"] for v in _ov.lines]
+    _od.sort_lines(_ov, "name"); _nm=[v["lines"][0].name.lower() for v in _ov.lines]; _od.sort_lines(_ov, "added"); _ad=[v["purchase"].id for v in _ov.lines]; db.close()
+    assert _n>1 and _hi==sorted(_hi, reverse=True) and _lo==sorted(_lo) and _nm==sorted(_nm) and _ad==sorted(_ad) and _od.sort_lines(_ov, "bogus")=="amount"
+    h=c.get(f"/p/{pid_o}/orders/{oid}?sort=name").text; assert 'id="od-sort"' in h and '<option value="name" selected>' in h and f"/orders/{oid}/po.pdf?sort=name" in h
+    assert '<option value="amount" selected>' in c.get(f"/p/{pid_o}/orders/{oid}").text and c.get(f"/p/{pid_o}/orders/{oid}/po.pdf?sort=amount_asc").status_code==200
     # confirming: the rooms become Ordered; the deposit is due; the product page, the item and the Buying list follow
     r=c.post(f"/p/{pid_o}/orders/{oid}/confirm", data={"confirmed_on":"2026-10-01","ready_date":"2026-10-20"}, follow_redirects=False); assert "ok=" in r.headers["location"]
     db=SessionLocal(); o=db.get(_O,oid); assert o.confirmed_on==_dt.date(2026,10,1) and o.ready_date==_dt.date(2026,10,20) and o.confirmed_total==6571.2; db.close()
