@@ -2430,7 +2430,13 @@ def flow(c):
     h=c.get(f"/p/{pid_q}/quotations/{qdw}").text; _nw=h.split('id="now"')[1].split('id="nw-data"')[0]  # the products that differ from the sheet come first, with what they differ by
     assert "differs from the sheet" in _nw and 'class="nw-prod differs"' in _nw and '<span class="nw-dif down"' in _nw and "-30.00" in _nw, _nw[:600]
     assert _nw.index('nw-prod differs') < (_nw.index('nw-prod same') if 'nw-prod same' in _nw else len(_nw))
-    r=c.post(f"/p/{pid_q}/quotations/{qdw}/now", data={f"keep_{_wl[_acr[1][0]]}":"1", f"qty_{_wl[_acr[1][0]]}":"1", f"keep_{_wl[_acr[2][0]]}":"1", f"qty_{_wl[_acr[2][0]]}":"2"}, follow_redirects=False); assert "Nothing%20changed" in r.headers["location"]
+    assert 'data-match-all' in _nw and "quantity: 6 " in _nw, re.findall(r"Use the sheet[^<]*", _nw)
+    r=c.post(f"/p/{pid_q}/quotations/{qdw}/now", data={f"keep_{_wl[_acr[1][0]]}":"1", f"qty_{_wl[_acr[1][0]]}":"3", f"keep_{_wl[_acr[2][0]]}":"1", f"qty_{_wl[_acr[2][0]]}":"3"}, follow_redirects=False)
+    assert "2 quantities changed" in _unq(r.headers["location"]), r.headers["location"]  # up as well as down: back to the sheet's 6
+    assert "Every product comes to what the sheet says" in c.get(f"/p/{pid_q}/quotations/{qdw}").text
+    _rw=[dict(rooms=[dict(id=5, qty=4, locked=False, confirmed=True), dict(id=6, qty=2, locked=True, confirmed=True), dict(id=7, qty=1, locked=False, confirmed=False)])]
+    assert _qz.tried_quantities({"qty_5":"0", "qty_6":"9", "qty_7":"0", "keep_7":"1"}, _rw)=={5:4, 7:0.0} and _qz.tried_quantities({"qty_5":"7"}, _rw)=={5:7.0, 7:0.0}  # a confirmed order's line changes, never goes; a shipped one stays
+    r=c.post(f"/p/{pid_q}/quotations/{qdw}/now", data={f"keep_{_wl[_acr[1][0]]}":"1", f"qty_{_wl[_acr[1][0]]}":"3", f"keep_{_wl[_acr[2][0]]}":"1", f"qty_{_wl[_acr[2][0]]}":"3"}, follow_redirects=False); assert "Nothing%20changed" in r.headers["location"]
     # a sheet saved with two carpet lines averaged into one quote: made options to choose on the saved page, then back to one
     locc2,_=upload_quote("Carpet options 2.xlsx", carpet_sheet()); keyc2b=_unq(locc2.split("key=")[1])
     r=c.post(f"/p/{pid_q}/quotations/apply", data=dict(formc, key=keyc2b, supplier_name="Carpet Two", vlabel_1="", **{f"split_{_cp_id}":""}), follow_redirects=False)
