@@ -310,11 +310,18 @@
     document.getElementById('nw-bar-total').textContent=cm(tried,fmt); document.getElementById('nw-bar-delta').innerHTML=changed?'<span class="'+(d<0?'green':'red')+'">'+(d>0?'+':'')+fmt(d)+'</span> · '+changed+' changed':'';
     form.classList.toggle('tried', changed>0); }
   form.addEventListener('input', update); form.addEventListener('change', update);
+  var matched={};  /* products set to the sheet's quantity: their button undoes it */
+  function restore(r){ r.rooms.forEach(function(x){ var q=form.querySelector('input[name="qty_'+x.id+'"]'), k=form.querySelector('input[name="keep_'+x.id+'"]'); if(q&&!q.disabled) q.value=q.dataset.was; if(k&&!k.disabled) k.checked=true; }); }
+  function labels(){ form.querySelectorAll('[data-match]').forEach(function(b){ if(!b.dataset.label) b.dataset.label=b.textContent; var on=!!matched[b.dataset.match]; b.textContent=on?'Undo: back to the design\'s quantities':b.dataset.label; b.classList.toggle('on', on); });
+    var a=form.querySelector('[data-match-all]'); if(a){ if(!a.dataset.label) a.dataset.label=a.textContent; var ids=Array.prototype.map.call(form.querySelectorAll('.nw-prod.differs'), function(d){ return d.dataset.pid; });
+      var on=ids.length&&ids.every(function(id){ return matched[id]; }); a.textContent=on?'Undo: back to the design\'s quantities for all':a.dataset.label; a.classList.toggle('on', !!on); } }
   form.addEventListener('click', function(e){ var m=e.target.closest('[data-match],[data-match-all]'); if(m){ e.preventDefault();
-      var ids=m.hasAttribute('data-match-all')?Array.prototype.map.call(form.querySelectorAll('.nw-prod.differs'), function(d){ return d.dataset.pid; }):[m.dataset.match];
-      rows.forEach(function(r){ if(ids.indexOf(String(r.pid))>=0) matchSheet(r); }); update(); return; }
+      var all=m.hasAttribute('data-match-all'), ids=all?Array.prototype.map.call(form.querySelectorAll('.nw-prod.differs'), function(d){ return d.dataset.pid; }):[m.dataset.match];
+      var undo=all?ids.every(function(id){ return matched[id]; }):!!matched[m.dataset.match];
+      rows.forEach(function(r){ var id=String(r.pid); if(ids.indexOf(id)<0) return; if(undo){ restore(r); delete matched[id]; } else if(matchSheet(r)) matched[id]=true; });
+      labels(); update(); return; }
     var chip=e.target.closest('.nw-chips .pick-chip'); if(!chip) return;
-    if(chip.hasAttribute('data-reset')){ form.querySelectorAll('.nw-room input[type=checkbox]:not([disabled])').forEach(function(b){ b.checked=true; }); form.querySelectorAll('.nw-room input[type=number]:not([disabled])').forEach(function(i){ i.value=i.dataset.was; }); update(); return; }
+    if(chip.hasAttribute('data-reset')){ form.querySelectorAll('.nw-room input[type=checkbox]:not([disabled])').forEach(function(b){ b.checked=true; }); form.querySelectorAll('.nw-room input[type=number]:not([disabled])').forEach(function(i){ i.value=i.dataset.was; }); matched={}; labels(); update(); return; }
     var ids=chip.dataset.ids.split(' '), boxes=ids.map(function(i){ return form.querySelector('input[name="keep_'+i+'"]'); }).filter(function(b){ return b&&!b.disabled; });
     var allIn=boxes.every(function(b){ return b.checked; }); boxes.forEach(function(b){ b.checked=!allIn; var d=b.closest('details'); if(d&&allIn) d.open=true; }); chip.classList.toggle('on', allIn); update(); });
   update();
