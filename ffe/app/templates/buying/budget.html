@@ -8,6 +8,7 @@
     <h1>Fit the budget</h1>
     <p class="sub">Try cuts across every order and shop here; nothing changes until you press Apply.</p>
   </div>
+  <div class="actions"><a class="btn sec" href="/p/{{ p.id }}/buying/budget.xlsx"><svg class="ic"><use href="#i-download"/></svg>Excel</a></div>
 </div>
 {{ tabs(p, 'budget') }}
 {% if ok %}<div class="alert info">{{ ok }}</div>{% endif %}
@@ -18,12 +19,25 @@
 <section class="card bg-top" id="bg-top">
   <div class="bg-figs">
     <div><span class="l">Budget</span><span class="v">{% if pl.budget %}{{ pl.budget|cur_main }}{% else %}—{% endif %}</span><span class="s">{% if pl.budget %}{{ pl.budget|cur_other }}{% else %}<a href="/p/{{ p.id }}/edit">set it in Project settings</a>{% endif %}</span></div>
-    <div><span class="l">Now</span><span class="v">{{ pl.total|cur_main }}</span><span class="s">{{ pl.total|cur_other }} · orders, shops chosen and estimates</span></div>
+    <div><span class="l">Now</span><span class="v">{{ pl.total|cur_main }}</span><span class="s">{{ pl.total|cur_other }} · orders, shops chosen and estimates{% if pl.locked %} · {{ pl.locked|cur_txt }} of it paid or on its way{% endif %}</span></div>
     <div class="{{ 'over' if pl.budget and pl.gap > 0 else 'under' }}"><span class="l">{{ 'Over by' if not pl.budget or pl.gap > 0 else 'Under by' }}</span><span class="v">{% if pl.budget %}{{ (pl.gap|abs)|cur_main }}{% else %}—{% endif %}</span><span class="s">{% if pl.budget %}{{ (pl.gap|abs)|cur_other }}{% endif %}</span></div>
     <div class="after"><span class="l">After your changes</span><span class="v" id="bg-after">{{ pl.total|cur_main }}</span><span class="s" id="bg-after-d">{{ pl.total|cur_other }} · nothing tried yet</span></div>
   </div>
+  {% if pl.unpriced %}<p class="small muted bg-unpriced">{{ pl.unpriced }} product{{ 's have' if pl.unpriced != 1 else ' has' }} no price yet and count{{ '' if pl.unpriced != 1 else 's' }} nothing: the total grows once {{ 'they are' if pl.unpriced != 1 else 'it is' }} quoted.</p>{% endif %}
   {% if pl.budget %}<div class="bg-bar" role="img" aria-label="What everything comes to against the budget"><i id="bg-bar-now" style="width:{{ [100, (100 * pl.total / ([pl.total, pl.budget]|max))|round(1)]|min }}%"></i><b style="left:{{ (100 * pl.budget / ([pl.total, pl.budget]|max))|round(1) }}%" title="Budget"></b></div>{% endif %}
 </section>
+
+{% if pl.cats|length > 1 %}
+<section class="card bg-cats" id="by-category">
+  <div class="row between"><h2 class="mb-0">By category <span class="small muted">tap one to show only its products</span></h2></div>
+  {% set top = pl.cats[0].total or 1 %}
+  <div class="hbars mt" role="list">
+    {% for c in pl.cats %}{% if loop.index == 9 %}</div><details class="bg-more"><summary class="small">{{ pl.cats|length - 8 }} more categories</summary><div class="hbars">{% endif %}
+    <button type="button" class="hbar" role="listitem" data-cat="{{ c.name }}" title="{{ c.name }}: {{ c.total|cur_txt }} · {{ c.products }} product{{ 's' if c.products != 1 }}"><span class="k">{{ c.name }} <span class="muted">· {{ c.products }}</span></span><span class="track"><i style="width:{{ [2, (100 * c.total / top)|round(1)]|max }}%"></i></span><span class="n"><span class="bg-cat-tot" data-cat="{{ c.name }}">{{ c.total|cur }}</span>{% if pl.total %} <span class="muted small">{{ (100 * c.total / pl.total)|round|int }}%</span>{% endif %}</span></button>
+    {% endfor %}
+  </div>{% if pl.cats|length > 8 %}</details>{% endif %}
+</section>
+{% endif %}
 
 {% if pl.suggestions %}
 <section class="card bg-sug" id="suggestions">
@@ -40,13 +54,15 @@
 
 <section class="card bg-prods" id="products">
   <div class="row between bg-head"><h2>Every product <span class="small muted">{{ pl.rows|length }}, the dearest first (paid or shipped ones last)</span></h2>
-    <div class="row bg-filters"><input class="in sm" type="search" id="bg-q" placeholder="Search a product, room or shop" aria-label="Search"><select class="in sm" id="bg-cat" aria-label="Category"><option value="">All categories</option>{% for c in pl.rows|map(attribute='category')|unique|sort %}<option>{{ c }}</option>{% endfor %}</select></div></div>
+    <div class="row bg-filters"><input class="in sm" type="search" id="bg-q" placeholder="Search a product, room or shop" aria-label="Search"><select class="in sm" id="bg-cat" aria-label="Category"><option value="">All categories</option>{% for c in pl.rows|map(attribute='category')|unique|sort %}<option>{{ c }}</option>{% endfor %}</select>
+      <select class="in sm" id="bg-sort" aria-label="Sort"><option value="dear">Dearest first</option><option value="name">By name</option><option value="cat">By category</option><option value="change">Changed first</option></select></div></div>
   <div class="bg-list">
   {% for r in pl.rows %}
   <details class="bg-row{{ ' locked' if r.locked }}" data-pid="{{ r.pid }}" data-cat="{{ r.category }}" data-s="{{ (r.name ~ ' ' ~ r.size ~ ' ' ~ r.finish ~ ' ' ~ r.category ~ ' ' ~ (r.lines|map(attribute='code')|join(' ')) ~ ' ' ~ (r.lines|map(attribute='room')|join(' ')) ~ ' ' ~ (r.buys.values()|map(attribute='shop')|join(' ')))|lower }}">
     <summary>
       <span class="pic">{% if r.thumb %}<img src="/media/{{ r.thumb }}" alt="" loading="lazy" decoding="async">{% endif %}</span>
-      <span class="nm"><b>{{ r.name }}</b><span class="small muted">{{ [r.size, r.finish]|select|join(' · ') }}{% if r.size or r.finish %} · {% endif %}{{ r.lines|length }} room{{ 's' if r.lines|length != 1 }} · {{ r.buys.values()|map(attribute='shop')|join(', ') }}</span></span>
+      <span class="nm"><b>{{ r.name }}</b><span class="small muted">{{ [r.size, r.finish]|select|join(' · ') }}{% if r.size or r.finish %} · {% endif %}{{ r.category }} · {{ r.lines|length }} room{{ 's' if r.lines|length != 1 }}</span>
+        <span class="bg-calc" data-pid="{{ r.pid }}">{% for k, kv in r.buys.items() if kv.qty %}<span class="c"><b>{{ kv.qty|num(2) }} {{ r.unit }}</b> × {{ kv.price|cur_main(2) }} = <b>{{ kv.total|cur_main }}</b> <span class="muted">· {{ kv.shop }}</span></span>{% else %}<span class="c muted">{% if r.buys %}{{ r.buys.values()|map(attribute='shop')|join(', ') }}{% else %}no price yet{% endif %}</span>{% endfor %}</span></span>
       <span class="sh"><i style="width:{{ [100, (100 * r.total / ([pl.total, 1]|max) * 4)|round(1)]|min }}%"></i></span>
       <span class="tot"><b class="bg-tot" data-was="{{ r.total }}">{{ r.total|cur }}</b>{% if r.locked %}<span class="small muted">paid or on its way</span>{% endif %}</span>
     </summary>
@@ -59,16 +75,19 @@
       {% for k, kv in r.buys.items() %}{% if kv.override is not none and k != 'est' %}
       <label class="check bg-reset"><input type="checkbox" name="reset_{{ k }}" value="1" data-key="{{ k }}"><span>Order what the rooms need from {{ kv.shop }}, not the {{ kv.override|num(2) }} {{ r.unit }} typed by hand</span></label>
       {% endif %}{% endfor %}
-      <div class="tbl"><table class="bg-lines"><thead><tr><th>Room</th><th>Shop</th><th class="num">Quantity</th><th class="num">Drop</th></tr></thead><tbody>
+      <div class="tbl"><table class="bg-lines"><thead><tr><th>Room</th><th>Shop</th><th class="num">Quantity</th><th class="num">Unit price</th><th class="num">Amount</th><th class="num">Drop</th></tr></thead><tbody>
       {% for l in r.lines %}
       <tr data-line="{{ l.id }}" class="{{ 'locked' if l.locked }}">
         <td><b>{{ l.code }}</b> <span class="small muted">{{ l.room }}</span>{% if l.optional %} <span class="pill gold">optional</span>{% endif %}</td>
         <td class="small">{{ r.buys[l.key].shop }}</td>
         <td class="num">{% if l.locked %}{{ l.qty|num(2) }} {{ l.unit }} <span class="small muted">{{ l.status|status_label }}</span>{% else %}<input class="in sm bg-qty" type="number" step="any" min="0" inputmode="decimal" name="qty_{{ l.id }}" value="{{ l.qty|plain }}" data-was="{{ l.qty|plain }}" aria-label="Quantity in {{ l.code }}"> {{ l.unit }}{% endif %}</td>
+        <td class="num small">{{ r.buys[l.key].price|cur_main(2) if r.buys[l.key].price else '—' }}</td>
+        <td class="num bg-amt" data-line="{{ l.id }}">{{ (l.qty * (r.buys[l.key].price or 0))|cur_main(2) }}</td>
         <td class="num">{% if not l.locked %}<label class="bg-drop" title="Not buying"><input type="checkbox" name="drop_{{ l.id }}" value="1" aria-label="Drop {{ l.code }}"></label>{% endif %}</td>
       </tr>
       {% endfor %}
-      </tbody></table></div>
+      </tbody>{% if r.lines|length > 1 %}<tfoot><tr><th colspan="2">All rooms</th><th class="num bg-need" data-pid="{{ r.pid }}">{{ (r.lines|sum(attribute='qty'))|num(2) }} {{ r.unit }}</th><th></th><th class="num bg-amt-sum" data-pid="{{ r.pid }}">{{ r.total|cur_main(2) }}</th><th></th></tr></tfoot>{% endif %}</table></div>
+      <p class="small muted mb-0">The amount per room is its quantity × the unit price; the total orders what the rooms need together{% if r.pack %} in whole packs of {{ r.pack|num(2) }}{% elif r.whole %} in whole {{ r.unit }}{% endif %}{% if r.allow %} plus {{ (r.allow * 100)|round(1) }} % allowance{% endif %}.</p>
       {% if not r.locked and r.lines|length > 1 %}<button type="button" class="btn sm ghost bg-dropall">Drop it in every room</button>{% endif %}
     </div>
   </details>
@@ -76,6 +95,7 @@
   <div class="empty">No products to buy yet.</div>
   {% endfor %}
   </div>
+  {% if pl.rows %}<div class="bg-sum" id="bg-sum"><span class="l">Total</span><span class="small muted" id="bg-sum-n">{{ pl.rows|length }} product{{ 's' if pl.rows|length != 1 }}</span><b id="bg-sum-v">{{ pl.total|cur }}</b></div>{% endif %}
 </section>
 
 {% if pl.dropped %}
@@ -100,29 +120,44 @@
   function fmt(v){ var cny=Math.round(v), usd=Math.round(v/(D.rate||1)); return D.usd?('$'+usd.toLocaleString()):('¥'+cny.toLocaleString()+' ($'+usd.toLocaleString()+')'); }
   function main(v){ return D.usd?('$'+Math.round(v/(D.rate||1)).toLocaleString()):('¥'+Math.round(v).toLocaleString()); }
   function other(v){ return D.usd?('¥'+Math.round(v).toLocaleString()):('$'+Math.round(v/(D.rate||1)).toLocaleString()); }
+  function main2(v){ var x=D.usd?v/(D.rate||1):v; return (D.usd?'$':'¥')+x.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function num(v){ return (Math.round(v*100)/100).toLocaleString(undefined,{maximumFractionDigits:2}); }
+  function esc(s){ return String(s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
   function oq(need, allow, pack, whole, over){ var base=(over!==null&&over!==undefined)?over:need*(1+(allow||0)); if(pack>0) return Math.ceil(Math.round(base/pack*1e6)/1e6)*pack; if(whole) return Math.ceil(Math.round(base*1e6)/1e6); return Math.round(base*100)/100; }
   function rowTotal(r){
     var box=form.querySelector('.bg-row[data-pid="'+r.pid+'"]'), sw=box&&box.querySelector('[name="switch_'+r.pid+'"]'), q=sw&&sw.value?r.quotes.filter(function(x){ return String(x.id)===sw.value; })[0]:null;
-    var groups={}, changed=false;
+    var groups={}, changed=false, need=0, lines={};
     r.lines.forEach(function(l){
       var drop=box&&box.querySelector('[name="drop_'+l.id+'"]'), inp=box&&box.querySelector('[name="qty_'+l.id+'"]');
       var qty=inp?(parseFloat(inp.value)||0):l.qty; if(inp&&Math.abs(qty-l.qty)>0.0005) changed=true;
-      if(drop&&drop.checked){ changed=true; return; }
+      if(drop&&drop.checked){ changed=true; lines[l.id]=0; return; }
       var k=l.key; if(q&&!l.locked&&(k==='est'||r.buys[k].quote!==q.id)){ k='q'+q.id; changed=true; }
-      (groups[k]=groups[k]||{need:0,n:0}).need+=qty; groups[k].n++;
+      (groups[k]=groups[k]||{need:0,n:0}).need+=qty; groups[k].n++; need+=qty;
+      lines[l.id]=qty*((k.charAt(0)==='q'?q.price:r.buys[k].price)||0);
     });
-    var tot=0;
+    var tot=0, parts=[];
     Object.keys(groups).forEach(function(k){
-      var kv=k.charAt(0)==='q'?{price:q.price,pack:q.pack,override:null}:r.buys[k], over=kv.override;
+      var kv=k.charAt(0)==='q'?{price:q.price,pack:q.pack,override:null,shop:q.shop}:r.buys[k], over=kv.override;
       var rs=box&&box.querySelector('[name="reset_'+k+'"]'); if(rs&&rs.checked){ over=null; changed=true; }
       var orig=r.lines.filter(function(l){ return l.key===k; }).length; if(over!==null&&over!==undefined&&(groups[k].n!==orig)) over=null;
-      tot+=oq(groups[k].need, r.allow, kv.pack||0, r.whole, over)*(kv.price||0);
+      var o=oq(groups[k].need, r.allow, kv.pack||0, r.whole, over), t=o*(kv.price||0); tot+=t;
+      if(o) parts.push({qty:o, price:kv.price||0, total:t, shop:kv.shop});
     });
-    return {total:Math.round(tot*100)/100, changed:changed};
+    return {total:Math.round(tot*100)/100, changed:changed, parts:parts, need:need, lines:lines};
   }
+  var cats={};
   function update(){
-    var all=0, was=0, n=0;
-    D.rows.forEach(function(r){ var t=rowTotal(r), el=form.querySelector('.bg-row[data-pid="'+r.pid+'"] .bg-tot'); all+=t.total; was+=r.total; if(t.changed){ n++; } if(el){ el.textContent=fmt(t.total); el.classList.toggle('cut', t.total<r.total-0.5); el.classList.toggle('up', t.total>r.total+0.5); } });
+    var all=0, was=0, n=0; cats={};
+    D.rows.forEach(function(r){ var t=rowTotal(r), box=form.querySelector('.bg-row[data-pid="'+r.pid+'"]'), el=box&&box.querySelector('.bg-tot'); all+=t.total; was+=r.total; if(t.changed){ n++; }
+      r._now=t.total; r._changed=t.changed; cats[r.category||'Other']=(cats[r.category||'Other']||0)+t.total;
+      if(el){ el.textContent=fmt(t.total); el.classList.toggle('cut', t.total<r.total-0.5); el.classList.toggle('up', t.total>r.total+0.5); }
+      if(!box) return;
+      var calc=box.querySelector('.bg-calc'); if(calc&&t.changed) calc.innerHTML=t.parts.length?t.parts.map(function(x){ return '<span class="c"><b>'+num(x.qty)+' '+esc(r.unit)+'</b> × '+main2(x.price)+' = <b>'+main(x.total)+'</b> <span class="muted">· '+esc(x.shop||'')+'</span></span>'; }).join(''):'<span class="c muted">nothing left to buy</span>';
+      else if(calc&&calc.dataset.html) calc.innerHTML=calc.dataset.html;
+      Object.keys(t.lines).forEach(function(id){ var a=box.querySelector('.bg-amt[data-line="'+id+'"]'); if(a) a.textContent=main2(t.lines[id]); });
+      var ns=box.querySelector('.bg-need'); if(ns) ns.textContent=num(t.need)+' '+r.unit; var as=box.querySelector('.bg-amt-sum'); if(as) as.textContent=main2(t.total); });
+    form.querySelectorAll('.bg-cat-tot').forEach(function(e){ e.textContent=fmt(cats[e.dataset.cat]||0); });
+    sums();
     var restore=form.querySelectorAll('[name^="restore_"]:checked').length; n+=restore;
     var saved=was-all;
     document.getElementById('bg-after').textContent=main(all);
@@ -141,9 +176,22 @@
     if(s.kind==='auto'){ var x=box.querySelector('[name="reset_'+s.key+'"]'); if(x) x.checked=true; }
     box.open=true; b.textContent='Tried'; b.disabled=true; update();
   }); });
-  var q=document.getElementById('bg-q'), cat=document.getElementById('bg-cat');
-  function filt(){ var w=(q.value||'').toLowerCase().split(/\s+/).filter(Boolean), c=cat.value; form.querySelectorAll('.bg-row').forEach(function(r){ var ok=(!c||r.dataset.cat===c)&&w.every(function(x){ return r.dataset.s.indexOf(x)>=0; }); r.hidden=!ok; }); }
-  q.addEventListener('input', filt); cat.addEventListener('change', filt);
+  var q=document.getElementById('bg-q'), cat=document.getElementById('bg-cat'), sort=document.getElementById('bg-sort'), list=form.querySelector('.bg-list');
+  form.querySelectorAll('.bg-calc').forEach(function(c){ c.dataset.html=c.innerHTML; });
+  function sums(){ var shown=0, k=0, tot=0, n=0; D.rows.forEach(function(r){ var box=form.querySelector('.bg-row[data-pid="'+r.pid+'"]'); var v=r._now===undefined?r.total:r._now; tot+=v; n++; if(box&&!box.hidden){ shown+=v; k++; } });
+    var sv=document.getElementById('bg-sum-v'), sn=document.getElementById('bg-sum-n'); if(!sv) return;
+    sv.textContent=fmt(k===n?tot:shown); sn.textContent=k===n?(n+' product'+(n===1?'':'s')):(k+' of '+n+' products shown · all of them '+fmt(tot)); }
+  function filt(){ var w=(q.value||'').toLowerCase().split(/\s+/).filter(Boolean), c=cat.value; form.querySelectorAll('.bg-row').forEach(function(r){ var ok=(!c||r.dataset.cat===c)&&w.every(function(x){ return r.dataset.s.indexOf(x)>=0; }); r.hidden=!ok; });
+    form.querySelectorAll('.bg-cats .hbar').forEach(function(b){ b.classList.toggle('on', b.dataset.cat===c); }); sums(); }
+  function resort(){ var by=sort.value, boxes=Array.prototype.slice.call(list.querySelectorAll('.bg-row'));
+    var key=function(b){ var r=rows[b.dataset.pid]||{}; return r; };
+    boxes.sort(function(a,b){ var x=key(a), y=key(b); if(by==='name') return String(x.name).localeCompare(String(y.name));
+      if(by==='cat') return String(x.category).localeCompare(String(y.category))||((y._now||0)-(x._now||0));
+      if(by==='change') return ((y._changed?1:0)-(x._changed?1:0))||Math.abs((y._now||0)-y.total)-Math.abs((x._now||0)-x.total);
+      return ((x.locked?1:0)-(y.locked?1:0))||((y._now||0)-(x._now||0)); });
+    boxes.forEach(function(b){ list.appendChild(b); }); }
+  q.addEventListener('input', filt); cat.addEventListener('change', filt); sort.addEventListener('change', resort);
+  form.querySelectorAll('.bg-cats .hbar').forEach(function(b){ b.addEventListener('click', function(){ cat.value=cat.value===b.dataset.cat?'':b.dataset.cat; filt(); document.getElementById('products').scrollIntoView({behavior:'smooth', block:'start'}); }); });
   update();
 })();
 </script>

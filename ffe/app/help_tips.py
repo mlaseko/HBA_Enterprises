@@ -250,6 +250,7 @@ TIPS = {
         steps=["The top shows the budget, what everything comes to now (orders, shops chosen and estimates for the rest), how far over it is, and <b>After your changes</b>, which follows every change you try.",
                "<b>Where to cut</b> lists the biggest savings first: a cheaper shop that already quoted, the lines marked optional, quantities typed above what the rooms need. <b>Try it</b> sets the change below, without saving.",
                "Open a product to change a room's <b>quantity</b>, tick <b>Drop</b> for a room (or drop it in every room), or buy its open rooms from another shop that quoted.",
+               "Each product shows its sum: quantity to order × unit price = amount, per shop; opened, each room's amount. <b>Total</b> under the list adds them up, <b>By category</b> splits it, and <b>Excel</b> downloads it all.",
                "Press <b>Apply changes</b>: the quantities, the shops and the rooms set to <b>Not buying</b> change on their orders at once."],
         tips=["Paid, shipped and received lines are locked: money already paid is not cut.",
               "A line set to Not buying leaves its order and every total, and stays listed under <b>Not buying</b>: tick it to bring it back.",

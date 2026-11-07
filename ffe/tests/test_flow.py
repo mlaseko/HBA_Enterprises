@@ -1758,6 +1758,12 @@ def flow(c):
     h=c.get(f"/p/{pid_o}/buying/budget").text; assert "Fit the budget" in h and 'id="bg-form"' in h and 'class="bg-row' in h and '/buying/budget" class="on"' in h
     db=SessionLocal(); _pp=db.get(_P,pid_o); _pl=_bg.plan(_pp); _tr=_od.tracker(_pp, _bz.Ledger(_pp), _bz.groups(_pp), _od.views(_pp, _bz.Ledger(_pp)))
     assert abs(_pl["total"]-_tr["estimated"])<0.01, (_pl["total"], _tr["estimated"])  # the page's "Now" is the Tracker's estimate
+    for _r in _pl["rows"]:  # each product: quantity to order × unit price per shop, adding up to its total; the categories add up to the whole
+        assert all(abs(kv["qty"]*(kv["price"] or 0)-kv["total"])<0.01 for kv in _r["buys"].values()) and abs(sum(kv["total"] for kv in _r["buys"].values())-_r["total"])<0.01
+    assert abs(sum(x["total"] for x in _pl["cats"])-_pl["total"])<0.01 and 'id="bg-sum"' in h and 'class="bg-calc"' in h and " × " in h and 'id="bg-sort"' in h
+    r=c.get(f"/p/{pid_o}/buying/budget.xlsx"); assert r.status_code==200 and "budget" in r.headers["content-disposition"]
+    _bw=openpyxl.load_workbook(io.BytesIO(r.content)); _bs=_bw["Budget"]; _brow=[x for x in _bs.iter_rows(values_only=True) if x and x[0]=="Total"][0]
+    assert abs(_brow[10]-_pl["total"])<0.01 and _bw["By category"].max_row==len(_pl["cats"])+2, _brow
     _pa=db.query(Item).filter(Item.project_id==pid_o, Item.name=="Pendant A").one(); _pb=db.query(Item).filter(Item.project_id==pid_o, Item.name=="Pendant B").one(); _pa_id, _pb_id, _pa_pu=_pa.id, _pb.id, _pa.purchase_id; db.close()
     r=c.post(f"/p/{pid_o}/buying/budget", data={f"drop_{_pa_id}":"1", f"qty_{_pb_id}":"5"}, follow_redirects=False); assert "set%20to%20Not%20buying" in r.headers["location"] and "1%20quantity%20changed" in r.headers["location"], r.headers["location"]
     db=SessionLocal(); _x=db.get(Item,_pa_id); assert _x.status==_NB and _x.purchase_id is None and db.get(_Pu,_pa_pu) is None and db.get(Item,_pb_id).qty==5

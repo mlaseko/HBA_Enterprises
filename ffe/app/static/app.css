@@ -2023,5 +2023,13 @@ details.qi-s3more>summary.row::before{margin-top:2px}
 .bg-bar-apply{position:sticky;bottom:12px;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface,#fff);border:1px solid var(--line,#e5e7eb);border-radius:12px;padding:10px 14px;margin-top:14px;box-shadow:0 6px 20px rgba(0,0,0,.08)}
 .bg-bar-apply.on{border-color:var(--accent)}
 @media (max-width:720px){.bg-figs{grid-template-columns:repeat(2,minmax(0,1fr))}.bg-row>summary{grid-template-columns:40px minmax(0,1fr) auto}.bg-row .sh{display:none}.bg-edit{padding-left:0}.bg-bar-apply{bottom:76px}}
+.bg-calc{display:flex;flex-direction:column;gap:1px;font-size:.84rem;margin-top:3px;font-variant-numeric:tabular-nums}.bg-calc .c{white-space:normal}
+.bg-lines td.bg-amt,.bg-lines tfoot th{font-variant-numeric:tabular-nums;white-space:nowrap}.bg-lines tfoot th{border-top:1px solid var(--line);font-weight:600}
+.bg-sum{display:flex;align-items:baseline;gap:12px;justify-content:flex-end;flex-wrap:wrap;border-top:2px solid var(--ink,#111);margin-top:4px;padding:12px 2px 2px}
+.bg-sum .l{font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-right:auto}.bg-sum b{font-size:1.25rem;font-variant-numeric:tabular-nums}
+.bg-cats .hbar{width:100%;background:none;border:0;text-align:left;cursor:pointer;font:inherit}.bg-cats .hbar.on{background:var(--accent-soft)}.bg-cats .hbar .n{white-space:nowrap;text-align:right}
+.bg-unpriced{margin:10px 0 0}.bg-more{margin-top:6px}.bg-more>summary{cursor:pointer;color:var(--muted);padding:4px}
+@media (max-width:720px){.bg-row>summary{grid-template-columns:40px minmax(0,1fr);grid-template-areas:"pic nm" "pic tot"}.bg-row .pic{grid-area:pic;align-self:start}.bg-row .nm{grid-area:nm}
+  .bg-row .tot{grid-area:tot;text-align:left;flex-direction:row;gap:8px;align-items:baseline}.bg-row .nm b{white-space:normal}.bg-lines th:nth-child(2),.bg-lines td:nth-child(2),.bg-lines th:nth-child(4),.bg-lines td:nth-child(4){display:none}}
 .bg-filters{display:flex;flex-wrap:nowrap}.bg-filters input,.bg-filters select{width:auto}.bg-filters input{min-width:16em}
 @media (max-width:720px){.bg-filters{flex-wrap:wrap;width:100%}.bg-filters input,.bg-filters select{width:100%}}
