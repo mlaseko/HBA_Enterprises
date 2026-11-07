@@ -255,7 +255,8 @@ components. No external fonts or assets.
   `buying.cover()` / `uncover()` (and the one-time `buying.upgrade`). A price is typed on a `Quote`, in CNY or USD
   (`buying.set_quote` converts at `project.rate`); `buy()` covers whole room lines (`Item.purchase_id`), one purchase per
   quote. After anything that changes lines' name / size / finish, call `buying.follow_renames(db, p, before)` with
-  `before = buying.keys(p)` taken first; after deleting lines, `buying.prune(db, p)`. The session does not autoflush:
+  `before = buying.keys(p)` taken first; after deleting lines, `buying.prune(db, p)` (it also removes a draft order the
+  purchases it drops leave empty, `ordering.tidy_drafts`). The session does not autoflush:
   the buying helpers flush before they query. Readers keep reading `item.supplier` / `unit_price` / `lead_time`.
 - **Choosing a shop orders it.** A route that makes purchases takes `ordering.loose_ids()` first and ends with
   `ordering.follow_choice()` (via `routers/buy._placed`) before `buying.settle`, so the new purchases sit on their shop's draft.

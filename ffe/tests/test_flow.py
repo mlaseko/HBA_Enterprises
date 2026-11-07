@@ -1,6 +1,7 @@
 """End-to-end smoke test. Run: python tests/test_flow.py  (prints ALL OK)."""
 import os, io, sys, tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))  # tools/restore_items.py
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _tmp=tempfile.mkdtemp()
 os.environ["DATABASE_URL"]=f"sqlite:///{_tmp}/test.db"; os.environ["LOCAL_UPLOAD_DIR"]=f"{_tmp}/uploads"; os.environ["STORAGE_BACKEND"]="local"
@@ -1219,7 +1220,7 @@ def flow(c):
     db=SessionLocal(); left=db.query(Item).filter(Item.project_id==int(pid_big)).all(); assert [i.id for i in left]==[keep_id]; db.close()
     assert _st.read_image(ph_key) is None and "70 items deleted." in c.get(f"/p/{pid_big}/items?deleted=70").text and "1 item deleted." in c.get(f"/p/{pid_big}/items?category=Lighting&deleted=1").text
     # deleted by mistake: tools/restore_items.py brings the lines back from an earlier copy, rooms, quantities and codes as they were
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tools")); import restore_items as _ri
+    import restore_items as _ri
     db=SessionLocal(); _was=sorted((i.id, i.code, i.room_id, i.qty) for i in db.query(Item).filter(Item.project_id==int(pid_big), Item.category=="Lighting")); db.close(); assert _was==[]
     assert _ri.main(["--project", str(pid_big), "--like", "pendant", "--restore-url", f"sqlite:///{_tmp}/before_delete.db"])==0  # lists only
     db=SessionLocal(); assert db.query(Item).filter(Item.project_id==int(pid_big)).count()==1; db.close()
@@ -1241,6 +1242,14 @@ def flow(c):
     c.get(f"/p/{pid_big}/items"); db=SessionLocal(); _back=db.query(Item).filter(Item.project_id==int(pid_big), Item.category=="Tiles", Item.id!=keep_id).all()
     assert len(_back)==2 and {i.product_id for i in _back}=={_mp} and db.query(_Qo).filter(_Qo.product_id==_mp).one().amount==90, [(i.name, i.product_id) for i in _back]; db.close()
     c.post(f"/p/{pid_big}/items/delete-selected", data={"ids":[str(i.id) for i in _back]}, follow_redirects=False)
+    # a line bought (so on its shop's draft order) and then deleted: the purchase goes and so does the draft it leaves empty
+    from app.models import Order as _Ord
+    r=c.post(f"/p/{pid_big}/items/new", data={"room_ids":[big_rids[4]],"category":"Tiles","name":"Terrazzo","qty":"3","unit":"m²","status":"To buy"}, follow_redirects=False)
+    c.get(f"/p/{pid_big}/items"); db=SessionLocal(); _tz=db.query(Item).filter(Item.project_id==int(pid_big), Item.name=="Terrazzo").one(); _tzp=_tz.product_id; _tzi=_tz.id; db.close()
+    c.post(f"/p/{pid_big}/buying/{_tzp}/quotes", data={"supplier_name":"Kariakoo Stone","amount":"40","currency":"CNY","buy":"open"})
+    db=SessionLocal(); assert db.query(_Ord).filter(_Ord.project_id==int(pid_big)).count()==1 and db.get(Item,_tzi).purchase_id; db.close()
+    c.post(f"/p/{pid_big}/items/{_tzi}/delete", follow_redirects=False)
+    db=SessionLocal(); assert db.query(_Ord).filter(_Ord.project_id==int(pid_big)).count()==0 and db.query(Purchase).filter(Purchase.project_id==int(pid_big)).count()==0; db.close()
     print("delete selected ok")
     # messages and confirmations are the app's own dialog (app.js appConfirm/appAlert, .modal), never the browser's system boxes
     import re as _re; from pathlib import Path
@@ -1710,7 +1719,7 @@ def flow(c):
     # a room moved to another shop leaves the first shop's draft empty: it goes, when nothing was typed or paid on it
     buy(c, pid_o, lamp, "Shop A", 300); oa=draft_of(pid_o, _sid("Shop A"))
     buy(c, pid_o, lamp, "Shop B", 280, lines=[lamp]); ob=draft_of(pid_o, _sid("Shop B"))
-    db=SessionLocal(); assert db.get(_O,oa) is None and _od.ref(db.get(_O,ob))=="KH-005" and db.query(_O).filter(_O.project_id==pid_o).count()==1; db.close()
+    db=SessionLocal(); _left=db.query(_O).filter(_O.project_id==pid_o).all(); assert [(x.id, x.supplier_id, _od.ref(x)) for x in _left]==[(ob, _sid("Shop B"), "KH-005")], [(x.id, x.supplier_id, _od.ref(x)) for x in _left]; db.close()  # Shop A's draft went (SQLite may give Shop B's the same row id: the number is what counts)
     print("orders ok")
     # ---- Shipping: boxes to the warehouse, into a shipment, to site; the rooms follow their boxes ----
     from app import shipping as _sh

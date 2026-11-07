@@ -544,7 +544,8 @@ def leave_order(db: Session, pu: Purchase) -> None:
 
 
 def prune(db: Session, p: Project) -> int:
-    """Purchases that cover no line any more (their rooms were deleted or moved to another shop) go."""
+    """Purchases that cover no line any more (their rooms were deleted or moved to another shop) go, and so does a draft
+    order they leave empty with nothing typed on it."""
     db.flush()
     used = {i.purchase_id for i in db.query(Item.purchase_id).filter(Item.project_id == p.id, Item.purchase_id.isnot(None))}
     gone = 0
@@ -554,6 +555,8 @@ def prune(db: Session, p: Project) -> int:
             gone += 1
     if gone:
         db.flush()
+        from .ordering import tidy_drafts  # here: ordering imports this module
+        tidy_drafts(db, p)  # a draft order those purchases leave empty goes too (it would sit on the Orders page with nothing)
     return gone
 
 
