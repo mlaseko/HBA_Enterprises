@@ -14,7 +14,7 @@ from .. import storage
 from ..common import fmt_cur, content_disposition, ffloat, fint, get_project, get_settings, redirect, render, require_login
 from ..db import get_db
 from ..config import NOT_BUYING
-from ..models import Item, Order, Project, Purchase, Quote, Supplier
+from ..models import Item, Order, Product, Project, Purchase, Quote, Supplier
 from .exports import build_error, try_build
 
 router = APIRouter(dependencies=[Depends(require_login)])
@@ -91,13 +91,22 @@ def order_page(request: Request, order_id: int, p: Project = Depends(get_project
         db.commit()
     ch = od.changes(o, ov)
     sort = od.sort_lines(ov, sort)
+    # per product on the order: a cheaper quote another shop already gave, and the "find a cheaper option" flag
+    pids = {v["purchase"].product_id for v in ov.lines}
+    price = {v["purchase"].product_id: v["purchase"].unit_price or 0 for v in ov.lines}
+    cheaper_q = {}
+    for qu in db.query(Quote).filter(Quote.product_id.in_(pids), Quote.unit_price > 0, Quote.option_label == "").all() if pids else []:
+        if qu.supplier_id != o.supplier_id and qu.unit_price < price[qu.product_id] * 0.995 and \
+                (qu.product_id not in cheaper_q or qu.unit_price < cheaper_q[qu.product_id].unit_price):
+            cheaper_q[qu.product_id] = qu
+    flags = {pr.id: pr.cheaper for pr in db.query(Product).filter(Product.id.in_(pids), Product.cheaper != "").all()} if pids else {}
     more = [v for v in led.pv.values() if v["purchase"].order_id is None and v["purchase"].supplier_id == o.supplier_id]
     studio = get_settings(db)
     deposit_next = ov.deposit_left > 0.005
     due = ov.deposit_left if deposit_next else max(ov.balance, 0.0)
     return render(request, "buying/order.html", p=p, ov=ov, o=o, more=more, addable=_addable(db, p, o), wechat=od.wechat_text(ov, p, studio), studio=studio, loose=od.loose_payments(p, o),
                   today=date.today().isoformat(), due=round(due, 2), due_kind="Deposit" if deposit_next else "Balance",
-                  STAGE_COLORS=od.STAGE_COLORS, STAGE_HELP=od.STAGE_HELP, ok=ok[:200], err=err[:200], sort=sort, SORTS=od.LINE_SORTS, ch=ch)
+                  STAGE_COLORS=od.STAGE_COLORS, STAGE_HELP=od.STAGE_HELP, ok=ok[:200], err=err[:200], sort=sort, SORTS=od.LINE_SORTS, ch=ch, cheaper_q=cheaper_q, flags=flags)
 
 
 @router.post("/p/{project_id}/orders/{order_id}")

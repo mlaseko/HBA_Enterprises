@@ -99,14 +99,16 @@ def _overview(gs: list) -> dict:
 
 @router.get("/p/{project_id}/buying")
 def buying_list(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), category: str = "", floor: str = "",
-                stage: str = "", ok: str = "", options: str = ""):
+                stage: str = "", ok: str = "", options: str = "", cheaper: str = ""):
     prods = bz.sync_products(db, p)
     db.commit()
     gs = bz.groups(p, prods)
     shown = _filtered(p, gs, category, floor, stage if stage in bz.STAGES else "")
     if options:  # the products with options still to choose (the Tracker's line)
         shown = [g for g in shown if g.options and g.rooms_open]
-    f = dict(category=category, floor=floor, stage=stage, options="1" if options else "")
+    if cheaper:  # the products flagged to find a cheaper option (the Tracker's line)
+        shown = [g for g in shown if g.product is not None and (g.product.cheaper or "").strip()]
+    f = dict(category=category, floor=floor, stage=stage, options="1" if options else "", cheaper="1" if cheaper else "")
     stage_counts = Counter(g.stage for g in _filtered(p, gs, category, floor, ""))
     return render(request, "buying/list.html", p=p, sections=_family_sections(_sections(shown)), shown=shown, all=_overview(gs), f=f,
                   stage_counts=stage_counts, floors=floor_choices(p), NO_FLOOR=NO_FLOOR, STAGES=bz.STAGES, STAGE_COLORS=bz.STAGE_COLORS,
@@ -178,6 +180,24 @@ def budget_page(request: Request, p: Project = Depends(get_project), db: Session
     data = dict(rows=[dict(r, buys={k: {x: v[x] for x in ("price", "pack", "override", "shop", "quote", "total", "qty")} for k, v in r["buys"].items()})
                       for r in pl["rows"]], budget=pl["budget"], rate=pl["rate"], usd=p.show_currency == "USD")
     return render(request, "buying/budget.html", p=p, pl=pl, data=data, ok=ok[:300], err=err[:300])
+
+
+@router.post("/p/{project_id}/buying/{product_id}/cheaper")
+async def flag_cheaper(request: Request, product_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """Keep the product but look for a cheaper option of it (a note: a target price, a shop to ask); off=1 clears it. It shows
+    on the order line, the product, the budget and the Buying list, and the Tracker lists what is flagged."""
+    form = await request.form()
+    back = safe_next(form.get("next"), f"/p/{p.id}/buying/{product_id}")
+    pr = db.get(Product, product_id)
+    if pr is None or pr.project_id != p.id:
+        return redirect(back)
+    off = bool(form.get("off"))
+    pr.cheaper = "" if off else ((" ".join((form.get("note") or "").split()) or "look for a cheaper option")[:240])
+    db.commit()
+    msg = f"{pr.name or 'The product'}: {'no longer flagged' if off else 'flagged to find a cheaper option'}."
+    sep = "&" if "?" in back.split("#")[0] else "?"
+    base, _, frag = back.partition("#")
+    return redirect(f"{base}{sep}ok={urlquote(msg)}" + (f"#{frag}" if frag else ""))
 
 
 @router.get("/p/{project_id}/buying/budget.xlsx")

@@ -641,6 +641,11 @@ def tracker(p: Project, led: buying.Ledger, gs: list, ovs: list[OrderView], toda
         name = e["supplier"].name if e["supplier"] is not None else "A shop"
         att.append(dict(tone="accent", icon="bag", title=f"Bought from {name}, not on an order yet",
                         detail=f"{len(e['views'])} product{'s' if len(e['views']) != 1 else ''} · {fmt_cur(p, e['total'])}", href=f"{href}/orders#ready"))
+    flagged = [g for g in gs if g.product is not None and (g.product.cheaper or "").strip()]
+    if flagged:  # products kept but to be bought cheaper ("Find a cheaper option" on the order line)
+        names = ", ".join(g.name for g in flagged[:4]) + (f" and {len(flagged) - 4} more" if len(flagged) > 4 else "")
+        att.append(dict(tone="gold", icon="bag", title=f"{len(flagged)} product{'s' if len(flagged) != 1 else ''} to find a cheaper option for",
+                        detail=names, href=f"{href}/buying?cheaper=1"))
     # sourcing: quotations about to lapse while products they price still have rooms without a shop, sheets not saved yet
     open_ids = {g.product.id for g in gs if g.product is not None and any(not i.purchase_id for i in g.lines)}
     revised = {x.replaces_id for x in p.quotations if x.replaces_id}

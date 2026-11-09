@@ -1,0 +1,9 @@
+{# rename the shop where it shows (a quotation, an order): every quotation, order and purchase of the shop follows, since they
+   all point at the one supplier. Expects `sup` (Supplier) and `back` (where to come back). #}
+{% if sup %}<details class="sup-rn"><summary class="small" title="Rename this shop"><svg class="ic sm"><use href="#i-edit"/></svg>Rename shop</summary>
+  <form method="post" action="/suppliers/{{ sup.id }}/rename" class="row sup-rn-f">
+    <input type="hidden" name="back" value="{{ back }}">
+    <input class="in sm" name="name" value="{{ sup.name }}" required maxlength="160" aria-label="The shop's name">
+    <button class="btn sm sec"><svg class="ic"><use href="#i-check"/></svg>Save the name</button>
+    <span class="small muted">The name changes on every quotation, order and purchase order of this shop.</span>
+  </form></details>{% endif %}

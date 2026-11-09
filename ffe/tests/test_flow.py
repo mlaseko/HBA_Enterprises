@@ -1810,6 +1810,26 @@ def flow(c):
     _pt=pdf_text(c.get(f"/p/{pid_o}/orders/{_rt}/po.pdf").content); assert "CHANGES SINCE" in _pt and _kc in _pt and "CHANGED" in _pt, _pt[-800:]
     r=c.post(f"/p/{pid_o}/orders/{_rt}/baseline", follow_redirects=False); assert "ok=" in r.headers["location"]
     assert "No changes since then" in c.get(f"/p/{pid_o}/orders/{_rt}").text  # marked as sent: the changes count from now
+    # find a cheaper option: the product stays on the order, flagged on the order line, the Tracker, the Buying list and the Budget
+    db=SessionLocal(); _fpid=db.get(_Pu,_rpu).product_id; db.close()
+    h=c.get(f"/p/{pid_o}/orders/{_rt}").text; assert f'/buying/{_fpid}/cheaper"' in h and "Find a cheaper option" in h
+    r=c.post(f"/p/{pid_o}/buying/{_fpid}/cheaper", data={"note":"under 40 a m2", "next":f"/p/{pid_o}/orders/{_rt}#products"}, follow_redirects=False)
+    assert r.headers["location"].startswith(f"/p/{pid_o}/orders/{_rt}?ok=") and r.headers["location"].endswith("#products"), r.headers["location"]
+    db=SessionLocal(); assert db.get(_Pr,_fpid).cheaper=="under 40 a m2" and db.get(_Pu,_rpu).order_id==_rt; db.close()
+    assert "under 40 a m2" in c.get(f"/p/{pid_o}/orders/{_rt}").text and "to find a cheaper option" in c.get(f"/p/{pid_o}/buying/tracker").text
+    _bl=c.get(f"/p/{pid_o}/buying?cheaper=1").text; assert "Find cheaper" in _bl and "flagged to find a cheaper option" in _bl
+    assert "Find cheaper" in c.get(f"/p/{pid_o}/buying/budget").text
+    c.post(f"/p/{pid_o}/buying/{_fpid}/cheaper", data={"off":"1", "next":f"/p/{pid_o}/orders/{_rt}"}, follow_redirects=False)
+    db=SessionLocal(); assert db.get(_Pr,_fpid).cheaper==""; db.close()
+    # a cheaper quote another shop gave shows on the order line
+    buy(c, pid_o, _liv, "Cheaper Tiles", 30, lines=[_kit]); h=c.get(f"/p/{pid_o}/orders/{_rt}").text; assert "Cheaper quote:" in h and "Cheaper Tiles" in h, h[h.find('od-lines'):h.find('od-lines')+1500]
+    # the shop renamed from its quotation or order: every quotation, order and PO follows; a name another shop has is refused
+    _rsid=_sid("Room Tiles")
+    h=c.get(f"/p/{pid_o}/orders/{_rt}").text; assert f'action="/suppliers/{_rsid}/rename"' in h
+    r=c.post(f"/suppliers/{_rsid}/rename", data={"name":"Foshan Real Tiles Co.", "back":f"/p/{pid_o}/orders/{_rt}"}, follow_redirects=False)
+    assert r.headers["location"].startswith(f"/p/{pid_o}/orders/{_rt}?ok="), r.headers["location"]
+    assert "Foshan Real Tiles Co." in c.get(f"/p/{pid_o}/orders/{_rt}").text and "Foshan Real Tiles Co." in pdf_text(c.get(f"/p/{pid_o}/orders/{_rt}/po.pdf").content)
+    r=c.post(f"/suppliers/{_rsid}/rename", data={"name":"cheaper tiles", "back":f"/p/{pid_o}/orders/{_rt}"}, follow_redirects=False); assert "err=" in r.headers["location"]
     r=c.post(f"/p/{pid_o}/orders/{_rt}/rooms/{_liv}/remove", follow_redirects=False)  # its last room: the product and then the empty draft go
     db=SessionLocal(); assert db.get(Item,_liv).purchase_id is None and db.get(_Pu,_rpu) is None and db.get(_O,_rt) is None; db.close()
     db=SessionLocal(); _shp=db.get(Item,_pb_id); _sho=_shp.purchase.order_id; db.close()

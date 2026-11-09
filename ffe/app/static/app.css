@@ -1086,6 +1086,10 @@ details.bu-add>form{padding:4px 18px 18px}
 .od-ch-list{list-style:none;margin:10px 0 0;padding:0}.od-ch-list li{display:flex;gap:10px;align-items:baseline;padding:6px 0;border-top:1px solid var(--line-2);font-size:.88rem}
 .od-ch-list .pill{flex:none;font-size:.7rem}.od-ch-list .k-product-removed .pill,.od-ch-list .k-room-removed .pill{background:var(--red-soft);color:var(--red)}
 .od-ch-list .k-product-added .pill,.od-ch-list .k-room-added .pill{background:var(--green-soft);color:var(--green)}
+.linkbtn{background:none;border:0;padding:0;color:var(--accent);cursor:pointer;font:inherit;text-decoration:underline}
+.od-cheap{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px}.od-cheap form{margin:0}
+.od-cheap-q{margin-top:4px;color:var(--green)}.od-cheap-q .ic{vertical-align:-2px;margin-right:3px}
+.od-cheap-f{margin-top:4px}.od-cheap-f>summary{cursor:pointer;color:var(--muted)}.od-cheap-f form{gap:6px;margin:6px 0 4px;flex-wrap:wrap}.od-cheap-f .in{min-width:220px;flex:1}
 .od-cell{display:flex;flex-direction:column;min-width:0}.od-cell>.od-card{flex:1}
 .od-cell-acts{display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:8px 2px 0}.od-cell-acts form{margin:0}
 .od-drafts .od-card{border-style:dashed}

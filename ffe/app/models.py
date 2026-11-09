@@ -562,6 +562,8 @@ class Product(Base):
     unit: Mapped[str] = mapped_column(String(10), default="")
     allowance: Mapped[float | None] = mapped_column(Float, nullable=True)  # 0.10 = 10 % extra; None = the category's default
     pack_size: Mapped[float] = mapped_column(Float, default=0.0)  # units per pack (m² per box, m per box); 0 = sold by the unit
+    # kept, but a cheaper option is to be looked for (the order line's "Find a cheaper option"): the note, '' = not flagged
+    cheaper: Mapped[str] = mapped_column(String(240), default="")
     pack_name: Mapped[str] = mapped_column(String(20), default="")  # "box", "roll"…; '' = the default for the unit
     notes: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
