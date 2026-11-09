@@ -116,7 +116,7 @@
     </tbody>
     <tfoot><tr><td colspan="5" class="right">Total</td><td class="num b">{{ ov.total|cur(2) }}</td><td></td></tr></tfoot>
   </table></div>
-  <form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/quantities" id="od-qty" class="row between mt od-qty-bar" data-total="{{ ov.total or 0 }}"{% if p.show_currency == 'USD' %} data-usd="{{ p.rate or 1 }}"{% endif %}><span class="small b od-qty-n" aria-live="polite"></span><span class="small muted od-qty-say">{% if o.confirmed %}A change after confirming is flagged until the shop agrees.{% else %}Changed a quantity? Save it here.{% endif %}</span><button class="btn sm"><svg class="ic"><use href="#i-check"/></svg>Save quantities</button></form>
+  <form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/quantities" id="od-qty" class="row between mt od-qty-bar" data-total="{{ ov.total or 0 }}"data-rate="{{ p.rate or 1 }}"{% if p.show_currency == 'USD' %} data-usd-only="1"{% endif %}><span class="small b od-qty-n" aria-live="polite"></span><span class="small muted od-qty-say">{% if o.confirmed %}A change after confirming is flagged until the shop agrees.{% else %}Changed a quantity? Save it here.{% endif %}</span><button class="btn sm"><svg class="ic"><use href="#i-check"/></svg>Save quantities</button></form>
   {% else %}
   <div class="card bu-none"><svg class="ic"><use href="#i-info"/></svg><div><b>No products on this order.</b> <span class="muted">Add what is waiting from {{ shop }} below, or delete the order.</span></div></div>
   {% endif %}

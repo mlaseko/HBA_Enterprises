@@ -800,17 +800,19 @@
   function check() {
     var n = 0;
     var total = parseFloat(bar.dataset.total) || 0;
-    var usd = parseFloat(bar.dataset.usd) || 0;
-    function yen(x) { if (usd) x = x / usd; return (usd ? '$' : '¥') + x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    var rate = parseFloat(bar.dataset.rate) || 1, usdOnly = !!bar.dataset.usdOnly;
+    function f2(x) { return x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    // as the page shows amounts: in yuan with the dollars beside it, or in dollars only when the project is shown in USD
+    function money(x, sep) { return usdOnly ? '$' + f2(x / rate) : '¥' + f2(x) + sep + '$' + f2(x / rate); }
     ins.forEach(function (i) {
       var c = i.value !== i.defaultValue, price = parseFloat(i.dataset.price) || 0, row = i.closest('tr'), nw = row && row.querySelector('.od-new');
       i.classList.toggle('changed', c); if (c) n++;
       var now = (parseFloat(i.value) || 0) * price;
       if (c && i.value.trim() !== '') total += now - (parseFloat(i.defaultValue) || 0) * price;
-      if (nw) { nw.hidden = !(c && i.value.trim() !== ''); nw.textContent = 'now ' + yen(now); }
+      if (nw) { nw.hidden = !(c && i.value.trim() !== ''); nw.textContent = 'now ' + (usdOnly ? money(now) : '¥' + f2(now)); if (!usdOnly) { var u = document.createElement('span'); u.className = 'usd'; u.textContent = '$' + f2(now / rate); nw.appendChild(u); } }
     });
     bar.classList.toggle('dirty', n > 0);
-    if (say) say.textContent = n ? n + (n === 1 ? ' quantity changed' : ' quantities changed') + ' · total ' + yen(Math.round(total * 100) / 100) : '';
+    if (say) say.textContent = n ? n + (n === 1 ? ' quantity changed' : ' quantities changed') + ' · total ' + money(Math.round(total * 100) / 100, ' · ') : '';
   }
   ins.forEach(function (i) { i.addEventListener('input', check); });
 })();
