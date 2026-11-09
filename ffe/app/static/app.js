@@ -771,3 +771,48 @@
     f.classList.toggle('open', on); ft.setAttribute('aria-expanded', on ? 'true' : 'false');
   });
 })();
+
+// Order page quantities: − / + step a quantity by one (never below 0), a tapped box selects its number so typing replaces
+// it, a changed box is tinted, and the Save quantities bar says how many changed and stays in reach (sticky) until saved.
+(function () {
+  var bar = document.getElementById('od-qty');
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('.od-step'); if (!b) return;
+    var inp = b.parentNode.querySelector('input'); if (!inp) return;
+    var v = Math.max(0, Math.round(((parseFloat(inp.value) || 0) + parseFloat(b.dataset.d)) * 1000) / 1000);
+    inp.value = v; inp.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  var QI = '.od-qty input, .od-alloc input[type=number]', fresh = null;
+  document.addEventListener('focusin', function (e) {
+    var t = e.target; if (!(t.matches && t.matches(QI))) return;
+    fresh = t; try { t.select(); } catch (_) {}
+  });
+  function keep(e) {  // the tap that focused the box would put the caret back: keep the number selected so typing replaces it
+    if (fresh && e.target === fresh) { e.preventDefault(); try { fresh.select(); } catch (_) {} }
+    if (e.type === 'mouseup' || e.type === 'touchend') fresh = null;
+  }
+  ['pointerup', 'mouseup', 'touchend'].forEach(function (ev) { document.addEventListener(ev, keep); });
+  document.addEventListener('input', function (e) {
+    var t = e.target; if (t.matches && t.matches('.od-alloc input[type=number]')) t.classList.toggle('changed', t.value !== t.defaultValue);
+  });
+  if (!bar) return;
+  var ins = [].slice.call(document.querySelectorAll('input[form="od-qty"]')), say = bar.querySelector('.od-qty-n');
+  function check() {
+    var n = 0;
+    var total = parseFloat(bar.dataset.total) || 0;
+    var rate = parseFloat(bar.dataset.rate) || 1, usdOnly = !!bar.dataset.usdOnly;
+    function f2(x) { return x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    // as the page shows amounts: in yuan with the dollars beside it, or in dollars only when the project is shown in USD
+    function money(x, sep) { return usdOnly ? '$' + f2(x / rate) : '¥' + f2(x) + sep + '$' + f2(x / rate); }
+    ins.forEach(function (i) {
+      var c = i.value !== i.defaultValue, price = parseFloat(i.dataset.price) || 0, row = i.closest('tr'), nw = row && row.querySelector('.od-new');
+      i.classList.toggle('changed', c); if (c) n++;
+      var now = (parseFloat(i.value) || 0) * price;
+      if (c && i.value.trim() !== '') total += now - (parseFloat(i.defaultValue) || 0) * price;
+      if (nw) { nw.hidden = !(c && i.value.trim() !== ''); nw.textContent = 'now ' + (usdOnly ? money(now) : '¥' + f2(now)); if (!usdOnly) { var u = document.createElement('span'); u.className = 'usd'; u.textContent = '$' + f2(now / rate); nw.appendChild(u); } }
+    });
+    bar.classList.toggle('dirty', n > 0);
+    if (say) say.textContent = n ? n + (n === 1 ? ' quantity changed' : ' quantities changed') + ' · total ' + money(Math.round(total * 100) / 100, ' · ') : '';
+  }
+  ins.forEach(function (i) { i.addEventListener('input', check); });
+})();

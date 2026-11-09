@@ -102,7 +102,9 @@ app/routers/orders.py  /p/<id>/orders (ready to order + orders by stage), /order
                        /orders/<o>/add|remove/<pu>|confirm|unconfirm|delete|payments|claim, /orders/<o>/po.pdf, /orders/release
                        (the order page and po.pdf take ?sort= amount (default) | amount_asc | name | added: ordering.sort_lines),
                        /orders/<o>/rooms/<item>/remove (ordering.take_room_off: one room off, To buy; its last room takes the product off,
-                       tidy_drafts; Shipped / Received refused). The Orders page lists #drafts first (dashed cards, Edit + Confirm under each);
+                       tidy_drafts; Shipped / Received refused), /orders/<o>/allocate/<pu> (ordering.allocate: rq_<line> per room, 0 = off;
+                       room + add_qty adds a room: its waiting To-buy line of the product, else a new line copied like choose_options;
+                       a hand-typed Purchase.qty is cleared; the line's .od-alloc panel, rooms offered by ordering.free_rooms). The Orders page lists #drafts first (dashed cards, Edit + Confirm under each);
                        a draft's page carries the .od-draft banner; the room chips are .od-room with a .od-room-x form;
                        /orders/<o>/baseline (mark as sent), /orders/<o>/order.xlsx (ordering.order_workbook). Changes: Order.baseline (JSON,
                        ordering.set_baseline / snapshot: per product id name, size, unit, price, qty, rooms {code: [room, qty]}) is set
