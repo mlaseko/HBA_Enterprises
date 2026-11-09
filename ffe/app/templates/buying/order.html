@@ -78,7 +78,7 @@
     <thead><tr><th></th><th>Product</th><th>For the rooms</th><th class="num">To order</th><th class="num">Unit price</th><th class="num">Amount</th><th></th></tr></thead>
     <tbody>
     {% for v in ov.lines %}{% set it = v.lines[0] %}{% set pu = v.purchase %}{% set word = v.pack_name or 'pack' %}
-    <tr>
+    <tr id="pu-{{ pu.id }}">
       <td class="pic">{% if it.cover %}<img src="/media/{{ it.cover.thumb }}" alt="" loading="lazy" data-full="/media/{{ it.cover.file_key }}" data-caption="{{ it.name }}">{% else %}<span class="none"></span>{% endif %}</td>
       <td class="prod"><a class="b" href="/p/{{ p.id }}/buying/{{ pu.product_id }}">{{ it.name }}</a>
         <div class="small muted">{{ [it.size, it.finish]|select|join(' · ') }}</div>
@@ -92,7 +92,21 @@
             <input class="in sm" name="note" maxlength="200" placeholder="Same item, cheaper: e.g. under ¥1,500, ask another shop" aria-label="What to look for">
             <button class="btn sm sec">Flag it</button></form>
           <p class="small muted mb-0">The item stays on the order; it is flagged on the Tracker, the Budget and the Buying list until you clear it.</p></details>{% endif %}</td>
-      <td class="rooms">{% for i in v.lines %}<span class="od-room"><a class="pill" href="/p/{{ p.id }}/items/{{ i.id }}" data-quick title="Quick view"><b>{{ i.code }}</b> {{ i.qty|num(2) }} {{ i.unit }}</a>{% if i.status not in ('Shipped', 'Received') %}<form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/rooms/{{ i.id }}/remove" data-confirm="Take {{ i.code }} off this order? {{ it.name }} in this room has no shop again (To buy){% if v.lines|length > 1 %}; the other {{ v.lines|length - 1 }} room{{ 's' if v.lines|length > 2 }} stay on the order{% else %}; it was the product's only room here, so the product leaves the order{% endif %}{% if o.confirmed %}. The order shows it changed until the shop agrees{% endif %}." data-confirm-ok="Take it off"><button class="od-room-x" title="Take {{ i.code }} off this order" aria-label="Take {{ i.code }} off this order"><svg class="ic"><use href="#i-x"/></svg></button></form>{% endif %}</span>{% endfor %}</td>
+      <td class="rooms">{% for i in v.lines %}<span class="od-room"><a class="pill" href="/p/{{ p.id }}/items/{{ i.id }}" data-quick title="Quick view"><b>{{ i.code }}</b> {{ i.qty|num(2) }} {{ i.unit }}</a>{% if i.status not in ('Shipped', 'Received') %}<form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/rooms/{{ i.id }}/remove" data-confirm="Take {{ i.code }} off this order? {{ it.name }} in this room has no shop again (To buy){% if v.lines|length > 1 %}; the other {{ v.lines|length - 1 }} room{{ 's' if v.lines|length > 2 }} stay on the order{% else %}; it was the product's only room here, so the product leaves the order{% endif %}{% if o.confirmed %}. The order shows it changed until the shop agrees{% endif %}." data-confirm-ok="Take it off"><button class="od-room-x" title="Take {{ i.code }} off this order" aria-label="Take {{ i.code }} off this order"><svg class="ic"><use href="#i-x"/></svg></button></form>{% endif %}</span>{% endfor %}
+        {% set short = pu.qty is not none and (pu.qty - v.needed)|abs > 0.0005 %}
+        {% if short %}<div class="small od-alloc-warn"><svg class="ic sm"><use href="#i-info"/></svg>Typed {{ pu.qty|num(2) }}, the rooms add up to {{ v.needed|num(2) }}{% if pu.qty > v.needed %}: {{ (pu.qty - v.needed)|num(2) }} not in a room{% endif %}.</div>{% endif %}
+        <details class="od-alloc"{% if short %} data-short{% endif %}><summary class="small">{{ 'Allocate to rooms' if short else 'Rooms and quantities' }}</summary>
+          <form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/allocate/{{ pu.id }}">
+            <div class="od-alloc-t">
+            {% for i in v.lines %}<div class="od-alloc-r"><span><b>{{ i.code }}</b> <span class="muted">{{ i.room.name if i.room else 'Whole house' }}</span></span>
+              <span class="q">{% if i.status in ('Shipped', 'Received') %}{{ i.qty|num(2) }} <span class="small muted">{{ i.status|lower }}</span>{% else %}<input class="in sm" type="number" step="any" min="0" inputmode="decimal" name="rq_{{ i.id }}" value="{{ i.qty|plain }}" aria-label="Quantity in {{ i.code }}">{% endif %} {{ i.unit }}</span></div>{% endfor %}
+            {% set fr = free_rooms(pu) %}{% if fr %}
+            <div class="od-alloc-r od-alloc-add"><span><select class="in sm" name="room" aria-label="Add a room"><option value="">Add a room…</option>
+              {% for r in fr %}<option value="{{ r.id }}">{{ r.label }}{% if r.wait %} (needs {{ r.wait.qty|num(2) }}, no shop yet){% endif %}</option>{% endfor %}</select></span>
+              <span class="q"><input class="in sm" type="number" step="any" min="0" inputmode="decimal" name="add_qty" placeholder="Qty" aria-label="Quantity for the added room"> {{ it.unit }}</span></div>{% endif %}
+            </div>
+            <div class="row between"><span class="small muted">0 takes a room off. The order orders what the rooms add up to.</span><button class="btn sm"><svg class="ic"><use href="#i-check"/></svg>Save rooms</button></div>
+          </form></details></td>
       <td class="num qty"><span class="od-qty"><input class="in sm" type="number" step="any" min="0" inputmode="decimal" name="qty_{{ pu.id }}" value="{{ v.qty|plain }}" form="od-qty" aria-label="Quantity of {{ it.name }} to order"> {{ v.unit }}</span>{% if pu.qty is not none %}<div class="small muted">set by hand</div>{% elif v.packs %}<div class="small muted">{{ packs(v.packs, word) }} of {{ v.pack|num(3) }}</div>{% endif %}</td>
       <td class="num price">{{ pu.unit_price|cur(2) }}</td>
       <td class="num b amt">{{ v.total|cur(2) }}</td>

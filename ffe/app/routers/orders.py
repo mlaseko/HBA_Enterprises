@@ -106,7 +106,8 @@ def order_page(request: Request, order_id: int, p: Project = Depends(get_project
     due = ov.deposit_left if deposit_next else max(ov.balance, 0.0)
     return render(request, "buying/order.html", p=p, ov=ov, o=o, more=more, addable=_addable(db, p, o), wechat=od.wechat_text(ov, p, studio), studio=studio, loose=od.loose_payments(p, o),
                   today=date.today().isoformat(), due=round(due, 2), due_kind="Deposit" if deposit_next else "Balance",
-                  STAGE_COLORS=od.STAGE_COLORS, STAGE_HELP=od.STAGE_HELP, ok=ok[:200], err=err[:200], sort=sort, SORTS=od.LINE_SORTS, ch=ch, cheaper_q=cheaper_q, flags=flags)
+                  STAGE_COLORS=od.STAGE_COLORS, STAGE_HELP=od.STAGE_HELP, ok=ok[:200], err=err[:200], sort=sort, SORTS=od.LINE_SORTS, ch=ch, cheaper_q=cheaper_q, flags=flags,
+                  free_rooms=lambda pu: od.free_rooms(p, pu))
 
 
 @router.post("/p/{project_id}/orders/{order_id}")
@@ -237,6 +238,34 @@ def remove_room(order_id: int, item_id: int, p: Project = Depends(get_project), 
         return _to(p, ok=f"{code} taken off; the order had nothing else, so it went. {name} in {code} has no shop again (To buy).")
     return _to(p, order_id, "#products", ok=f"{code} taken off: {name} there has no shop again (To buy); order it again from the saved quotation."
                + (" Tell the shop, then press The shop agreed." if was_confirmed else ""))
+
+
+@router.post("/p/{project_id}/orders/{order_id}/allocate/{purchase_id}")
+async def allocate_rooms(request: Request, order_id: int, purchase_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """A product's quantity shared out to its rooms: rq_<line> per room (0 takes the room off), room + add_qty add a room.
+    The order then orders what the rooms add up to."""
+    o = _order(db, p, order_id)
+    pu = db.get(Purchase, purchase_id)
+    if o is None or pu is None or pu.order_id != o.id:
+        return _to(p, o.id if o is not None else None)
+    form = await request.form()
+    qtys = {}
+    for k, raw in form.items():
+        if k.startswith("rq_") and str(raw).strip():
+            v = ffloat(str(raw).strip(), -1)
+            if v >= 0:
+                qtys[fint(k[3:])] = v
+    room_raw = (form.get("room") or "").strip()
+    room_id = fint(room_raw) if room_raw else None
+    n, why = od.allocate(db, p, o, pu, qtys, room_id, max(ffloat((form.get("add_qty") or "").strip(), 0), 0))
+    if why:
+        return _to(p, order_id, f"#pu-{pu.id}", err=why)
+    bz.settle(db, p)
+    db.commit()
+    if not n:
+        return _to(p, order_id, f"#pu-{pu.id}", ok="Nothing changed in the rooms.")
+    return _to(p, order_id, f"#pu-{pu.id}", ok=f"Rooms saved ({n} changed): the order now orders what the rooms add up to."
+               + (" Tell the shop, then press The shop agreed." if o.confirmed else ""))
 
 
 @router.post("/p/{project_id}/orders/{order_id}/remove/{purchase_id}")

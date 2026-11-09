@@ -1810,6 +1810,24 @@ def flow(c):
     _pt=pdf_text(c.get(f"/p/{pid_o}/orders/{_rt}/po.pdf").content); assert "CHANGES SINCE" in _pt and _kc in _pt and "CHANGED" in _pt, _pt[-800:]
     r=c.post(f"/p/{pid_o}/orders/{_rt}/baseline", follow_redirects=False); assert "ok=" in r.headers["location"]
     assert "No changes since then" in c.get(f"/p/{pid_o}/orders/{_rt}").text  # marked as sent: the changes count from now
+    # the quantity shared out to rooms: a room's own quantity, a room added back (its waiting line), a new room (a new line);
+    # a hand-typed quantity gives way to what the rooms add up to; the rooms then show as changed
+    db=SessionLocal(); _lq=db.get(Item,_liv).qty; _p0=db.get(_P,pid_o); _nr=next(r for r in _p0.rooms if r.id not in {i.room_id for i in _p0.items if i.product_id==db.get(_Pu,_rpu).product_id}); _nrid, _nrc=_nr.id, _nr.code
+    db.get(_Pu,_rpu).qty=_lq+30; db.commit(); db.close()
+    h=c.get(f"/p/{pid_o}/orders/{_rt}").text; assert f'/orders/{_rt}/allocate/{_rpu}"' in h and "Allocate to rooms" in h and "not in a room" in h and f'name="rq_{_liv}"' in h
+    assert f'<option value="{_nrid}">' in h and "no shop yet" in h  # KIT waits with no shop: offered with what it needs
+    db=SessionLocal(); _kroom=db.get(Item,_kit).room_id; db.close()
+    r=c.post(f"/p/{pid_o}/orders/{_rt}/allocate/{_rpu}", data={f"rq_{_liv}":str(_lq+5), "room":str(_kroom), "add_qty":"7"}, follow_redirects=False)
+    assert "Rooms%20saved" in r.headers["location"] and r.headers["location"].endswith(f"#pu-{_rpu}"), r.headers["location"]
+    db=SessionLocal(); assert db.get(Item,_liv).qty==_lq+5 and db.get(Item,_kit).purchase_id==_rpu and db.get(Item,_kit).qty==7 and db.get(_Pu,_rpu).qty is None; db.close()
+    r=c.post(f"/p/{pid_o}/orders/{_rt}/allocate/{_rpu}", data={"room":str(_nrid), "add_qty":"4"}, follow_redirects=False); assert "Rooms%20saved" in r.headers["location"]
+    db=SessionLocal(); _new=[i for i in db.get(_P,pid_o).items if i.purchase_id==_rpu and i.room_id==_nrid]; assert len(_new)==1 and _new[0].qty==4 and _new[0].code.startswith(_nrc+"-") and _new[0].name=="Floor tile" and _new[0].product_id==db.get(_Pu,_rpu).product_id; _nid=_new[0].id; db.close()
+    r=c.post(f"/p/{pid_o}/orders/{_rt}/allocate/{_rpu}", data={"room":str(_nrid), "add_qty":"2"}, follow_redirects=False); assert "err=" in r.headers["location"]  # already on it
+    r=c.post(f"/p/{pid_o}/orders/{_rt}/allocate/{_rpu}", data={f"rq_{_liv}":"0", f"rq_{_kit}":"0", f"rq_{_nid}":"0"}, follow_redirects=False); assert "err=" in r.headers["location"]  # not every room
+    h=c.get(f"/p/{pid_o}/orders/{_rt}").text; _chc=h.split('id="changes"')[1].split("</section>")[0]; assert _nrc in _chc and "room added" in _chc.lower(), _chc
+    r=c.post(f"/p/{pid_o}/orders/{_rt}/allocate/{_rpu}", data={f"rq_{_liv}":str(_lq), f"rq_{_kit}":"0", f"rq_{_nid}":"0"}, follow_redirects=False); assert "Rooms%20saved" in r.headers["location"]
+    db=SessionLocal(); assert db.get(Item,_kit).purchase_id is None and db.get(Item,_nid).purchase_id is None and db.get(Item,_liv).qty==_lq; db.delete(db.get(Item,_nid)); db.commit(); db.close()
+    c.post(f"/p/{pid_o}/orders/{_rt}/baseline", follow_redirects=False)
     # find a cheaper option: the product stays on the order, flagged on the order line, the Tracker, the Buying list and the Budget
     db=SessionLocal(); _fpid=db.get(_Pu,_rpu).product_id; db.close()
     h=c.get(f"/p/{pid_o}/orders/{_rt}").text; assert f'/buying/{_fpid}/cheaper"' in h and "Find a cheaper option" in h

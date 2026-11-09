@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from . import buying, lists
 from .common import fmt_cur
-from .models import Order, Payment, Project, Purchase, Supplier
+from .models import Item, Order, Payment, Project, Purchase, Supplier
 
 STAGES = ["Draft", "Deposit due", "Balance due", "Paid"]
 STAGE_HELP = {"Draft": "not confirmed with the shop yet", "Deposit due": "confirmed, the deposit still to pay",
@@ -168,6 +168,71 @@ def take_room_off(db: Session, p: Project, o: Order, item) -> str:
             pu.qty = None
     db.flush()
     return ""
+
+
+def free_rooms(p: Project, pu: Purchase) -> list[dict]:
+    """The rooms a product on an order could be added to: every room (and the whole house) without a line of it on this
+    purchase. A room that already has a line of the product with no shop yet says how many it needs."""
+    taken = {i.room_id or 0 for i in p.live_items if i.purchase_id == pu.id}
+    waiting = {}
+    for i in p.live_items:
+        if i.product_id == pu.product_id and i.purchase_id is None and (i.room_id or 0) not in waiting:
+            waiting[i.room_id or 0] = i
+    out = [dict(id=r.id, label=f"{r.code} {r.name}", wait=waiting.get(r.id)) for r in p.rooms if r.id not in taken]
+    if 0 not in taken:
+        out.append(dict(id=0, label="Whole house", wait=waiting.get(0)))
+    return out
+
+
+def allocate(db: Session, p: Project, o: Order, pu: Purchase, qtys: dict[int, float], room_id: int | None, add_qty: float) -> tuple[int, str]:
+    """The quantity of one product on an order shared out to its rooms: qtys gives a room line's new quantity (0 takes the
+    room off the order), room_id/add_qty add a room (its waiting line of the product if it has one, else a new line copied
+    from the product's first room). The order then orders what the rooms add up to: a quantity typed by hand gives way.
+    Returns (rooms changed, why not)."""
+    from .routers.items import SHARED_FIELDS
+    from .services import next_code
+    if pu.order_id != o.id:
+        return 0, "That product is not on this order."
+    lines = buying.lines_of(db, pu)
+    if not lines:
+        return 0, "That product has no rooms on this order."
+    base, changed, off = lines[0], 0, []
+    for i in lines:
+        if i.id not in qtys or i.status in KEEP_ON_DELETE:
+            continue
+        v = round(qtys[i.id], 3)
+        if v <= 0:
+            off.append(i)
+        elif abs(v - (i.qty or 0)) > 0.0005:
+            i.qty = v
+            changed += 1
+    if room_id is not None and add_qty > 0:
+        room = next((r for r in p.rooms if r.id == room_id), None) if room_id else None
+        if room_id and room is None:
+            return 0, "That room is not in this project."
+        if any((i.room_id or 0) == room_id for i in lines):
+            return 0, f"{room.code if room else 'The whole house'} is already on this order: change its quantity instead."
+        it = next((i for i in p.live_items if i.product_id == pu.product_id and i.purchase_id is None and (i.room_id or 0) == room_id), None)
+        if it is None:
+            it = Item(project_id=p.id, room_id=room.id if room else None, qty=round(add_qty, 3), status="To buy", optional=base.optional,
+                      product_id=pu.product_id, **{f: getattr(base, f) for f in SHARED_FIELDS})
+            it.code = next_code(db, p, room)
+            db.add(it)
+            db.flush()
+            p.items.append(it)
+        else:
+            it.qty = round(add_qty, 3)
+        buying.cover(it, pu)
+        changed += 1
+    if len(off) == len(lines) and not (room_id is not None and add_qty > 0):
+        return 0, "Every room at 0 would take the product off the order: use the × at the end of its line for that."
+    for i in off:
+        buying.uncover(i)
+        changed += 1
+    if changed and pu.qty is not None:
+        pu.qty = None  # the order now orders what its rooms add up to
+    db.flush()
+    return changed, ""
 
 
 # ---- what changed on an order since a version of it (the one first seen, confirmed, or marked sent to the shop) ----------
