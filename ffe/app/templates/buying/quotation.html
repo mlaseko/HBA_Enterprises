@@ -13,6 +13,7 @@
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/quotations">Quotations</a></div>
     <h1>{{ q.title or q.filename or 'Quotation' }} <span class="h-note">{{ q.supplier.name if q.supplier else 'no shop' }}</span></h1>
+    {% with sup = q.supplier, back = '/p/' ~ p.id ~ '/quotations/' ~ q.id %}{% include "buying/_rename_shop.html" %}{% endwith %}
     <p class="sub qn-facts"><b>{{ cur }} {{ q.net|money }}</b>{{ q.net|usd(cur) }}{% if q.discount %} after {{ q.discount|money(2) }} off{% endif %} · {{ q.lines|length }} line{{ 's' if q.lines|length != 1 }}, {{ by_quote|length }} quote{{ 's' if by_quote|length != 1 }} made{% if q.quote_date %} · {{ q.quote_date.isoformat() }}{% endif %}{% if q.valid_until %} · valid until {{ q.valid_until }}{% endif %}{% if q.lead_time %} · lead time {{ q.lead_time }}{% endif %}</p>
   </div>
   <div class="actions">

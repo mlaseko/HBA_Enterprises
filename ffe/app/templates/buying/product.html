@@ -13,6 +13,11 @@
   <div>
     <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/buying">Sourcing</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/buying?category={{ g.category|urlencode }}">{{ g.category }}</a></div>
     <h1>{{ g.name }}</h1>
+    {% if g.product %}{% if g.product.cheaper %}<div class="od-cheap"><span class="pill gold">Find cheaper</span> <span class="small">{{ g.product.cheaper }}</span>
+      <form method="post" action="/p/{{ p.id }}/buying/{{ g.product.id }}/cheaper"><input type="hidden" name="next" value="/p/{{ p.id }}/buying/{{ g.product.id }}"><input type="hidden" name="off" value="1"><button class="linkbtn small">Clear</button></form></div>
+    {% else %}<details class="od-cheap-f"><summary class="small">Find a cheaper option</summary>
+      <form method="post" action="/p/{{ p.id }}/buying/{{ g.product.id }}/cheaper" class="row"><input type="hidden" name="next" value="/p/{{ p.id }}/buying/{{ g.product.id }}">
+        <input class="in sm" name="note" maxlength="200" placeholder="Same item, cheaper: e.g. under ¥1,500, ask another shop" aria-label="What to look for"><button class="btn sm sec">Flag it</button></form></details>{% endif %}{% endif %}
     <p class="sub">{{ g.lines|length }} room line{{ 's' if g.lines|length != 1 }}: {{ g.codes[:8]|join(', ') }}{% if g.codes|length > 8 %} and {{ g.codes|length - 8 }} more{% endif %}</p>
   </div>
   <div class="actions">

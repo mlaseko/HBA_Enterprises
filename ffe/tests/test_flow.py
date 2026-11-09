@@ -1789,6 +1789,52 @@ def flow(c):
     db=SessionLocal(); _lk=db.get(Item,_pb_id); _lk.status="Shipped"; db.commit(); db.close()
     r=c.post(f"/p/{pid_o}/buying/budget", data={f"drop_{_pb_id}":"1"}, follow_redirects=False); assert "left%20as%20it%20was" in r.headers["location"], r.headers["location"]
     db=SessionLocal(); assert db.get(Item,_pb_id).status=="Shipped" and db.get(Item,_pb_id).purchase_id; db.close()
+    # a single room off an order: it has no shop again (To buy), the product stays for its other rooms; its last room takes
+    # the product off; a shipped room stays; the Orders page lists drafts first with Edit and Confirm
+    _liv, _kit = oi[("Floor tile","LIV")], oi[("Floor tile","KIT")]
+    db=SessionLocal(); assert db.get(Item,_liv).purchase_id is None and db.get(Item,_kit).purchase_id is None; db.close()
+    buy(c, pid_o, _liv, "Room Tiles", 50, lines=[_liv, _kit]); _rt=draft_of(pid_o, _sid("Room Tiles"))
+    db=SessionLocal(); _rpu=db.get(Item,_liv).purchase_id; db.get(_Pu,_rpu).qty=99; db.commit(); db.close()  # a quantity typed by hand
+    h=c.get(f"/p/{pid_o}/orders/{_rt}").text; assert f'/orders/{_rt}/rooms/{_kit}/remove"' in h and "Draft: not confirmed with the shop yet." in h
+    h=c.get(f"/p/{pid_o}/orders").text; assert 'id="drafts"' in h and f'/orders/{_rt}/confirm"' in h and "Drafts" in h
+    r=c.post(f"/p/{pid_o}/orders/{_rt}/rooms/{_kit}/remove", follow_redirects=False); assert "taken%20off" in r.headers["location"] and f"/orders/{_rt}" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); _k=db.get(Item,_kit); _l=db.get(Item,_liv); assert _k.purchase_id is None and _k.status=="To buy" and _l.purchase_id==_rpu and db.get(_Pu,_rpu).order_id==_rt and db.get(_Pu,_rpu).qty is None; db.close()
+    r=c.post(f"/p/{pid_o}/orders/{_rt}/rooms/{_kit}/remove", follow_redirects=False); assert "err=" in r.headers["location"]  # not on it any more
+    # the changes since the version first seen show on the page, in the Excel (Order + Changes sheets) and in the PDF, room by room
+    _kc=SessionLocal().get(Item,_kit).code; _lc=SessionLocal().get(Item,_liv).code
+    h=c.get(f"/p/{pid_o}/orders/{_rt}").text; assert 'id="changes"' in h and "room removed" in h.lower() and _kc in h.split('id="changes"')[1].split("</section>")[0], h[h.find('id="changes"'):h.find('id="changes"')+900]
+    r=c.get(f"/p/{pid_o}/orders/{_rt}/order.xlsx"); assert r.status_code==200 and "draft" in r.headers["content-disposition"].lower()
+    _ow=openpyxl.load_workbook(io.BytesIO(r.content)); _chs=[x for x in _ow["Changes"].iter_rows(min_row=3, values_only=True)]
+    assert any(x[0]=="room removed" and x[3]==_kc for x in _chs), _chs
+    assert any(_lc in str(x[3]) and "removed" in str(x[9]) for x in _ow["Order"].iter_rows(min_row=5, values_only=True) if x and x[3]), list(_ow["Order"].iter_rows(values_only=True))
+    _pt=pdf_text(c.get(f"/p/{pid_o}/orders/{_rt}/po.pdf").content); assert "CHANGES SINCE" in _pt and _kc in _pt and "CHANGED" in _pt, _pt[-800:]
+    r=c.post(f"/p/{pid_o}/orders/{_rt}/baseline", follow_redirects=False); assert "ok=" in r.headers["location"]
+    assert "No changes since then" in c.get(f"/p/{pid_o}/orders/{_rt}").text  # marked as sent: the changes count from now
+    # find a cheaper option: the product stays on the order, flagged on the order line, the Tracker, the Buying list and the Budget
+    db=SessionLocal(); _fpid=db.get(_Pu,_rpu).product_id; db.close()
+    h=c.get(f"/p/{pid_o}/orders/{_rt}").text; assert f'/buying/{_fpid}/cheaper"' in h and "Find a cheaper option" in h
+    r=c.post(f"/p/{pid_o}/buying/{_fpid}/cheaper", data={"note":"under 40 a m2", "next":f"/p/{pid_o}/orders/{_rt}#products"}, follow_redirects=False)
+    assert r.headers["location"].startswith(f"/p/{pid_o}/orders/{_rt}?ok=") and r.headers["location"].endswith("#products"), r.headers["location"]
+    db=SessionLocal(); assert db.get(_Pr,_fpid).cheaper=="under 40 a m2" and db.get(_Pu,_rpu).order_id==_rt; db.close()
+    assert "under 40 a m2" in c.get(f"/p/{pid_o}/orders/{_rt}").text and "to find a cheaper option" in c.get(f"/p/{pid_o}/buying/tracker").text
+    _bl=c.get(f"/p/{pid_o}/buying?cheaper=1").text; assert "Find cheaper" in _bl and "flagged to find a cheaper option" in _bl
+    assert "Find cheaper" in c.get(f"/p/{pid_o}/buying/budget").text
+    c.post(f"/p/{pid_o}/buying/{_fpid}/cheaper", data={"off":"1", "next":f"/p/{pid_o}/orders/{_rt}"}, follow_redirects=False)
+    db=SessionLocal(); assert db.get(_Pr,_fpid).cheaper==""; db.close()
+    # a cheaper quote another shop gave shows on the order line
+    buy(c, pid_o, _liv, "Cheaper Tiles", 30, lines=[_kit]); h=c.get(f"/p/{pid_o}/orders/{_rt}").text; assert "Cheaper quote:" in h and "Cheaper Tiles" in h, h[h.find('od-lines'):h.find('od-lines')+1500]
+    # the shop renamed from its quotation or order: every quotation, order and PO follows; a name another shop has is refused
+    _rsid=_sid("Room Tiles")
+    h=c.get(f"/p/{pid_o}/orders/{_rt}").text; assert f'action="/suppliers/{_rsid}/rename"' in h
+    r=c.post(f"/suppliers/{_rsid}/rename", data={"name":"Foshan Real Tiles Co.", "back":f"/p/{pid_o}/orders/{_rt}"}, follow_redirects=False)
+    assert r.headers["location"].startswith(f"/p/{pid_o}/orders/{_rt}?ok="), r.headers["location"]
+    assert "Foshan Real Tiles Co." in c.get(f"/p/{pid_o}/orders/{_rt}").text and "Foshan Real Tiles Co." in pdf_text(c.get(f"/p/{pid_o}/orders/{_rt}/po.pdf").content)
+    r=c.post(f"/suppliers/{_rsid}/rename", data={"name":"cheaper tiles", "back":f"/p/{pid_o}/orders/{_rt}"}, follow_redirects=False); assert "err=" in r.headers["location"]
+    r=c.post(f"/p/{pid_o}/orders/{_rt}/rooms/{_liv}/remove", follow_redirects=False)  # its last room: the product and then the empty draft go
+    db=SessionLocal(); assert db.get(Item,_liv).purchase_id is None and db.get(_Pu,_rpu) is None and db.get(_O,_rt) is None; db.close()
+    db=SessionLocal(); _shp=db.get(Item,_pb_id); _sho=_shp.purchase.order_id; db.close()
+    if _sho:
+        r=c.post(f"/p/{pid_o}/orders/{_sho}/rooms/{_pb_id}/remove", follow_redirects=False); assert "err=" in r.headers["location"]  # shipped: stays
     print("orders ok")
     # ---- Shipping: boxes to the warehouse, into a shipment, to site; the rooms follow their boxes ----
     from app import shipping as _sh

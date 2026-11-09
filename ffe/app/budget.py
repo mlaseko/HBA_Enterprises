@@ -65,6 +65,7 @@ def plan(p: Project) -> dict:
                          category=g.category, unit=unit, allow=allow, pack=g.pack_size, whole=unit in whole, buys=keys, lines=lines,
                          quotes=quotes, total=round(row_total, 2), locked=all(l["locked"] for l in lines),
                          thumb=cover.thumb if cover is not None else "", priced=bool(any(k["price"] for k in keys.values())),
+                         cheaper=(g.product.cheaper or "") if g.product is not None else "",
                          qty=round(sum(k["qty"] for k in keys.values()), 3),
                          paid=round(sum(kv["total"] for k, kv in keys.items() if any(l["key"] == k and l["locked"] for l in lines)), 2)))
         total += row_total

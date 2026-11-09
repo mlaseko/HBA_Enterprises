@@ -33,8 +33,10 @@ def _block(label: str, lines: list[str]) -> list:
     return out
 
 
-def order_pdf(p, studio, ov) -> bytes:
-    """The purchase order as PDF bytes. ov: an ordering.OrderView of the order."""
+def order_pdf(p, studio, ov, ch=None) -> bytes:
+    """The purchase order as PDF bytes. ov: an ordering.OrderView of the order; ch: ordering.changes() (the changes since its
+    baseline: changed products are marked and listed room by room after the money)."""
+    changed = {r["product"] for r in (ch or {}).get("rows", [])}
     o = ov.o
     buf = io.BytesIO()
     footer = f"{studio.studio_name or ''} · Purchase order {ov.ref} · {p.name}"
@@ -113,6 +115,8 @@ def order_pdf(p, studio, ov) -> bytes:
             cell += f"<br/><font color='{MUTED_HEX}'>Brand: {esc(bought)}</font>"
         if it.spec:
             cell += f"<br/><font color='{MUTED_HEX}' size='6.8'>{esc(it.spec[:220])}</font>"
+        if it.name in changed:
+            cell += "<br/><font color='#B4372A' size='7'><b>CHANGED</b> · see the changes below</font>"
         many = len(v["lines"]) > 1  # one room: its quantity is the line's; several: each room's share, packed apart
         rooms = "<br/>".join(f"<b>{esc(i.code)}</b> {esc(i.room.name if i.room else 'Whole house')}" + (f" · {esc(fmt_qty(i.qty))}" if many else "")
                              for i in v["lines"])
@@ -143,6 +147,22 @@ def order_pdf(p, studio, ov) -> bytes:
     wrap.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0),
                               ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]))
     story += [wrap, Spacer(1, 12)]
+
+    # what changed since the version the shop had (or the one first made), room by room
+    if ch and ch.get("rows"):
+        was = ch.get("was")
+        title = f"CHANGES SINCE THE VERSION {esc(ch.get('since', '')).upper()} ON {esc(ch.get('on', ''))}"
+        sub = (f"Total then {esc(_cny(was))}, now {esc(_cny(ov.total))}." if was is not None and abs(was - ov.total) > 0.005 else "")
+        crow = [[head("Change"), head("Product"), head("Room"), head("Before", True), head("After", True)]]
+        for r in ch["rows"]:
+            crow.append([para(esc(r["kind"].capitalize()), "cellm"), para(f"<b>{esc(r['product'])}</b>" + (f"<br/>{esc(r['size'])}" if r["size"] else ""), "cell"),
+                         para((f"<b>{esc(r['room'])}</b> {esc(r['room_name'])}" if r["room"] else "all its rooms"), "cellm"),
+                         para(esc(r["before"]) or "—", "num"), para(f"<b>{esc(r['after'])}</b>" if r["after"] else "—", "num")])
+        ct = Table(crow, colWidths=[28 * mm, 62 * mm, 46 * mm, 23 * mm, 23 * mm], repeatRows=1)
+        cst = clean_table_style()
+        cst.add("VALIGN", (0, 1), (-1, -1), "TOP")
+        ct.setStyle(cst)
+        story += [Paragraph(title, T["eyebrow"]), Spacer(1, 3)] + ([para(sub, "cellm"), Spacer(1, 4)] if sub else []) + [ct, Spacer(1, 12)]
 
     # terms, notes, packing, signature
     tail = []

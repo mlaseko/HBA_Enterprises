@@ -86,6 +86,27 @@ async def update_supplier(request: Request, supplier_id: int, db: Session = Depe
     return redirect(form.get("back") or f"/suppliers/{supplier_id}")
 
 
+@router.post("/suppliers/{supplier_id}/rename")
+async def rename_supplier(request: Request, supplier_id: int, db: Session = Depends(get_db)):
+    """A shop's name changed where it shows (a quotation, an order): every quotation, order, purchase and PO of the shop
+    follows, since they point at the one supplier. Refused when another shop already has that name."""
+    from urllib.parse import quote as urlquote
+    from ..common import safe_next
+    form = await request.form()
+    back = safe_next(form.get("back"), f"/suppliers/{supplier_id}")
+    s = db.get(Supplier, supplier_id)
+    name = " ".join((form.get("name") or "").split())[:160]
+    if s is None or not name:
+        return redirect(back + ("&" if "?" in back else "?") + "err=" + urlquote("Type the shop's name."))
+    clash = next((x for x in db.query(Supplier).all() if x.id != s.id and x.name.strip().lower() == name.lower()), None)
+    if clash is not None:
+        return redirect(back + ("&" if "?" in back else "?") + "err=" + urlquote(f"Another shop is already called {clash.name}: choose another name."))
+    was = s.name
+    s.name = name
+    db.commit()
+    return redirect(back + ("&" if "?" in back else "?") + "ok=" + urlquote(f"Shop renamed: {was} is now {name}, on every quotation and order."))
+
+
 @router.post("/suppliers/{supplier_id}/delete")
 def delete_supplier(supplier_id: int, db: Session = Depends(get_db)):
     s = db.get(Supplier, supplier_id)

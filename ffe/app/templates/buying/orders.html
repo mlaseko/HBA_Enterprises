@@ -58,10 +58,11 @@
 {% endif %}
 
 {% for st, group in by_stage %}{% if group %}
-<section class="bu-sec">
-  <div class="group-title"><h2>{{ st }}</h2><span class="n">{{ group|length }} · {{ STAGE_HELP[st] }}</span></div>
+<section class="bu-sec{{ ' od-drafts' if st == 'Draft' }}" id="{{ 'drafts' if st == 'Draft' else 'stage-' ~ st|lower|replace(' ', '-') }}">
+  <div class="group-title"><h2>{{ 'Drafts' if st == 'Draft' else st }}</h2><span class="n">{{ group|length }} · {{ 'not confirmed with the shop yet: open one to change quantities or take products and rooms off, then confirm it' if st == 'Draft' else STAGE_HELP[st] }}</span></div>
   <div class="od-grid">
     {% for ov in group %}{% set o = ov.o %}
+    <div class="od-cell">
     <a class="od-card" href="/p/{{ p.id }}/orders/{{ o.id }}" style="--c:{{ STAGE_COLORS[ov.stage] }}">
       <span class="od-top"><span class="ref">{{ ov.ref }}</span><span class="badge" style="--c:{{ STAGE_COLORS[ov.stage] }}">{{ ov.stage }}</span></span>
       <span class="shop">{{ o.supplier.name if o.supplier else 'Shop not known' }}</span>
@@ -71,6 +72,9 @@
       <span class="money"><span><span class="v">{{ ov.total|cur }}</span><span class="l">total</span></span><span><span class="v">{{ ov.paid|cur }}</span><span class="l">paid</span></span><span><span class="v">{{ ([ov.balance, 0]|max)|cur }}</span><span class="l">to pay</span></span></span>
       <span class="bar"><i style="width:{{ [100, (100 * ov.paid / ov.total)|round|int]|min if ov.total else 0 }}%"></i></span>
     </a>
+    {% if not o.confirmed %}<div class="od-cell-acts"><a class="btn sm sec" href="/p/{{ p.id }}/orders/{{ o.id }}#products"><svg class="ic"><use href="#i-edit"/></svg>Edit</a>
+      <form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/confirm" data-confirm="Confirm {{ ov.ref }} at {{ ov.total|cur_txt(2) }}? Do this once the shop agrees the products, quantities and prices: its rooms become Ordered and the deposit falls due." data-confirm-ok="Confirm"><button class="btn sm"{% if not ov.lines %} disabled{% endif %}><svg class="ic"><use href="#i-check"/></svg>Confirm</button></form></div>{% endif %}
+    </div>
     {% endfor %}
   </div>
 </section>

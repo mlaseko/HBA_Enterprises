@@ -149,6 +149,163 @@ def take_off(db: Session, o: Order, pu: Purchase) -> None:
         db.flush()
 
 
+def take_room_off(db: Session, p: Project, o: Order, item) -> str:
+    """One room comes off the order: the line has no shop again (To buy), to be ordered again from the saved quotation or a
+    new one; the product stays on the order for its other rooms (its last room takes the whole product off). A quantity typed
+    by hand on the purchase gives way to what the remaining rooms need. Returns '' or why it could not."""
+    pu = item.purchase
+    if pu is None or pu.order_id != o.id or item.project_id != p.id:
+        return "That room is not on this order."
+    if item.status in KEEP_ON_DELETE:
+        return f"{item.code} is already {item.status.lower()}: it stays on the order."
+    others = [i for i in buying.lines_of(db, pu) if i.id != item.id]
+    if not others:
+        buying.remove_purchase(db, p, pu)
+        tidy_drafts(db, p)  # a draft left with nothing on it (and nothing typed) goes, as when its rooms are deleted
+    else:
+        buying.uncover(item)
+        if pu.qty is not None:
+            pu.qty = None
+    db.flush()
+    return ""
+
+
+# ---- what changed on an order since a version of it (the one first seen, confirmed, or marked sent to the shop) ----------
+def snapshot(ov: "OrderView") -> dict:
+    """The order as it stands: per product (keyed by its id) its name, size, unit, price, the quantity to order, and its rooms
+    with each one's quantity."""
+    out = {}
+    for v in ov.lines:
+        it, pu = (v["lines"][0] if v["lines"] else None), v["purchase"]
+        out[str(pu.product_id)] = dict(name=it.name if it else "", size=(it.size or "") if it else "", unit=v["unit"], price=round(pu.unit_price or 0, 2),
+                                       qty=round(v["qty"] or 0, 3), total=round(v["total"] or 0, 2),
+                                       rooms={i.code: [i.room.name if i.room else "Whole house", round(i.qty or 0, 3)] for i in v["lines"]})
+    return out
+
+
+def set_baseline(o: Order, ov: "OrderView", label: str, on: date | None = None) -> None:
+    """Count the changes from the order as it stands now ("first seen", "confirmed", "sent to the shop")."""
+    import json
+    o.baseline = json.dumps(dict(label=label, on=(on or date.today()).isoformat(), total=round(ov.total, 2), lines=snapshot(ov)))
+
+
+def baseline(o: Order) -> dict | None:
+    import json
+    try:
+        b = json.loads(o.baseline) if o.baseline else None
+    except ValueError:
+        return None
+    return b if isinstance(b, dict) and "lines" in b else None
+
+
+def changes(o: Order, ov: "OrderView") -> dict:
+    """What changed since the baseline: {since: label, on, was (total), now, rows: [{kind, product, size, room, room_name,
+    before, after, unit, text}]} in product order; kinds: product added | product removed | quantity | price | room added |
+    room removed | room quantity. {rows: []} when no baseline was recorded."""
+    b = baseline(o)
+    if b is None:
+        return dict(since="", on="", was=None, now=round(ov.total, 2), rows=[])
+    old, new, rows = b["lines"], snapshot(ov), []
+    def q(x):
+        return fmt_qty(x)
+    for pid in list(old) + [k for k in new if k not in old]:
+        a, z = old.get(pid), new.get(pid)
+        d = z or a
+        base = dict(product=d["name"], size=d["size"], unit=d["unit"], room="", room_name="")
+        if a is None:
+            rows.append(dict(base, kind="product added", before="", after=f"{q(z['qty'])} {z['unit']}", room=", ".join(z["rooms"]),
+                             room_name=", ".join(r[0] for r in z["rooms"].values()),
+                             text=f"Added: {z['name']}, {q(z['qty'])} {z['unit']} for " + ", ".join(f"{c} {r[0]}" for c, r in z["rooms"].items())))
+            continue
+        if z is None:
+            rows.append(dict(base, kind="product removed", before=f"{q(a['qty'])} {a['unit']}", after="", room=", ".join(a["rooms"]),
+                             room_name=", ".join(r[0] for r in a["rooms"].values()),
+                             text=f"Removed: {a['name']}, was {q(a['qty'])} {a['unit']} for " + ", ".join(f"{c} {r[0]}" for c, r in a["rooms"].items())))
+            continue
+        for code in list(a["rooms"]) + [c for c in z["rooms"] if c not in a["rooms"]]:
+            ra, rz = a["rooms"].get(code), z["rooms"].get(code)
+            room = dict(base, room=code, room_name=(rz or ra)[0])
+            if ra is None:
+                rows.append(dict(room, kind="room added", before="", after=f"{q(rz[1])} {z['unit']}", text=f"{z['name']}: {code} {rz[0]} added, {q(rz[1])} {z['unit']}"))
+            elif rz is None:
+                rows.append(dict(room, kind="room removed", before=f"{q(ra[1])} {a['unit']}", after="", text=f"{a['name']}: {code} {ra[0]} removed (was {q(ra[1])} {a['unit']})"))
+            elif abs(ra[1] - rz[1]) > 1e-6:
+                rows.append(dict(room, kind="room quantity", before=f"{q(ra[1])} {a['unit']}", after=f"{q(rz[1])} {z['unit']}",
+                                 text=f"{z['name']}: {code} {rz[0]} {q(ra[1])} → {q(rz[1])} {z['unit']}"))
+        if abs(a["qty"] - z["qty"]) > 1e-6:
+            rows.append(dict(base, kind="quantity", before=f"{q(a['qty'])} {a['unit']}", after=f"{q(z['qty'])} {z['unit']}",
+                             text=f"{z['name']}: quantity to order {q(a['qty'])} → {q(z['qty'])} {z['unit']}"))
+        if abs(a["price"] - z["price"]) > 0.005:
+            rows.append(dict(base, kind="price", before=f"¥{a['price']:,.2f}", after=f"¥{z['price']:,.2f}", text=f"{z['name']}: unit price ¥{a['price']:,.2f} → ¥{z['price']:,.2f}"))
+    return dict(since=b.get("label", ""), on=b.get("on", ""), was=b.get("total"), now=round(ov.total, 2), rows=rows)
+
+
+def order_workbook(p: Project, ov: "OrderView", ch: dict) -> bytes:
+    """The order as Excel: an Order sheet (a line per product with its rooms, quantity, price, amount and what changed) and a
+    Changes sheet (every change since the baseline, room by room). Amounts in CNY with the USD beside them."""
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    rate = p.rate or 1
+    o = ov.o
+    bold, head, hl = Font(bold=True), PatternFill("solid", fgColor="EDEFF2"), PatternFill("solid", fgColor="FFF4D6")
+    by_prod: dict[str, list[str]] = {}
+    for r in ch["rows"]:
+        by_prod.setdefault(r["product"], []).append(r["text"])
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Order"
+    ws.append([f"{'Draft order' if not o.confirmed else 'Order'} {ov.ref} · {o.supplier.name if o.supplier else ''} · {p.name}"])
+    ws["A1"].font = Font(bold=True, size=14)
+    ws.append([("Confirmed " + o.confirmed_on.isoformat()) if o.confirmed_on else "Draft: not confirmed with the shop yet",
+               f"Changes since {ch['since']} {ch['on']}" if ch["since"] else ""])
+    ws.append([])
+    ws.append(["Product", "Size", "Finish", "Rooms", "Quantity", "Unit", "Unit price (CNY)", "Amount (CNY)", "Amount (USD)", "Changed"])
+    for c in ws[ws.max_row]:
+        c.font, c.fill = bold, head
+    for v in ov.lines:
+        it, pu = v["lines"][0], v["purchase"]
+        rooms = "; ".join(f"{i.code} {i.room.name if i.room else 'Whole house'} {fmt_qty(i.qty)}" for i in v["lines"])
+        note = " | ".join(by_prod.get(it.name, []))
+        ws.append([it.name, it.size, it.finish, rooms, v["qty"], v["unit"], pu.unit_price, v["total"], round(v["total"] / rate, 2), note])
+        if note:
+            for c in ws[ws.max_row]:
+                c.fill = hl
+    for r in ch["rows"]:
+        if r["kind"] == "product removed":
+            ws.append([r["product"], r["size"], "", "", 0, r["unit"], None, 0, 0, r["text"]])
+            for c in ws[ws.max_row]:
+                c.fill, c.font = hl, Font(strike=True, color="8A8178")
+    ws.append([])
+    ws.append(["Total", "", "", "", "", "", "", ov.total, round(ov.total / rate, 2),
+               f"was {ch['was']:,.2f} at {ch['since']}" if ch["since"] and ch["was"] is not None and abs(ch["was"] - ov.total) > 0.005 else ""])
+    for c in ws[ws.max_row]:
+        c.font = bold
+    for row in ws.iter_rows(min_row=5):
+        for c in row[6:9]:
+            c.number_format = "#,##0.00"
+        for c in row:
+            c.alignment = Alignment(vertical="top", wrap_text=c.column in (4, 10))
+    for col, w in zip("ABCDEFGHIJ", (30, 16, 16, 44, 10, 7, 14, 14, 13, 50)):
+        ws.column_dimensions[col].width = w
+    ws.freeze_panes = "A5"
+    cs = wb.create_sheet("Changes")
+    cs.append([f"Changes since {ch['since']} on {ch['on']}" if ch["since"] else "No earlier version recorded"])
+    cs["A1"].font = Font(bold=True)
+    cs.append(["What", "Product", "Size", "Room", "Room name", "Before", "After", "In words"])
+    for c in cs[2]:
+        c.font, c.fill = bold, head
+    for r in ch["rows"]:
+        cs.append([r["kind"], r["product"], r["size"], r["room"], r["room_name"], r["before"], r["after"], r["text"]])
+    if not ch["rows"]:
+        cs.append(["No changes"])
+    for col, w in zip("ABCDEFGH", (16, 28, 16, 12, 22, 14, 14, 60)):
+        cs.column_dimensions[col].width = w
+    out = io.BytesIO()
+    wb.save(out)
+    return out.getvalue()
+
+
 def confirm(o: Order, on: date, total: float) -> None:
     o.confirmed_on, o.confirmed_total = on, round(total, 2)
 
@@ -484,6 +641,11 @@ def tracker(p: Project, led: buying.Ledger, gs: list, ovs: list[OrderView], toda
         name = e["supplier"].name if e["supplier"] is not None else "A shop"
         att.append(dict(tone="accent", icon="bag", title=f"Bought from {name}, not on an order yet",
                         detail=f"{len(e['views'])} product{'s' if len(e['views']) != 1 else ''} · {fmt_cur(p, e['total'])}", href=f"{href}/orders#ready"))
+    flagged = [g for g in gs if g.product is not None and (g.product.cheaper or "").strip()]
+    if flagged:  # products kept but to be bought cheaper ("Find a cheaper option" on the order line)
+        names = ", ".join(g.name for g in flagged[:4]) + (f" and {len(flagged) - 4} more" if len(flagged) > 4 else "")
+        att.append(dict(tone="gold", icon="bag", title=f"{len(flagged)} product{'s' if len(flagged) != 1 else ''} to find a cheaper option for",
+                        detail=names, href=f"{href}/buying?cheaper=1"))
     # sourcing: quotations about to lapse while products they price still have rooms without a shop, sheets not saved yet
     open_ids = {g.product.id for g in gs if g.product is not None and any(not i.purchase_id for i in g.lines)}
     revised = {x.replaces_id for x in p.quotations if x.replaces_id}

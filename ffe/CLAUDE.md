@@ -100,7 +100,19 @@ app/routers/quotations.py /p/<id>/quotations (list, upload form, inquiry form; P
                        /quotations/<q> (document page), /<q>/file, /<q>/delete
 app/routers/orders.py  /p/<id>/orders (ready to order + orders by stage), /orders/new, /orders/<o> (page; POST details),
                        /orders/<o>/add|remove/<pu>|confirm|unconfirm|delete|payments|claim, /orders/<o>/po.pdf, /orders/release
-                       (the order page and po.pdf take ?sort= amount (default) | amount_asc | name | added: ordering.sort_lines)
+                       (the order page and po.pdf take ?sort= amount (default) | amount_asc | name | added: ordering.sort_lines),
+                       /orders/<o>/rooms/<item>/remove (ordering.take_room_off: one room off, To buy; its last room takes the product off,
+                       tidy_drafts; Shipped / Received refused). The Orders page lists #drafts first (dashed cards, Edit + Confirm under each);
+                       a draft's page carries the .od-draft banner; the room chips are .od-room with a .od-room-x form;
+                       /orders/<o>/baseline (mark as sent), /orders/<o>/order.xlsx (ordering.order_workbook). Changes: Order.baseline (JSON,
+                       ordering.set_baseline / snapshot: per product id name, size, unit, price, qty, rooms {code: [room, qty]}) is set
+                       on the first view or export, on confirm and by Mark as sent; ordering.changes(o, ov) lists product added / removed,
+                       quantity, price, room added / removed / quantity; the order page's #changes card, the PO PDF (CHANGED + a table
+                       after the money) and the Excel carry it; Product.cheaper (the note; '' = off) set by
+                       POST /p/<id>/buying/<product>/cheaper (note | off, next): Find cheaper on the order line / product page / Buying
+                       list (?cheaper=1) / Budget and a Tracker attention line; the order route passes cheaper_q (another shop's
+                       cheaper priced quote per product) and flags; POST /suppliers/<s>/rename (name, back) from the quotation and order
+                       heads (buying/_rename_shop.html), refused when another shop has the name
 app/routers/cartons.py Shipping › Boxes: /p/<id>/cartons (?supplier= &room= &where= &shipment=; POST adds a box), /cartons/bulk
                        (action warehouse | not-warehouse | ship (shipment_id or "new") | unship | received | not-received),
                        /cartons/<c> (box page; POST saves), /cartons/<c>/received, /cartons/<c>/delete; all take `next`
@@ -414,6 +426,8 @@ ALTER TABLE projects ADD COLUMN deposit_pct / soon_days / balance_days / lcl_up_
 ALTER TABLE quotations ADD COLUMN replaces_id INTEGER;                                    -- a revised sheet: the earlier document it corrected
 ALTER TABLE projects ADD COLUMN show_currency VARCHAR(3) NOT NULL DEFAULT 'CNY';           -- the designer's pages: amounts in USD or CNY
 ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';              -- one of the options to choose ('' = a plain quote)
+ALTER TABLE orders ADD COLUMN baseline TEXT NOT NULL DEFAULT '';                         -- the version an order's changes count from (JSON)
+ALTER TABLE products ADD COLUMN cheaper VARCHAR(240) NOT NULL DEFAULT '';                 -- look for a cheaper option of it (the note)
 -- new tables (create_all): products, quotes, purchases, orders, shipments, project_lists, quotations, quotation_lines, quote_matches, quotation_uploads, quotation_line_also
 ```
 
