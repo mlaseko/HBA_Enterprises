@@ -745,8 +745,15 @@ def tracker(p: Project, led: buying.Ledger, gs: list, ovs: list[OrderView], toda
     flagged = [g for g in gs if g.product is not None and (g.product.cheaper or "").strip()]
     if flagged:  # products kept but to be bought cheaper ("Find a cheaper option" on the order line)
         names = ", ".join(g.name for g in flagged[:4]) + (f" and {len(flagged) - 4} more" if len(flagged) > 4 else "")
+        save = 0.0  # what the budget prices would save on what is bought now
+        for g in flagged:
+            t = g.product.cheaper_price or 0
+            if t > 0:
+                for pu in g.purchases:
+                    need = sum(i.qty or 0 for i in g.lines if i.purchase_id == pu.id)
+                    save += max((pu.unit_price or 0) - t, 0) * need
         att.append(dict(tone="gold", icon="bag", title=f"{len(flagged)} product{'s' if len(flagged) != 1 else ''} to find a cheaper option for",
-                        detail=names, href=f"{href}/buying?cheaper=1"))
+                        detail=names + (f" · at your budget prices it saves {fmt_cur(p, save)}" if save > 0.5 else ""), href=f"{href}/buying?cheaper=1"))
     # sourcing: quotations about to lapse while products they price still have rooms without a shop, sheets not saved yet
     open_ids = {g.product.id for g in gs if g.product is not None and any(not i.purchase_id for i in g.lines)}
     revised = {x.replaces_id for x in p.quotations if x.replaces_id}

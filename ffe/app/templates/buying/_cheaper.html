@@ -1,0 +1,20 @@
+{# "Find a cheaper option" for one product: the flag with its note and budget price per unit (Product.cheaper / cheaper_price),
+   or the form to set it. pid: the product's id; pr: the Product when flagged (else None); back: where to come back;
+   price / qty / unit: the price bought at and the quantity ordered here, to say what the budget price would save. #}
+{% macro cheaper_box(p, pid, pr, back, price=0, qty=0, unit='') %}
+{% if pr and pr.cheaper %}
+<div class="od-cheap"><span class="pill gold">Find cheaper</span>
+  {% if pr.cheaper_price %}<span class="small"><b>budget {{ pr.cheaper_price|cur_txt(2) }}</b> per {{ unit or 'unit' }}{% if price and pr.cheaper_price < price and qty %} · saves {{ ((price - pr.cheaper_price) * qty)|cur_txt }} on this order{% endif %}</span>{% endif %}
+  {% if pr.cheaper and pr.cheaper != 'budget price' %}<span class="small muted">{{ pr.cheaper }}</span>{% endif %}
+  <form method="post" action="/p/{{ p.id }}/buying/{{ pid }}/cheaper"><input type="hidden" name="next" value="{{ back }}"><input type="hidden" name="off" value="1"><button class="linkbtn small">Clear</button></form>
+</div>
+{% else %}
+<details class="od-cheap-f"><summary class="small">Find a cheaper option</summary>
+  <form method="post" action="/p/{{ p.id }}/buying/{{ pid }}/cheaper" class="od-cheap-form"><input type="hidden" name="next" value="{{ back }}">
+    <label class="small">Budget price per {{ unit or 'unit' }}<span class="od-cheap-price"><input class="in sm" type="number" step="any" min="0" inputmode="decimal" name="price" placeholder="{{ 'e.g. ' ~ '%g'|format((price * 0.8)|round(0)) if price else 'e.g. 100' }}" aria-label="Budget price per {{ unit or 'unit' }}">
+      <select class="in sm" name="currency" aria-label="Currency"><option{{ ' selected' if not show_usd(p) }}>CNY</option><option{{ ' selected' if show_usd(p) }}>USD</option></select></span></label>
+    <label class="small">Note <input class="in sm" name="note" maxlength="200" placeholder="e.g. same look, another shop" aria-label="Note"></label>
+    <button class="btn sm sec">Flag it</button></form>
+  <p class="small muted mb-0">The item stays on the order; it is flagged on the Tracker, the Budget and the Buying list until you clear it{% if price %} (bought now at {{ price|cur_txt(2) }}){% endif %}.</p></details>
+{% endif %}
+{% endmacro %}

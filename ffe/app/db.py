@@ -35,7 +35,8 @@ def get_db():
 COLUMN_MIGRATIONS = [
     ("suppliers", "one_order", "BOOLEAN NOT NULL DEFAULT FALSE"),  # one order for all the shop's quotations (else one per quotation)
     ("orders", "baseline", "TEXT NOT NULL DEFAULT ''"),
-    ("products", "cheaper", "VARCHAR(240) NOT NULL DEFAULT ''"),  # look for a cheaper option of this product (the note; '' = not)  # the order's version the changes are counted from (ordering.set_baseline)
+    ("products", "cheaper", "VARCHAR(240) NOT NULL DEFAULT ''"),
+    ("products", "cheaper_price", "FLOAT NOT NULL DEFAULT 0"),  # the budget price per unit for the cheaper option (CNY; 0 = none)  # look for a cheaper option of this product (the note; '' = not)  # the order's version the changes are counted from (ordering.set_baseline)
     ("projects", "show_currency", "VARCHAR(3) NOT NULL DEFAULT 'CNY'"),  # the designer's pages: amounts in USD or CNY
     ("projects", "features_off", "VARCHAR(60) NOT NULL DEFAULT ''"),  # parts of the app the project does not use: plan, delivery
     ("quotes", "option_label", "VARCHAR(60) NOT NULL DEFAULT ''"),          # one of the options to choose from ('' = a plain quote)

@@ -567,6 +567,7 @@ class Product(Base):
     pack_size: Mapped[float] = mapped_column(Float, default=0.0)  # units per pack (m² per box, m per box); 0 = sold by the unit
     # kept, but a cheaper option is to be looked for (the order line's "Find a cheaper option"): the note, '' = not flagged
     cheaper: Mapped[str] = mapped_column(String(240), default="")
+    cheaper_price: Mapped[float] = mapped_column(Float, default=0.0)  # the budget price per unit for that cheaper option (CNY); 0 = none
     pack_name: Mapped[str] = mapped_column(String(20), default="")  # "box", "roll"…; '' = the default for the unit
     notes: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)

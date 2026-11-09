@@ -1856,10 +1856,13 @@ def flow(c):
     # find a cheaper option: the product stays on the order, flagged on the order line, the Tracker, the Buying list and the Budget
     db=SessionLocal(); _fpid=db.get(_Pu,_rpu).product_id; db.close()
     h=c.get(f"/p/{pid_o}/orders/{_rt}").text; assert f'/buying/{_fpid}/cheaper"' in h and "Find a cheaper option" in h
-    r=c.post(f"/p/{pid_o}/buying/{_fpid}/cheaper", data={"note":"under 40 a m2", "next":f"/p/{pid_o}/orders/{_rt}#products"}, follow_redirects=False)
+    r=c.post(f"/p/{pid_o}/buying/{_fpid}/cheaper", data={"note":"under 40 a m2", "price":"40", "currency":"CNY", "next":f"/p/{pid_o}/orders/{_rt}#products"}, follow_redirects=False)
     assert r.headers["location"].startswith(f"/p/{pid_o}/orders/{_rt}?ok=") and r.headers["location"].endswith("#products"), r.headers["location"]
-    db=SessionLocal(); assert db.get(_Pr,_fpid).cheaper=="under 40 a m2" and db.get(_Pu,_rpu).order_id==_rt; db.close()
-    assert "under 40 a m2" in c.get(f"/p/{pid_o}/orders/{_rt}").text and "to find a cheaper option" in c.get(f"/p/{pid_o}/buying/tracker").text
+    db=SessionLocal(); assert db.get(_Pr,_fpid).cheaper=="under 40 a m2" and db.get(_Pr,_fpid).cheaper_price==40 and db.get(_Pu,_rpu).order_id==_rt; db.close()
+    h=c.get(f"/p/{pid_o}/orders/{_rt}").text; assert "under 40 a m2" in h and "budget ¥40.00" in h and "saves ¥" in h, h[h.find('od-cheap'):h.find('od-cheap')+500]
+    assert "at your budget prices it saves" in c.get(f"/p/{pid_o}/buying/tracker").text
+    c.post(f"/p/{pid_o}/buying/{_fpid}/cheaper", data={"price":"5", "currency":"USD", "next":f"/p/{pid_o}/orders/{_rt}"}, follow_redirects=False)
+    db=SessionLocal(); _pr7=db.get(_Pr,_fpid); assert abs(_pr7.cheaper_price-5*(db.get(_P,pid_o).rate or 1))<0.01 and _pr7.cheaper=="budget price"; db.close()  # a USD budget price is kept in CNY
     _bl=c.get(f"/p/{pid_o}/buying?cheaper=1").text; assert "Find cheaper" in _bl and "flagged to find a cheaper option" in _bl
     assert "Find cheaper" in c.get(f"/p/{pid_o}/buying/budget").text
     c.post(f"/p/{pid_o}/buying/{_fpid}/cheaper", data={"off":"1", "next":f"/p/{pid_o}/orders/{_rt}"}, follow_redirects=False)

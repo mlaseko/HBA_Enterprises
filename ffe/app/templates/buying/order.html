@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "buying/_cheaper.html" import cheaper_box with context %}
 {% block title %}Order {{ ov.ref }} · {{ p.name }}{% endblock %}
 {% block content %}
 {% set rate = p.rate or 1 %}
@@ -85,13 +86,7 @@
         {% if pu.brand or pu.model %}<div class="small">Brand: {{ [pu.brand, pu.model]|select|join(' · ') }}</div>{% endif %}
         {% set fl = flags.get(pu.product_id) %}{% set cq = cheaper_q.get(pu.product_id) %}
         {% if cq %}<div class="small od-cheap-q"><svg class="ic sm"><use href="#i-info"/></svg>Cheaper quote: <a href="/p/{{ p.id }}/buying/{{ pu.product_id }}#quote-{{ cq.id }}">{{ cq.supplier.name if cq.supplier else 'another shop' }} {{ cq.unit_price|cur_txt(2) }}</a> <span class="muted">({{ ((1 - cq.unit_price / pu.unit_price) * 100)|round|int }}% less)</span></div>{% endif %}
-        {% if fl %}<div class="od-cheap"><span class="pill gold">Find cheaper</span> <span class="small">{{ fl }}</span>
-          <form method="post" action="/p/{{ p.id }}/buying/{{ pu.product_id }}/cheaper"><input type="hidden" name="next" value="/p/{{ p.id }}/orders/{{ o.id }}#products"><input type="hidden" name="off" value="1"><button class="linkbtn small">Clear</button></form></div>
-        {% else %}<details class="od-cheap-f"><summary class="small">Find a cheaper option</summary>
-          <form method="post" action="/p/{{ p.id }}/buying/{{ pu.product_id }}/cheaper" class="row"><input type="hidden" name="next" value="/p/{{ p.id }}/orders/{{ o.id }}#products">
-            <input class="in sm" name="note" maxlength="200" placeholder="Same item, cheaper: e.g. under ¥1,500, ask another shop" aria-label="What to look for">
-            <button class="btn sm sec">Flag it</button></form>
-          <p class="small muted mb-0">The item stays on the order; it is flagged on the Tracker, the Budget and the Buying list until you clear it.</p></details>{% endif %}</td>
+        {{ cheaper_box(p, pu.product_id, fl, '/p/' ~ p.id ~ '/orders/' ~ o.id ~ '#products', pu.unit_price or 0, v.qty, v.unit) }}</td>
       <td class="rooms">{% for i in v.lines %}<span class="od-room"><a class="pill" href="/p/{{ p.id }}/items/{{ i.id }}" data-quick title="Quick view"><b>{{ i.code }}</b> {{ i.qty|num(2) }} {{ i.unit }}</a>{% if i.status not in ('Shipped', 'Received') %}<form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/rooms/{{ i.id }}/remove" data-confirm="Take {{ i.code }} off this order? {{ it.name }} in this room has no shop again (To buy){% if v.lines|length > 1 %}; the other {{ v.lines|length - 1 }} room{{ 's' if v.lines|length > 2 }} stay on the order{% else %}; it was the product's only room here, so the product leaves the order{% endif %}{% if o.confirmed %}. The order shows it changed until the shop agrees{% endif %}." data-confirm-ok="Take it off"><button class="od-room-x" title="Take {{ i.code }} off this order" aria-label="Take {{ i.code }} off this order"><svg class="ic"><use href="#i-x"/></svg></button></form>{% endif %}</span>{% endfor %}
         {% set short = pu.qty is not none and (pu.qty - v.needed)|abs > 0.0005 %}
         {% if short %}<div class="small od-alloc-warn"><svg class="ic sm"><use href="#i-info"/></svg>Typed {{ pu.qty|num(2) }}, the rooms add up to {{ v.needed|num(2) }}{% if pu.qty > v.needed %}: {{ (pu.qty - v.needed)|num(2) }} not in a room{% endif %}.</div>{% endif %}

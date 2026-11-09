@@ -99,7 +99,7 @@ def order_page(request: Request, order_id: int, p: Project = Depends(get_project
         if qu.supplier_id != o.supplier_id and qu.unit_price < price[qu.product_id] * 0.995 and \
                 (qu.product_id not in cheaper_q or qu.unit_price < cheaper_q[qu.product_id].unit_price):
             cheaper_q[qu.product_id] = qu
-    flags = {pr.id: pr.cheaper for pr in db.query(Product).filter(Product.id.in_(pids), Product.cheaper != "").all()} if pids else {}
+    flags = {pr.id: pr for pr in db.query(Product).filter(Product.id.in_(pids), Product.cheaper != "").all()} if pids else {}
     more = [v for v in led.pv.values() if v["purchase"].order_id is None and v["purchase"].supplier_id == o.supplier_id]
     studio = get_settings(db)
     deposit_next = ov.deposit_left > 0.005
