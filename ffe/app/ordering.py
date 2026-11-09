@@ -149,6 +149,27 @@ def take_off(db: Session, o: Order, pu: Purchase) -> None:
         db.flush()
 
 
+def take_room_off(db: Session, p: Project, o: Order, item) -> str:
+    """One room comes off the order: the line has no shop again (To buy), to be ordered again from the saved quotation or a
+    new one; the product stays on the order for its other rooms (its last room takes the whole product off). A quantity typed
+    by hand on the purchase gives way to what the remaining rooms need. Returns '' or why it could not."""
+    pu = item.purchase
+    if pu is None or pu.order_id != o.id or item.project_id != p.id:
+        return "That room is not on this order."
+    if item.status in KEEP_ON_DELETE:
+        return f"{item.code} is already {item.status.lower()}: it stays on the order."
+    others = [i for i in buying.lines_of(db, pu) if i.id != item.id]
+    if not others:
+        buying.remove_purchase(db, p, pu)
+        tidy_drafts(db, p)  # a draft left with nothing on it (and nothing typed) goes, as when its rooms are deleted
+    else:
+        buying.uncover(item)
+        if pu.qty is not None:
+            pu.qty = None
+    db.flush()
+    return ""
+
+
 def confirm(o: Order, on: date, total: float) -> None:
     o.confirmed_on, o.confirmed_total = on, round(total, 2)
 

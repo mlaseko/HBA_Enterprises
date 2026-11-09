@@ -1789,6 +1789,22 @@ def flow(c):
     db=SessionLocal(); _lk=db.get(Item,_pb_id); _lk.status="Shipped"; db.commit(); db.close()
     r=c.post(f"/p/{pid_o}/buying/budget", data={f"drop_{_pb_id}":"1"}, follow_redirects=False); assert "left%20as%20it%20was" in r.headers["location"], r.headers["location"]
     db=SessionLocal(); assert db.get(Item,_pb_id).status=="Shipped" and db.get(Item,_pb_id).purchase_id; db.close()
+    # a single room off an order: it has no shop again (To buy), the product stays for its other rooms; its last room takes
+    # the product off; a shipped room stays; the Orders page lists drafts first with Edit and Confirm
+    _liv, _kit = oi[("Floor tile","LIV")], oi[("Floor tile","KIT")]
+    db=SessionLocal(); assert db.get(Item,_liv).purchase_id is None and db.get(Item,_kit).purchase_id is None; db.close()
+    buy(c, pid_o, _liv, "Room Tiles", 50, lines=[_liv, _kit]); _rt=draft_of(pid_o, _sid("Room Tiles"))
+    db=SessionLocal(); _rpu=db.get(Item,_liv).purchase_id; db.get(_Pu,_rpu).qty=99; db.commit(); db.close()  # a quantity typed by hand
+    h=c.get(f"/p/{pid_o}/orders/{_rt}").text; assert f'/orders/{_rt}/rooms/{_kit}/remove"' in h and "Draft: not confirmed with the shop yet." in h
+    h=c.get(f"/p/{pid_o}/orders").text; assert 'id="drafts"' in h and f'/orders/{_rt}/confirm"' in h and "Drafts" in h
+    r=c.post(f"/p/{pid_o}/orders/{_rt}/rooms/{_kit}/remove", follow_redirects=False); assert "taken%20off" in r.headers["location"] and f"/orders/{_rt}" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); _k=db.get(Item,_kit); _l=db.get(Item,_liv); assert _k.purchase_id is None and _k.status=="To buy" and _l.purchase_id==_rpu and db.get(_Pu,_rpu).order_id==_rt and db.get(_Pu,_rpu).qty is None; db.close()
+    r=c.post(f"/p/{pid_o}/orders/{_rt}/rooms/{_kit}/remove", follow_redirects=False); assert "err=" in r.headers["location"]  # not on it any more
+    r=c.post(f"/p/{pid_o}/orders/{_rt}/rooms/{_liv}/remove", follow_redirects=False)  # its last room: the product and then the empty draft go
+    db=SessionLocal(); assert db.get(Item,_liv).purchase_id is None and db.get(_Pu,_rpu) is None and db.get(_O,_rt) is None; db.close()
+    db=SessionLocal(); _shp=db.get(Item,_pb_id); _sho=_shp.purchase.order_id; db.close()
+    if _sho:
+        r=c.post(f"/p/{pid_o}/orders/{_sho}/rooms/{_pb_id}/remove", follow_redirects=False); assert "err=" in r.headers["location"]  # shipped: stays
     print("orders ok")
     # ---- Shipping: boxes to the warehouse, into a shipment, to site; the rooms follow their boxes ----
     from app import shipping as _sh

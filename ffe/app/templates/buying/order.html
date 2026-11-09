@@ -19,6 +19,7 @@
 
 {% if ok %}<div class="alert">{{ ok }}</div>{% endif %}
 {% if err %}<div class="alert err">{{ err }}</div>{% endif %}
+{% if not o.confirmed %}<div class="alert info od-draft"><svg class="ic"><use href="#i-file"/></svg><div><b>Draft: not confirmed with the shop yet.</b> Change quantities, take a product (×) or a single room (× on its code) off, or add a product, then press <b>Confirm the order</b> once the shop agrees.</div></div>{% endif %}
 {% if ov.changed %}<div class="alert info od-changed"><div><b>Changed since it was confirmed.</b> Confirmed at {{ o.confirmed_total|cur(2) }}, now {{ ov.total|cur(2) }}: send the shop the new purchase order (or the WeChat message) so you agree on the same order.</div>
   <form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/confirm"><input type="hidden" name="confirmed_on" value="{{ o.confirmed_on.isoformat() }}"><button class="btn sm sec"><svg class="ic"><use href="#i-check"/></svg>The shop agreed {{ ov.total|cur(2) }}</button></form></div>{% endif %}
 
@@ -69,7 +70,7 @@
       <td class="prod"><a class="b" href="/p/{{ p.id }}/buying/{{ pu.product_id }}">{{ it.name }}</a>
         <div class="small muted">{{ [it.size, it.finish]|select|join(' · ') }}</div>
         {% if pu.brand or pu.model %}<div class="small">Brand: {{ [pu.brand, pu.model]|select|join(' · ') }}</div>{% endif %}</td>
-      <td class="rooms">{% for i in v.lines %}<a class="pill" href="/p/{{ p.id }}/items/{{ i.id }}" data-quick title="Quick view"><b>{{ i.code }}</b> {{ i.qty|num(2) }} {{ i.unit }}</a>{% endfor %}</td>
+      <td class="rooms">{% for i in v.lines %}<span class="od-room"><a class="pill" href="/p/{{ p.id }}/items/{{ i.id }}" data-quick title="Quick view"><b>{{ i.code }}</b> {{ i.qty|num(2) }} {{ i.unit }}</a>{% if i.status not in ('Shipped', 'Received') %}<form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/rooms/{{ i.id }}/remove" data-confirm="Take {{ i.code }} off this order? {{ it.name }} in this room has no shop again (To buy){% if v.lines|length > 1 %}; the other {{ v.lines|length - 1 }} room{{ 's' if v.lines|length > 2 }} stay on the order{% else %}; it was the product's only room here, so the product leaves the order{% endif %}{% if o.confirmed %}. The order shows it changed until the shop agrees{% endif %}." data-confirm-ok="Take it off"><button class="od-room-x" title="Take {{ i.code }} off this order" aria-label="Take {{ i.code }} off this order"><svg class="ic"><use href="#i-x"/></svg></button></form>{% endif %}</span>{% endfor %}</td>
       <td class="num qty"><span class="od-qty"><input class="in sm" type="number" step="any" min="0" inputmode="decimal" name="qty_{{ pu.id }}" value="{{ v.qty|plain }}" form="od-qty" aria-label="Quantity of {{ it.name }} to order"> {{ v.unit }}</span>{% if pu.qty is not none %}<div class="small muted">set by hand</div>{% elif v.packs %}<div class="small muted">{{ packs(v.packs, word) }} of {{ v.pack|num(3) }}</div>{% endif %}</td>
       <td class="num price">{{ pu.unit_price|cur(2) }}</td>
       <td class="num b amt">{{ v.total|cur(2) }}</td>

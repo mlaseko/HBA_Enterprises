@@ -207,6 +207,25 @@ async def add_to_order(request: Request, order_id: int, p: Project = Depends(get
     return _to(p, order_id, "#products", ok=f"{n} product{'s' if n != 1 else ''} added to the order.")
 
 
+@router.post("/p/{project_id}/orders/{order_id}/rooms/{item_id}/remove")
+def remove_room(order_id: int, item_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """One room off the order: it has no shop again (To buy); the product stays for its other rooms."""
+    o = _order(db, p, order_id)
+    it = db.get(Item, item_id)
+    if o is None or it is None:
+        return _to(p, order_id)
+    code, name, was_confirmed = it.code, it.name, o.confirmed
+    why = od.take_room_off(db, p, o, it)
+    if why:
+        return _to(p, order_id, "#products", err=why)
+    bz.settle(db, p)
+    db.commit()
+    if db.get(type(o), order_id) is None:  # its last room: the draft went with it
+        return _to(p, ok=f"{code} taken off; the order had nothing else, so it went. {name} in {code} has no shop again (To buy).")
+    return _to(p, order_id, "#products", ok=f"{code} taken off: {name} there has no shop again (To buy); order it again from the saved quotation."
+               + (" Tell the shop, then press The shop agreed." if was_confirmed else ""))
+
+
 @router.post("/p/{project_id}/orders/{order_id}/remove/{purchase_id}")
 def remove_from_order(order_id: int, purchase_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
     o = _order(db, p, order_id)

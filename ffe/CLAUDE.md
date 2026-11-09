@@ -100,7 +100,10 @@ app/routers/quotations.py /p/<id>/quotations (list, upload form, inquiry form; P
                        /quotations/<q> (document page), /<q>/file, /<q>/delete
 app/routers/orders.py  /p/<id>/orders (ready to order + orders by stage), /orders/new, /orders/<o> (page; POST details),
                        /orders/<o>/add|remove/<pu>|confirm|unconfirm|delete|payments|claim, /orders/<o>/po.pdf, /orders/release
-                       (the order page and po.pdf take ?sort= amount (default) | amount_asc | name | added: ordering.sort_lines)
+                       (the order page and po.pdf take ?sort= amount (default) | amount_asc | name | added: ordering.sort_lines),
+                       /orders/<o>/rooms/<item>/remove (ordering.take_room_off: one room off, To buy; its last room takes the product off,
+                       tidy_drafts; Shipped / Received refused). The Orders page lists #drafts first (dashed cards, Edit + Confirm under each);
+                       a draft's page carries the .od-draft banner; the room chips are .od-room with a .od-room-x form
 app/routers/cartons.py Shipping › Boxes: /p/<id>/cartons (?supplier= &room= &where= &shipment=; POST adds a box), /cartons/bulk
                        (action warehouse | not-warehouse | ship (shipment_id or "new") | unship | received | not-received),
                        /cartons/<c> (box page; POST saves), /cartons/<c>/received, /cartons/<c>/delete; all take `next`
