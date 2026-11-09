@@ -86,6 +86,10 @@ def order_page(request: Request, order_id: int, p: Project = Depends(get_project
         return _to(p)
     led = bz.Ledger(p)
     ov = od.OrderView(o, led)
+    if not o.baseline:  # the version the changes are counted from: the order as first seen
+        od.set_baseline(o, ov, "first seen")
+        db.commit()
+    ch = od.changes(o, ov)
     sort = od.sort_lines(ov, sort)
     more = [v for v in led.pv.values() if v["purchase"].order_id is None and v["purchase"].supplier_id == o.supplier_id]
     studio = get_settings(db)
@@ -93,7 +97,7 @@ def order_page(request: Request, order_id: int, p: Project = Depends(get_project
     due = ov.deposit_left if deposit_next else max(ov.balance, 0.0)
     return render(request, "buying/order.html", p=p, ov=ov, o=o, more=more, addable=_addable(db, p, o), wechat=od.wechat_text(ov, p, studio), studio=studio, loose=od.loose_payments(p, o),
                   today=date.today().isoformat(), due=round(due, 2), due_kind="Deposit" if deposit_next else "Balance",
-                  STAGE_COLORS=od.STAGE_COLORS, STAGE_HELP=od.STAGE_HELP, ok=ok[:200], err=err[:200], sort=sort, SORTS=od.LINE_SORTS)
+                  STAGE_COLORS=od.STAGE_COLORS, STAGE_HELP=od.STAGE_HELP, ok=ok[:200], err=err[:200], sort=sort, SORTS=od.LINE_SORTS, ch=ch)
 
 
 @router.post("/p/{project_id}/orders/{order_id}")
@@ -252,8 +256,40 @@ async def confirm_order(request: Request, order_id: int, p: Project = Depends(ge
     if form.get("ready_date"):
         o.ready_date = _date(form.get("ready_date", "")) or o.ready_date
     bz.settle(db, p)
+    o = db.get(Order, order_id)
+    od.set_baseline(o, od.OrderView(o, bz.Ledger(p)), "confirmed")  # later changes count from the version the shop agreed
     db.commit()
     return _to(p, order_id, ok="Confirmed with the new total." if again else "Order confirmed: its rooms are now Ordered.")
+
+
+@router.post("/p/{project_id}/orders/{order_id}/baseline")
+def mark_sent(order_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """This version of the order is the one the shop has: the changes count from it from now on."""
+    o = _order(db, p, order_id)
+    if o is None:
+        return _to(p)
+    od.set_baseline(o, od.OrderView(o, bz.Ledger(p)), "sent to the shop")
+    db.commit()
+    return _to(p, order_id, "#changes", ok="Marked as the version the shop has: changes count from now.")
+
+
+@router.get("/p/{project_id}/orders/{order_id}/order.xlsx")
+def order_xlsx(order_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db), sort: str = "amount"):
+    """The order as an Excel sheet: its products with their rooms, quantities and amounts, each with what changed, and a
+    Changes sheet listing every change since its baseline (room by room)."""
+    from fastapi.responses import Response
+    o = _order(db, p, order_id)
+    if o is None:
+        return _to(p)
+    ov = od.OrderView(o, bz.Ledger(p))
+    if not o.baseline:
+        od.set_baseline(o, ov, "first seen")
+        db.commit()
+    ch = od.changes(o, ov)
+    od.sort_lines(ov, sort)
+    name = f"Order-{ov.ref}-{o.supplier.name if o.supplier else 'supplier'}{'-draft' if not o.confirmed else ''}.xlsx"
+    return Response(od.order_workbook(p, ov, ch), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers=content_disposition(name))
 
 
 @router.post("/p/{project_id}/orders/{order_id}/unconfirm")
@@ -330,8 +366,12 @@ def order_pdf(request: Request, order_id: int, p: Project = Depends(get_project)
         return _to(p)
     from ..pdf.order import order_pdf as build
     ov = od.OrderView(o, bz.Ledger(p))
+    if not o.baseline:
+        od.set_baseline(o, ov, "first seen")
+        db.commit()
+    ch = od.changes(o, ov)
     od.sort_lines(ov, sort)
-    data, err = try_build(build, p, get_settings(db), ov)
+    data, err = try_build(build, p, get_settings(db), ov, ch)
     if err:
         return build_error(request, p, f"Purchase order {ov.ref}", err)
     name = f"PO-{ov.ref}-{o.supplier.name if o.supplier else 'supplier'}.pdf"

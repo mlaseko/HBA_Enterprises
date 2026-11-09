@@ -650,6 +650,9 @@ class Order(Base):
     supplier_ref: Mapped[str] = mapped_column(String(80), default="")
     notes: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    # the version the changes are counted from (JSON, ordering.set_baseline): the order as first seen, then as confirmed or as
+    # marked sent to the shop; '' = none recorded yet
+    baseline: Mapped[str] = mapped_column(Text, default="")
     project: Mapped["Project"] = relationship(back_populates="orders")
     supplier: Mapped["Supplier | None"] = relationship(lazy="joined")
     # loaded on demand (one order's page); lists of orders read both through buying.Ledger, which works them out from the

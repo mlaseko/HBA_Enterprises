@@ -56,6 +56,18 @@
   </div>
 </div>
 
+{# ---- what changed since the version the shop had ---- #}
+<section class="card od-ch" id="changes">
+  <div class="row between od-ch-head"><div><h2 class="mb-0">Changes{% if ch.rows %} <span class="n">{{ ch.rows|length }}</span>{% endif %}</h2>
+    <p class="small muted mb-0">{% if ch.since %}Since the version {{ ch.since }} on {{ ch.on }}{% if ch.was is not none and (ch.was - ch.now)|abs > 0.005 %}: total then {{ ch.was|cur(2) }}, now {{ ch.now|cur(2) }}{% endif %}.{% else %}No earlier version recorded yet.{% endif %}</p></div>
+    <div class="row od-ch-acts"><a class="btn sm sec" href="/p/{{ p.id }}/orders/{{ o.id }}/order.xlsx?sort={{ sort }}"><svg class="ic"><use href="#i-download"/></svg>Excel</a>
+      <a class="btn sm sec" href="/p/{{ p.id }}/orders/{{ o.id }}/po.pdf?sort={{ sort }}" target="_blank"><svg class="ic"><use href="#i-file"/></svg>PDF</a>
+      {% if ch.rows %}<form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/baseline" data-confirm="Mark this version as the one the shop has? The changes listed here are cleared and new ones count from now. Do it once you have sent the new purchase order." data-confirm-ok="Mark as sent"><button class="btn sm ghost">Mark as sent to the shop</button></form>{% endif %}</div></div>
+  {% if ch.rows %}
+  <ul class="od-ch-list">{% for r in ch.rows %}<li class="k-{{ r.kind|replace(' ', '-') }}"><span class="pill">{{ r.kind|capitalize }}</span><span>{{ r.text }}</span></li>{% endfor %}</ul>
+  {% else %}<p class="small muted mt mb-0">No changes since then. The Excel and the PDF list every change, room by room, once you make some.</p>{% endif %}
+</section>
+
 {# ---- products ---- #}
 <section class="bu-sec" id="products">
   <div class="bu-sec-head"><div><h2>Products <span class="n">{{ ov.lines|length }}</span></h2><p class="small muted">What is ordered, for which rooms. Quantities include the allowance, in whole boxes: type another number to order more or less, empty goes back to what the rooms need.</p></div>

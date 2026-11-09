@@ -1082,6 +1082,10 @@ details.bu-add>form{padding:4px 18px 18px}
 .od-prods .t{font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums;min-width:70px;text-align:right}
 /* the order cards, by stage */
 .od-grid{display:grid;gap:12px;grid-template-columns:minmax(0,1fr)}
+.od-ch{margin:14px 0}.od-ch-head{gap:10px;flex-wrap:wrap;align-items:flex-start}.od-ch-acts{gap:6px;flex-wrap:wrap}.od-ch-acts form{margin:0}
+.od-ch-list{list-style:none;margin:10px 0 0;padding:0}.od-ch-list li{display:flex;gap:10px;align-items:baseline;padding:6px 0;border-top:1px solid var(--line-2);font-size:.88rem}
+.od-ch-list .pill{flex:none;font-size:.7rem}.od-ch-list .k-product-removed .pill,.od-ch-list .k-room-removed .pill{background:var(--red-soft);color:var(--red)}
+.od-ch-list .k-product-added .pill,.od-ch-list .k-room-added .pill{background:var(--green-soft);color:var(--green)}
 .od-cell{display:flex;flex-direction:column;min-width:0}.od-cell>.od-card{flex:1}
 .od-cell-acts{display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:8px 2px 0}.od-cell-acts form{margin:0}
 .od-drafts .od-card{border-style:dashed}

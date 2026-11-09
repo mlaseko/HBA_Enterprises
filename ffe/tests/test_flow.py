@@ -1800,6 +1800,16 @@ def flow(c):
     r=c.post(f"/p/{pid_o}/orders/{_rt}/rooms/{_kit}/remove", follow_redirects=False); assert "taken%20off" in r.headers["location"] and f"/orders/{_rt}" in r.headers["location"], r.headers["location"]
     db=SessionLocal(); _k=db.get(Item,_kit); _l=db.get(Item,_liv); assert _k.purchase_id is None and _k.status=="To buy" and _l.purchase_id==_rpu and db.get(_Pu,_rpu).order_id==_rt and db.get(_Pu,_rpu).qty is None; db.close()
     r=c.post(f"/p/{pid_o}/orders/{_rt}/rooms/{_kit}/remove", follow_redirects=False); assert "err=" in r.headers["location"]  # not on it any more
+    # the changes since the version first seen show on the page, in the Excel (Order + Changes sheets) and in the PDF, room by room
+    _kc=SessionLocal().get(Item,_kit).code; _lc=SessionLocal().get(Item,_liv).code
+    h=c.get(f"/p/{pid_o}/orders/{_rt}").text; assert 'id="changes"' in h and "room removed" in h.lower() and _kc in h.split('id="changes"')[1].split("</section>")[0], h[h.find('id="changes"'):h.find('id="changes"')+900]
+    r=c.get(f"/p/{pid_o}/orders/{_rt}/order.xlsx"); assert r.status_code==200 and "draft" in r.headers["content-disposition"].lower()
+    _ow=openpyxl.load_workbook(io.BytesIO(r.content)); _chs=[x for x in _ow["Changes"].iter_rows(min_row=3, values_only=True)]
+    assert any(x[0]=="room removed" and x[3]==_kc for x in _chs), _chs
+    assert any(_lc in str(x[3]) and "removed" in str(x[9]) for x in _ow["Order"].iter_rows(min_row=5, values_only=True) if x and x[3]), list(_ow["Order"].iter_rows(values_only=True))
+    _pt=pdf_text(c.get(f"/p/{pid_o}/orders/{_rt}/po.pdf").content); assert "CHANGES SINCE" in _pt and _kc in _pt and "CHANGED" in _pt, _pt[-800:]
+    r=c.post(f"/p/{pid_o}/orders/{_rt}/baseline", follow_redirects=False); assert "ok=" in r.headers["location"]
+    assert "No changes since then" in c.get(f"/p/{pid_o}/orders/{_rt}").text  # marked as sent: the changes count from now
     r=c.post(f"/p/{pid_o}/orders/{_rt}/rooms/{_liv}/remove", follow_redirects=False)  # its last room: the product and then the empty draft go
     db=SessionLocal(); assert db.get(Item,_liv).purchase_id is None and db.get(_Pu,_rpu) is None and db.get(_O,_rt) is None; db.close()
     db=SessionLocal(); _shp=db.get(Item,_pb_id); _sho=_shp.purchase.order_id; db.close()
