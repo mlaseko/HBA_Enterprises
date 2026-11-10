@@ -1865,6 +1865,15 @@ def flow(c):
     db=SessionLocal(); _pr7=db.get(_Pr,_fpid); assert abs(_pr7.cheaper_price-5*(db.get(_P,pid_o).rate or 1))<0.01 and _pr7.cheaper=="budget price"; db.close()  # a USD budget price is kept in CNY
     _bl=c.get(f"/p/{pid_o}/buying?cheaper=1").text; assert "Find cheaper" in _bl and "flagged to find a cheaper option" in _bl
     assert "Find cheaper" in c.get(f"/p/{pid_o}/buying/budget").text
+    # the Budget page: the real total keeps the shop's price; the product and the page also show the total at the budget price
+    db=SessionLocal(); _pp7=db.get(_P,pid_o); _pl7=_bg.plan(_pp7) if "_bg" in dir() else __import__("app.budget", fromlist=["plan"]).plan(_pp7); _r7=next(r for r in _pl7["rows"] if r["pid"]==_fpid); _pu7=db.get(_Pu,_rpu); db.close()
+    _want=round(sum(kv["qty"]*(kv["price"]-_pr7.cheaper_price) for kv in _r7["buys"].values() if kv["price"]>_pr7.cheaper_price), 2)  # its shop's rooms and the rooms still at the estimate
+    assert _want>0 and abs(_r7["budget_saves"]-_want)<0.02 and abs(_pl7["at_budget"]["saves"]-_want)<0.02 and abs(_pl7["at_budget"]["total"]-(_pl7["total"]-_want))<0.02, (_r7["budget_saves"], _want)
+    h=c.get(f"/p/{pid_o}/buying/budget").text; assert 'id="bg-sum-atb"' in h and "At your budget prices" in h and "at budget " in h
+    _bw=openpyxl.load_workbook(io.BytesIO(c.get(f"/p/{pid_o}/buying/budget.xlsx").content))["Budget"]
+    assert _bw.cell(4, 14).value=="Find cheaper: budget price (CNY)" and any(r_[0]=="At your budget prices (Find cheaper)" for r_ in _bw.iter_rows(values_only=True))
+    c.post(f"/p/{pid_o}/buying/{_fpid}/cheaper", data={"note":"ask another shop", "price":"", "next":f"/p/{pid_o}/orders/{_rt}"}, follow_redirects=False)
+    h=c.get(f"/p/{pid_o}/buying/budget").text; assert 'id="bg-sum-atb"' not in h and "no budget price set" in h and "without a budget price: counted at the shop" in h  # no price: the shop's price counts
     c.post(f"/p/{pid_o}/buying/{_fpid}/cheaper", data={"off":"1", "next":f"/p/{pid_o}/orders/{_rt}"}, follow_redirects=False)
     db=SessionLocal(); assert db.get(_Pr,_fpid).cheaper==""; db.close()
     # a cheaper quote another shop gave shows on the order line

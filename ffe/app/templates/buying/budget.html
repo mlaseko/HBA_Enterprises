@@ -64,7 +64,7 @@
       <span class="nm"><b>{{ r.name }}</b>{% if r.cheaper %} <span class="pill gold" title="{{ r.cheaper }}">Find cheaper{% if r.cheaper_price %} · budget {{ r.cheaper_price|cur_txt(2) }}{% endif %}</span>{% endif %}<span class="small muted">{{ [r.size, r.finish]|select|join(' · ') }}{% if r.size or r.finish %} · {% endif %}{{ r.category }} · {{ r.lines|length }} room{{ 's' if r.lines|length != 1 }}</span>
         <span class="bg-calc" data-pid="{{ r.pid }}">{% for k, kv in r.buys.items() if kv.qty %}<span class="c"><b>{{ kv.qty|num(2) }} {{ r.unit }}</b> × {{ kv.price|cur_main(2) }} = <b>{{ kv.total|cur_main }}</b> <span class="muted">· {{ kv.shop }}</span></span>{% else %}<span class="c muted">{% if r.buys %}{{ r.buys.values()|map(attribute='shop')|join(', ') }}{% else %}no price yet{% endif %}</span>{% endfor %}</span></span>
       <span class="sh"><i style="width:{{ [100, (100 * r.total / ([pl.total, 1]|max) * 4)|round(1)]|min }}%"></i></span>
-      <span class="tot"><b class="bg-tot" data-was="{{ r.total }}">{{ r.total|cur }}</b>{% if r.locked %}<span class="small muted">paid or on its way</span>{% endif %}</span>
+      <span class="tot"><b class="bg-tot" data-was="{{ r.total }}">{{ r.total|cur }}</b>{% if r.budget_saves > 0.005 %}<span class="small bg-atb" title="At your Find cheaper budget price of {{ r.cheaper_price|cur_txt(2) }} per {{ r.unit }}">at budget {{ r.at_budget|cur_txt }} · saves {{ r.budget_saves|cur_txt }}</span>{% elif r.cheaper and not r.cheaper_price %}<span class="small muted bg-atb">no budget price set</span>{% endif %}{% if r.locked %}<span class="small muted">paid or on its way</span>{% endif %}</span>
     </summary>
     <div class="bg-edit">
       {% if r.quotes|length > 1 and not r.locked %}
@@ -95,7 +95,9 @@
   <div class="empty">No products to buy yet.</div>
   {% endfor %}
   </div>
-  {% if pl.rows %}<div class="bg-sum" id="bg-sum"><span class="l">Total</span><span class="small muted" id="bg-sum-n">{{ pl.rows|length }} product{{ 's' if pl.rows|length != 1 }}</span><b id="bg-sum-v">{{ pl.total|cur }}</b></div>{% endif %}
+  {% if pl.rows %}<div class="bg-sum" id="bg-sum"><span class="l">Total</span><span class="small muted" id="bg-sum-n">{{ pl.rows|length }} product{{ 's' if pl.rows|length != 1 }}</span><b id="bg-sum-v">{{ pl.total|cur }}</b></div>
+  {% if pl.at_budget.saves > 0.005 %}<div class="bg-sum bg-sum-atb" id="bg-sum-atb"><span class="l">At your budget prices</span><span class="small muted">{{ pl.at_budget.n }} product{{ 's' if pl.at_budget.n != 1 }} flagged Find cheaper, saves {{ pl.at_budget.saves|cur_txt }}{% if pl.budget %} · {{ 'still over the budget by ' ~ (pl.at_budget.gap|cur_txt) if pl.at_budget.gap > 0 else 'within the budget, ' ~ ((-pl.at_budget.gap)|cur_txt) ~ ' to spare' }}{% endif %}</span><b>{{ pl.at_budget.total|cur }}</b></div>{% endif %}
+  {% if pl.at_budget.unpriced %}<p class="small muted mt-0">{{ pl.at_budget.unpriced }} product{{ 's' if pl.at_budget.unpriced != 1 }} flagged Find cheaper without a budget price: counted at the shop's price. Set one on the order line or the product page.</p>{% endif %}{% endif %}
 </section>
 
 {% if pl.dropped %}

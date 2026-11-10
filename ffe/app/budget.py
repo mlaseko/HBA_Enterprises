@@ -60,8 +60,15 @@ def plan(p: Project) -> dict:
             kv["qty"] = _order(need, allow, kv["pack"], unit, whole, kv["override"]) if need or kv["override"] else 0.0
             kv["total"] = round(kv["qty"] * (kv["price"] or 0), 2)
             row_total += kv["total"]
+        # Find cheaper with a budget price: what the open rooms would cost at it (rooms paid or on their way keep their price)
+        cp = (g.product.cheaper_price or 0) if g.product is not None and (g.product.cheaper or "").strip() else 0
+        at_budget = row_total
+        if cp > 0:
+            for k, kv in keys.items():
+                if kv["qty"] and (kv["price"] or 0) > cp and not any(l["key"] == k and l["locked"] for l in lines):
+                    at_budget -= kv["qty"] * ((kv["price"] or 0) - cp)
         cover = g.cover
-        rows.append(dict(pid=g.product.id if g.product else 0, name=g.name, size=g.item.size or "", finish=g.item.finish or "",
+        rows.append(dict(at_budget=round(at_budget, 2), budget_saves=round(row_total - at_budget, 2), pid=g.product.id if g.product else 0, name=g.name, size=g.item.size or "", finish=g.item.finish or "",
                          category=g.category, unit=unit, allow=allow, pack=g.pack_size, whole=unit in whole, buys=keys, lines=lines,
                          quotes=quotes, total=round(row_total, 2), locked=all(l["locked"] for l in lines),
                          thumb=cover.thumb if cover is not None else "", priced=bool(any(k["price"] for k in keys.values())),
@@ -78,7 +85,12 @@ def plan(p: Project) -> dict:
         c = cats.setdefault(r["category"] or "Other", dict(name=r["category"] or "Other", products=0, total=0.0))
         c["products"] += 1
         c["total"] = round(c["total"] + r["total"], 2)
-    return dict(rows=rows, total=round(total, 2), budget=budget, gap=round(total - budget, 2) if budget else 0.0, rate=rate,
+    saves = round(sum(r["budget_saves"] for r in rows), 2)
+    at_budget = dict(total=round(total - saves, 2), saves=saves, n=sum(1 for r in rows if r["budget_saves"] > 0.005),
+                     priced=sum(1 for r in rows if r["cheaper"] and r["cheaper_price"]),
+                     unpriced=sum(1 for r in rows if r["cheaper"] and not r["cheaper_price"]),
+                     gap=round(total - saves - budget, 2) if budget else 0.0)
+    return dict(rows=rows, total=round(total, 2), budget=budget, at_budget=at_budget, gap=round(total - budget, 2) if budget else 0.0, rate=rate,
                 suggestions=suggestions(rows, whole), dropped=dropped, unpriced=sum(1 for r in rows if not r["priced"]),
                 locked=round(sum(r["paid"] for r in rows), 2), cats=sorted(cats.values(), key=lambda c: -c["total"]))
 
@@ -100,7 +112,7 @@ def workbook(p: Project, pl: dict) -> bytes:
                f"Now {pl['total']:,.2f} CNY ({pl['total'] / rate:,.2f} USD)"])
     ws.append([])
     cols = ["Product", "Size", "Finish", "Category", "Shop", "Rooms", "Rooms need", "To order", "Unit", "Unit price (CNY)",
-            "Amount (CNY)", "Amount (USD)", "Paid or on its way"]
+            "Amount (CNY)", "Amount (USD)", "Paid or on its way", "Find cheaper: budget price (CNY)", "At the budget price (CNY)"]
     ws.append(cols)
     for c in ws[ws.max_row]:
         c.font, c.fill = bold, head
@@ -111,18 +123,25 @@ def workbook(p: Project, pl: dict) -> bytes:
                 continue
             ws.append([r["name"], r["size"], r["finish"], r["category"], kv["shop"], ", ".join(l["code"] for l in mine), kv["need"],
                        kv["qty"], r["unit"], kv["price"] or None, kv["total"], round(kv["total"] / rate, 2),
-                       "yes" if all(l["locked"] for l in mine) else ""])
+                       "yes" if all(l["locked"] for l in mine) else "",
+                       (r["cheaper_price"] or None) if r["cheaper"] else None,
+                       round(kv["qty"] * min(kv["price"] or 0, r["cheaper_price"]), 2)
+                       if r["cheaper"] and r["cheaper_price"] and not any(l["locked"] for l in mine) else None])
     ws.append([])
     ws.append(["Total", "", "", "", "", "", "", "", "", "", pl["total"], round(pl["total"] / rate, 2)])
     for c in ws[ws.max_row]:
         c.font = bold
+    ab = pl.get("at_budget") or {}
+    if ab.get("saves"):
+        ws.append(["At your budget prices (Find cheaper)", "", "", "", "", "", "", "", "", "", ab["total"], round(ab["total"] / rate, 2),
+                   f"saves {ab['saves']:,.2f} CNY"])
     if pl["budget"]:
         ws.append(["Budget", "", "", "", "", "", "", "", "", "", pl["budget"], round(pl["budget"] / rate, 2)])
         ws.append(["Over by" if pl["gap"] > 0 else "Under by", "", "", "", "", "", "", "", "", "", abs(pl["gap"]), round(abs(pl["gap"]) / rate, 2)])
     for row in ws.iter_rows(min_row=5):
-        for c in row[6:12]:
+        for c in row[6:12] + row[13:15]:
             c.number_format = "#,##0.00"
-    for col, w in zip("ABCDEFGHIJKLM", (34, 14, 16, 16, 22, 30, 11, 10, 7, 15, 15, 14, 10)):
+    for col, w in zip("ABCDEFGHIJKLMNO", (34, 14, 16, 16, 22, 30, 11, 10, 7, 15, 15, 14, 10, 16, 16)):
         ws.column_dimensions[col].width = w
     ws.freeze_panes = "A5"
     cs = wb.create_sheet("By category")

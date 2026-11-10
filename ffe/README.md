@@ -289,7 +289,7 @@ quoted, lines marked optional, quantities typed by hand above the rooms' need; *
 Every product, the dearest first, opens to change a room's quantity, drop a room, or buy its open rooms from another
 shop; each product shows quantity to order × unit price = amount per shop, each room its amount, and the list ends with
 the **Total** (By category above it splits the total and filters the list; Sort by dearest, name, category or changed;
-**Excel** = `GET /p/<id>/buying/budget.xlsx`, `budget.workbook`). The page's script recomputes the totals as you go and nothing is saved until **Apply changes** (`POST` the same
+**Excel** = `GET /p/<id>/buying/budget.xlsx`, `budget.workbook`; products flagged Find cheaper with a budget price show their amount at it, `at_budget` / `budget_saves`, and **At your budget prices** under the Total gives the total if all were bought at those prices, unlocked rooms only; the Excel adds the budget price and the amount at it). The page's script recomputes the totals as you go and nothing is saved until **Apply changes** (`POST` the same
 URL: `qty_<line>`, `drop_<line>`, `switch_<product>`, `reset_<purchase>`, `restore_<line>`). A dropped room gets the
 status **Not buying** (`config.NOT_BUYING`): it leaves its purchase and order, and `buying.groups` leaves it out of
 buying, the Tracker and every estimate; ticking it under Not buying brings it back as To buy. Paid, shipped and received

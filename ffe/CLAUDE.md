@@ -1074,7 +1074,7 @@ ALTER TABLE products ADD COLUMN cheaper_price FLOAT NOT NULL DEFAULT 0;         
   The Tracker (`buying/tracker.html`): the Sourcing card's rows (`.tr-src-row`: name, n/m quoted, the next step, a full-width
   `.tr-src-bar`) list the categories still to price; `ordering.tracker` marks `cats[].full` and those fold under
   `details.tr-src-done`. Needs attention shows six lines, the rest under `details.att-more`. `.tbl.tr-stack` tables (shipments,
-  by shop, by category; cells carry `data-l`, the first `td.who`) become cards under 700 px. `GET /p/<id>/buying/budget.xlsx` → `budget.workbook(p, pl)` (Budget sheet a
+  by shop, by category; cells carry `data-l`, the first `td.who`) become cards under 700 px. Find cheaper's `Product.cheaper_price` (CNY) gives each budget row `at_budget` / `budget_saves` (unlocked buys priced above it, at it) and `pl.at_budget` (total, saves, n, priced, unpriced, gap): `#bg-sum-atb` under the Total, `.bg-atb` on the row, two Excel columns; the real totals stay at the shop's price. `GET /p/<id>/buying/budget.xlsx` → `budget.workbook(p, pl)` (Budget sheet a
   line per product and shop, totals and the gap; By category sheet).
 
 ## Backlog (in priority order)
