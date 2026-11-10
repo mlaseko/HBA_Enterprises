@@ -33,6 +33,7 @@ def get_db():
 # is listed here with the SQL that adds it (SQLite and Postgres both accept ADD COLUMN ... DEFAULT) and migrate() applies
 # the missing ones at startup. Prefer a new table when you can; when a column is the right model, add it here too.
 COLUMN_MIGRATIONS = [
+    ("suppliers", "one_order", "BOOLEAN NOT NULL DEFAULT FALSE"),  # one order for all the shop's quotations (else one per quotation)
     ("orders", "baseline", "TEXT NOT NULL DEFAULT ''"),
     ("products", "cheaper", "VARCHAR(240) NOT NULL DEFAULT ''"),  # look for a cheaper option of this product (the note; '' = not)  # the order's version the changes are counted from (ordering.set_baseline)
     ("projects", "show_currency", "VARCHAR(3) NOT NULL DEFAULT 'CNY'"),  # the designer's pages: amounts in USD or CNY

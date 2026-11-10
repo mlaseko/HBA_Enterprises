@@ -462,6 +462,8 @@ def quotation_page(request: Request, quotation_id: int, p: Project = Depends(get
             if o.supplier_id == q.supplier_id and not o.confirmed:
                 orders[o.id] = o
     sheet_draft = qz.sheet_draft(p, q)
+    if sheet_draft is None and q.supplier is not None and q.supplier.one_order and orders:  # one order for all its quotations
+        sheet_draft = max(orders.values(), key=lambda o: o.number)
     asks = [(ln, [f for f in ln.notes.split("; ") if f.endswith("(asked the shop)")]) for ln in q.lines if ln.notes and "(asked the shop)" in ln.notes]
     nxt = next((u for u in db.query(QuotationUpload).filter(QuotationUpload.project_id == p.id).order_by(QuotationUpload.id).all() if u.stage == "done"), None)
     next_up = dict(name=nxt.filename, url=f"/p/{p.id}/quotations/preview?key={urlquote(nxt.state_key)}") if nxt is not None else None

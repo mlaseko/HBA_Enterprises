@@ -94,13 +94,29 @@ def loose_ids(db: Session, p: Project) -> set[int]:
     return {i for (i,) in db.query(Purchase.id).filter(Purchase.project_id == p.id, Purchase.order_id.is_(None))}
 
 
+def quote_sheets(db: Session, quote_ids) -> dict[int, int]:
+    """The quotation sheet each quote came from ({quote id: quotation id}; the latest sheet when several priced it). A quote
+    typed by hand on the product page has none."""
+    from .models import QuotationLine
+    ids = {i for i in quote_ids if i}
+    if not ids:
+        return {}
+    out: dict[int, int] = {}
+    for qid, sheet in db.query(QuotationLine.quote_id, QuotationLine.quotation_id).filter(QuotationLine.quote_id.in_(ids)).all():
+        out[qid] = max(out.get(qid, 0), sheet)
+    return out
+
+
 def follow_choice(db: Session, p: Project, before: set[int], warehouse: str = "", into=None) -> list[Order]:
     """Choosing a shop puts its rooms on an order. The purchases the last change made (on no order, and not on no order
     before it: `before` = loose_ids() taken first) join their shop's draft order, or a new draft when the shop has none.
     Purchases already waiting (an order deleted, a product taken off) stay under Ready to order. A draft left empty by the
     change (its rooms moved to another shop) goes when nothing was typed on it and nothing was paid against it; its number
     is not given again. `into` (from a quotation's page): "new" = a new order of their own, an order id = that draft of the
-    same shop; None = the shop's latest draft, as before. Returns the orders that received purchases."""
+    same shop; None = by the shop's rule: a shop with one order for all its quotations (Supplier.one_order) uses its latest
+    draft; any other shop puts what came from a quotation sheet on the draft already holding that sheet, else on a new order
+    of its own (each quotation is its own order), and a price typed by hand on its latest draft. Returns the orders that
+    received purchases."""
     db.flush()
     new = [pu for pu in db.query(Purchase).filter(Purchase.project_id == p.id, Purchase.order_id.is_(None)).order_by(Purchase.id)
            if pu.id not in before and pu.supplier_id]
@@ -109,19 +125,39 @@ def follow_choice(db: Session, p: Project, before: set[int], warehouse: str = ""
     for pu in new:
         by_sup.setdefault(pu.supplier_id, []).append(pu)
     for sid, pus in by_sup.items():
-        draft = None
-        if into != "new":
-            chosen = db.get(Order, int(into)) if str(into or "").isdigit() else None
-            if chosen is not None and chosen.project_id == p.id and chosen.supplier_id == sid and not chosen.confirmed:
-                draft = chosen
+        drafts = (db.query(Order).filter(Order.project_id == p.id, Order.supplier_id == sid, Order.confirmed_on.is_(None))
+                  .order_by(Order.number.desc()).all())
+        chosen = db.get(Order, int(into)) if str(into or "").isdigit() else None
+        if into == "new":
+            targets = {None: pus}
+        elif chosen is not None and chosen.project_id == p.id and chosen.supplier_id == sid and not chosen.confirmed:
+            targets = {chosen.id: pus}
+        elif pus[0].supplier is not None and pus[0].supplier.one_order:
+            targets = {drafts[0].id if drafts else None: pus}
+        else:  # each quotation its own order: a purchase joins the draft holding its sheet, else a new one for that sheet
+            sheets = quote_sheets(db, [pu.quote_id for pu in pus] + [x.quote_id for o in drafts for x in o.purchases])
+            holder: dict[int, int] = {}
+            for o in reversed(drafts):  # the newest draft wins a sheet two drafts hold
+                for x in o.purchases:
+                    if sheets.get(x.quote_id):
+                        holder[sheets[x.quote_id]] = o.id
+            targets = {}
+            for pu in pus:
+                sheet = sheets.get(pu.quote_id)
+                if sheet is None:  # typed by hand: the latest draft, as before
+                    key = drafts[0].id if drafts else None
+                elif sheet in holder:
+                    key = holder[sheet]
+                else:  # a sheet with no draft yet: one new order per sheet
+                    key = f"new:{sheet}"
+                targets.setdefault(key, []).append(pu)
+        for key, group in targets.items():
+            draft = db.get(Order, key) if isinstance(key, int) else None
+            if draft is not None:
+                add(db, draft, group)
             else:
-                draft = (db.query(Order).filter(Order.project_id == p.id, Order.supplier_id == sid, Order.confirmed_on.is_(None))
-                         .order_by(Order.number.desc()).first())
-        if draft is not None:
-            add(db, draft, pus)
-        else:
-            draft = new_order(db, p, pus[0].supplier, pus, warehouse)
-        touched.append(draft)
+                draft = new_order(db, p, group[0].supplier, group, warehouse)
+            touched.append(draft)
     tidy_drafts(db, p, keep={o.id for o in touched})
     return touched
 

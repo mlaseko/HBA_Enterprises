@@ -1760,6 +1760,31 @@ def flow(c):
     _own=_buy_new("Pendant A", "new"); assert _own!=ob  # an order of its own, though Shop B has a draft
     assert _buy_new("Pendant B", str(ob))==ob and _buy_new("Pendant C", str(_own))==_own  # added to the draft chosen
     assert _buy_new("Pendant D", None)==max(ob, _own, key=lambda i: SessionLocal().get(_O,i).number)  # no choice: the shop's latest draft, as before
+    # chosen from a product page (no choice of order): each quotation sheet is its own order, unless the shop has one order
+    # for all its quotations (George): then its latest draft
+    from app.models import Quotation as _SQ, QuotationLine as _SQL, Supplier as _SS
+    def _buy_sheet(name, sheet):
+        c.post(f"/p/{pid_o}/items/new", data={"room_ids":[str(_rm)],"category":"Lighting","name":name,"qty":"2","unit":"pcs","status":"To buy"}, follow_redirects=False)
+        c.get(f"/p/{pid_o}/items"); db=SessionLocal(); it=db.query(Item).filter(Item.project_id==pid_o, Item.name==name).one(); pr=db.get(_Pr, it.product_id); pp=db.get(_P,pid_o)
+        q_=_bz.find_supplier(db, _sid("Shop B")); qu=_Q(project_id=pid_o, product=pr, supplier_id=q_.id, supplier=q_); _bz.set_quote(qu, pp, supplier=q_, amount=10, currency="CNY"); db.add(qu); db.flush()
+        db.add(_SQL(quotation_id=sheet, no=1, name=name, product_id=pr.id, quote_id=qu.id, action="quote")); db.flush()
+        before=_od.loose_ids(db, pp); _bz.buy(db, pp, pr, qu, [it]); os_=_od.follow_choice(db, pp, before, ""); _bz.settle(db, pp); db.commit(); oid_=os_[0].id; db.close(); return oid_
+    db=SessionLocal(); _s1=_SQ(project_id=pid_o, supplier_id=_sid("Shop B"), title="Lights sheet"); _s2=_SQ(project_id=pid_o, supplier_id=_sid("Shop B"), title="Switches sheet"); db.add_all([_s1, _s2]); db.commit(); _s1, _s2 = _s1.id, _s2.id; db.close()
+    _o1=_buy_sheet("Pendant E", _s1); assert _o1 not in (ob, _own)  # a sheet no draft holds yet: an order of its own
+    assert _buy_sheet("Pendant F", _s1)==_o1  # the same sheet: its draft
+    _o2=_buy_sheet("Pendant G", _s2); assert _o2 not in (ob, _own, _o1)  # another sheet: another order
+    assert _buy_sheet("Pendant H", _s1)==_o1  # the first sheet's draft, though _o2 is newer
+    r=c.post(f"/suppliers/{_sid('Shop B')}", data={"name":"Shop B","one_order_form":"1","one_order":"1"}, follow_redirects=False)
+    assert SessionLocal().get(_SS, _sid("Shop B")).one_order and "One order for all its quotations" in c.get(f"/suppliers/{_sid('Shop B')}").text
+    db=SessionLocal(); _s3=_SQ(project_id=pid_o, supplier_id=_sid("Shop B"), title="Fans sheet"); db.add(_s3); db.commit(); _s3=_s3.id; db.close()
+    assert _buy_sheet("Pendant I", _s3)==_o2  # one order for all: the shop's latest draft, whatever the sheet
+    c.post(f"/p/{pid_o}/items/new", data={"room_ids":[str(_rm)],"category":"Lighting","name":"Pendant J","qty":"2","unit":"pcs","status":"To buy"}, follow_redirects=False)
+    c.get(f"/p/{pid_o}/items"); db=SessionLocal(); _pj=db.get(_Pr, db.query(Item).filter(Item.project_id==pid_o, Item.name=="Pendant J").one().product_id); _sb=_bz.find_supplier(db, _sid("Shop B"))
+    _qj=_Q(project_id=pid_o, product=_pj, supplier_id=_sb.id, supplier=_sb); _bz.set_quote(_qj, db.get(_P,pid_o), supplier=_sb, amount=10, currency="CNY"); db.add(_qj); db.flush()
+    db.add(_SQL(quotation_id=_s3, no=2, name="Pendant J", product_id=_pj.id, quote_id=_qj.id, action="quote", qty=2, unit_price=10)); db.commit(); db.close()
+    h=c.get(f"/p/{pid_o}/quotations/{_s3}").text; assert "the shop&#39;s order" in h or "the shop's order" in h, h[h.find('qn-into'):h.find('qn-into')+900]
+    c.post(f"/suppliers/{_sid('Shop B')}", data={"name":"Shop B","one_order_form":"1"}, follow_redirects=False); assert not SessionLocal().get(_SS, _sid("Shop B")).one_order
+    c.post(f"/suppliers/{_sid('Shop B')}", data={"name":"Shop B"}, follow_redirects=False)  # a form without the box leaves it alone
     # Fit the budget: every product's cost in one place; a room dropped is Not buying (off its order, out of every total), a
     # quantity changed, a cheaper shop chosen, a dropped room brought back; paid / shipped / received lines are locked
     from app import budget as _bg

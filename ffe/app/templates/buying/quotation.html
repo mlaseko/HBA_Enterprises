@@ -6,7 +6,7 @@
    Once a draft holds this sheet's products, it is the one chosen, so one sheet makes one order (choices per room, then Order all). #}
 {% macro into_select() %}{% if drafts_open %}<label class="qn-into small"><span>Put on</span><select class="in sm" name="into" aria-label="Order to put them on">
   <option value="new"{{ ' selected' if not sheet_draft }}>A new order for this quotation</option>
-  {% for o in drafts_open %}<option value="{{ o.id }}"{{ ' selected' if sheet_draft and o.id == sheet_draft.id }}>Draft {{ order_ref(o) }} ({{ "this sheet's order" if sheet_draft and o.id == sheet_draft.id else 'add to it' }})</option>{% endfor %}
+  {% for o in drafts_open %}<option value="{{ o.id }}"{{ ' selected' if sheet_draft and o.id == sheet_draft.id }}>Draft {{ order_ref(o) }} ({{ ("the shop's order" if q.supplier and q.supplier.one_order else "this sheet's order") if sheet_draft and o.id == sheet_draft.id else 'add to it' }})</option>{% endfor %}
 </select></label>{% else %}<input type="hidden" name="into" value="new">{% endif %}{% endmacro %}
 {% set cur = q.currency %}
 <div class="page-head">

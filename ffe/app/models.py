@@ -393,6 +393,9 @@ class Supplier(Base):
     payment_terms: Mapped[str] = mapped_column(String(200), default="")
     notes: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    # One order for all its quotations (ordering.follow_choice): rooms chosen from any of the shop's sheets join its one
+    # draft. Off (the default): each quotation is its own order. Column added by db.COLUMN_MIGRATIONS.
+    one_order: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     items: Mapped[list["Item"]] = relationship(back_populates="supplier")
 
 

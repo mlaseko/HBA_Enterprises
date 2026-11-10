@@ -219,7 +219,7 @@ TIPS = {
     "orders": dict(
         title="Orders", anchor="purchasing",
         what="What you bought, put together by shop into numbered orders, from the draft to paid in full.",
-        steps=["Choosing a shop in Sourcing puts its products on its draft order by itself, one draft per shop. <b>Ready to order</b> appears only for products taken off an order: <b>Add to draft</b>, <b>Start an order</b>, or <b>Clear</b> to give their rooms no shop again.",
+        steps=["Choosing a shop in Sourcing puts its products on a draft order by itself: one per quotation, or one per shop when its supplier page ticks <b>One order for all its quotations</b>. <b>Ready to order</b> appears only for products taken off an order: <b>Add to draft</b>, <b>Start an order</b>, or <b>Clear</b> to give their rooms no shop again.",
                "Open the draft, check it, set the ready date and send the shop the purchase order. Confirm it once the shop agrees: its rooms become Ordered.",
                "The orders are grouped by stage: Draft, Deposit due, Balance due, Paid. A red ready date has passed with money still to pay."],
         tips=["The tiles count only confirmed orders; drafts are on their own tile.",

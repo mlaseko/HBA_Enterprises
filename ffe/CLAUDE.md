@@ -983,6 +983,10 @@ ALTER TABLE products ADD COLUMN cheaper VARCHAR(240) NOT NULL DEFAULT '';       
   with "choose it now", `buy_from_quote`, the options grid, a purchase's rooms) takes `od.loose_ids()` first and calls
   `routers/buy._placed()` → `ordering.follow_choice(db, p, before, warehouse)`: the purchases the change made join their
   shop's draft (the latest unconfirmed order of that supplier) or a new draft (`new_order`, the studio's warehouse);
+  `follow_choice(..., into=None)` follows the shop's rule: `Supplier.one_order` (supplier page box "One order for all its
+  quotations", column via `COLUMN_MIGRATIONS`) → its latest draft; otherwise a purchase whose quote came from a sheet
+  (`ordering.quote_sheets`: QuotationLine.quote_id → quotation) joins the draft already holding that sheet, else a new draft per
+  sheet, and a hand-typed quote the latest draft; the saved quotation's Put on defaults to the latest draft for a one-order shop;
   `follow_choice(..., into=)` / `_placed(..., into)`: "new" = an order of their own, a draft's id = that draft (the saved
   quotation's Put on select, `routers.quotations._into(form)` on order-all and choose; new by default there, except that
   `quotations.sheet_draft(p, q)`, the shop's draft already holding this sheet's quotes, is preselected: one sheet, one order), None = the

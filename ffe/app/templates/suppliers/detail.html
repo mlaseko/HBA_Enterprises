@@ -33,6 +33,8 @@
     <div><label>Payment terms</label><input class="in" type="text" name="payment_terms" value="{{ s.payment_terms }}"></div>
     <div><label>Notes</label><input class="in" type="text" name="notes" value="{{ s.notes }}"></div>
   </div>
+  <input type="hidden" name="one_order_form" value="1">
+  <label class="check mt"><input type="checkbox" name="one_order" value="1"{{ ' checked' if s.one_order }}> <span><b>One order for all its quotations</b> <span class="small muted">Off: each quotation from this shop is an order of its own.</span></span></label>
   <div class="form-actions">
     <button class="btn"><svg class="ic"><use href="#i-check"/></svg>Save</button>
     <span class="sp"></span>
