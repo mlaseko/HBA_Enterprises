@@ -192,7 +192,11 @@ async def flag_cheaper(request: Request, product_id: int, p: Project = Depends(g
     if pr is None or pr.project_id != p.id:
         return redirect(back)
     off = bool(form.get("off"))
-    pr.cheaper = "" if off else ((" ".join((form.get("note") or "").split()) or "look for a cheaper option")[:240])
+    target = ffloat(form.get("price"), 0) if not off else 0.0
+    if target > 0 and (form.get("currency") or "").upper() == "USD":
+        target *= (p.rate or 1)  # stored in CNY like every price
+    pr.cheaper_price = round(max(target, 0.0), 2)
+    pr.cheaper = "" if off else ((" ".join((form.get("note") or "").split()) or ("budget price" if target > 0 else "look for a cheaper option"))[:240])
     db.commit()
     msg = f"{pr.name or 'The product'}: {'no longer flagged' if off else 'flagged to find a cheaper option'}."
     sep = "&" if "?" in back.split("#")[0] else "?"

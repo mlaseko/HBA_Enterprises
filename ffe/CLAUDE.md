@@ -110,7 +110,8 @@ app/routers/orders.py  /p/<id>/orders (ready to order + orders by stage), /order
                        ordering.set_baseline / snapshot: per product id name, size, unit, price, qty, rooms {code: [room, qty]}) is set
                        on the first view or export, on confirm and by Mark as sent; ordering.changes(o, ov) lists product added / removed,
                        quantity, price, room added / removed / quantity; the order page's #changes card, the PO PDF (CHANGED + a table
-                       after the money) and the Excel carry it; Product.cheaper (the note; '' = off) set by
+                       after the money) and the Excel carry it; Product.cheaper (the note; '' = off) and cheaper_price (the budget
+                       price per unit, CNY; a USD entry is converted at the project rate) set by
                        POST /p/<id>/buying/<product>/cheaper (note | off, next): Find cheaper on the order line / product page / Buying
                        list (?cheaper=1) / Budget and a Tracker attention line; the order route passes cheaper_q (another shop's
                        cheaper priced quote per product) and flags; POST /suppliers/<s>/rename (name, back) from the quotation and order
@@ -430,6 +431,7 @@ ALTER TABLE projects ADD COLUMN show_currency VARCHAR(3) NOT NULL DEFAULT 'CNY';
 ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';              -- one of the options to choose ('' = a plain quote)
 ALTER TABLE orders ADD COLUMN baseline TEXT NOT NULL DEFAULT '';                         -- the version an order's changes count from (JSON)
 ALTER TABLE products ADD COLUMN cheaper VARCHAR(240) NOT NULL DEFAULT '';                 -- look for a cheaper option of it (the note)
+ALTER TABLE products ADD COLUMN cheaper_price FLOAT NOT NULL DEFAULT 0;                    -- the budget price per unit for it (CNY)
 -- new tables (create_all): products, quotes, purchases, orders, shipments, project_lists, quotations, quotation_lines, quote_matches, quotation_uploads, quotation_line_also
 ```
 
@@ -983,6 +985,10 @@ ALTER TABLE products ADD COLUMN cheaper VARCHAR(240) NOT NULL DEFAULT '';       
   with "choose it now", `buy_from_quote`, the options grid, a purchase's rooms) takes `od.loose_ids()` first and calls
   `routers/buy._placed()` → `ordering.follow_choice(db, p, before, warehouse)`: the purchases the change made join their
   shop's draft (the latest unconfirmed order of that supplier) or a new draft (`new_order`, the studio's warehouse);
+  `follow_choice(..., into=None)` follows the shop's rule: `Supplier.one_order` (supplier page box "One order for all its
+  quotations", column via `COLUMN_MIGRATIONS`) → its latest draft; otherwise a purchase whose quote came from a sheet
+  (`ordering.quote_sheets`: QuotationLine.quote_id → quotation) joins the draft already holding that sheet, else a new draft per
+  sheet, and a hand-typed quote the latest draft; the saved quotation's Put on defaults to the latest draft for a one-order shop;
   `follow_choice(..., into=)` / `_placed(..., into)`: "new" = an order of their own, a draft's id = that draft (the saved
   quotation's Put on select, `routers.quotations._into(form)` on order-all and choose; new by default there, except that
   `quotations.sheet_draft(p, q)`, the shop's draft already holding this sheet's quotes, is preselected: one sheet, one order), None = the
@@ -1068,7 +1074,7 @@ ALTER TABLE products ADD COLUMN cheaper VARCHAR(240) NOT NULL DEFAULT '';       
   The Tracker (`buying/tracker.html`): the Sourcing card's rows (`.tr-src-row`: name, n/m quoted, the next step, a full-width
   `.tr-src-bar`) list the categories still to price; `ordering.tracker` marks `cats[].full` and those fold under
   `details.tr-src-done`. Needs attention shows six lines, the rest under `details.att-more`. `.tbl.tr-stack` tables (shipments,
-  by shop, by category; cells carry `data-l`, the first `td.who`) become cards under 700 px. `GET /p/<id>/buying/budget.xlsx` → `budget.workbook(p, pl)` (Budget sheet a
+  by shop, by category; cells carry `data-l`, the first `td.who`) become cards under 700 px. Find cheaper's `Product.cheaper_price` (CNY) gives each budget row `at_budget` / `budget_saves` (unlocked buys priced above it, at it) and `pl.at_budget` (total, saves, n, priced, unpriced, gap): `#bg-sum-atb` under the Total, `.bg-atb` on the row, two Excel columns; the real totals stay at the shop's price. `GET /p/<id>/buying/budget.xlsx` → `budget.workbook(p, pl)` (Budget sheet a
   line per product and shop, totals and the gap; By category sheet).
 
 ## Backlog (in priority order)

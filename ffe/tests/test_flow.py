@@ -1760,6 +1760,31 @@ def flow(c):
     _own=_buy_new("Pendant A", "new"); assert _own!=ob  # an order of its own, though Shop B has a draft
     assert _buy_new("Pendant B", str(ob))==ob and _buy_new("Pendant C", str(_own))==_own  # added to the draft chosen
     assert _buy_new("Pendant D", None)==max(ob, _own, key=lambda i: SessionLocal().get(_O,i).number)  # no choice: the shop's latest draft, as before
+    # chosen from a product page (no choice of order): each quotation sheet is its own order, unless the shop has one order
+    # for all its quotations (George): then its latest draft
+    from app.models import Quotation as _SQ, QuotationLine as _SQL, Supplier as _SS
+    def _buy_sheet(name, sheet):
+        c.post(f"/p/{pid_o}/items/new", data={"room_ids":[str(_rm)],"category":"Lighting","name":name,"qty":"2","unit":"pcs","status":"To buy"}, follow_redirects=False)
+        c.get(f"/p/{pid_o}/items"); db=SessionLocal(); it=db.query(Item).filter(Item.project_id==pid_o, Item.name==name).one(); pr=db.get(_Pr, it.product_id); pp=db.get(_P,pid_o)
+        q_=_bz.find_supplier(db, _sid("Shop B")); qu=_Q(project_id=pid_o, product=pr, supplier_id=q_.id, supplier=q_); _bz.set_quote(qu, pp, supplier=q_, amount=10, currency="CNY"); db.add(qu); db.flush()
+        db.add(_SQL(quotation_id=sheet, no=1, name=name, product_id=pr.id, quote_id=qu.id, action="quote")); db.flush()
+        before=_od.loose_ids(db, pp); _bz.buy(db, pp, pr, qu, [it]); os_=_od.follow_choice(db, pp, before, ""); _bz.settle(db, pp); db.commit(); oid_=os_[0].id; db.close(); return oid_
+    db=SessionLocal(); _s1=_SQ(project_id=pid_o, supplier_id=_sid("Shop B"), title="Lights sheet"); _s2=_SQ(project_id=pid_o, supplier_id=_sid("Shop B"), title="Switches sheet"); db.add_all([_s1, _s2]); db.commit(); _s1, _s2 = _s1.id, _s2.id; db.close()
+    _o1=_buy_sheet("Pendant E", _s1); assert _o1 not in (ob, _own)  # a sheet no draft holds yet: an order of its own
+    assert _buy_sheet("Pendant F", _s1)==_o1  # the same sheet: its draft
+    _o2=_buy_sheet("Pendant G", _s2); assert _o2 not in (ob, _own, _o1)  # another sheet: another order
+    assert _buy_sheet("Pendant H", _s1)==_o1  # the first sheet's draft, though _o2 is newer
+    r=c.post(f"/suppliers/{_sid('Shop B')}", data={"name":"Shop B","one_order_form":"1","one_order":"1"}, follow_redirects=False)
+    assert SessionLocal().get(_SS, _sid("Shop B")).one_order and "One order for all its quotations" in c.get(f"/suppliers/{_sid('Shop B')}").text
+    db=SessionLocal(); _s3=_SQ(project_id=pid_o, supplier_id=_sid("Shop B"), title="Fans sheet"); db.add(_s3); db.commit(); _s3=_s3.id; db.close()
+    assert _buy_sheet("Pendant I", _s3)==_o2  # one order for all: the shop's latest draft, whatever the sheet
+    c.post(f"/p/{pid_o}/items/new", data={"room_ids":[str(_rm)],"category":"Lighting","name":"Pendant J","qty":"2","unit":"pcs","status":"To buy"}, follow_redirects=False)
+    c.get(f"/p/{pid_o}/items"); db=SessionLocal(); _pj=db.get(_Pr, db.query(Item).filter(Item.project_id==pid_o, Item.name=="Pendant J").one().product_id); _sb=_bz.find_supplier(db, _sid("Shop B"))
+    _qj=_Q(project_id=pid_o, product=_pj, supplier_id=_sb.id, supplier=_sb); _bz.set_quote(_qj, db.get(_P,pid_o), supplier=_sb, amount=10, currency="CNY"); db.add(_qj); db.flush()
+    db.add(_SQL(quotation_id=_s3, no=2, name="Pendant J", product_id=_pj.id, quote_id=_qj.id, action="quote", qty=2, unit_price=10)); db.commit(); db.close()
+    h=c.get(f"/p/{pid_o}/quotations/{_s3}").text; assert "the shop&#39;s order" in h or "the shop's order" in h, h[h.find('qn-into'):h.find('qn-into')+900]
+    c.post(f"/suppliers/{_sid('Shop B')}", data={"name":"Shop B","one_order_form":"1"}, follow_redirects=False); assert not SessionLocal().get(_SS, _sid("Shop B")).one_order
+    c.post(f"/suppliers/{_sid('Shop B')}", data={"name":"Shop B"}, follow_redirects=False)  # a form without the box leaves it alone
     # Fit the budget: every product's cost in one place; a room dropped is Not buying (off its order, out of every total), a
     # quantity changed, a cheaper shop chosen, a dropped room brought back; paid / shipped / received lines are locked
     from app import budget as _bg
@@ -1831,12 +1856,24 @@ def flow(c):
     # find a cheaper option: the product stays on the order, flagged on the order line, the Tracker, the Buying list and the Budget
     db=SessionLocal(); _fpid=db.get(_Pu,_rpu).product_id; db.close()
     h=c.get(f"/p/{pid_o}/orders/{_rt}").text; assert f'/buying/{_fpid}/cheaper"' in h and "Find a cheaper option" in h
-    r=c.post(f"/p/{pid_o}/buying/{_fpid}/cheaper", data={"note":"under 40 a m2", "next":f"/p/{pid_o}/orders/{_rt}#products"}, follow_redirects=False)
+    r=c.post(f"/p/{pid_o}/buying/{_fpid}/cheaper", data={"note":"under 40 a m2", "price":"40", "currency":"CNY", "next":f"/p/{pid_o}/orders/{_rt}#products"}, follow_redirects=False)
     assert r.headers["location"].startswith(f"/p/{pid_o}/orders/{_rt}?ok=") and r.headers["location"].endswith("#products"), r.headers["location"]
-    db=SessionLocal(); assert db.get(_Pr,_fpid).cheaper=="under 40 a m2" and db.get(_Pu,_rpu).order_id==_rt; db.close()
-    assert "under 40 a m2" in c.get(f"/p/{pid_o}/orders/{_rt}").text and "to find a cheaper option" in c.get(f"/p/{pid_o}/buying/tracker").text
+    db=SessionLocal(); assert db.get(_Pr,_fpid).cheaper=="under 40 a m2" and db.get(_Pr,_fpid).cheaper_price==40 and db.get(_Pu,_rpu).order_id==_rt; db.close()
+    h=c.get(f"/p/{pid_o}/orders/{_rt}").text; assert "under 40 a m2" in h and "budget ¥40.00" in h and "saves ¥" in h, h[h.find('od-cheap'):h.find('od-cheap')+500]
+    assert "at your budget prices it saves" in c.get(f"/p/{pid_o}/buying/tracker").text
+    c.post(f"/p/{pid_o}/buying/{_fpid}/cheaper", data={"price":"5", "currency":"USD", "next":f"/p/{pid_o}/orders/{_rt}"}, follow_redirects=False)
+    db=SessionLocal(); _pr7=db.get(_Pr,_fpid); assert abs(_pr7.cheaper_price-5*(db.get(_P,pid_o).rate or 1))<0.01 and _pr7.cheaper=="budget price"; db.close()  # a USD budget price is kept in CNY
     _bl=c.get(f"/p/{pid_o}/buying?cheaper=1").text; assert "Find cheaper" in _bl and "flagged to find a cheaper option" in _bl
     assert "Find cheaper" in c.get(f"/p/{pid_o}/buying/budget").text
+    # the Budget page: the real total keeps the shop's price; the product and the page also show the total at the budget price
+    db=SessionLocal(); _pp7=db.get(_P,pid_o); _pl7=_bg.plan(_pp7) if "_bg" in dir() else __import__("app.budget", fromlist=["plan"]).plan(_pp7); _r7=next(r for r in _pl7["rows"] if r["pid"]==_fpid); _pu7=db.get(_Pu,_rpu); db.close()
+    _want=round(sum(kv["qty"]*(kv["price"]-_pr7.cheaper_price) for kv in _r7["buys"].values() if kv["price"]>_pr7.cheaper_price), 2)  # its shop's rooms and the rooms still at the estimate
+    assert _want>0 and abs(_r7["budget_saves"]-_want)<0.02 and abs(_pl7["at_budget"]["saves"]-_want)<0.02 and abs(_pl7["at_budget"]["total"]-(_pl7["total"]-_want))<0.02, (_r7["budget_saves"], _want)
+    h=c.get(f"/p/{pid_o}/buying/budget").text; assert 'id="bg-sum-atb"' in h and "At your budget prices" in h and "at budget " in h
+    _bw=openpyxl.load_workbook(io.BytesIO(c.get(f"/p/{pid_o}/buying/budget.xlsx").content))["Budget"]
+    assert _bw.cell(4, 14).value=="Find cheaper: budget price (CNY)" and any(r_[0]=="At your budget prices (Find cheaper)" for r_ in _bw.iter_rows(values_only=True))
+    c.post(f"/p/{pid_o}/buying/{_fpid}/cheaper", data={"note":"ask another shop", "price":"", "next":f"/p/{pid_o}/orders/{_rt}"}, follow_redirects=False)
+    h=c.get(f"/p/{pid_o}/buying/budget").text; assert 'id="bg-sum-atb"' not in h and "no budget price set" in h and "without a budget price: counted at the shop" in h  # no price: the shop's price counts
     c.post(f"/p/{pid_o}/buying/{_fpid}/cheaper", data={"off":"1", "next":f"/p/{pid_o}/orders/{_rt}"}, follow_redirects=False)
     db=SessionLocal(); assert db.get(_Pr,_fpid).cheaper==""; db.close()
     # a cheaper quote another shop gave shows on the order line

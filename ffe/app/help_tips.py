@@ -219,7 +219,7 @@ TIPS = {
     "orders": dict(
         title="Orders", anchor="purchasing",
         what="What you bought, put together by shop into numbered orders, from the draft to paid in full.",
-        steps=["Choosing a shop in Sourcing puts its products on its draft order by itself, one draft per shop. <b>Ready to order</b> appears only for products taken off an order: <b>Add to draft</b>, <b>Start an order</b>, or <b>Clear</b> to give their rooms no shop again.",
+        steps=["Choosing a shop in Sourcing puts its products on a draft order by itself: one per quotation, or one per shop when its supplier page ticks <b>One order for all its quotations</b>. <b>Ready to order</b> appears only for products taken off an order: <b>Add to draft</b>, <b>Start an order</b>, or <b>Clear</b> to give their rooms no shop again.",
                "Open the draft, check it, set the ready date and send the shop the purchase order. Confirm it once the shop agrees: its rooms become Ordered.",
                "The orders are grouped by stage: Draft, Deposit due, Balance due, Paid. A red ready date has passed with money still to pay."],
         tips=["The tiles count only confirmed orders; drafts are on their own tile.",
@@ -232,7 +232,7 @@ TIPS = {
                "Send the shop the <b>Purchase order</b> PDF, or <b>Send on WeChat</b> to copy the order as a message with the Chinese for each heading.",
                "When the shop agrees, press <b>Confirm the order</b>: its rooms become Ordered.",
                "<b>Record a payment</b> comes filled in with what is due; once the order is paid in full its rooms become Paid."],
-        tips=["<b>Find a cheaper option</b> under a product flags it (with a note) without taking it off; a cheaper quote another shop already gave shows on the line. <b>Rename shop</b> under the title changes the shop's name everywhere.",
+        tips=["<b>Find a cheaper option</b> under a product flags it with your budget price per unit and a note, without taking it off (the line says what that price would save; the Budget page adds a total <b>At your budget prices</b> beside the real one); a cheaper quote another shop already gave shows on the line. <b>Rename shop</b> under the title changes the shop's name everywhere.",
               "<b>Changes</b> lists what changed since the version first seen, confirmed or marked sent (products, quantities, prices, rooms added or taken off); the <b>Excel</b> and the <b>PDF</b> carry the same list. Press <b>Mark as sent to the shop</b> once they have the new version.",
               "A draft is yours to edit: change quantities, take a product off (×) or a single room off (the small × on its room code: that room has no shop again), then <b>Confirm the order</b> once the shop agrees. Raised a quantity? <b>Rooms and quantities</b> under its rooms shares it out room by room, or adds a room.",
               "<b>Sort</b> beside Products puts the highest amount first (or lowest, by name, as added); the purchase order PDF follows it.",

@@ -18,6 +18,8 @@ def _save(s: Supplier, form):
     s.email = form.get("email", "").strip()
     s.payment_terms = form.get("payment_terms", "").strip()
     s.notes = form.get("notes", "").strip()
+    if "one_order_form" in form:  # the supplier page's box (the short new-shop form leaves it as it is)
+        s.one_order = form.get("one_order") == "1"
 
 
 @router.get("/suppliers")
