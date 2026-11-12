@@ -809,7 +809,20 @@
       i.classList.toggle('changed', c); if (c) n++;
       var now = (parseFloat(i.value) || 0) * price;
       if (c && i.value.trim() !== '') total += now - (parseFloat(i.defaultValue) || 0) * price;
-      if (nw) { nw.hidden = !(c && i.value.trim() !== ''); nw.textContent = 'now ' + (usdOnly ? money(now) : '¥' + f2(now)); if (!usdOnly) { var u = document.createElement('span'); u.className = 'usd'; u.textContent = '$' + f2(now / rate); nw.appendChild(u); } }
+      if (nw) { nw.hidden = !(c && i.value.trim() !== ''); nw.textContent = 'now ' + (usdOnly ? money(now) : '¥' + f2(now)); if (!usdOnly) { var u = document.createElement('span'); u.className = 'usd'; u.textContent = '$' + f2(now / rate); nw.appendChild(u); } }      // below what the rooms need: confirming would mark every room Ordered; offer to keep the rest for later instead
+      var lf = row && row.querySelector('.od-later-f');
+      if (lf && c) {
+        var need = parseFloat(lf.dataset.need) || 0, v = parseFloat(i.value), under = i.value.trim() !== '' && v >= 0 && v < need - 0.0005;
+        if (lf.dataset.server === undefined) { lf.dataset.server = lf.hidden ? '0' : '1'; lf.dataset.text = lf.querySelector('.t').innerHTML; lf.dataset.k = lf.querySelector('.k').textContent; lf.dataset.keep = lf.querySelector('[name=keep]').value; }
+        lf.hidden = !under;
+        if (under) {
+          var keep = Math.round((need - v) * 1000) / 1000, txt = lf.querySelector('.t');
+          txt.textContent = 'The rooms need ' + need + ' ' + (lf.dataset.unit || '') + ': ordering ' + v + ' marks every room Ordered when confirmed. ';
+          lf.querySelector('[name=keep]').value = keep; lf.querySelector('.k').textContent = keep;
+        }
+      } else if (lf && lf.dataset.server !== undefined) {  // back to what was saved
+        lf.hidden = lf.dataset.server !== '1'; lf.querySelector('.t').innerHTML = lf.dataset.text; lf.querySelector('.k').textContent = lf.dataset.k; lf.querySelector('[name=keep]').value = lf.dataset.keep;
+      }
     });
     bar.classList.toggle('dirty', n > 0);
     if (say) say.textContent = n ? n + (n === 1 ? ' quantity changed' : ' quantities changed') + ' · total ' + money(Math.round(total * 100) / 100, ' · ') : '';

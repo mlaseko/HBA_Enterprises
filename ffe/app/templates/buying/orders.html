@@ -23,8 +23,8 @@
 </div>
 
 {% if ready %}
-<section class="bu-sec" id="ready">
-  <div class="bu-sec-head"><div><h2>Ready to order <span class="n">{{ ready|length }}</span></h2><p class="small muted">Shops chosen but on no order (taken off an order, or chosen before orders were made by themselves). Put them on the shop's draft, start one, or clear them to order again from a quotation.</p></div></div>
+<section class="bu-sec" id="later"><span id="ready"></span>
+  <div class="bu-sec-head"><div><h2>Later <span class="n">{{ ready|length }}</span></h2><p class="small muted">Kept for a next order: the shop and price stay. {{ ready|sum(attribute='total')|cur_txt }} still to order.</p></div></div>
   <div class="od-ready">
     {% for e in ready %}
     <article class="card od-shop">
@@ -36,18 +36,20 @@
       <ul class="od-prods">
         {% for v in e.views %}{% set it = v.lines[0] %}
         <li><span class="pic">{% if it.cover %}<img src="/media/{{ it.cover.thumb }}" alt="{{ it.name }}" loading="lazy" data-full="/media/{{ it.cover.file_key }}" data-caption="{{ it.name }}">{% endif %}</span>
-          <span class="nm">{{ it.name }}{% if it.size %} <span class="muted">· {{ it.size }}</span>{% endif %}</span>
+          <span class="nm">{{ it.name }}{% if it.size %} <span class="muted">· {{ it.size }}</span>{% endif %}<span class="small muted od-later-rooms">{{ v.lines|map(attribute='code')|join(' · ') }}</span></span>
           <span class="q">{{ v.qty|num(2) }} {{ v.unit }}</span><span class="t">{{ v.total|cur }}</span></li>
         {% endfor %}
       </ul>
       {% if e.supplier %}
-      <form method="post" action="{{ '/p/' ~ p.id ~ '/orders/' ~ e.draft.o.id ~ '/add' if e.draft else '/p/' ~ p.id ~ '/orders/new' }}" class="row">
-        <input type="hidden" name="supplier_id" value="{{ e.supplier.id }}">{% for v in e.views %}<input type="hidden" name="pu" value="{{ v.purchase.id }}">{% endfor %}
-        <button class="btn sm accent"><svg class="ic"><use href="#i-plus"/></svg>{{ 'Add to draft ' ~ e.draft.ref if e.draft else 'Start an order' }}</button>
-        <span class="small muted">{{ 'Its draft is not confirmed yet.' if e.draft else 'A draft first: you confirm it once the shop agrees.' }}</span>
-      </form>
+      <div class="row od-later-acts">
+        <form method="post" action="/p/{{ p.id }}/orders/new"><input type="hidden" name="supplier_id" value="{{ e.supplier.id }}">{% for v in e.views %}<input type="hidden" name="pu" value="{{ v.purchase.id }}">{% endfor %}
+          <button class="btn sm accent"><svg class="ic"><use href="#i-plus"/></svg>Order the rest</button></form>
+        {% if e.draft %}<form method="post" action="/p/{{ p.id }}/orders/{{ e.draft.o.id }}/add">{% for v in e.views %}<input type="hidden" name="pu" value="{{ v.purchase.id }}">{% endfor %}
+          <button class="btn sm sec">Add to draft {{ e.draft.ref }}</button></form>{% endif %}
+        <span class="small muted">A new draft at the quoted prices{{ ', or onto the draft already open' if e.draft }}; you confirm it once the shop agrees.</span>
+      </div>
       {% endif %}
-      <form method="post" action="/p/{{ p.id }}/orders/release" class="row mt" data-confirm="Clear these from Ready to order? Their rooms have no shop again (To buy): order them from the saved quotation (Order everything from this sheet) or a new one." data-confirm-ok="Clear">
+      <form method="post" action="/p/{{ p.id }}/orders/release" class="row mt" data-confirm="Give up the shop for these? Their rooms leave Later and have no shop again (To buy): order them from the saved quotation (Order everything from this sheet) or another shop." data-confirm-ok="Clear">
         {% for v in e.views %}<input type="hidden" name="pu" value="{{ v.purchase.id }}">{% endfor %}
         <button class="btn sm ghost"><svg class="ic"><use href="#i-x"/></svg>Clear: no shop for these rooms</button>
       </form>

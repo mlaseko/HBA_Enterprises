@@ -1693,7 +1693,7 @@ def flow(c):
     db=SessionLocal(); pu_bed=db.query(_Pu).filter(_Pu.product_id==p_bed).one().id; pu_tile=db.query(_Pu).filter(_Pu.product_id==p_tile).one().id; db.close()
     c.post(f"/p/{pid_o}/items/{oi[('Bed','BED')]}/status", data={"status":"Ordered"})
     r=c.post(f"/p/{pid_o}/orders/{oid}/remove/{pu_bed}", follow_redirects=False); assert "ok=" in r.headers["location"]
-    assert _sts(tile_bed)==["Ordered","Ordered","Quoted"] and "Bed" in c.get(f"/p/{pid_o}/orders").text.split("Ready to order")[1].split("</section>")[0]
+    assert _sts(tile_bed)==["Ordered","Ordered","Quoted"] and "Bed" in c.get(f"/p/{pid_o}/orders").text.split('id="later"')[1].split("</section>")[0]
     h=c.get(f"/p/{pid_o}/orders/{oid}").text; assert "Also bought from Tile Shop" in h
     c.post(f"/p/{pid_o}/orders/{oid}/add", data={"pu":[str(pu_bed)]}, follow_redirects=False); assert _sts(tile_bed)==["Ordered"]*3
     r=c.post(f"/p/{pid_o}/orders/{oid}/add", data={"pu":[str(pu_tile)]}, follow_redirects=False); assert "err=" in r.headers["location"]  # already on it
@@ -1814,16 +1814,19 @@ def flow(c):
     db=SessionLocal(); _lk=db.get(Item,_pb_id); _lk.status="Shipped"; db.commit(); db.close()
     r=c.post(f"/p/{pid_o}/buying/budget", data={f"drop_{_pb_id}":"1"}, follow_redirects=False); assert "left%20as%20it%20was" in r.headers["location"], r.headers["location"]
     db=SessionLocal(); assert db.get(Item,_pb_id).status=="Shipped" and db.get(Item,_pb_id).purchase_id; db.close()
-    # a single room off an order: it has no shop again (To buy), the product stays for its other rooms; its last room takes
-    # the product off; a shipped room stays; the Orders page lists drafts first with Edit and Confirm
+    # a single room off an order is kept for later: it keeps its shop and price (a purchase on no order, under Later), the
+    # product stays for its other rooms; its last room takes the product to Later; a shipped room stays; drafts first
     _liv, _kit = oi[("Floor tile","LIV")], oi[("Floor tile","KIT")]
     db=SessionLocal(); assert db.get(Item,_liv).purchase_id is None and db.get(Item,_kit).purchase_id is None; db.close()
     buy(c, pid_o, _liv, "Room Tiles", 50, lines=[_liv, _kit]); _rt=draft_of(pid_o, _sid("Room Tiles"))
     db=SessionLocal(); _rpu=db.get(Item,_liv).purchase_id; db.get(_Pu,_rpu).qty=99; db.commit(); db.close()  # a quantity typed by hand
     h=c.get(f"/p/{pid_o}/orders/{_rt}").text; assert f'/orders/{_rt}/rooms/{_kit}/remove"' in h and "Draft: not confirmed with the shop yet." in h
     h=c.get(f"/p/{pid_o}/orders").text; assert 'id="drafts"' in h and f'/orders/{_rt}/confirm"' in h and "Drafts" in h
-    r=c.post(f"/p/{pid_o}/orders/{_rt}/rooms/{_kit}/remove", follow_redirects=False); assert "taken%20off" in r.headers["location"] and f"/orders/{_rt}" in r.headers["location"], r.headers["location"]
-    db=SessionLocal(); _k=db.get(Item,_kit); _l=db.get(Item,_liv); assert _k.purchase_id is None and _k.status=="To buy" and _l.purchase_id==_rpu and db.get(_Pu,_rpu).order_id==_rt and db.get(_Pu,_rpu).qty is None; db.close()
+    r=c.post(f"/p/{pid_o}/orders/{_rt}/rooms/{_kit}/remove", follow_redirects=False); assert "kept%20for%20later" in r.headers["location"] and f"/orders/{_rt}" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); _k=db.get(Item,_kit); _l=db.get(Item,_liv); _kpu=_k.purchase
+    assert _kpu is not None and _kpu.id!=_rpu and _kpu.order_id is None and _kpu.quote_id==db.get(_Pu,_rpu).quote_id and _kpu.unit_price==50 and _k.status=="Quoted"
+    assert _l.purchase_id==_rpu and db.get(_Pu,_rpu).order_id==_rt and db.get(_Pu,_rpu).qty is None; db.close()
+    _lt=c.get(f"/p/{pid_o}/orders").text.split('id="later"')[1].split("</section>")[0]; assert "Floor tile" in _lt and SessionLocal().get(Item,_kit).code in _lt and "Order the rest" in _lt and f'/orders/{_rt}/add"' in _lt
     r=c.post(f"/p/{pid_o}/orders/{_rt}/rooms/{_kit}/remove", follow_redirects=False); assert "err=" in r.headers["location"]  # not on it any more
     # the changes since the version first seen show on the page, in the Excel (Order + Changes sheets) and in the PDF, room by room
     _kc=SessionLocal().get(Item,_kit).code; _lc=SessionLocal().get(Item,_liv).code
@@ -1840,7 +1843,7 @@ def flow(c):
     db=SessionLocal(); _lq=db.get(Item,_liv).qty; _p0=db.get(_P,pid_o); _nr=next(r for r in _p0.rooms if r.id not in {i.room_id for i in _p0.items if i.product_id==db.get(_Pu,_rpu).product_id}); _nrid, _nrc=_nr.id, _nr.code
     db.get(_Pu,_rpu).qty=_lq+30; db.commit(); db.close()
     h=c.get(f"/p/{pid_o}/orders/{_rt}").text; assert f'/orders/{_rt}/allocate/{_rpu}"' in h and "Allocate to rooms" in h and "not in a room" in h and f'name="rq_{_liv}"' in h
-    assert f'<option value="{_nrid}">' in h and "no shop yet" in h  # KIT waits with no shop: offered with what it needs
+    assert f'<option value="{_nrid}">' in h and "kept for later" in h  # KIT waits under Later: offered with what it needs
     db=SessionLocal(); _kroom=db.get(Item,_kit).room_id; db.close()
     r=c.post(f"/p/{pid_o}/orders/{_rt}/allocate/{_rpu}", data={f"rq_{_liv}":str(_lq+5), "room":str(_kroom), "add_qty":"7"}, follow_redirects=False)
     assert "Rooms%20saved" in r.headers["location"] and r.headers["location"].endswith(f"#pu-{_rpu}"), r.headers["location"]
@@ -1886,10 +1889,54 @@ def flow(c):
     assert "Foshan Real Tiles Co." in c.get(f"/p/{pid_o}/orders/{_rt}").text and "Foshan Real Tiles Co." in pdf_text(c.get(f"/p/{pid_o}/orders/{_rt}/po.pdf").content)
     r=c.post(f"/suppliers/{_rsid}/rename", data={"name":"cheaper tiles", "back":f"/p/{pid_o}/orders/{_rt}"}, follow_redirects=False); assert "err=" in r.headers["location"]
     r=c.post(f"/p/{pid_o}/orders/{_rt}/rooms/{_liv}/remove", follow_redirects=False)  # its last room: the product and then the empty draft go
-    db=SessionLocal(); assert db.get(Item,_liv).purchase_id is None and db.get(_Pu,_rpu) is None and db.get(_O,_rt) is None; db.close()
+    db=SessionLocal(); assert db.get(Item,_liv).purchase_id==_rpu and db.get(_Pu,_rpu).order_id is None and db.get(_O,_rt) is None; db.close()  # to Later; the empty draft went
     db=SessionLocal(); _shp=db.get(Item,_pb_id); _sho=_shp.purchase.order_id; db.close()
     if _sho:
         r=c.post(f"/p/{pid_o}/orders/{_sho}/rooms/{_pb_id}/remove", follow_redirects=False); assert "err=" in r.headers["location"]  # shipped: stays
+    # ordering in stages from one quote: part kept for later (part of a quantity, a room), the first order confirmed, the rest
+    # ordered later from the same quote on a new draft, never added to the confirmed order
+    db=SessionLocal(); _rms=[r_.id for r_ in db.get(_P,pid_o).rooms][:3]; db.close()
+    c.post(f"/p/{pid_o}/items/new", data={"room_ids":[str(x) for x in _rms],"category":"Lighting","name":"Stage lamp","qty":"5","unit":"pcs","status":"To buy"}, follow_redirects=False)
+    c.get(f"/p/{pid_o}/items"); db=SessionLocal(); _sl=sorted(db.query(Item).filter(Item.project_id==pid_o, Item.name=="Stage lamp").all(), key=lambda i: i.code); _slids=[i.id for i in _sl]; db.close()
+    _slp, _slq = buy(c, pid_o, _slids[0], "Stage Shop", 20, lines=_slids); _so=draft_of(pid_o, _sid("Stage Shop"))
+    db=SessionLocal(); _spu=db.get(Item,_slids[0]).purchase_id; db.close()
+    c.post(f"/p/{pid_o}/orders/{_so}/quantities", data={f"qty_{_spu}":"11"}, follow_redirects=False)  # typed below the rooms' 15
+    h=c.get(f"/p/{pid_o}/orders/{_so}").text; _lf=h.split(f'/orders/{_so}/later/{_spu}"')[1].split("</form>")[0]
+    assert "hidden" not in _lf.split(">")[0] and "the rooms need 15" in _lf and 'value="4.0"' in _lf and "Confirm anyway" in h and "typed below what" in h
+    r=c.post(f"/p/{pid_o}/orders/{_so}/later/{_spu}", data={"keep":"4"}, follow_redirects=False); assert "Kept%20for%20later" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); _pu1=db.get(_Pu,_spu); _all=db.query(Item).filter(Item.project_id==pid_o, Item.name=="Stage lamp").all(); _lat=[i for i in _all if i.purchase_id!=_spu]
+    assert len(_all)==4 and len(_lat)==1 and _lat[0].qty==4 and _lat[0].purchase.order_id is None and _lat[0].purchase.quote_id==_slq and _pu1.qty is None
+    assert sum(i.qty for i in _all if i.purchase_id==_spu)==11 and "Split from" in _lat[0].notes and _lat[0].room_id in _rms; _lpu=_lat[0].purchase_id; db.close()
+    r=c.post(f"/p/{pid_o}/orders/{_so}/later/{_spu}", data={"keep":"11"}, follow_redirects=False); assert "err=" in r.headers["location"]  # all of it: refused
+    r=c.post(f"/p/{pid_o}/orders/{_so}/rooms/{_slids[2]}/remove", follow_redirects=False); assert "kept%20for%20later" in r.headers["location"]
+    db=SessionLocal(); assert db.get(Item,_slids[2]).purchase_id==_lpu; db.close()  # joins what already waits from that quote: one line under Later
+    c.post(f"/p/{pid_o}/orders/{_so}/confirm", data={"confirmed_on":"2026-11-01"}, follow_redirects=False)
+    db=SessionLocal(); assert [db.get(Item,x).status for x in _slids[:2]]==["Ordered","Ordered"] and db.get(Item,_slids[2]).status=="Quoted"; db.close()
+    assert "kept for later" in c.get(f"/p/{pid_o}/buying/tracker").text
+    h=c.get(f"/p/{pid_o}/buying/budget").text; assert 'id="bg-later"' in h and '<span class="pill">later</span>' in h
+    # a room kept for later from a confirmed order steps back to Shop chosen
+    r=c.post(f"/p/{pid_o}/orders/{_so}/rooms/{_slids[1]}/remove", follow_redirects=False); assert "The%20shop%20agreed" in r.headers["location"]
+    db=SessionLocal(); assert db.get(Item,_slids[1]).status=="Quoted" and db.get(Item,_slids[1]).purchase_id==_lpu and db.get(_O,_so).confirmed_on is not None; db.close()
+    # Order the rest: a new draft at the quoted price; a room bought later from the same quote joins that draft's line,
+    # never the confirmed order; a room kept for later from it and added back is one line again
+    db=SessionLocal(); _sd=db.query(_Pu).filter(_Pu.id==_lpu).one().supplier_id; db.close()
+    r=c.post(f"/p/{pid_o}/orders/new", data={"supplier_id":str(_sd), "pu":[str(_lpu)]}, follow_redirects=False); _so2=int(r.headers["location"].split("?")[0].split("/")[-1])
+    db=SessionLocal(); assert _so2!=_so and db.get(_Pu,_lpu).order_id==_so2 and db.get(_O,_so2).confirmed_on is None and db.get(_Pu,_lpu).unit_price==20; db.close()
+    db=SessionLocal(); _r4=next(r_ for r_ in db.get(_P,pid_o).rooms if r_.id not in _rms).id; db.close()
+    c.post(f"/p/{pid_o}/items/{_slids[0]}", data={"rooms_form":"1","room_ids":[str(x) for x in _rms+[_r4]],"name":"Stage lamp","category":"Lighting","qty":"5","unit":"pcs"}, follow_redirects=False)
+    db=SessionLocal(); _new4=[i for i in db.query(Item).filter(Item.project_id==pid_o, Item.name=="Stage lamp", Item.room_id==_r4).all()]; db.close()
+    if _new4 and _new4[0].purchase_id is None:
+        db=SessionLocal(); _was={i.id: i.purchase_id for i in db.query(Item).filter(Item.project_id==pid_o, Item.name=="Stage lamp", Item.purchase_id.isnot(None)).all()}; db.close()
+        _tick=[str(x) for x in _was]+[str(_new4[0].id)]
+        c.post(f"/p/{pid_o}/buying/{_slp}/quotes/{_slq}/buy", data={"rooms":"1","line":_tick}, follow_redirects=False)  # the rooms already bought stay ticked, one more
+        db=SessionLocal(); _n4=db.get(Item,_new4[0].id); assert _n4.purchase_id==_lpu and _n4.purchase.order_id==_so2 and db.get(_Pu,_spu).order_id==_so; db.close()
+        db=SessionLocal(); assert all(db.get(Item,i).purchase_id==pu_ for i, pu_ in _was.items()); db.close()  # the rooms already bought stayed where they were
+        c.post(f"/p/{pid_o}/orders/{_so2}/rooms/{_new4[0].id}/remove", follow_redirects=False)
+        db=SessionLocal(); _l4=db.get(Item,_new4[0].id).purchase_id; assert _l4!=_lpu and db.get(_Pu,_l4).order_id is None; db.close()
+        c.post(f"/p/{pid_o}/orders/{_so2}/add", data={"pu":[str(_l4)]}, follow_redirects=False)
+        db=SessionLocal(); assert db.get(Item,_new4[0].id).purchase_id==_lpu and db.query(_Pu).filter(_Pu.order_id==_so2).count()==1; db.close()
+    assert _new4, "the fourth room was not added"
+    db=SessionLocal(); assert [x.id for x in db.query(_Pu).filter(_Pu.order_id==_so).all()]==[_spu], [(x.id, x.quote_id) for x in db.query(_Pu).filter(_Pu.order_id==_so).all()]; db.close()
     print("orders ok")
     # ---- Shipping: boxes to the warehouse, into a shipment, to site; the rooms follow their boxes ----
     from app import shipping as _sh

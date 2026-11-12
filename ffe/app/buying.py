@@ -634,13 +634,19 @@ def delete_quote(db: Session, q: Quote) -> None:
 
 # ---- purchases --------------------------------------------------------------------------------------------------------------
 def buy(db: Session, p: Project, product: Product, q: Quote, lines: list[Item]) -> Purchase | None:
-    """Buy these room lines from the quote's shop. One purchase per quote: buying more rooms from the same quote widens it.
+    """Buy these room lines from the quote's shop. Buying more rooms from the same quote widens its purchase while that
+    purchase is on a draft order (or already holds one of these lines); a purchase on a confirmed order, or one kept for
+    later (on no order), is never widened: the rooms get a purchase of their own, which their shop's draft then takes
+    (ordering.follow_choice), so ordering in stages from one quotation never adds rooms to an order already confirmed.
     A line another shop supplied moves here."""
     lines = [i for i in lines if i.project_id == p.id and not i.draft]
     if not lines:
         return None
     db.flush()
-    pu = db.query(Purchase).filter(Purchase.quote_id == q.id).first()
+    pus = db.query(Purchase).filter(Purchase.quote_id == q.id).order_by(Purchase.id).all()
+    ids = {i.purchase_id for i in lines}
+    pu = next((x for x in pus if x.id in ids), None) or \
+        next((x for x in pus if x.order is not None and not x.order.confirmed), None)
     if pu is None:
         pu = Purchase(project_id=p.id, product=product, quote=q, supplier_id=q.supplier_id, supplier=q.supplier, brand=q.brand, model=q.model,
                       unit_price=q.unit_price, currency=q.currency, amount=q.amount, pack_size=q.pack_size, lead_time=q.lead_time)

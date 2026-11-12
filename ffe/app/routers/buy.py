@@ -415,10 +415,17 @@ async def buy_from_quote(request: Request, product_id: int, quote_id: int, p: Pr
     who = q.supplier.name if q.supplier else "this shop"
     if form.get("rooms") == "1":  # the rooms ticked under the quote: what this shop supplies from now on
         lines = _lines_from_form(g, form.getlist("line"))
-        pu = next((x for x in g.purchases if x.quote_id == q.id), None)
-        if pu is not None:
+        mine = [x for x in g.purchases if x.quote_id == q.id]  # one on a confirmed order, one on a draft, one kept for later…
+        if mine:
             before = od.loose_ids(db, p)
-            bz.set_rooms(db, p, pu, lines, g.lines)
+            want, ids = {i.id for i in lines}, {x.id for x in mine}
+            for i in g.lines:
+                if i.purchase_id in ids and i.id not in want:
+                    bz.uncover(i)  # unticked: no shop
+            fresh = [i for i in lines if i.purchase_id not in ids]
+            if fresh:  # newly ticked: bought through buy(), so they join a draft (never an order already confirmed)
+                bz.buy(db, p, prod, q, fresh)
+            bz.prune(db, p)
             _placed(db, p, before)
             bz.settle(db, p)
             db.commit()

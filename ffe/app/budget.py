@@ -41,7 +41,7 @@ def plan(p: Project) -> dict:
         allow, unit = g.allowance, g.unit
         keys = {}
         for pu in g.purchases:
-            keys[str(pu.id)] = dict(price=pu.unit_price or 0, pack=pu.pack_size or g.pack_size, override=pu.qty,
+            keys[str(pu.id)] = dict(later=pu.order_id is None, price=pu.unit_price or 0, pack=pu.pack_size or g.pack_size, override=pu.qty,
                                     shop=pu.supplier.name if pu.supplier else "Shop", quote=pu.quote_id or 0)
         est = g.estimate_quote
         if any(not i.purchase_id for i in g.lines):
@@ -86,11 +86,12 @@ def plan(p: Project) -> dict:
         c["products"] += 1
         c["total"] = round(c["total"] + r["total"], 2)
     saves = round(sum(r["budget_saves"] for r in rows), 2)
+    later = round(sum(kv["total"] for r in rows for k, kv in r["buys"].items() if kv.get("later")), 2)
     at_budget = dict(total=round(total - saves, 2), saves=saves, n=sum(1 for r in rows if r["budget_saves"] > 0.005),
                      priced=sum(1 for r in rows if r["cheaper"] and r["cheaper_price"]),
                      unpriced=sum(1 for r in rows if r["cheaper"] and not r["cheaper_price"]),
                      gap=round(total - saves - budget, 2) if budget else 0.0)
-    return dict(rows=rows, total=round(total, 2), budget=budget, at_budget=at_budget, gap=round(total - budget, 2) if budget else 0.0, rate=rate,
+    return dict(rows=rows, total=round(total, 2), budget=budget, at_budget=at_budget, later=later, gap=round(total - budget, 2) if budget else 0.0, rate=rate,
                 suggestions=suggestions(rows, whole), dropped=dropped, unpriced=sum(1 for r in rows if not r["priced"]),
                 locked=round(sum(r["paid"] for r in rows), 2), cats=sorted(cats.values(), key=lambda c: -c["total"]))
 

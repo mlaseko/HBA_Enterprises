@@ -70,7 +70,7 @@ async def new_order(request: Request, p: Project = Depends(get_project), db: Ses
 
 @router.post("/p/{project_id}/orders/release")
 async def release_ready(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db)):
-    """Ready to order cleared for a shop: those rooms have no shop again (To buy), to be ordered from a quotation."""
+    """Later cleared for a shop: those rooms have no shop again (To buy), to be ordered from a quotation."""
     form = await request.form()
     ids = {fint(x) for x in form.getlist("pu")} - {None, 0}
     n = od.release(db, p, db.query(Purchase).filter(Purchase.id.in_(ids or {0})).all())
@@ -223,21 +223,41 @@ async def add_to_order(request: Request, order_id: int, p: Project = Depends(get
 
 @router.post("/p/{project_id}/orders/{order_id}/rooms/{item_id}/remove")
 def remove_room(order_id: int, item_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
-    """One room off the order: it has no shop again (To buy); the product stays for its other rooms."""
+    """One room off the order, kept for later: it keeps its shop and price and waits under Later on the Orders page; the
+    product stays on the order for its other rooms."""
     o = _order(db, p, order_id)
     it = db.get(Item, item_id)
     if o is None or it is None:
         return _to(p, order_id)
     code, name, was_confirmed = it.code, it.name, o.confirmed
-    why = od.take_room_off(db, p, o, it)
+    why = od.keep_for_later(db, p, o, it)
     if why:
         return _to(p, order_id, "#products", err=why)
     bz.settle(db, p)
     db.commit()
     if db.get(type(o), order_id) is None:  # its last room: the draft went with it
-        return _to(p, ok=f"{code} taken off; the order had nothing else, so it went. {name} in {code} has no shop again (To buy).")
-    return _to(p, order_id, "#products", ok=f"{code} taken off: {name} there has no shop again (To buy); order it again from the saved quotation."
+        return _to(p, anchor="#later", ok=f"{code} kept for later; the draft had nothing else, so it went. {name} keeps its shop and price under Later.")
+    return _to(p, order_id, "#products", ok=f"{code} kept for later: {name} there keeps its shop and price and waits under Later on the Orders page."
                + (" Tell the shop, then press The shop agreed." if was_confirmed else ""))
+
+
+@router.post("/p/{project_id}/orders/{order_id}/later/{purchase_id}")
+async def keep_later(request: Request, order_id: int, purchase_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """Part of a product's quantity kept for later (`keep`, in the rooms' unit): whole rooms first, then the rest of one
+    room split into a line of its own; they keep the shop and price and wait under Later."""
+    o = _order(db, p, order_id)
+    pu = db.get(Purchase, purchase_id)
+    if o is None or pu is None or pu.order_id != o.id:
+        return _to(p, o.id if o is not None else None)
+    form = await request.form()
+    codes, why = od.keep_qty_for_later(db, p, o, pu, ffloat((form.get("keep") or "").strip(), 0))
+    if why:
+        return _to(p, order_id, f"#pu-{pu.id}", err=why)
+    was_confirmed = o.confirmed
+    bz.settle(db, p)
+    db.commit()
+    return _to(p, order_id, f"#pu-{purchase_id}", ok=f"Kept for later: {', '.join(codes)}. They keep the shop and price and wait under Later on the Orders page; "
+               "this order now orders what its rooms need." + (" Tell the shop, then press The shop agreed." if was_confirmed else ""))
 
 
 @router.post("/p/{project_id}/orders/{order_id}/allocate/{purchase_id}")
@@ -350,7 +370,7 @@ def delete_order(order_id: int, p: Project = Depends(get_project), db: Session =
         db.commit()
         msg = f"Order {ref} deleted. "
         msg += (f"Its {n} room line{'s have' if n != 1 else ' has'} no shop again (To buy): order {'them' if n != 1 else 'it'} again from the saved quotation "
-                "(Order everything from this sheet) or from a new one." if n else "Its products had already shipped: they stay with the shop, under Ready to order.")
+                "(Order everything from this sheet) or from a new one." if n else "Its products had already shipped: they stay with the shop, under Later.")
         msg += " Its payments stay with the supplier." if o.payments else ""
         return _to(p, ok=msg)
     return _to(p)
