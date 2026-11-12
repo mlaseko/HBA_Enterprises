@@ -78,11 +78,21 @@ def new_order(db: Session, p: Project, supplier: Supplier | None, purchases: lis
 
 
 def add(db: Session, o: Order, purchases: list[Purchase]) -> int:
-    """Put purchases onto the order: only the order's shop, this project, and not already on an order."""
+    """Put purchases onto the order: only the order's shop, this project, and not already on an order. A purchase from a
+    quote the order already holds joins that line (its rooms move onto it), so a product is one line on an order."""
     n = 0
+    held = {x.quote_id: x for x in o.purchases if x.quote_id}
     for pu in purchases:
         if pu.project_id == o.project_id and pu.supplier_id == o.supplier_id and pu.order_id is None:
-            pu.order, pu.order_id = o, o.id
+            same = held.get(pu.quote_id) if pu.quote_id else None
+            if same is not None and same is not pu:
+                for i in buying.lines_of(db, pu):
+                    buying.cover(i, same)
+                same.qty = None  # the order orders what its rooms now need
+            else:
+                pu.order, pu.order_id = o, o.id
+                if pu.quote_id:
+                    held[pu.quote_id] = pu
             n += 1
     db.flush()
     return n
@@ -110,7 +120,7 @@ def quote_sheets(db: Session, quote_ids) -> dict[int, int]:
 def follow_choice(db: Session, p: Project, before: set[int], warehouse: str = "", into=None) -> list[Order]:
     """Choosing a shop puts its rooms on an order. The purchases the last change made (on no order, and not on no order
     before it: `before` = loose_ids() taken first) join their shop's draft order, or a new draft when the shop has none.
-    Purchases already waiting (an order deleted, a product taken off) stay under Ready to order. A draft left empty by the
+    Purchases already waiting (kept for later, a product taken off) stay under Later. A draft left empty by the
     change (its rooms moved to another shop) goes when nothing was typed on it and nothing was paid against it; its number
     is not given again. `into` (from a quotation's page): "new" = a new order of their own, an order id = that draft of the
     same shop; None = by the shop's rule: a shop with one order for all its quotations (Supplier.one_order) uses its latest
@@ -206,13 +216,99 @@ def take_room_off(db: Session, p: Project, o: Order, item) -> str:
     return ""
 
 
+def later_purchase(db: Session, pu: Purchase, make: bool = True) -> Purchase | None:
+    """The purchase on no order from the same quote (what waits under Later), made from this one when there is none (and
+    `make`): same shop, price, pack and lead time, nothing typed."""
+    db.flush()
+    q = db.query(Purchase).filter(Purchase.project_id == pu.project_id, Purchase.order_id.is_(None), Purchase.id != pu.id)
+    q = q.filter(Purchase.quote_id == pu.quote_id) if pu.quote_id else \
+        q.filter(Purchase.quote_id.is_(None), Purchase.product_id == pu.product_id, Purchase.supplier_id == pu.supplier_id)
+    later = q.order_by(Purchase.id).first()
+    if later is None and make:
+        later = Purchase(project_id=pu.project_id, product_id=pu.product_id, quote_id=pu.quote_id, supplier_id=pu.supplier_id,
+                         brand=pu.brand, model=pu.model, unit_price=pu.unit_price, currency=pu.currency, amount=pu.amount,
+                         pack_size=pu.pack_size, lead_time=pu.lead_time, notes=pu.notes or "")
+        db.add(later)
+        db.flush()
+    return later
+
+
+def keep_for_later(db: Session, p: Project, o: Order, item) -> str:
+    """One room off the order, kept for later: it keeps its shop and price and waits under Later on the Orders page (a
+    purchase on no order from the same quote), to go on a next order from the same quotation. On a draft or a confirmed
+    order alike; an Ordered / Paid room goes back to Shop chosen. Its last room takes the whole product to Later. A quantity
+    typed by hand on the order gives way to what the remaining rooms need. Returns '' or why it could not."""
+    pu = item.purchase
+    if pu is None or pu.order_id != o.id or item.project_id != p.id:
+        return "That room is not on this order."
+    if item.status in KEEP_ON_DELETE:
+        return f"{item.code} is already {item.status.lower()}: it stays on the order."
+    others = [i for i in buying.lines_of(db, pu) if i.id != item.id]
+    if not others:
+        buying.leave_order(db, pu)  # the product itself waits under Later
+        pu.qty = None
+        same = later_purchase(db, pu, make=False)
+        if same is not None:  # another room of it already waits there: one line under Later
+            buying.cover(item, same)
+        tidy_drafts(db, p)
+    else:
+        buying.cover(item, later_purchase(db, pu))  # cover() steps an Ordered / Paid line back to Quoted when it moves
+        if pu.qty is not None:
+            pu.qty = None
+    db.flush()
+    return ""
+
+
+def keep_qty_for_later(db: Session, p: Project, o: Order, pu: Purchase, keep: float) -> tuple[list[str], str]:
+    """Part of a product's quantity kept for later: whole rooms first (the last codes first) while they fit in `keep`, then
+    the rest split off one room's line into a new line of its own in the same room (the next code), kept for later too. The
+    order then orders what its rooms need. Returns (the codes kept for later, why not)."""
+    from .routers.items import SHARED_FIELDS
+    from .services import next_code
+    if pu.order_id != o.id:
+        return [], "That product is not on this order."
+    lines = [i for i in buying.lines_of(db, pu) if i.status not in KEEP_ON_DELETE]
+    need = round(sum(i.qty or 0 for i in lines), 3)
+    keep = round(keep or 0, 3)
+    if keep <= 0:
+        return [], "Nothing to keep for later."
+    if keep >= need - 0.0005:
+        return [], "That is everything: take the product off the order instead (the × at the end of its line keeps it for later)."
+    later, left, codes = later_purchase(db, pu), keep, []
+    for i in sorted(lines, key=lambda x: x.code, reverse=True):
+        if left > 0.0005 and (i.qty or 0) <= left + 0.0005:
+            buying.cover(i, later)
+            left = round(left - (i.qty or 0), 3)
+            codes.append(i.code)
+    if left > 0.0005:  # part of one room: the rest of it becomes a line of its own, kept for later
+        rest = [i for i in lines if i.purchase_id == pu.id and (i.qty or 0) > left]
+        base = max(rest, key=lambda x: x.qty or 0)
+        base.qty = round((base.qty or 0) - left, 3)
+        it = Item(project_id=p.id, room_id=base.room_id, qty=left, status="To buy", optional=base.optional, product_id=base.product_id,
+                  notes=f"Split from {base.code}: kept for later from order {ref(o)}.", **{f: getattr(base, f) for f in SHARED_FIELDS})
+        it.code = next_code(db, p, base.room)
+        db.add(it)
+        db.flush()
+        p.items.append(it)
+        buying.cover(it, later)
+        codes.append(it.code)
+    pu.qty = None
+    db.flush()
+    return codes, ""
+
+
+def _waiting(i) -> bool:
+    """A room line waiting to be ordered: no shop yet, or kept for later (its purchase on no order)."""
+    return i.purchase_id is None or (i.purchase is not None and i.purchase.order_id is None)
+
+
 def free_rooms(p: Project, pu: Purchase) -> list[dict]:
     """The rooms a product on an order could be added to: every room (and the whole house) without a line of it on this
     purchase. A room that already has a line of the product with no shop yet says how many it needs."""
     taken = {i.room_id or 0 for i in p.live_items if i.purchase_id == pu.id}
     waiting = {}
     for i in p.live_items:
-        if i.product_id == pu.product_id and i.purchase_id is None and (i.room_id or 0) not in waiting:
+        if i.product_id == pu.product_id and _waiting(i) and (i.room_id or 0) not in waiting:
             waiting[i.room_id or 0] = i
     out = [dict(id=r.id, label=f"{r.code} {r.name}", wait=waiting.get(r.id)) for r in p.rooms if r.id not in taken]
     if 0 not in taken:
@@ -248,7 +344,7 @@ def allocate(db: Session, p: Project, o: Order, pu: Purchase, qtys: dict[int, fl
             return 0, "That room is not in this project."
         if any((i.room_id or 0) == room_id for i in lines):
             return 0, f"{room.code if room else 'The whole house'} is already on this order: change its quantity instead."
-        it = next((i for i in p.live_items if i.product_id == pu.product_id and i.purchase_id is None and (i.room_id or 0) == room_id), None)
+        it = next((i for i in p.live_items if i.product_id == pu.product_id and _waiting(i) and (i.room_id or 0) == room_id), None)
         if it is None:
             it = Item(project_id=p.id, room_id=room.id if room else None, qty=round(add_qty, 3), status="To buy", optional=base.optional,
                       product_id=pu.product_id, **{f: getattr(base, f) for f in SHARED_FIELDS})
@@ -738,10 +834,11 @@ def tracker(p: Project, led: buying.Ledger, gs: list, ovs: list[OrderView], toda
     for ov in (x for x in ovs if not x.o.confirmed):
         att.append(dict(tone="muted", icon="file", title=f"Draft {ov.ref} to confirm with the shop", detail=f"{shop(ov)} · {fmt_cur(p, ov.total)}", href=on(ov)))
     att += ship_att["accent"]
-    for e in unordered(p, led, ovs):
+    later = unordered(p, led, ovs)
+    for e in later:
         name = e["supplier"].name if e["supplier"] is not None else "A shop"
-        att.append(dict(tone="accent", icon="bag", title=f"Bought from {name}, not on an order yet",
-                        detail=f"{len(e['views'])} product{'s' if len(e['views']) != 1 else ''} · {fmt_cur(p, e['total'])}", href=f"{href}/orders#ready"))
+        att.append(dict(tone="muted", icon="bag", title=f"Kept for later from {name}: order the rest when ready",
+                        detail=f"{len(e['views'])} product{'s' if len(e['views']) != 1 else ''} · {fmt_cur(p, e['total'])} at the quoted prices", href=f"{href}/orders#later"))
     flagged = [g for g in gs if g.product is not None and (g.product.cheaper or "").strip()]
     if flagged:  # products kept but to be bought cheaper ("Find a cheaper option" on the order line)
         names = ", ".join(g.name for g in flagged[:4]) + (f" and {len(flagged) - 4} more" if len(flagged) > 4 else "")
@@ -805,7 +902,7 @@ def tracker(p: Project, led: buying.Ledger, gs: list, ovs: list[OrderView], toda
     sourcing = dict(products=n_all, quoted=sum(1 for g in gs if g.quotes or g.purchases), unpriced=unpriced,
                     left=round(budget - estimated, 2), over=bool(budget) and estimated > budget,
                     cats=sorted(cats.values(), key=lambda c: (c["quoted"] >= c["products"], c["quoted"] / (c["products"] or 1), order.get(c["category"], len(order)))))
-    return dict(budget=budget, estimated=round(estimated, 2), committed=round(committed, 2), ordered=ordered, paid=paid_all, to_pay=to_pay,
+    return dict(later=round(sum(e["total"] for e in later), 2), budget=budget, estimated=round(estimated, 2), committed=round(committed, 2), ordered=ordered, paid=paid_all, to_pay=to_pay,
                 unpriced=unpriced, attention=att, stages=stages, sourcing=sourcing, boxes=bx.counts(), shipments=svs,
                 cats=sorted(cats.values(), key=lambda c: order.get(c["category"], len(order))),
                 sups=sorted(sups.values(), key=lambda r: -r["committed"]), rate=rate)

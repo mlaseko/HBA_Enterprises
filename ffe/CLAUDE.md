@@ -101,8 +101,12 @@ app/routers/quotations.py /p/<id>/quotations (list, upload form, inquiry form; P
 app/routers/orders.py  /p/<id>/orders (ready to order + orders by stage), /orders/new, /orders/<o> (page; POST details),
                        /orders/<o>/add|remove/<pu>|confirm|unconfirm|delete|payments|claim, /orders/<o>/po.pdf, /orders/release
                        (the order page and po.pdf take ?sort= amount (default) | amount_asc | name | added: ordering.sort_lines),
-                       /orders/<o>/rooms/<item>/remove (ordering.take_room_off: one room off, To buy; its last room takes the product off,
-                       tidy_drafts; Shipped / Received refused), /orders/<o>/allocate/<pu> (ordering.allocate: rq_<line> per room, 0 = off;
+                       /orders/<o>/rooms/<item>/remove (ordering.keep_for_later: the room keeps its shop and price on a purchase on no
+                       order from the same quote, `later_purchase`, shown under Later; its last room takes the product to Later,
+                       tidy_drafts; Shipped / Received refused; take_room_off, To buy, is kept for code that wants it),
+                       /orders/<o>/later/<pu> (ordering.keep_qty_for_later: `keep` units for later, whole rooms by code from the
+                       end, then one room's line split into a new line (next_code); the line's `.od-later-f` form, shown when the typed
+                       Purchase.qty is below the rooms' need and by app.js while typing; the confirm form asks when any line is), /orders/<o>/allocate/<pu> (ordering.allocate: rq_<line> per room, 0 = off;
                        room + add_qty adds a room: its waiting To-buy line of the product, else a new line copied like choose_options;
                        a hand-typed Purchase.qty is cleared; the line's .od-alloc panel, rooms offered by ordering.free_rooms). The Orders page lists #drafts first (dashed cards, Edit + Confirm under each);
                        a draft's page carries the .od-draft banner; the room chips are .od-room with a .od-room-x form;
@@ -274,6 +278,12 @@ components. No external fonts or assets.
   `before = buying.keys(p)` taken first; after deleting lines, `buying.prune(db, p)` (it also removes a draft order the
   purchases it drops leave empty, `ordering.tidy_drafts`). The session does not autoflush:
   the buying helpers flush before they query. Readers keep reading `item.supplier` / `unit_price` / `lead_time`.
+- **Ordering in stages.** A purchase on no order is "kept for later" (the Orders page's **Later** card, `ordering.unordered`,
+  `Ledger` totals; `tracker()["later"]`, budget `buys[k].later` / `pl.later`). `buying.buy` widens a purchase of the quote only
+  when it already holds one of the lines or is on a draft, never one on a confirmed order or kept for later: the rooms get a
+  purchase of their own that `follow_choice` places. A quote can therefore have several purchases (confirmed / draft /
+  later): `routers/buy.buy_from_quote`'s "Choose the rooms to buy here" works across all of them (unticked rooms uncovered,
+  new ones through `buy`). `ordering.add` merges a purchase into the order's line of the same quote.
 - **Choosing a shop orders it.** A route that makes purchases takes `ordering.loose_ids()` first and ends with
   `ordering.follow_choice()` (via `routers/buy._placed`) before `buying.settle`, so the new purchases sit on their shop's draft.
 - **Statuses follow the orders.** On a line whose purchase is on a confirmed order, To buy / Quoted / Ordered / Paid
