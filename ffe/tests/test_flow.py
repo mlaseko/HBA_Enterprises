@@ -1711,7 +1711,7 @@ def flow(c):
     db=SessionLocal(); pu_bed=db.query(_Pu).filter(_Pu.product_id==p_bed).one().id; pu_tile=db.query(_Pu).filter(_Pu.product_id==p_tile).one().id; db.close()
     c.post(f"/p/{pid_o}/items/{oi[('Bed','BED')]}/status", data={"status":"Ordered"})
     r=c.post(f"/p/{pid_o}/orders/{oid}/remove/{pu_bed}", follow_redirects=False); assert "ok=" in r.headers["location"]
-    assert _sts(tile_bed)==["Ordered","Ordered","Quoted"] and "Bed" in c.get(f"/p/{pid_o}/orders").text.split('id="later"')[1].split("</section>")[0]
+    assert _sts(tile_bed)==["Ordered","Ordered","Quoted"] and "Bed" in c.get(f"/p/{pid_o}/orders?tab=later").text.split('id="later"')[1].split("</section>")[0]
     h=c.get(f"/p/{pid_o}/orders/{oid}").text; assert "Also bought from Tile Shop" in h
     c.post(f"/p/{pid_o}/orders/{oid}/add", data={"pu":[str(pu_bed)]}, follow_redirects=False); assert _sts(tile_bed)==["Ordered"]*3
     r=c.post(f"/p/{pid_o}/orders/{oid}/add", data={"pu":[str(pu_tile)]}, follow_redirects=False); assert "err=" in r.headers["location"]  # already on it
@@ -1844,7 +1844,8 @@ def flow(c):
     db=SessionLocal(); _k=db.get(Item,_kit); _l=db.get(Item,_liv); _kpu=_k.purchase
     assert _kpu is not None and _kpu.id!=_rpu and _kpu.order_id is None and _kpu.quote_id==db.get(_Pu,_rpu).quote_id and _kpu.unit_price==50 and _k.status=="Quoted"
     assert _l.purchase_id==_rpu and db.get(_Pu,_rpu).order_id==_rt and db.get(_Pu,_rpu).qty is None; db.close()
-    _lt=c.get(f"/p/{pid_o}/orders").text.split('id="later"')[1].split("</section>")[0]; assert "Floor tile" in _lt and SessionLocal().get(Item,_kit).code in _lt and "Order the rest" in _lt and f'/orders/{_rt}/add"' in _lt
+    _lt=c.get(f"/p/{pid_o}/orders?tab=later").text.split('id="later"')[1].split("</section>")[0]; assert "Floor tile" in _lt and SessionLocal().get(Item,_kit).code in _lt and ">New order" in _lt and f'/orders/{_rt}/add"' in _lt and f'value="{_kpu.id}" checked' in _lt
+    h=c.get(f"/p/{pid_o}/orders").text; assert 'class="od-tab on"' in h and 'id="later"' not in h and "?tab=later" in h  # Later is a tab of its own, the orders come first
     r=c.post(f"/p/{pid_o}/orders/{_rt}/rooms/{_kit}/remove", follow_redirects=False); assert "err=" in r.headers["location"]  # not on it any more
     # the changes since the version first seen show on the page, in the Excel (Order + Changes sheets) and in the PDF, room by room
     _kc=SessionLocal().get(Item,_kit).code; _lc=SessionLocal().get(Item,_liv).code
@@ -1935,6 +1936,14 @@ def flow(c):
     # a room kept for later from a confirmed order steps back to Shop chosen
     r=c.post(f"/p/{pid_o}/orders/{_so}/rooms/{_slids[1]}/remove", follow_redirects=False); assert "The%20shop%20agreed" in r.headers["location"]
     db=SessionLocal(); assert db.get(Item,_slids[1]).status=="Quoted" and db.get(Item,_slids[1]).purchase_id==_lpu and db.get(_O,_so).confirmed_on is not None; db.close()
+    # from Later straight onto the shop's confirmed order (more budget): it asks first, the line joins the order, then back for later
+    _lt=c.get(f"/p/{pid_o}/orders?tab=later").text.split('id="later"')[1].split("</section>")[0]; assert f'formaction="/p/{pid_o}/orders/{_so}/add"' in _lt and "is already confirmed" in _lt
+    r=c.post(f"/p/{pid_o}/orders/{_so}/add", data={"pu":[str(_lpu)], "back":"later"}, follow_redirects=False); assert "The%20shop%20agreed" in r.headers["location"] and f"/orders/{_so}" in r.headers["location"]
+    db=SessionLocal(); assert db.get(Item,_slids[1]).purchase.order_id==_so and db.get(Item,_slids[1]).status=="Ordered"; db.close()
+    assert "Changed since it was confirmed" in c.get(f"/p/{pid_o}/orders").text
+    c.post(f"/p/{pid_o}/orders/{_so}/rooms/{_slids[1]}/remove", follow_redirects=False)
+    db=SessionLocal(); _lpu=db.get(Item,_slids[1]).purchase_id; assert db.get(_Pu,_lpu).order_id is None; db.close()
+    r=c.post(f"/p/{pid_o}/orders/{_so}/add", data={"back":"later"}, follow_redirects=False); assert "tab=later" in r.headers["location"] and "err=" in r.headers["location"]
     # Order the rest: a new draft at the quoted price; a room bought later from the same quote joins that draft's line,
     # never the confirmed order; a room kept for later from it and added back is one line again
     db=SessionLocal(); _sd=db.query(_Pu).filter(_Pu.id==_lpu).one().supplier_id; db.close()

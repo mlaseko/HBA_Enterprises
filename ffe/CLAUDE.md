@@ -98,7 +98,7 @@ app/routers/quotations.py /p/<id>/quotations (list, upload form, inquiry form; P
                        /quotations/draft (save the preview to come back to), /quotations/apply, /quotations/cancel, /working/<u>/discard, /working/<u>/retry
                        (claude=1|0 for an upload waiting on Claude), /quotations/compare (shops × products of a category), /quotations/inquiry.xlsx,
                        /quotations/<q> (document page), /<q>/file, /<q>/delete
-app/routers/orders.py  /p/<id>/orders (ready to order + orders by stage), /orders/new, /orders/<o> (page; POST details),
+app/routers/orders.py  /p/<id>/orders (orders by stage; ?tab=later = the Later tab, `_to(..., tab=)`, an anchor "#later" becomes the tab), /orders/new, /orders/<o> (page; POST details),
                        /orders/<o>/add|remove/<pu>|confirm|unconfirm|delete|payments|claim, /orders/<o>/po.pdf, /orders/release
                        (the order page and po.pdf take ?sort= amount (default) | amount_asc | name | added: ordering.sort_lines),
                        /orders/<o>/rooms/<item>/remove (ordering.keep_for_later: the room keeps its shop and price on a purchase on no
@@ -1112,6 +1112,11 @@ ALTER TABLE cartons ALTER COLUMN item_codes / contents TYPE TEXT;               
   the file carried as base64 `data`; `apply=1` saves), then `/stickers.pdf` and `/packing.pdf` (`pdf/boxes.py`) to send back.
   Box numbers are per order. The supplier link lists only lines whose purchase is on a confirmed order.
 
+- **Later as a tab.** The Orders page has two tabs (`.od-tabs`): Orders (KPIs, drafts, stages) and Later (`?tab=later`). Each
+  Later shop card is one form (`pu` tick boxes, checked) whose buttons post with `formaction`: **Add to** each of
+  `ordering.unordered(...)["orders"]` (the shop's drafts, then confirmed orders not `done`; a confirmed one carries
+  `data-confirm`), **New order** (`/orders/new`), **Clear** (`/orders/release`). `add_to_order` takes `back=later` for its error
+  and says to send the shop the updated order when the order was confirmed.
 - **Packing estimate.** `ProductPacking` (one per product: per_box or boxes_per_unit, box L/W/H or cbm, kg per box, source
   shop | estimate, note; `Product.packing`; `_merge_product` copies it to the surviving product) + `packing_plan.py`. The order page's
   `#volume` card (`sim` from `routers/orders._sim`): tiles, the rows with their source pill and a `details.pv-est` form per row

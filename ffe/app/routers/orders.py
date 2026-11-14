@@ -40,9 +40,12 @@ def _sim(p: Project, ov):
     return pp.simulate(p, ov)
 
 
-def _to(p: Project, oid: int | None = None, anchor: str = "", ok: str = "", err: str = ""):
-    q = f"?ok={urlquote(ok)}" if ok else (f"?err={urlquote(err)}" if err else "")
-    return redirect(f"/p/{p.id}/orders" + (f"/{oid}" if oid else "") + q + anchor)
+def _to(p: Project, oid: int | None = None, anchor: str = "", ok: str = "", err: str = "", tab: str = ""):
+    if anchor == "#later" and not oid:  # Later is a tab of its own on the Orders page
+        tab, anchor = "later", ""
+    q = [f"tab={tab}"] if tab and not oid else []
+    q += [f"ok={urlquote(ok)}"] if ok else ([f"err={urlquote(err)}"] if err else [])
+    return redirect(f"/p/{p.id}/orders" + (f"/{oid}" if oid else "") + ("?" + "&".join(q) if q else "") + anchor)
 
 
 def _date(v: str) -> date | None:
@@ -53,7 +56,7 @@ def _date(v: str) -> date | None:
 
 
 @router.get("/p/{project_id}/orders")
-def orders_page(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), ok: str = "", err: str = ""):
+def orders_page(request: Request, p: Project = Depends(get_project), db: Session = Depends(get_db), ok: str = "", err: str = "", tab: str = ""):
     led = bz.Ledger(p)
     ovs = od.views(p, led)
     confirmed = [ov for ov in ovs if ov.o.confirmed]
@@ -61,7 +64,7 @@ def orders_page(request: Request, p: Project = Depends(get_project), db: Session
                  balance=round(sum(max(ov.balance, 0) for ov in confirmed), 2), drafts=round(sum(ov.total for ov in ovs if not ov.o.confirmed), 2))
     return render(request, "buying/orders.html", p=p, ovs=ovs, ready=od.unordered(p, led, ovs), money=money,
                   by_stage=[(s, [ov for ov in ovs if ov.stage == s]) for s in od.STAGES], STAGE_COLORS=od.STAGE_COLORS,
-                  STAGE_HELP=od.STAGE_HELP, ok=ok[:200], err=err[:200])
+                  STAGE_HELP=od.STAGE_HELP, ok=ok[:200], err=err[:200], tab="later" if tab == "later" else "orders")
 
 
 @router.post("/p/{project_id}/orders/new")
@@ -70,12 +73,12 @@ async def new_order(request: Request, p: Project = Depends(get_project), db: Ses
     form = await request.form()
     sup = db.get(Supplier, fint(form.get("supplier_id")) or 0)
     if sup is None:
-        return _to(p, err="Choose the shop to order from.")
+        return _to(p, err="Choose the shop to order from.", tab="later")
     want = {fint(x) for x in form.getlist("pu")}
     pus = db.query(Purchase).filter(Purchase.project_id == p.id, Purchase.supplier_id == sup.id, Purchase.order_id.is_(None)).order_by(Purchase.id).all()
     pus = [pu for pu in pus if not want or pu.id in want]
     if not pus:
-        return _to(p, err=f"Nothing from {sup.name} is waiting to be ordered.")
+        return _to(p, err=f"Nothing from {sup.name} is waiting to be ordered.", tab="later")
     o = od.new_order(db, p, sup, pus, get_settings(db).warehouse)
     oid = o.id
     bz.settle(db, p)
@@ -91,7 +94,7 @@ async def release_ready(request: Request, p: Project = Depends(get_project), db:
     n = od.release(db, p, db.query(Purchase).filter(Purchase.id.in_(ids or {0})).all())
     bz.settle(db, p)
     db.commit()
-    return _to(p, ok=f"{n} room line{'s have' if n != 1 else ' has'} no shop again (To buy): order {'them' if n != 1 else 'it'} from a quotation." if n else "Nothing to clear.")
+    return _to(p, ok=f"{n} room line{'s have' if n != 1 else ' has'} no shop again (To buy): order {'them' if n != 1 else 'it'} from a quotation." if n else "Nothing to clear.", tab="later")
 
 
 @router.get("/p/{project_id}/orders/{order_id}")
@@ -229,11 +232,15 @@ async def add_to_order(request: Request, order_id: int, p: Project = Depends(get
     want = {fint(x) for x in form.getlist("pu")}
     pus = [pu for pu in db.query(Purchase).filter(Purchase.id.in_(want or {0})).all()]
     n = od.add(db, o, pus)
+    confirmed, ref = o.confirmed, od.ref(o)
     bz.settle(db, p)
     db.commit()
     if not n:
+        if form.get("back") == "later":
+            return _to(p, err="Tick the products to add.", tab="later")
         return _to(p, order_id, "#products", err="Tick the products to add.")
-    return _to(p, order_id, "#products", ok=f"{n} product{'s' if n != 1 else ''} added to the order.")
+    return _to(p, order_id, "#products", ok=f"{n} product{'s' if n != 1 else ''} added to {ref}"
+               + (": it was already confirmed, so send the shop the updated order, then press The shop agreed." if confirmed else "."))
 
 
 @router.post("/p/{project_id}/orders/{order_id}/rooms/{item_id}/remove")
