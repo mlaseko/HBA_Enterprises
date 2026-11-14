@@ -720,6 +720,9 @@ def unordered(p: Project, led: buying.Ledger, ovs: list[OrderView] | None = None
             drafts[ov.o.supplier_id] = ov
     for sid, e in by_sup.items():
         e["draft"] = drafts.get(sid or None)
+        # the shop's orders that can take more: its drafts, then its confirmed orders not yet shipped or received
+        e["orders"] = [ov for ov in ovs or [] if sid and ov.o.supplier_id == sid and not ov.done]
+        e["orders"].sort(key=lambda ov: (ov.o.confirmed, -(ov.o.number or 0)))
     return sorted(by_sup.values(), key=lambda e: (e["supplier"].name.lower() if e["supplier"] is not None else "~"))
 
 
@@ -891,7 +894,7 @@ def tracker(p: Project, led: buying.Ledger, gs: list, ovs: list[OrderView], toda
     for e in later:
         name = e["supplier"].name if e["supplier"] is not None else "A shop"
         att.append(dict(tone="muted", icon="bag", title=f"Kept for later from {name}: order the rest when ready",
-                        detail=f"{len(e['views'])} product{'s' if len(e['views']) != 1 else ''} · {fmt_cur(p, e['total'])} at the quoted prices", href=f"{href}/orders#later"))
+                        detail=f"{len(e['views'])} product{'s' if len(e['views']) != 1 else ''} · {fmt_cur(p, e['total'])} at the quoted prices", href=f"{href}/orders?tab=later"))
     flagged = [g for g in gs if g.product is not None and (g.product.cheaper or "").strip()]
     if flagged:  # products kept but to be bought cheaper ("Find a cheaper option" on the order line)
         names = ", ".join(g.name for g in flagged[:4]) + (f" and {len(flagged) - 4} more" if len(flagged) > 4 else "")

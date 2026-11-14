@@ -2117,3 +2117,10 @@ details.qi-s3more>summary.row::before{margin-top:2px}
 .pv-est-f>.row{grid-column:1/-1;gap:8px}
 .pv-check{background:#FFF4D6;color:#8A5A00;font-size:11px}
 @media (max-width:700px){.tr-stack .pv-tbl tfoot{display:none}.tr-stack .pv-tbl td.who{grid-column:1/-1}}
+/* Orders page: Orders | Later tabs; Later's tick boxes */
+.od-tabs{display:flex;gap:6px;margin:4px 0 16px;border-bottom:1px solid var(--line)}
+.od-tab{padding:9px 14px;border-bottom:2px solid transparent;margin-bottom:-1px;color:var(--muted);font-weight:600;text-decoration:none;white-space:nowrap}
+.od-tab .n{font-weight:500;font-size:.8rem;color:var(--muted);margin-left:4px}
+.od-tab.on{color:var(--ink);border-bottom-color:var(--accent)}
+.od-later-picks .od-pick{flex:none;display:flex;align-items:center}.od-later-picks .od-pick input{width:18px;height:18px;margin:0}
+.od-later-acts{gap:8px;flex-wrap:wrap;margin-top:10px}.od-later-acts .od-st{font-weight:500;opacity:.75;font-size:.75rem;margin-left:2px}
