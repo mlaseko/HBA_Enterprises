@@ -1,5 +1,5 @@
 """End-to-end smoke test. Run: python tests/test_flow.py  (prints ALL OK)."""
-import os, io, sys, tempfile
+import os, io, sys, tempfile, urllib.parse
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))  # tools/restore_items.py
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -79,7 +79,7 @@ def flow(c):
     for it in db.query(Item).filter(Item.category=="Tiles").limit(5): it.supplier_id=sup.id; it.unit_price=95
     db.commit(); db.close()
     # payment
-    r=c.post(f"/p/{pid}/payments", data={"supplier_id":sup.id,"paid_on":"2026-10-05","amount":"5000","kind":"Deposit","reference":"TT123"}, files={"receipt":("r.jpg",img("green"),"image/jpeg")}, follow_redirects=False)
+    r=c.post(f"/p/{pid}/payments", data={"supplier_id":sup.id,"paid_on":"2026-10-05","amount":"5000","kind":"Deposit","reference":"TT123","currency":"CNY"}, files={"receipt":("r.jpg",img("green"),"image/jpeg")}, follow_redirects=False)
     r=c.get(f"/p/{pid}/payments"); assert "5,000" in r.text
     # supplier link
     r=c.post(f"/p/{pid}/suppliers/{sup.id}/link", data={"action":"create"}, follow_redirects=False)
@@ -1644,14 +1644,32 @@ def flow(c):
     assert "KH-001" not in pdf_text(c.get(f"/p/{pid_o}/orders/{oid2}/po.pdf").content)  # each order its own PO
     # paying: the deposit on the order page, the balance on Payments with the order chosen; paid in full = Paid; shipped stays shipped
     c.post(f"/p/{pid_o}/items/{oi[('Bed','BED')]}/status", data={"status":"Shipped"})
-    r=c.post(f"/p/{pid_o}/orders/{oid}/payments", data={"amount":"2628.48","kind":"Deposit","paid_on":"2026-10-02","reference":"WX1"}, files={"receipt":("r.jpg",img("green"),"image/jpeg")}, follow_redirects=False)
+    r=c.post(f"/p/{pid_o}/orders/{oid}/payments", data={"amount":"2628.48","kind":"Deposit","paid_on":"2026-10-02","reference":"WX1","currency":"CNY"}, files={"receipt":("r.jpg",img("green"),"image/jpeg")}, follow_redirects=False)
     assert r.headers["location"].endswith("#payments") and "ok=" in r.headers["location"]
     db=SessionLocal(); pay1=db.query(_Pay).filter(_Pay.order_id==oid).one(); assert pay1.supplier_id==ts and pay1.receipt_key
     ov=_od.OrderView(db.get(_O,oid), _bz.Ledger(db.get(_P,pid_o)), today=_dt.date(2026,10,16)); assert ov.stage=="Balance due" and ov.deposit_left==0 and ov.balance==3942.72 and ov.soon and not ov.late and ov.ready_text=="in 4 days"; db.close()
     assert _sts(tile_bed)==["Ordered","Ordered","Shipped"]
-    assert 'value="3942.72"' in c.get(f"/p/{pid_o}/orders/{oid}").text  # the form offers what is due
+    # the payment form: the currency is chosen every time, nothing is filled in by itself, the balance is offered as a Fill in
+    # button with "record it when you pay it"; a currency missing, the same payment again, an amount over the total or a
+    # figure of the order typed in the other currency is refused until confirmed (sure=1)
+    h=c.get(f"/p/{pid_o}/orders/{oid}").text; _payform=h.split('id="pay"')[1].split("</form>")[0]
+    assert 'id="pay" data-pay data-ctx=' in h and 'name="currency" value="CNY" required' in _payform and 'name="currency" value="USD" required' in _payform
+    assert 'checked' not in _payform.split('name="currency"')[1][:80] and 'name="amount" placeholder' in _payform and 'data-fill="3942.72" data-cur="CNY"' in _payform and "record it when you pay it" in _payform
+    db=SessionLocal(); _rt7=db.get(_P,pid_o).rate or 1; db.close()
+    def _pays(): return SessionLocal().query(_Pay).filter(_Pay.order_id==oid).count()
+    r=c.post(f"/p/{pid_o}/orders/{oid}/payments", data={"amount":"100","kind":"Balance","paid_on":"2026-10-03"}, follow_redirects=False); assert "err=" in r.headers["location"] and "currency" in urllib.parse.unquote(r.headers["location"]) and _pays()==1
+    r=c.post(f"/p/{pid_o}/orders/{oid}/payments", data={"amount":"2628.48","kind":"Deposit","paid_on":"2026-10-03","currency":"CNY"}, follow_redirects=False)
+    assert "already%20recorded" in r.headers["location"] and _pays()==1  # the same deposit again
+    r=c.post(f"/p/{pid_o}/orders/{oid}/payments", data={"amount":str(round(3942.72/_rt7, 2)),"kind":"Balance","paid_on":"2026-10-03","currency":"CNY"}, follow_redirects=False)
+    assert "Was%20it%20paid%20in%20dollars" in r.headers["location"] and _pays()==1  # the balance's dollars typed as yuan
+    r=c.post(f"/p/{pid_o}/orders/{oid}/payments", data={"amount":"9000","kind":"Balance","paid_on":"2026-10-03","currency":"CNY"}, follow_redirects=False)
+    assert "more%20than%20its%20total" in r.headers["location"] and _pays()==1
+    r=c.post(f"/p/{pid_o}/payments", data={"order_id":str(oid),"amount":"9000","kind":"Balance","paid_on":"2026-10-03","currency":"CNY"}, follow_redirects=False)
+    assert "more%20than%20its%20total" in r.headers["location"] and _pays()==1  # the Payments page checks the same
+    assert _od.pay_amount(SessionLocal().get(_P,pid_o), 10, "USD")==round(10*_rt7, 2)  # dollars stored as yuan at the rate
+    h=c.get(f"/p/{pid_o}/payments?err=x").text; assert '<div class="alert err">x</div>' in h and "<title>Payments · " in h and "<details" not in h.split("<title>")[1].split("</title>")[0]
     h=c.get(f"/p/{pid_o}/payments").text; assert f'<option value="{oid}">KH-001 · Tile Shop · to pay ¥3,943 ($' in h and "On orders" in h and "KH-001" in h.split("All payments")[1]
-    c.post(f"/p/{pid_o}/payments", data={"order_id":str(oid),"supplier_id":str(ls),"paid_on":"2026-10-15","amount":"3942.72","kind":"Balance","reference":"BANK2"}, follow_redirects=False)
+    c.post(f"/p/{pid_o}/payments", data={"order_id":str(oid),"supplier_id":str(ls),"paid_on":"2026-10-15","amount":"3942.72","kind":"Balance","reference":"BANK2","currency":"CNY"}, follow_redirects=False)
     db=SessionLocal(); pay2=db.query(_Pay).filter(_Pay.order_id==oid, _Pay.kind=="Balance").one(); assert pay2.supplier_id==ts; pay2=pay2.id; db.close()  # the order's shop, not the one picked
     assert _sts(tile_bed)==["Paid","Paid","Shipped"] and c.get(f"/p/{pid_o}/buying?stage=Paid").text.count('class="bu-card"')==2  # the stage reads the order
     r=c.post(f"/p/{pid_o}/payments/{pay2}/delete", data={"next":f"/p/{pid_o}/orders/{oid}#payments"}, follow_redirects=False); assert r.headers["location"]==f"/p/{pid_o}/orders/{oid}#payments"
@@ -1710,7 +1728,7 @@ def flow(c):
     assert t["ordered"]==6794.4 and t["paid"]==2628.48 and t["to_pay"]==4165.92 and t["stages"]["Ordered"]["products"]==2 and t["stages"]["Sourced"]["products"]==1
     assert t["attention"][0]["tone"]=="red" and t["attention"][0]["title"]=="KH-001 was due 5 days ago" and sum(1 for a in t["attention"] if "KH-001" in a["title"])==1, t["attention"]
     # a payment to the shop on no order (made before orders existed, say) can be counted toward the order
-    c.post(f"/p/{pid_o}/payments", data={"order_id":"","supplier_id":str(ts),"paid_on":"2026-09-20","amount":"1000","kind":"Deposit","reference":"OLD1"}, follow_redirects=False)
+    c.post(f"/p/{pid_o}/payments", data={"order_id":"","supplier_id":str(ts),"paid_on":"2026-09-20","amount":"1000","kind":"Deposit","reference":"OLD1","currency":"CNY"}, follow_redirects=False)
     h=c.get(f"/p/{pid_o}/orders/{oid}").text; assert "Paid to Tile Shop before, on no order" in h and "OLD1" in h
     db=SessionLocal(); loose=db.query(_Pay).filter(_Pay.reference=="OLD1").one().id; db.close()
     r=c.post(f"/p/{pid_o}/orders/{oid}/claim", data={}, follow_redirects=False); assert "err=" in r.headers["location"]

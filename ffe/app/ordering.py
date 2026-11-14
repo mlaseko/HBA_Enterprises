@@ -573,6 +573,59 @@ def loose_payments(p: Project, o: Order) -> list[Payment]:
     return sorted((pay for pay in p.payments if pay.order_id is None and pay.supplier_id == o.supplier_id), key=lambda x: (x.paid_on, x.id))
 
 
+PAY_CURRENCIES = ("CNY", "USD")
+
+
+def pay_amount(p: Project, typed: float, currency: str) -> float:
+    """A payment typed in yuan or dollars, as stored: CNY (dollars at the project rate)."""
+    return round(typed * (p.rate or 1), 2) if currency == "USD" else round(typed, 2)
+
+
+def pay_context(o: Order, ov: "OrderView") -> dict:
+    """What the payment form's script checks an amount against (the same as payment_warnings): the order's total, paid
+    so far, deposit, what is left, and the payments already on it [CNY, date]."""
+    return dict(ref=ov.ref, total=round(ov.total, 2), paid=round(ov.paid, 2), deposit=round(ov.deposit, 2),
+                left=round(max(ov.total - ov.paid, 0.0), 2),
+                pays=[[round(x.amount or 0, 2), x.paid_on.isoformat() if x.paid_on else ""] for x in o.payments])
+
+
+def payment_warnings(p: Project, ctx: dict | None, cny: float, typed: float, currency: str, paid_on: date) -> list[str]:
+    """Why a payment about to be recorded on an order may be wrong, in words (empty = nothing to ask): the same amount already
+    recorded on the order within a week, more than the order's total once added, or a number that is a figure of the order
+    in the other currency (5,027.75 typed as yuan when the deposit is $5,027.75). The order page's and the Payments page's
+    scripts ask the same before posting; the routes refuse until the designer confirms (sure=1)."""
+    if not ctx:
+        return []
+    rate = p.rate or 1
+
+    def both(v):
+        return f"¥{v:,.2f} (${v / rate:,.2f})"
+    out = []
+    for amt, on in ctx.get("pays", []):
+        try:
+            days = abs((date.fromisoformat(on) - paid_on).days) if on else 0
+        except ValueError:
+            days = 0
+        if abs(amt - cny) <= max(1.0, 0.01 * cny) and days <= 7:
+            out.append(f"{both(amt)} is already recorded on {ctx['ref']}" + (f" ({on})" if on else "") + ": is this the same payment?")
+            break
+    over = round(ctx.get("paid", 0) + cny - ctx.get("total", 0), 2)
+    if ctx.get("total") and over > 1:
+        out.append(f"With it {ctx['ref']} would be paid {both(ctx.get('paid', 0) + cny)}, {both(over)} more than its total of {both(ctx['total'])}.")
+    figures = [("deposit", ctx.get("deposit", 0)), ("balance left", ctx.get("left", 0)), ("order total", ctx.get("total", 0))]
+    for label, v in figures:
+        if not v:
+            continue
+        other = v / rate if currency == "CNY" else v  # the figure written in the other currency
+        if currency == "CNY" and abs(typed - other) <= max(0.5, 0.005 * other):
+            out.append(f"{typed:,.2f} is the {label} in dollars (${other:,.2f}); you chose yuan (¥). Was it paid in dollars?")
+            break
+        if currency == "USD" and abs(typed - v) <= max(0.5, 0.005 * v):
+            out.append(f"{typed:,.2f} is the {label} in yuan (¥{v:,.2f}); you chose dollars ($). Was it paid in yuan?")
+            break
+    return out
+
+
 def record_payment(db: Session, p: Project, o: Order, amount: float, kind: str, paid_on: date, reference: str = "", note: str = "",
                    receipt_key: str = "") -> Payment:
     pay = Payment(project_id=p.id, supplier_id=o.supplier_id, order_id=o.id, amount=round(amount, 2), kind=kind, paid_on=paid_on,

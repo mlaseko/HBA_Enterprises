@@ -107,7 +107,7 @@ def order_page(request: Request, order_id: int, p: Project = Depends(get_project
     return render(request, "buying/order.html", p=p, ov=ov, o=o, more=more, addable=_addable(db, p, o), wechat=od.wechat_text(ov, p, studio), studio=studio, loose=od.loose_payments(p, o),
                   today=date.today().isoformat(), due=round(due, 2), due_kind="Deposit" if deposit_next else "Balance",
                   STAGE_COLORS=od.STAGE_COLORS, STAGE_HELP=od.STAGE_HELP, ok=ok[:200], err=err[:200], sort=sort, SORTS=od.LINE_SORTS, ch=ch, cheaper_q=cheaper_q, flags=flags,
-                  free_rooms=lambda pu: od.free_rooms(p, pu))
+                  free_rooms=lambda pu: od.free_rooms(p, pu), pay_ctx=od.pay_context(o, ov))
 
 
 @router.post("/p/{project_id}/orders/{order_id}")
@@ -385,9 +385,17 @@ async def pay_order(request: Request, order_id: int, p: Project = Depends(get_pr
     if o is None:
         return _to(p)
     form = await request.form()
-    amount = ffloat(form.get("amount"), 0)
-    if amount <= 0:
+    typed = ffloat(form.get("amount"), 0)
+    if typed <= 0:
         return _to(p, order_id, "#pay", err="Type the amount paid.")
+    currency = (form.get("currency") or "").upper()
+    if currency not in od.PAY_CURRENCIES:
+        return _to(p, order_id, "#pay", err="Not recorded: choose the currency it was paid in, yuan (¥ CNY) or dollars ($ USD). The shop's receipt says it.")
+    amount = od.pay_amount(p, typed, currency)
+    paid_on = _date(form.get("paid_on", "")) or date.today()
+    warns = od.payment_warnings(p, od.pay_context(o, od.OrderView(o, bz.Ledger(p))), amount, typed, currency, paid_on)
+    if warns and "1" not in form.getlist("sure"):
+        return _to(p, order_id, "#pay", err="Not recorded yet: " + " ".join(warns) + " If it is right, record it again and confirm.")
     key = ""
     f = form.get("receipt")
     if f is not None and hasattr(f, "read"):
@@ -395,10 +403,10 @@ async def pay_order(request: Request, order_id: int, p: Project = Depends(get_pr
         if data:
             key = storage.save_image(data, f"p{p.id}/receipts")
     kind = form.get("kind") or "Deposit"
-    od.record_payment(db, p, o, amount, kind, _date(form.get("paid_on", "")) or date.today(), form.get("reference", ""), form.get("note", ""), key)
+    od.record_payment(db, p, o, amount, kind, paid_on, form.get("reference", ""), form.get("note", ""), key)
     bz.settle(db, p)
     db.commit()
-    return _to(p, order_id, "#payments", ok=f"{kind} of {fmt_cur(p, amount, 2)} recorded.")
+    return _to(p, order_id, "#payments", ok=f"{kind} of ¥{amount:,.2f} (${amount / (p.rate or 1):,.2f}) recorded.")
 
 
 @router.post("/p/{project_id}/orders/{order_id}/claim")

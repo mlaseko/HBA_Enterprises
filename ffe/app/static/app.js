@@ -829,3 +829,78 @@
   }
   ins.forEach(function (i) { i.addEventListener('input', check); });
 })();
+
+// Payment forms (form[data-pay]: the order page's, the Payments page's): the currency is chosen every time, a live line
+// shows the amount in yuan and dollars, the Fill in buttons set an amount and its currency, and before posting the
+// designer confirms "Record ¥x ($y) as … on KH-…?" with what may be wrong (ordering.payment_warnings says the same:
+// already recorded, more than the order's total, a figure of the order in the other currency). Confirmed = sure=1.
+(function () {
+  function f2(x) { return x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  document.querySelectorAll('form[data-pay]').forEach(function (form) {
+    var box = form.querySelector('.pay-amt'); if (!box) return;
+    var rate = parseFloat(box.dataset.rate) || 1, amt = form.querySelector('[name=amount]'), both = box.querySelector('.pay-both');
+    var hint = both ? both.textContent : '';
+    function cur() { var r = form.querySelector('[name=currency]:checked'); return r ? r.value : ''; }
+    function cny() { var v = parseFloat(amt.value) || 0; return cur() === 'USD' ? Math.round(v * rate * 100) / 100 : Math.round(v * 100) / 100; }
+    function ctx() {
+      if (form.dataset.ctx) { try { return JSON.parse(form.dataset.ctx); } catch (e) { return null; } }
+      if (form.dataset.orders) {
+        var sel = form.querySelector('[name=order_id]'); if (!sel || !sel.value) return null;
+        try { return JSON.parse(form.dataset.orders)[sel.value] || null; } catch (e) { return null; }
+      }
+      return null;
+    }
+    function show() {
+      if (!both) return;
+      var v = parseFloat(amt.value) || 0;
+      if (!cur()) { both.textContent = hint; both.classList.remove('ok'); return; }
+      var c = cny();
+      both.textContent = v ? '= ¥' + f2(c) + ' · $' + f2(c / rate) + ' (paid in ' + (cur() === 'USD' ? 'dollars' : 'yuan') + ')' : 'Paid in ' + (cur() === 'USD' ? 'dollars ($)' : 'yuan (¥)') + '.';
+      both.classList.add('ok');
+    }
+    amt.addEventListener('input', show);
+    form.querySelectorAll('[name=currency]').forEach(function (r) { r.addEventListener('change', show); });
+    box.querySelectorAll('[data-fill]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        amt.value = b.dataset.fill;
+        var r = form.querySelector('[name=currency][value="' + b.dataset.cur + '"]'); if (r) r.checked = true;
+        show(); amt.focus();
+      });
+    });
+    function warnings(c, typed, currency) {
+      var x = ctx(), out = []; if (!x) return out;
+      function bothTxt(v) { return '¥' + f2(v) + ' ($' + f2(v / rate) + ')'; }
+      var day = (form.querySelector('[name=paid_on]') || {}).value || '';
+      for (var i = 0; i < (x.pays || []).length; i++) {
+        var a = x.pays[i][0], on = x.pays[i][1], days = (on && day) ? Math.abs((new Date(on) - new Date(day)) / 864e5) : 0;
+        if (Math.abs(a - c) <= Math.max(1, 0.01 * c) && days <= 7) { out.push(bothTxt(a) + ' is already recorded on ' + x.ref + (on ? ' (' + on + ')' : '') + ': is this the same payment?'); break; }
+      }
+      var over = Math.round(((x.paid || 0) + c - (x.total || 0)) * 100) / 100;
+      if (x.total && over > 1) out.push('With it ' + x.ref + ' would be paid ' + bothTxt((x.paid || 0) + c) + ', ' + bothTxt(over) + ' more than its total of ' + bothTxt(x.total) + '.');
+      var figs = [['deposit', x.deposit], ['balance left', x.left], ['order total', x.total]];
+      for (var j = 0; j < figs.length; j++) {
+        var v = figs[j][1]; if (!v) continue;
+        if (currency === 'CNY' && Math.abs(typed - v / rate) <= Math.max(0.5, 0.005 * v / rate)) { out.push(f2(typed) + ' is the ' + figs[j][0] + ' in dollars ($' + f2(v / rate) + '); you chose yuan (¥). Was it paid in dollars?'); break; }
+        if (currency === 'USD' && Math.abs(typed - v) <= Math.max(0.5, 0.005 * v)) { out.push(f2(typed) + ' is the ' + figs[j][0] + ' in yuan (¥' + f2(v) + '); you chose dollars ($). Was it paid in yuan?'); break; }
+      }
+      return out;
+    }
+    form.addEventListener('submit', function (e) {
+      if (form.dataset.sure === '1') return;
+      e.preventDefault();
+      var typed = parseFloat(amt.value) || 0, currency = cur();
+      if (!currency) { appAlert('Choose the currency it was paid in: yuan (¥ CNY) or dollars ($ USD). The shop\'s receipt says it.', { title: 'Which currency?' }); return; }
+      var c = cny(), x = ctx(), kind = (form.querySelector('[name=kind]') || {}).value || 'payment';
+      var w = warnings(c, typed, currency);
+      var q = 'Record ¥' + f2(c) + ' ($' + f2(c / rate) + ') as ' + kind.toLowerCase() + (x ? ' on ' + x.ref : '') + '? ' +
+        (w.length ? 'Check first: ' + w.join(' ') : 'Paid in ' + (currency === 'USD' ? 'dollars' : 'yuan') + '. It counts as paid from now.');
+      appConfirm(q, { ok: w.length ? 'Record it anyway' : 'Record payment' }).then(function (yes) {
+        if (!yes) return;
+        form.querySelectorAll('[name=sure]').forEach(function (s) { if (s.type === 'hidden') s.value = '1'; });
+        form.dataset.sure = '1';
+        HTMLFormElement.prototype.submit.call(form);
+      });
+    });
+    show();
+  });
+})();

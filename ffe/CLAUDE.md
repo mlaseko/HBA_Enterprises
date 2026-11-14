@@ -284,6 +284,12 @@ components. No external fonts or assets.
   purchase of their own that `follow_choice` places. A quote can therefore have several purchases (confirmed / draft /
   later): `routers/buy.buy_from_quote`'s "Choose the rooms to buy here" works across all of them (unticked rooms uncovered,
   new ones through `buy`). `ordering.add` merges a purchase into the order's line of the same quote.
+- **Payments are typed in the currency paid.** Both payment forms use `_pay_amount.html` (`pay_amount(due, note)`): amount +
+  `currency` radios with no default (required; the route refuses without one), `ordering.pay_amount` stores CNY (USD × rate),
+  `ordering.pay_context(o, ov)` (total, paid, deposit, left, pays) goes to the page as `data-ctx` (order page) / `data-orders`
+  (Payments page, per order id) and `ordering.payment_warnings(p, ctx, cny, typed, currency, paid_on)` lists what may be wrong
+  (same amount within 7 days, over the total, the other currency's figure): the route refuses until `sure=1`, which app.js
+  (`form[data-pay]`) posts after its own `appConfirm` with the same checks. The form fills in nothing by itself (Fill in buttons).
 - **Choosing a shop orders it.** A route that makes purchases takes `ordering.loose_ids()` first and ends with
   `ordering.follow_choice()` (via `routers/buy._placed`) before `buying.settle`, so the new purchases sit on their shop's draft.
 - **Statuses follow the orders.** On a line whose purchase is on a confirmed order, To buy / Quoted / Ordered / Paid

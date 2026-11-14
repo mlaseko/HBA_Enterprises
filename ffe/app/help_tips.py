@@ -231,7 +231,7 @@ TIPS = {
                "Under <b>Details</b>, set the ready date, the deposit %, the shop's reference, the terms and where to deliver.",
                "Send the shop the <b>Purchase order</b> PDF, or <b>Send on WeChat</b> to copy the order as a message with the Chinese for each heading.",
                "When the shop agrees, press <b>Confirm the order</b>: its rooms become Ordered.",
-               "<b>Record a payment</b> comes filled in with what is due; once the order is paid in full its rooms become Paid."],
+               "<b>Record a payment you made</b>: the amount and the currency it was paid in (¥ or $, chosen every time); you confirm before it is saved, with a warning for the same payment twice, more than the order's total or the other currency. Once the order is paid in full its rooms become Paid."],
         tips=["<b>Find a cheaper option</b> under a product flags it with your budget price per unit and a note, without taking it off (the line says what that price would save; the Budget page adds a total <b>At your budget prices</b> beside the real one); a cheaper quote another shop already gave shows on the line. <b>Rename shop</b> under the title changes the shop's name everywhere.",
               "<b>Changes</b> lists what changed since the version first seen, confirmed or marked sent (products, quantities, prices, rooms added or taken off); the <b>Excel</b> and the <b>PDF</b> carry the same list. Press <b>Mark as sent to the shop</b> once they have the new version.",
               "A draft is yours to edit: change quantities, keep a product for later (× at the end of its line) or a single room (the small × on its room code: it keeps the shop and price and waits under Later on the Orders page); typed less than the rooms need? <b>Keep … for later</b> on the line splits the rest off, then <b>Confirm the order</b> once the shop agrees. Raised a quantity? <b>Rooms and quantities</b> under its rooms shares it out room by room, or adds a room.",
@@ -294,7 +294,7 @@ TIPS = {
     "payments": dict(
         title="Payments", anchor="purchasing",
         what="What is paid and what is still owed, order by order and shop by shop. Payments are recorded on their order.",
-        steps=["<b>To pay, order by order</b> lists every confirmed order with money due. Press <b>Record a payment</b>: the order opens with the form filled in with what is due.",
+        steps=["<b>To pay, order by order</b> lists every confirmed order with money due. Press <b>Record a payment</b>: the order opens at its form; <b>Fill in</b> puts in what is due, in yuan or dollars.",
                "<b>By supplier</b> shows what was bought, what is on orders, paid and still to pay; <b>All payments</b> every payment with its order and receipt.",
                "A payment to a shop on no order (before orders existed, say) goes in <b>Record a payment here</b>, folded at the bottom."],
         tips=["On orders = the confirmed orders' totals. To pay = on orders − paid. Drafts count once they are confirmed.",
