@@ -139,6 +139,14 @@ def flow(c):
     for ph in d.photos: db.delete(ph)
     db.delete(d); db.commit(); db.close()  # keep the drafts count at zero for the capture test below
     r=c.post("/clip", data={"project_id":pid,"dest":"cover","link":"","page":"https://shop.example/product/sofa"}, follow_redirects=False); assert r.headers["location"]==f"/p/{pid}/images"
+    # a start whose schema mark is written but whose database lacks a table or column (seen on Neon) repairs it anyway
+    from app import main as _main
+    from app.db import engine as _eng
+    from sqlalchemy import text as _txt
+    assert _main.schema_gaps()==[]
+    with _eng.begin() as _cx: _cx.execute(_txt("DROP TABLE product_packing"))
+    assert _main.schema_gaps()==["product_packing"]
+    _main.startup(); assert _main.schema_gaps()==[]
     print("setup ok")
     # ---- Claude auto-fill (API replaced by a fake; off without the key) ----
     import app.ai as ai

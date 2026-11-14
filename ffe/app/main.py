@@ -89,6 +89,30 @@ def schema_fingerprint() -> str:
     return "start:" + h.hexdigest()[:24]
 
 
+def schema_gaps() -> list[str]:
+    """The tables and columns of the models the database does not have, in one round trip (information_schema on Postgres,
+    the inspector on SQLite). Run on every start, even when the schema mark says the full start was done."""
+    try:
+        if engine.dialect.name == "postgresql":
+            with engine.connect() as conn:
+                rows = conn.execute(text("SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = current_schema()")).all()
+            have = {(t, c) for t, c in rows}
+        else:
+            from sqlalchemy import inspect as _insp
+            ins = _insp(engine)
+            have = {(t, c["name"]) for t in ins.get_table_names() for c in ins.get_columns(t)}
+    except Exception:
+        return []  # cannot tell: the mark decides, as before
+    tables = {t for t, _ in have}
+    out = []
+    for t in Base.metadata.sorted_tables:
+        if t.name not in tables:
+            out.append(t.name)
+            continue
+        out += [f"{t.name}.{c.name}" for c in t.columns if (t.name, c.name) not in have]
+    return out
+
+
 @app.on_event("startup")
 def startup():
     key = schema_fingerprint()
@@ -97,13 +121,21 @@ def startup():
             done = conn.execute(text("SELECT 1 FROM schema_marks WHERE key = :k"), {"k": key}).first() is not None
     except Exception:
         done = False  # first start on an empty database: no schema_marks table yet
+    if done:
+        gaps = schema_gaps()
+        if gaps:  # marked as done, yet the database lacks what this code needs (seen once on Neon): do the full start anyway
+            print(f"[start] schema mark {key} found but the database lacks {', '.join(gaps[:12])}: running the full start", flush=True)
+            done = False
     if not done:
         full_start()
-        try:
-            with engine.begin() as conn:
-                conn.execute(text("INSERT INTO schema_marks (key, done_at) VALUES (:k, CURRENT_TIMESTAMP)"), {"k": key})
-        except Exception:
-            pass  # another instance wrote it a moment ago
+        if not schema_gaps():  # the mark is written only over a complete schema, so a short one is tried again next start
+            try:
+                with engine.begin() as conn:
+                    conn.execute(text("INSERT INTO schema_marks (key, done_at) VALUES (:k, CURRENT_TIMESTAMP) ON CONFLICT DO NOTHING"
+                                      if engine.dialect.name == "postgresql" else
+                                      "INSERT OR IGNORE INTO schema_marks (key, done_at) VALUES (:k, CURRENT_TIMESTAMP)"), {"k": key})
+            except Exception:
+                pass  # another instance wrote it a moment ago
     with SessionLocal() as db:
         quotations_mod.mark_stale(db)  # a quotation upload the old server was reading becomes an error to discard
     if config.PHOTO_PREPARE_AT_START:
@@ -115,6 +147,11 @@ def full_start():
     schema_fingerprint): tables, columns, the settings row, the plan sheet types and the upgrades that each run once."""
     Base.metadata.create_all(bind=engine)
     added = migrate(engine)  # columns added to existing tables (db.COLUMN_MIGRATIONS)
+    if added:
+        print(f"[start] schema: {', '.join(added)}", flush=True)
+    left = schema_gaps()
+    if left:  # still short: say so in the log; startup() then writes no mark, so the next start tries again
+        print(f"[start] WARNING: the database still lacks {', '.join(left[:12])} after the full start", flush=True)
     with engine.begin() as conn:
         s = conn.execute(text("SELECT id FROM settings WHERE id=1")).first()
         if not s:
