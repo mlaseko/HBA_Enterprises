@@ -694,8 +694,8 @@ class Carton(Base):
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
     supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id"), nullable=True)
     room_id: Mapped[int | None] = mapped_column(ForeignKey("rooms.id"), nullable=True)
-    contents: Mapped[str] = mapped_column(String(255), default="")
-    item_codes: Mapped[str] = mapped_column(String(255), default="")
+    contents: Mapped[str] = mapped_column(Text, default="")  # TEXT (was VARCHAR(255): db.TEXT_COLUMNS widens it on Postgres)
+    item_codes: Mapped[str] = mapped_column(Text, default="")  # a box of switches for 16 rooms names many codes
     qty: Mapped[float] = mapped_column(Float, default=1.0)
     length_cm: Mapped[float] = mapped_column(Float, default=0.0)
     width_cm: Mapped[float] = mapped_column(Float, default=0.0)
@@ -708,6 +708,11 @@ class Carton(Base):
     notes: Mapped[str] = mapped_column(String(255), default="")
     warehouse_on: Mapped[date | None] = mapped_column(Date, nullable=True)  # arrived at the consolidation warehouse
     shipment_id: Mapped[int | None] = mapped_column(ForeignKey("shipments.id"), nullable=True)  # the container it travels in
+    # A box from an order's packing list (the shop's filled Excel, packing_list.py): the order and the shop's box number on
+    # it, printed "KH-002 · Box 3 of 12" on the sticker. Plain columns added by db.COLUMN_MIGRATIONS; 0 / None = a box
+    # entered by hand or on the supplier link.
+    order_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    box_no: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     project: Mapped["Project"] = relationship(back_populates="cartons")
     supplier: Mapped["Supplier | None"] = relationship(lazy="joined")

@@ -76,7 +76,7 @@ def schema_fingerprint() -> str:
     the code of full_start() (so a new one-time upgrade added there counts as a change). A start whose key is already in
     schema_marks skips the checks: on Neon they are about a hundred round trips, paid on every autoscale cold start."""
     import hashlib, inspect as _inspect
-    from .db import COLUMN_MIGRATIONS, DATA_MIGRATIONS
+    from .db import COLUMN_MIGRATIONS, DATA_MIGRATIONS, TEXT_COLUMNS
     h = hashlib.sha1()
     for t in sorted(Base.metadata.tables.values(), key=lambda t: t.name):
         h.update(t.name.encode())
@@ -84,6 +84,7 @@ def schema_fingerprint() -> str:
             h.update(f"|{c.name}:{c.type}".encode())
     h.update(repr(COLUMN_MIGRATIONS).encode())
     h.update(repr(DATA_MIGRATIONS).encode())
+    h.update(repr(TEXT_COLUMNS).encode())
     h.update(_inspect.getsource(full_start).encode())
     return "start:" + h.hexdigest()[:24]
 

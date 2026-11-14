@@ -164,6 +164,12 @@ app/pdf/order.py       the purchase order of one order (portrait A4 on theme.py:
                        with photo and rooms, totals with deposit, terms, packing note, signature; DRAFT watermark)
 app/pdf/purchase.py    the internal Purchase schedule (SheetDoc: theme.py without the cover; products by category with rooms,
                        what to order, shops, prices, stage; the money by shop)
+app/packing_list.py    the shop's packing list per order: workbook(p, o, ref) (bilingual, yellow columns for the shop, hidden meta sheet),
+                       read(p, o, ref, data) → Plan (boxes, unpacked, unknown, unreadable, gaps, missing_size, clash, other_order; .ok),
+                       box_numbers("4-6", n), apply(db, p, o, plan) (replaces the order's boxes: Carton.order_id / box_no,
+                       entered_by "excel"; refused once a box left the shop; shipping.settle)
+app/pdf/boxes.py       stickers() (A4, 2 × 3, English + Chinese) and packing_list() (装箱单) of an order's boxes; Chinese text uses
+                       theme.CJK / zh() (a subset font: tools/make_cjk_font.py rebuilds it, the suite checks every character is in it)
 app/pdf/shipping.py    the loading list of a shipment (facts, tiles, boxes by room with drawn Tick squares for loading / receiving)
 app/templates/         base.html = app shell (desktop sidebar, top bar + project switcher, phone bottom tab bar,
                        "More" sheet, inline SVG icon sprite, public bar for share pages) + pages
@@ -448,6 +454,9 @@ ALTER TABLE quotes ADD COLUMN option_label VARCHAR(60) NOT NULL DEFAULT '';     
 ALTER TABLE orders ADD COLUMN baseline TEXT NOT NULL DEFAULT '';                         -- the version an order's changes count from (JSON)
 ALTER TABLE products ADD COLUMN cheaper VARCHAR(240) NOT NULL DEFAULT '';                 -- look for a cheaper option of it (the note)
 ALTER TABLE products ADD COLUMN cheaper_price FLOAT NOT NULL DEFAULT 0;                    -- the budget price per unit for it (CNY)
+ALTER TABLE cartons ADD COLUMN order_id INTEGER;                                          -- the order a box came from (the shop's packing list)
+ALTER TABLE cartons ADD COLUMN box_no INTEGER NOT NULL DEFAULT 0;                        -- its number within the order (Box 3 of 12)
+ALTER TABLE cartons ALTER COLUMN item_codes / contents TYPE TEXT;                         -- db.TEXT_COLUMNS (Postgres only)
 -- new tables (create_all): products, quotes, purchases, orders, shipments, project_lists, quotations, quotation_lines, quote_matches, quotation_uploads, quotation_line_also
 ```
 
@@ -1093,6 +1102,11 @@ ALTER TABLE products ADD COLUMN cheaper_price FLOAT NOT NULL DEFAULT 0;         
   by shop, by category; cells carry `data-l`, the first `td.who`) become cards under 700 px. Find cheaper's `Product.cheaper_price` (CNY) gives each budget row `at_budget` / `budget_saves` (unlocked buys priced above it, at it) and `pl.at_budget` (total, saves, n, priced, unpriced, gap): `#bg-sum-atb` under the Total, `.bg-atb` on the row, two Excel columns; the real totals stay at the shop's price. `GET /p/<id>/buying/budget.xlsx` → `budget.workbook(p, pl)` (Budget sheet a
   line per product and shop, totals and the gap; By category sheet).
 
+- **Packing per order (Excel round trip).** The order page's `#packing` card (confirmed orders): the packing list Excel to
+  send the shop (`/orders/<o>/packing.xlsx`), the filled file uploaded back (`POST /orders/<o>/packing` → `packing_preview.html`,
+  the file carried as base64 `data`; `apply=1` saves), then `/stickers.pdf` and `/packing.pdf` (`pdf/boxes.py`) to send back.
+  Box numbers are per order. The supplier link lists only lines whose purchase is on a confirmed order.
+
 ## Backlog (in priority order)
 
 1. **Installing on the phone.** Per-room checklist page with tap-to-tick for installed per item (store a date on
@@ -1102,8 +1116,8 @@ ALTER TABLE products ADD COLUMN cheaper_price FLOAT NOT NULL DEFAULT 0;         
 3. **Reports page.** Spend vs budget by category and by room, paid vs balance per supplier, items by status,
    with a date filter on payments; CSV/Excel export of each table.
 4. **Chinese fields for suppliers.** Optional `name_cn` / `spec_cn` on Item; show on the PO PDF and the
-   supplier packing link when present. (ReportLab needs a CJK font: bundle a free one, e.g. Noto Sans SC,
-   in `app/static/fonts` and register it in `pdf/common.py`.)
+   supplier packing link when present. (The PDFs have a CJK font now, `theme.CJK`, but it is a subset of the
+   characters in app/pdf/*.py: free Chinese text from the user needs the full font or a subset built per document.)
 5. **Studio branding on PDFs.** The schedule carries the logo (cover, Prepared by); still to do: an accent colour setting,
    and the packing list, labels and checklist on `pdf/theme.py` (the PO, the purchase schedule and the loading list are).
 6. **Alembic migrations** replacing `create_all` + manual ALTERs.

@@ -224,6 +224,13 @@ TIPS = {
                "The orders are grouped by stage: Draft, Deposit due, Balance due, Paid. A red ready date has passed with money still to pay."],
         tips=["The tiles count only confirmed orders; drafts are on their own tile.",
               "Payments recorded against an order make its rooms Paid once it is paid in full."]),
+    "packing_preview": dict(
+        title="A shop's packing list", anchor="packing",
+        what="The boxes the shop described in the packing list you sent it, checked before they are saved.",
+        steps=["Read the notes at the top: lines not packed (fine if they come later), codes not on the order, box numbers skipped, boxes without a size or weight.",
+               "Check the boxes: their number, the rooms and codes inside, the size and the weight.",
+               "<b>Save</b> makes them the order's boxes (replacing the ones listed while they are still at the shop); then print the stickers on the order and send them to the shop."],
+        tips=["A box number the app cannot read stops the save: ask the shop to write 3, or 4-6 for one item in several boxes."]),
     "order": dict(
         title="An order", anchor="purchasing",
         what="One order to one shop: its products and rooms, the money, the status, the payments and the purchase order.",
@@ -235,6 +242,7 @@ TIPS = {
         tips=["<b>Find a cheaper option</b> under a product flags it with your budget price per unit and a note, without taking it off (the line says what that price would save; the Budget page adds a total <b>At your budget prices</b> beside the real one); a cheaper quote another shop already gave shows on the line. <b>Rename shop</b> under the title changes the shop's name everywhere.",
               "<b>Changes</b> lists what changed since the version first seen, confirmed or marked sent (products, quantities, prices, rooms added or taken off); the <b>Excel</b> and the <b>PDF</b> carry the same list. Press <b>Mark as sent to the shop</b> once they have the new version.",
               "A draft is yours to edit: change quantities, keep a product for later (× at the end of its line) or a single room (the small × on its room code: it keeps the shop and price and waits under Later on the Orders page); typed less than the rooms need? <b>Keep … for later</b> on the line splits the rest off, then <b>Confirm the order</b> once the shop agrees. Raised a quantity? <b>Rooms and quantities</b> under its rooms shares it out room by room, or adds a room.",
+              "<b>Packing &amp; stickers</b>: send the shop the packing list to fill (Excel, English and Chinese), upload it when it comes back, then send the shop the box stickers to print (one per box: the order, Box n of N, the room code large).",
               "<b>Sort</b> beside Products puts the highest amount first (or lowest, by name, as added); the purchase order PDF follows it.",
               "Changed after it was confirmed? The order shows both totals: send the new purchase order, then press <b>The shop agreed</b>.",
               "Payments to the shop recorded before the order show under <b>Paid to … before</b>: tick them and count them toward this order.",
@@ -397,7 +405,7 @@ TEMPLATE_KEYS = {
     "suppliers/list.html": "suppliers", "suppliers/detail.html": "supplier", "payments.html": "payments", "cartons.html": "cartons",
     "import.html": "import", "settings.html": "settings", "clip.html": "clip", "share/supplier.html": "share_supplier", "plan/match.html": "plan_match",
     "share/client.html": "share_client", "buying/list.html": "buying", "buying/product.html": "buying_product", "buying/schedule.html": "buying_schedule",
-    "buying/orders.html": "orders", "buying/order.html": "order", "buying/tracker.html": "tracker", "buying/budget.html": "budget",
+    "buying/orders.html": "orders", "buying/order.html": "order", "buying/packing_preview.html": "packing_preview", "buying/tracker.html": "tracker", "buying/budget.html": "budget",
     "buying/quotations.html": "quotations", "buying/quotation_compare.html": "quotation_compare", "buying/quotation_preview.html": "quotation_preview", "buying/quotation_working.html": "quotation_working", "buying/quotation.html": "quotation",
     "carton.html": "carton", "shipping/list.html": "shipments", "shipping/shipment.html": "shipment", "lists.html": "lists",
 }

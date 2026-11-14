@@ -28,11 +28,13 @@ def supplier_page(request: Request, token: str, db: Session = Depends(get_db)):
     l = _link(db, token)
     p = l.project
     studio = get_settings(db)
-    items = sort_items([i for i in p.live_items if i.supplier_id == l.supplier_id], p)
+    # only what the shop was ordered: room lines on its confirmed orders (not those kept for later or on a draft)
+    items = sort_items([i for i in p.live_items if i.supplier_id == l.supplier_id and i.purchase is not None
+                        and i.purchase.order is not None and i.purchase.order.confirmed], p)
     rows = sorted([c for c in p.cartons if c.supplier_id == l.supplier_id], key=lambda c: c.id)
     pos = carton_positions(p.cartons)
     rooms = list(p.rooms)
-    return render(request, "share/supplier.html", link=l, p=p, items=items, rows=rows, pos=pos, rooms=rooms, picks=sh.item_choices(p, l.supplier_id),
+    return render(request, "share/supplier.html", link=l, p=p, items=items, rows=rows, pos=pos, rooms=rooms, picks=[x for x in sh.item_choices(p, l.supplier_id) if x["code"] in {i.code for i in items}],
                   studio=studio, total_cbm=sum(c.cbm for c in rows), deliver=sh.deliver_to(p, l.supplier_id, studio), where=sh.where)
 
 

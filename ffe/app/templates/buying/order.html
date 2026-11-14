@@ -148,6 +148,37 @@
   {% endif %}
 </section>
 
+{# ---- packing: the shop fills our Excel, we upload it, the stickers go back to the shop (packing_list.py) ---- #}
+<section class="bu-sec" id="packing">
+  <div class="bu-sec-head"><div><h2>Packing &amp; stickers <span class="n">{{ boxes|length }} box{{ 'es' if boxes|length != 1 }}</span></h2>
+    <p class="small muted">The shop fills our packing list in Excel; you upload it; the stickers go back to the shop to print.</p></div></div>
+  <div class="card pk-card">
+  {% if not o.confirmed %}<p class="small muted mb-0">Confirm the order first: the packing list lists what the shop agreed to send.</p>
+  {% else %}
+  <ol class="pk-steps">
+    <li><b>Send the shop the packing list to fill</b> <span class="small muted">One row per room line of {{ ov.ref }}, English and Chinese; they fill the box numbers, sizes and weights.</span>
+      <div><a class="btn sm sec" href="/p/{{ p.id }}/orders/{{ o.id }}/packing.xlsx"><svg class="ic"><use href="#i-download"/></svg>Packing list to fill (Excel)</a></div></li>
+    <li><b>Upload the file the shop sent back</b> <span class="small muted">You see the boxes it describes before anything is saved{% if boxes %}; it replaces the {{ boxes|length }} boxes now listed{% endif %}.</span>
+      <form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/packing" enctype="multipart/form-data" class="row pk-up">
+        <input type="file" name="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+        <button class="btn sm"><svg class="ic"><use href="#i-upload"/></svg>Check it</button></form></li>
+    <li><b>Send the shop the stickers to print</b> <span class="small muted">One per box: {{ ov.ref }} · Box n of N, the room code large, what is inside. A4, 6 per page.</span>
+      <div class="row">{% if boxes %}<a class="btn sm accent" href="/p/{{ p.id }}/orders/{{ o.id }}/stickers.pdf" target="_blank"><svg class="ic"><use href="#i-download"/></svg>Box stickers (PDF)</a>
+        <a class="btn sm sec" href="/p/{{ p.id }}/orders/{{ o.id }}/packing.pdf" target="_blank"><svg class="ic"><use href="#i-file"/></svg>Packing list (PDF)</a>
+        {% else %}<span class="small muted">Ready once the filled packing list is uploaded.</span>{% endif %}</div></li>
+  </ol>
+  {% if boxes %}
+  <div class="tbl"><table class="pk-boxes">
+    <thead><tr><th>Box</th><th>Inside</th><th>Size cm</th><th class="num">kg</th><th>Where</th></tr></thead>
+    <tbody>{% for c in boxes %}<tr><td class="b">{{ c.box_no }}</td><td><b class="small">{{ c.item_codes }}</b><div class="small muted">{{ c.contents }}</div></td>
+      <td class="small">{% if c.length_cm and c.width_cm and c.height_cm %}{{ c.length_cm|num(1) }} × {{ c.width_cm|num(1) }} × {{ c.height_cm|num(1) }}{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td class="num small">{{ c.weight_kg|num(1) if c.weight_kg else '—' }}</td><td class="small">{{ {'shop': 'At the shop', 'warehouse': 'At the warehouse', 'shipment': 'On a shipment', 'site': 'On site'}[box_where(c)] }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% endif %}
+  {% endif %}
+  </div>
+</section>
+
 {# ---- payments ---- #}
 <section class="bu-sec" id="payments">
   <div class="bu-sec-head"><div><h2>Payments <span class="n">{{ o.payments|length }}</span></h2><p class="small muted">What you paid against this order. Once it is paid in full, its rooms become Paid.</p></div></div>

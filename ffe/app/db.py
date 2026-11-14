@@ -33,6 +33,8 @@ def get_db():
 # is listed here with the SQL that adds it (SQLite and Postgres both accept ADD COLUMN ... DEFAULT) and migrate() applies
 # the missing ones at startup. Prefer a new table when you can; when a column is the right model, add it here too.
 COLUMN_MIGRATIONS = [
+    ("cartons", "order_id", "INTEGER"),  # the order whose packing list made the box (packing_list.py)
+    ("cartons", "box_no", "INTEGER NOT NULL DEFAULT 0"),  # the shop's box number on that order: "KH-002 · Box 3 of 12"
     ("suppliers", "one_order", "BOOLEAN NOT NULL DEFAULT FALSE"),  # one order for all the shop's quotations (else one per quotation)
     ("orders", "baseline", "TEXT NOT NULL DEFAULT ''"),
     ("products", "cheaper", "VARCHAR(240) NOT NULL DEFAULT ''"),
@@ -76,6 +78,9 @@ COLUMN_MIGRATIONS = [
 # Data fixes for rows written by an older version. Each must be idempotent (safe to run at every start, by several instances):
 # the main plan of a floor used to be stored as "furniture"; that key now belongs to no layer (the furniture layout is
 # "furnishing"), so relabelling it matches nothing new.
+# VARCHAR columns that became TEXT: widened on Postgres by migrate() (SQLite does not enforce a length)
+TEXT_COLUMNS = [("cartons", "item_codes"), ("cartons", "contents")]
+
 DATA_MIGRATIONS = [
     ("project_images", "layer", "UPDATE project_images SET layer = 'main' WHERE layer = 'furniture'"),
 ]
@@ -102,6 +107,15 @@ def migrate(eng=None) -> list[str]:
                 raise
             continue
         added.append(f"{table}.{column}")
+    if eng.dialect.name == "postgresql":
+        for table, column in TEXT_COLUMNS:
+            if table not in tables:
+                continue
+            col = next((c for c in inspect(eng).get_columns(table) if c["name"] == column), None)
+            if col is not None and getattr(col["type"], "length", None):
+                with eng.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE {table} ALTER COLUMN {column} TYPE TEXT"))
+                added.append(f"{table}.{column}: TEXT")
     for table, column, sql in DATA_MIGRATIONS:
         if table not in tables or column not in {c["name"] for c in inspect(eng).get_columns(table)}:
             continue
