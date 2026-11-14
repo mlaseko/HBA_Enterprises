@@ -1,5 +1,5 @@
 """End-to-end smoke test. Run: python tests/test_flow.py  (prints ALL OK)."""
-import os, io, sys, tempfile
+import os, io, sys, tempfile, urllib.parse
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))  # tools/restore_items.py
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -79,7 +79,7 @@ def flow(c):
     for it in db.query(Item).filter(Item.category=="Tiles").limit(5): it.supplier_id=sup.id; it.unit_price=95
     db.commit(); db.close()
     # payment
-    r=c.post(f"/p/{pid}/payments", data={"supplier_id":sup.id,"paid_on":"2026-10-05","amount":"5000","kind":"Deposit","reference":"TT123"}, files={"receipt":("r.jpg",img("green"),"image/jpeg")}, follow_redirects=False)
+    r=c.post(f"/p/{pid}/payments", data={"supplier_id":sup.id,"paid_on":"2026-10-05","amount":"5000","kind":"Deposit","reference":"TT123","currency":"CNY"}, files={"receipt":("r.jpg",img("green"),"image/jpeg")}, follow_redirects=False)
     r=c.get(f"/p/{pid}/payments"); assert "5,000" in r.text
     # supplier link
     r=c.post(f"/p/{pid}/suppliers/{sup.id}/link", data={"action":"create"}, follow_redirects=False)
@@ -1644,14 +1644,32 @@ def flow(c):
     assert "KH-001" not in pdf_text(c.get(f"/p/{pid_o}/orders/{oid2}/po.pdf").content)  # each order its own PO
     # paying: the deposit on the order page, the balance on Payments with the order chosen; paid in full = Paid; shipped stays shipped
     c.post(f"/p/{pid_o}/items/{oi[('Bed','BED')]}/status", data={"status":"Shipped"})
-    r=c.post(f"/p/{pid_o}/orders/{oid}/payments", data={"amount":"2628.48","kind":"Deposit","paid_on":"2026-10-02","reference":"WX1"}, files={"receipt":("r.jpg",img("green"),"image/jpeg")}, follow_redirects=False)
+    r=c.post(f"/p/{pid_o}/orders/{oid}/payments", data={"amount":"2628.48","kind":"Deposit","paid_on":"2026-10-02","reference":"WX1","currency":"CNY"}, files={"receipt":("r.jpg",img("green"),"image/jpeg")}, follow_redirects=False)
     assert r.headers["location"].endswith("#payments") and "ok=" in r.headers["location"]
     db=SessionLocal(); pay1=db.query(_Pay).filter(_Pay.order_id==oid).one(); assert pay1.supplier_id==ts and pay1.receipt_key
     ov=_od.OrderView(db.get(_O,oid), _bz.Ledger(db.get(_P,pid_o)), today=_dt.date(2026,10,16)); assert ov.stage=="Balance due" and ov.deposit_left==0 and ov.balance==3942.72 and ov.soon and not ov.late and ov.ready_text=="in 4 days"; db.close()
     assert _sts(tile_bed)==["Ordered","Ordered","Shipped"]
-    assert 'value="3942.72"' in c.get(f"/p/{pid_o}/orders/{oid}").text  # the form offers what is due
+    # the payment form: the currency is chosen every time, nothing is filled in by itself, the balance is offered as a Fill in
+    # button with "record it when you pay it"; a currency missing, the same payment again, an amount over the total or a
+    # figure of the order typed in the other currency is refused until confirmed (sure=1)
+    h=c.get(f"/p/{pid_o}/orders/{oid}").text; _payform=h.split('id="pay"')[1].split("</form>")[0]
+    assert 'id="pay" data-pay data-ctx=' in h and 'name="currency" value="CNY" required' in _payform and 'name="currency" value="USD" required' in _payform
+    assert 'checked' not in _payform.split('name="currency"')[1][:80] and 'name="amount" placeholder' in _payform and 'data-fill="3942.72" data-cur="CNY"' in _payform and "record it when you pay it" in _payform
+    db=SessionLocal(); _rt7=db.get(_P,pid_o).rate or 1; db.close()
+    def _pays(): return SessionLocal().query(_Pay).filter(_Pay.order_id==oid).count()
+    r=c.post(f"/p/{pid_o}/orders/{oid}/payments", data={"amount":"100","kind":"Balance","paid_on":"2026-10-03"}, follow_redirects=False); assert "err=" in r.headers["location"] and "currency" in urllib.parse.unquote(r.headers["location"]) and _pays()==1
+    r=c.post(f"/p/{pid_o}/orders/{oid}/payments", data={"amount":"2628.48","kind":"Deposit","paid_on":"2026-10-03","currency":"CNY"}, follow_redirects=False)
+    assert "already%20recorded" in r.headers["location"] and _pays()==1  # the same deposit again
+    r=c.post(f"/p/{pid_o}/orders/{oid}/payments", data={"amount":str(round(3942.72/_rt7, 2)),"kind":"Balance","paid_on":"2026-10-03","currency":"CNY"}, follow_redirects=False)
+    assert "Was%20it%20paid%20in%20dollars" in r.headers["location"] and _pays()==1  # the balance's dollars typed as yuan
+    r=c.post(f"/p/{pid_o}/orders/{oid}/payments", data={"amount":"9000","kind":"Balance","paid_on":"2026-10-03","currency":"CNY"}, follow_redirects=False)
+    assert "more%20than%20its%20total" in r.headers["location"] and _pays()==1
+    r=c.post(f"/p/{pid_o}/payments", data={"order_id":str(oid),"amount":"9000","kind":"Balance","paid_on":"2026-10-03","currency":"CNY"}, follow_redirects=False)
+    assert "more%20than%20its%20total" in r.headers["location"] and _pays()==1  # the Payments page checks the same
+    assert _od.pay_amount(SessionLocal().get(_P,pid_o), 10, "USD")==round(10*_rt7, 2)  # dollars stored as yuan at the rate
+    h=c.get(f"/p/{pid_o}/payments?err=x").text; assert '<div class="alert err">x</div>' in h and "<title>Payments · " in h and "<details" not in h.split("<title>")[1].split("</title>")[0]
     h=c.get(f"/p/{pid_o}/payments").text; assert f'<option value="{oid}">KH-001 · Tile Shop · to pay ¥3,943 ($' in h and "On orders" in h and "KH-001" in h.split("All payments")[1]
-    c.post(f"/p/{pid_o}/payments", data={"order_id":str(oid),"supplier_id":str(ls),"paid_on":"2026-10-15","amount":"3942.72","kind":"Balance","reference":"BANK2"}, follow_redirects=False)
+    c.post(f"/p/{pid_o}/payments", data={"order_id":str(oid),"supplier_id":str(ls),"paid_on":"2026-10-15","amount":"3942.72","kind":"Balance","reference":"BANK2","currency":"CNY"}, follow_redirects=False)
     db=SessionLocal(); pay2=db.query(_Pay).filter(_Pay.order_id==oid, _Pay.kind=="Balance").one(); assert pay2.supplier_id==ts; pay2=pay2.id; db.close()  # the order's shop, not the one picked
     assert _sts(tile_bed)==["Paid","Paid","Shipped"] and c.get(f"/p/{pid_o}/buying?stage=Paid").text.count('class="bu-card"')==2  # the stage reads the order
     r=c.post(f"/p/{pid_o}/payments/{pay2}/delete", data={"next":f"/p/{pid_o}/orders/{oid}#payments"}, follow_redirects=False); assert r.headers["location"]==f"/p/{pid_o}/orders/{oid}#payments"
@@ -1710,7 +1728,7 @@ def flow(c):
     assert t["ordered"]==6794.4 and t["paid"]==2628.48 and t["to_pay"]==4165.92 and t["stages"]["Ordered"]["products"]==2 and t["stages"]["Sourced"]["products"]==1
     assert t["attention"][0]["tone"]=="red" and t["attention"][0]["title"]=="KH-001 was due 5 days ago" and sum(1 for a in t["attention"] if "KH-001" in a["title"])==1, t["attention"]
     # a payment to the shop on no order (made before orders existed, say) can be counted toward the order
-    c.post(f"/p/{pid_o}/payments", data={"order_id":"","supplier_id":str(ts),"paid_on":"2026-09-20","amount":"1000","kind":"Deposit","reference":"OLD1"}, follow_redirects=False)
+    c.post(f"/p/{pid_o}/payments", data={"order_id":"","supplier_id":str(ts),"paid_on":"2026-09-20","amount":"1000","kind":"Deposit","reference":"OLD1","currency":"CNY"}, follow_redirects=False)
     h=c.get(f"/p/{pid_o}/orders/{oid}").text; assert "Paid to Tile Shop before, on no order" in h and "OLD1" in h
     db=SessionLocal(); loose=db.query(_Pay).filter(_Pay.reference=="OLD1").one().id; db.close()
     r=c.post(f"/p/{pid_o}/orders/{oid}/claim", data={}, follow_redirects=False); assert "err=" in r.headers["location"]
@@ -1937,6 +1955,43 @@ def flow(c):
         db=SessionLocal(); assert db.get(Item,_new4[0].id).purchase_id==_lpu and db.query(_Pu).filter(_Pu.order_id==_so2).count()==1; db.close()
     assert _new4, "the fourth room was not added"
     db=SessionLocal(); assert [x.id for x in db.query(_Pu).filter(_Pu.order_id==_so).all()]==[_spu], [(x.id, x.quote_id) for x in db.query(_Pu).filter(_Pu.order_id==_so).all()]; db.close()
+    # packing: the Excel to send the shop (its order's room lines, bilingual), the filled file back (preview, then save as the
+    # order's boxes "KH-… · Box n of N"), the stickers and the packing list PDF; the supplier link lists only confirmed orders
+    import base64 as _b64
+    from app.models import Carton as _Ct
+    h=c.get(f"/p/{pid_o}/orders/{_so}").text; assert 'id="packing"' in h and f'/orders/{_so}/packing.xlsx"' in h and "Ready once the filled packing list is uploaded" in h
+    r=c.get(f"/p/{pid_o}/orders/{_so}/packing.xlsx"); assert r.status_code==200 and "packing" in r.headers["content-disposition"].lower()
+    _pw=openpyxl.load_workbook(io.BytesIO(r.content)); _ps=_pw.worksheets[0]
+    assert "箱号" in str(_ps.cell(5,7).value) and "How to fill 填写说明" in _pw.sheetnames and _pw["meta"].sheet_state=="hidden"
+    db=SessionLocal(); _ocodes=sorted(i.code for pu in db.query(_Pu).filter(_Pu.order_id==_so).all() for i in pu.lines) if hasattr(_Pu,"lines") else sorted(i.code for i in db.query(Item).join(_Pu, Item.purchase_id==_Pu.id).filter(_Pu.order_id==_so).all()); db.close()
+    _rows=[r_ for r_ in range(6, _ps.max_row+1) if _ps.cell(r_,1).value]; assert sorted(_ps.cell(r_,1).value for r_ in _rows)==_ocodes and _ocodes, (_ocodes,)
+    _ps.cell(_rows[0],7).value="1-2"; _ps.cell(_rows[0],9).value=60; _ps.cell(_rows[0],10).value=40; _ps.cell(_rows[0],11).value=50; _ps.cell(_rows[0],12).value=18.5
+    _ps.append(["ZZ-99","","Not ours","",1,"pcs","3"])
+    _buf=io.BytesIO(); _pw.save(_buf); _filled=_buf.getvalue()
+    r=c.post(f"/p/{pid_o}/orders/{_so}/packing", files={"file":("filled.xlsx",_filled,"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")})
+    _pv=r.text[r.text.find('page-head'):][:3000]; assert r.status_code==200 and "Save 2 boxes" in r.text and "ZZ-99" in r.text and ("not packed</b>" in r.text)==(len(_ocodes)>1), (_ocodes, r.text[r.text.find('name="apply"'):][:500])
+    db=SessionLocal(); assert db.query(_Ct).filter(_Ct.order_id==_so).count()==0; db.close()  # nothing saved by the preview
+    r=c.post(f"/p/{pid_o}/orders/{_so}/packing", data={"data":_b64.b64encode(_filled).decode(),"apply":"1"}, follow_redirects=False); assert "ok=" in r.headers["location"], r.headers["location"]
+    db=SessionLocal(); _cts=db.query(_Ct).filter(_Ct.order_id==_so).order_by(_Ct.box_no).all()
+    assert [x.box_no for x in _cts]==[1,2] and all(_ps.cell(_rows[0],1).value in x.item_codes for x in _cts) and _cts[0].length_cm==60 and _cts[0].weight_kg==18.5 and _cts[0].entered_by=="excel"; db.close()
+    h=c.get(f"/p/{pid_o}/orders/{_so}").text; assert "2 boxes" in h.split('id="packing"')[1][:300] and f'/orders/{_so}/stickers.pdf"' in h and "At the shop" in h
+    _ref=SessionLocal().get(_O,_so); _ref=f"{''.join(w[0] for w in SessionLocal().get(_P,pid_o).name.split()[:2]).upper()}"
+    _st=pdf_text(c.get(f"/p/{pid_o}/orders/{_so}/stickers.pdf").content); assert "Box 1 of 2" in _st and "Box 2 of 2" in _st and "INSIDE" in _st, _st[:500]
+    _pl=pdf_text(c.get(f"/p/{pid_o}/orders/{_so}/packing.pdf").content); assert "Packing list" in _pl and "2 boxes" in _pl and "18.5" in _pl, _pl[:500]
+    r=c.post(f"/p/{pid_o}/orders/{_so}/packing", data={"data":_b64.b64encode(_filled).decode(),"apply":"1"}, follow_redirects=False)
+    db=SessionLocal(); assert db.query(_Ct).filter(_Ct.order_id==_so).count()==2; db.close()  # a new upload replaces them, no doubles
+    _ps.cell(_rows[0],7).value="first"; _buf=io.BytesIO(); _pw.save(_buf)
+    r=c.post(f"/p/{pid_o}/orders/{_so}/packing", files={"file":("bad.xlsx",_buf.getvalue(),"application/octet-stream")}); assert "Box numbers we cannot read" in r.text and 'name="apply"' not in r.text
+    r=c.post(f"/p/{pid_o}/orders/{_so}/packing", files={"file":("x.xlsx",b"not excel","application/octet-stream")}, follow_redirects=False); assert "err=" in r.headers["location"]
+    from app import packing_list as _pkm
+    assert _pkm.box_numbers("4-6", None)==[4,5,6] and _pkm.box_numbers(4, 3)==[4,5,6] and _pkm.box_numbers("3, 5", "")==[3,5] and _pkm.box_numbers("2~3", None)==[2,3] and _pkm.box_numbers("a", None) is None
+    db=SessionLocal(); [db.delete(x) for x in db.query(_Ct).filter(_Ct.order_id==_so).all()]; db.commit(); db.close()
+    # every Chinese character the PDFs print is in the bundled subset font (tools/make_cjk_font.py rebuilds it)
+    import re as _re, glob as _glob
+    from reportlab.pdfbase.ttfonts import TTFont as _TTF
+    _cmap=_TTF("_chk", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))) if "__file__" in globals() else ".", "app/static/fonts/CJK-subset.ttf")).face.charToGlyph
+    _zh=set(_re.findall(r"[\u3000-\u303f\u3400-\u9fff\uff00-\uffef]", "".join(open(x_, encoding="utf-8").read() for x_ in _glob.glob("app/pdf/*.py"))))
+    assert _zh and all(ord(ch) in _cmap for ch in _zh), [ch for ch in _zh if ord(ch) not in _cmap]
     print("orders ok")
     # ---- Shipping: boxes to the warehouse, into a shipment, to site; the rooms follow their boxes ----
     from app import shipping as _sh

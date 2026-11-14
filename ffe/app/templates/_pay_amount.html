@@ -1,0 +1,23 @@
+{# The amount of a payment and the currency it was paid in. The currency is chosen every time (no default): yuan or dollars,
+   and a live line shows the amount in both (USD is stored in CNY at the project rate). `due` = [(label, cny), …] gives
+   "Fill in" buttons for what is due. app.js (form[data-pay]) checks the amount before it is posted: the currency, a payment
+   already recorded, more than the order's total; the route checks the same (ordering.payment_warnings). #}
+{% macro pay_amount(due=[], note='') %}
+<div class="pay-amt span2" data-rate="{{ p.rate or 1 }}">
+  <label>Amount paid</label>
+  <div class="pay-row">
+    <input class="in" type="number" step="0.01" min="0" name="amount" placeholder="0.00" required inputmode="decimal" aria-label="Amount paid">
+    <span class="pay-cur" role="radiogroup" aria-label="Currency paid in">
+      <label class="pill-opt"><input type="radio" name="currency" value="CNY" required><span>¥ CNY</span></label>
+      <label class="pill-opt"><input type="radio" name="currency" value="USD" required><span>$ USD</span></label>
+    </span>
+  </div>
+  <div class="small pay-both" aria-live="polite">Choose the currency you paid in: the shop's receipt says it (¥ on WeChat and Alipay).</div>
+  {% if due %}<div class="pay-fill small">{% for label, cny in due %}<span class="muted">{{ label }}:</span>
+    <button type="button" class="linkbtn" data-fill="{{ '%.2f'|format(cny) }}" data-cur="CNY">¥{{ '{:,.2f}'.format(cny) }}</button>
+    <button type="button" class="linkbtn" data-fill="{{ '%.2f'|format(cny / (p.rate or 1)) }}" data-cur="USD">${{ '{:,.2f}'.format(cny / (p.rate or 1)) }}</button>{% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}
+  {% if note %}<div class="small muted">{{ note }}</div>{% endif %}
+  <input type="hidden" name="sure" value="">
+  <noscript><label class="check small"><input type="checkbox" name="sure" value="1"> I checked the amount and the currency</label></noscript>
+</div>
+{% endmacro %}

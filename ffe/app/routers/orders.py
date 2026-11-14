@@ -25,6 +25,16 @@ def _order(db: Session, p: Project, order_id: int) -> Order | None:
     return o if o is not None and o.project_id == p.id else None
 
 
+def _where(c) -> str:
+    from .. import shipping
+    return shipping.where(c)
+
+
+def _pk_boxes(p: Project, o: Order) -> list:
+    from .. import packing_list as pk
+    return pk.order_boxes(p, o)
+
+
 def _to(p: Project, oid: int | None = None, anchor: str = "", ok: str = "", err: str = ""):
     q = f"?ok={urlquote(ok)}" if ok else (f"?err={urlquote(err)}" if err else "")
     return redirect(f"/p/{p.id}/orders" + (f"/{oid}" if oid else "") + q + anchor)
@@ -107,7 +117,7 @@ def order_page(request: Request, order_id: int, p: Project = Depends(get_project
     return render(request, "buying/order.html", p=p, ov=ov, o=o, more=more, addable=_addable(db, p, o), wechat=od.wechat_text(ov, p, studio), studio=studio, loose=od.loose_payments(p, o),
                   today=date.today().isoformat(), due=round(due, 2), due_kind="Deposit" if deposit_next else "Balance",
                   STAGE_COLORS=od.STAGE_COLORS, STAGE_HELP=od.STAGE_HELP, ok=ok[:200], err=err[:200], sort=sort, SORTS=od.LINE_SORTS, ch=ch, cheaper_q=cheaper_q, flags=flags,
-                  free_rooms=lambda pu: od.free_rooms(p, pu))
+                  free_rooms=lambda pu: od.free_rooms(p, pu), pay_ctx=od.pay_context(o, ov), boxes=_pk_boxes(p, o), box_where=_where)
 
 
 @router.post("/p/{project_id}/orders/{order_id}")
@@ -385,9 +395,17 @@ async def pay_order(request: Request, order_id: int, p: Project = Depends(get_pr
     if o is None:
         return _to(p)
     form = await request.form()
-    amount = ffloat(form.get("amount"), 0)
-    if amount <= 0:
+    typed = ffloat(form.get("amount"), 0)
+    if typed <= 0:
         return _to(p, order_id, "#pay", err="Type the amount paid.")
+    currency = (form.get("currency") or "").upper()
+    if currency not in od.PAY_CURRENCIES:
+        return _to(p, order_id, "#pay", err="Not recorded: choose the currency it was paid in, yuan (¥ CNY) or dollars ($ USD). The shop's receipt says it.")
+    amount = od.pay_amount(p, typed, currency)
+    paid_on = _date(form.get("paid_on", "")) or date.today()
+    warns = od.payment_warnings(p, od.pay_context(o, od.OrderView(o, bz.Ledger(p))), amount, typed, currency, paid_on)
+    if warns and "1" not in form.getlist("sure"):
+        return _to(p, order_id, "#pay", err="Not recorded yet: " + " ".join(warns) + " If it is right, record it again and confirm.")
     key = ""
     f = form.get("receipt")
     if f is not None and hasattr(f, "read"):
@@ -395,10 +413,10 @@ async def pay_order(request: Request, order_id: int, p: Project = Depends(get_pr
         if data:
             key = storage.save_image(data, f"p{p.id}/receipts")
     kind = form.get("kind") or "Deposit"
-    od.record_payment(db, p, o, amount, kind, _date(form.get("paid_on", "")) or date.today(), form.get("reference", ""), form.get("note", ""), key)
+    od.record_payment(db, p, o, amount, kind, paid_on, form.get("reference", ""), form.get("note", ""), key)
     bz.settle(db, p)
     db.commit()
-    return _to(p, order_id, "#payments", ok=f"{kind} of {fmt_cur(p, amount, 2)} recorded.")
+    return _to(p, order_id, "#payments", ok=f"{kind} of ¥{amount:,.2f} (${amount / (p.rate or 1):,.2f}) recorded.")
 
 
 @router.post("/p/{project_id}/orders/{order_id}/claim")
@@ -434,3 +452,77 @@ def order_pdf(request: Request, order_id: int, p: Project = Depends(get_project)
         return build_error(request, p, f"Purchase order {ov.ref}", err)
     name = f"PO-{ov.ref}-{o.supplier.name if o.supplier else 'supplier'}.pdf"
     return Response(content=data, media_type="application/pdf", headers=content_disposition(name, inline=True))
+
+
+# ---- packing: the shop's Excel round trip, then the stickers and the packing list (packing_list.py, pdf/boxes.py) --------
+@router.get("/p/{project_id}/orders/{order_id}/packing.xlsx")
+def packing_xlsx(order_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """The packing list to send the shop: a row per room line on the order, the shop fills its boxes in."""
+    from .. import packing_list as pk
+    o = _order(db, p, order_id)
+    if o is None:
+        return _to(p)
+    ref = od.ref(o)
+    data = pk.workbook(p, o, ref)
+    name = f"{ref} packing list - {o.supplier.name if o.supplier else 'shop'}.xlsx"
+    return Response(data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers=content_disposition(name))
+
+
+@router.post("/p/{project_id}/orders/{order_id}/packing")
+async def packing_upload(request: Request, order_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """The shop's filled packing list: a preview of the boxes it describes first (the file travels in the form as base64);
+    Save (apply=1) makes them the order's boxes."""
+    import base64
+    from .. import packing_list as pk
+    o = _order(db, p, order_id)
+    if o is None:
+        return _to(p)
+    form = await request.form()
+    f = form.get("file")
+    data = b""
+    if f is not None and hasattr(f, "read"):
+        data = await f.read()
+    elif form.get("data"):
+        try:
+            data = base64.b64decode(form.get("data"))
+        except ValueError:
+            data = b""
+    if not data:
+        return _to(p, order_id, "#packing", err="Choose the packing list the shop sent back (.xlsx).")
+    ref = od.ref(o)
+    try:
+        plan = pk.read(p, o, ref, data)
+    except Exception:  # not an Excel file, or not ours
+        return _to(p, order_id, "#packing", err="That file could not be read: upload the .xlsx we sent the shop, filled in.")
+    if form.get("apply") == "1":
+        n, why = pk.apply(db, p, o, plan)
+        if why:
+            return _to(p, order_id, "#packing", err=why)
+        db.commit()
+        return _to(p, order_id, "#packing", ok=f"{n} box{'es' if n != 1 else ''} saved from the shop's packing list: print the stickers and send them to the shop.")
+    return render(request, "buying/packing_preview.html", p=p, o=o, ref=ref, plan=plan, data=base64.b64encode(data).decode(),
+                  had=len(pk.order_boxes(p, o)))
+
+
+@router.get("/p/{project_id}/orders/{order_id}/stickers.pdf")
+def packing_stickers(order_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    from .. import packing_list as pk
+    from ..pdf import boxes as bx
+    o = _order(db, p, order_id)
+    if o is None:
+        return _to(p)
+    ref = od.ref(o)
+    data = bx.stickers(p, get_settings(db), o, ref, pk.order_boxes(p, o))
+    return Response(data, media_type="application/pdf", headers=content_disposition(f"{ref} box stickers.pdf", inline=True))
+
+
+@router.get("/p/{project_id}/orders/{order_id}/packing.pdf")
+def packing_pdf(order_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    from .. import packing_list as pk
+    from ..pdf import boxes as bx
+    o = _order(db, p, order_id)
+    if o is None:
+        return _to(p)
+    ref = od.ref(o)
+    data = bx.packing_list(p, get_settings(db), o, ref, pk.order_boxes(p, o))
+    return Response(data, media_type="application/pdf", headers=content_disposition(f"{ref} packing list.pdf", inline=True))

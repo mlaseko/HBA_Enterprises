@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Packing list {{ ref }} · {{ p.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/orders/{{ o.id }}">{{ ref }}</a></div>
+    <h1>Packing list from {{ o.supplier.name if o.supplier else 'the shop' }} <span class="h-note">{{ plan.boxes|length }} box{{ 'es' if plan.boxes|length != 1 }}</span></h1>
+    <p class="sub">Check the boxes the shop described, then save them: nothing is saved yet.</p>
+  </div>
+</div>
+
+{% if plan.other_order %}<div class="alert err">This file is the packing list of <b>{{ plan.other_order }}</b>, not {{ ref }}: upload it on that order.</div>{% endif %}
+{% if plan.unreadable %}<div class="alert err"><b>Box numbers we cannot read</b> (write 3, or 4-6 for one item in several boxes): {{ plan.unreadable|join('; ') }}.</div>{% endif %}
+{% if not plan.boxes and not plan.unreadable and not plan.other_order %}<div class="alert err">No box numbers filled in yet: the shop fills the yellow “Box no. 箱号” column.</div>{% endif %}
+{% if plan.unpacked %}<div class="alert info"><b>{{ plan.unpacked|length }} room line{{ 's' if plan.unpacked|length != 1 }} not packed</b> (no box number): {% for i in plan.unpacked %}{{ i.code }}{{ ', ' if not loop.last }}{% endfor %}. Fine if they come in a later delivery; otherwise ask the shop.</div>{% endif %}
+{% if plan.unknown %}<div class="alert info"><b>Codes not on {{ ref }}</b>, left out: {{ plan.unknown|join(', ') }}.</div>{% endif %}
+{% if plan.gaps %}<div class="alert info"><b>Box numbers skipped:</b> {{ plan.gaps|join(', ') }}. The stickers still say “of {{ (plan.boxes|map(attribute='no')|list)[-1] if plan.boxes else 0 }}”.</div>{% endif %}
+{% if plan.missing_size %}<div class="alert info"><b>Boxes without a size or weight:</b> {{ plan.missing_size|join(', ') }}. They can be saved; the shipment's volume will be short until they are filled in.</div>{% endif %}
+{% if plan.clash %}<div class="alert info"><b>Different sizes or weights given for the same box:</b> {{ plan.clash|join(', ') }}. The first one is kept.</div>{% endif %}
+
+{% if plan.boxes %}
+<section class="card">
+  <div class="tbl"><table>
+    <thead><tr><th>Box</th><th>Rooms</th><th>Inside</th><th>Size cm</th><th class="num">kg</th><th>Notes</th></tr></thead>
+    <tbody>{% for b in plan.boxes %}<tr>
+      <td class="b">{{ b.no }}</td><td class="small b">{{ b.rooms|join(' + ') }}</td>
+      <td><b class="small">{{ b.codes|join(', ') }}</b><div class="small muted">{{ b.names|join(' · ') }}{% if b.shared_by > 1 %} (one of {{ b.shared_by }} boxes){% endif %}</div></td>
+      <td class="small">{% if b.length and b.width and b.height %}{{ b.length|num(1) }} × {{ b.width|num(1) }} × {{ b.height|num(1) }}{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td class="num small">{{ b.kg|num(1) if b.kg else '—' }}</td><td class="small muted">{{ b.notes|join(' · ') }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+{% endif %}
+
+<div class="row mt">
+  {% if plan.ok %}
+  <form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/packing">
+    <input type="hidden" name="data" value="{{ data }}"><input type="hidden" name="apply" value="1">
+    <button class="btn accent"><svg class="ic"><use href="#i-check"/></svg>Save {{ plan.boxes|length }} box{{ 'es' if plan.boxes|length != 1 }}{% if had %} (replaces the {{ had }} listed){% endif %}</button>
+  </form>
+  {% endif %}
+  <a class="btn ghost" href="/p/{{ p.id }}/orders/{{ o.id }}#packing">Back to {{ ref }}</a>
+</div>
+{% endblock %}

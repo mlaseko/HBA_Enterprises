@@ -31,6 +31,16 @@ def _register_fonts():
 
 _register_fonts()
 
+CJK = "CJK"  # the Chinese words of the shop-facing documents (stickers, packing list): a subset of WenQuanYi Zen Hei that
+# tools/make_cjk_font.py cuts from the characters written in app/pdf/*.py (GPL-2 with the font embedding exception)
+if CJK not in pdfmetrics.getRegisteredFontNames() and (FONT_DIR / "CJK-subset.ttf").exists():
+    pdfmetrics.registerFont(TTFont(CJK, str(FONT_DIR / "CJK-subset.ttf")))
+
+
+def zh(text: str) -> str:
+    """Chinese words inside a Paragraph, in the CJK font (Inter has no Chinese glyphs)."""
+    return f'<font name="{CJK}">{text}</font>' if CJK in pdfmetrics.getRegisteredFontNames() else ""
+
 # the app's palette (app.css), so the documents and the screens are one family
 INK = colors.HexColor("#1E1B18"); INK2 = colors.HexColor("#4A443E"); MUTED = colors.HexColor("#857C72"); MUTED2 = colors.HexColor("#A89F95")
 LINE = colors.HexColor("#E8E1D8"); LINE2 = colors.HexColor("#F0EBE4"); LINEN = colors.HexColor("#F6F3EE"); SURFACE2 = colors.HexColor("#FBF9F6")
