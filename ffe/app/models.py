@@ -574,6 +574,36 @@ class Product(Base):
     project: Mapped["Project"] = relationship(back_populates="products")
     quotes: Mapped[list["Quote"]] = relationship(back_populates="product", cascade="all, delete-orphan", order_by="Quote.id", lazy="selectin")
     purchases: Mapped[list["Purchase"]] = relationship(back_populates="product", cascade="all, delete-orphan", order_by="Purchase.id", lazy="selectin")
+    packing: Mapped["ProductPacking | None"] = relationship(back_populates="product", cascade="all, delete-orphan", uselist=False, lazy="selectin")
+
+
+class ProductPacking(Base):
+    """How a product travels, for the packing estimate of the orders (packing_plan.py): per shipping box, the units it
+    holds (per_box: 1.44 m² of tiles, 4 chairs) or, for a big piece, the boxes one unit takes (boxes_per_unit: a sofa in 3),
+    its size and gross weight. From the shop's packing details Excel (source "shop") or typed by the designer ("estimate").
+    A product without a row may still be known from its quotation lines (QuotationLine.cbm / weight), read on the fly."""
+    __tablename__ = "product_packing"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), unique=True, index=True)
+    per_box: Mapped[float] = mapped_column(Float, default=0.0)  # units in one box; 0 = one unit per box
+    boxes_per_unit: Mapped[int] = mapped_column(Integer, default=1)  # boxes one unit takes (> 1: per_box is ignored)
+    length_cm: Mapped[float] = mapped_column(Float, default=0.0)
+    width_cm: Mapped[float] = mapped_column(Float, default=0.0)
+    height_cm: Mapped[float] = mapped_column(Float, default=0.0)
+    cbm: Mapped[float] = mapped_column(Float, default=0.0)  # per box, as given; else from the size
+    kg: Mapped[float] = mapped_column(Float, default=0.0)  # gross weight per box
+    source: Mapped[str] = mapped_column(String(10), default="shop")  # shop | estimate
+    note: Mapped[str] = mapped_column(String(200), default="")  # where it came from ("KH-002 packing details, 14 Nov 2026")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
+    product: Mapped["Product"] = relationship(back_populates="packing")
+
+    @property
+    def box_cbm(self) -> float:
+        if self.cbm:
+            return self.cbm
+        if self.length_cm and self.width_cm and self.height_cm:
+            return self.length_cm * self.width_cm * self.height_cm / 1e6
+        return 0.0
 
 
 class Quote(Base):

@@ -350,6 +350,10 @@ def _merge_product(db: Session, src: Product, dst: Product, prods: dict, lines: 
         q.product = dst
     for pu in list(src.purchases):
         pu.product = dst
+    if src.packing is not None and dst.packing is None:  # the packing details follow (a copy: src's goes with it), unless dst has its own
+        from .models import ProductPacking
+        sp = src.packing
+        dst.packing = ProductPacking(**{k: getattr(sp, k) for k in ("per_box", "boxes_per_unit", "length_cm", "width_cm", "height_cm", "cbm", "kg", "source", "note")})
     db.query(QuotationLine).filter(QuotationLine.product_id == src.id).update({"product_id": dst.id})  # the sheets' lines follow
     db.query(QuotationLineAlso).filter(QuotationLineAlso.product_id == src.id).update({"product_id": dst.id})
     for i in lines:

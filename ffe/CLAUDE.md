@@ -168,6 +168,11 @@ app/packing_list.py    the shop's packing list per order: workbook(p, o, ref) (b
                        read(p, o, ref, data) → Plan (boxes, unpacked, unknown, unreadable, gaps, missing_size, clash, other_order; .ok),
                        box_numbers("4-6", n), apply(db, p, o, plan) (replaces the order's boxes: Carton.order_id / box_no,
                        entered_by "excel"; refused once a box left the shop; shipping.settle)
+app/packing_plan.py    the packing estimate: known(p, views) → Spec per product (ProductPacking row, else from_lines() of its quotation
+                       lines: totals back to one box with a pack, else per unit), line(v, spec) (boxes / m³ / kg), simulate(p, ov) → Sim
+                       (rows, cbm, kg, known, share, fit(): shipping.fits + % full by volume / weight, packed = the packing list's boxes),
+                       overview(p, ovs) (confirmed orders, Shipments #planned); the shop's Excel: workbook / read → DetailPlan / apply
+                       (source "shop"); save_estimate (source "estimate", clear=1)
 app/pdf/boxes.py       stickers() (A4, 2 × 3, English + Chinese) and packing_list() (装箱单) of an order's boxes; Chinese text uses
                        theme.CJK / zh() (a subset font: tools/make_cjk_font.py rebuilds it, the suite checks every character is in it)
 app/pdf/shipping.py    the loading list of a shipment (facts, tiles, boxes by room with drawn Tick squares for loading / receiving)
@@ -457,7 +462,7 @@ ALTER TABLE products ADD COLUMN cheaper_price FLOAT NOT NULL DEFAULT 0;         
 ALTER TABLE cartons ADD COLUMN order_id INTEGER;                                          -- the order a box came from (the shop's packing list)
 ALTER TABLE cartons ADD COLUMN box_no INTEGER NOT NULL DEFAULT 0;                        -- its number within the order (Box 3 of 12)
 ALTER TABLE cartons ALTER COLUMN item_codes / contents TYPE TEXT;                         -- db.TEXT_COLUMNS (Postgres only)
--- new tables (create_all): products, quotes, purchases, orders, shipments, project_lists, quotations, quotation_lines, quote_matches, quotation_uploads, quotation_line_also
+-- new tables (create_all): product_packing, products, quotes, purchases, orders, shipments, project_lists, quotations, quotation_lines, quote_matches, quotation_uploads, quotation_line_also
 ```
 
 ## Done
@@ -1106,6 +1111,13 @@ ALTER TABLE cartons ALTER COLUMN item_codes / contents TYPE TEXT;               
   send the shop (`/orders/<o>/packing.xlsx`), the filled file uploaded back (`POST /orders/<o>/packing` → `packing_preview.html`,
   the file carried as base64 `data`; `apply=1` saves), then `/stickers.pdf` and `/packing.pdf` (`pdf/boxes.py`) to send back.
   Box numbers are per order. The supplier link lists only lines whose purchase is on a confirmed order.
+
+- **Packing estimate.** `ProductPacking` (one per product: per_box or boxes_per_unit, box L/W/H or cbm, kg per box, source
+  shop | estimate, note; `Product.packing`; `_merge_product` copies it to the surviving product) + `packing_plan.py`. The order page's
+  `#volume` card (`sim` from `routers/orders._sim`): tiles, the rows with their source pill and a `details.pv-est` form per row
+  (`POST /orders/<o>/volume/<product>`), the Excel (`/volume.xlsx`, `Our ref` = `P<product id>`, meta kind "packing details") and its
+  upload (`POST /orders/<o>/volume` → `buying/volume_preview.html`, base64 `data`, `apply=1`). Shipments page `#planned`
+  (`pp.overview`). Quotation figures are read on the fly, never stored; nothing is guessed for a product with no figures.
 
 ## Backlog (in priority order)
 

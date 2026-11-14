@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Packing details {{ ref }} · {{ p.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Projects</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}">{{ p.name }}</a><svg class="ic"><use href="#i-chevron-right"/></svg><a href="/p/{{ p.id }}/orders/{{ o.id }}">{{ ref }}</a></div>
+    <h1>Packing details from {{ o.supplier.name if o.supplier else 'the shop' }} <span class="h-note">{{ plan.rows|length }} product{{ 's' if plan.rows|length != 1 }}</span></h1>
+    <p class="sub">Check the shop's figures, then save them: nothing is saved yet.</p>
+  </div>
+</div>
+
+{% if plan.wrong_file %}<div class="alert err">This is not the packing details file of an order: download “Packing details to fill” on {{ ref }} and send that to the shop.</div>{% endif %}
+{% if plan.other_order %}<div class="alert err">This file is the packing details of <b>{{ plan.other_order }}</b>, not {{ ref }}: upload it on that order.</div>{% endif %}
+{% if not plan.rows and not plan.wrong_file and not plan.other_order %}<div class="alert err">Nothing filled in yet: the shop fills the yellow columns.</div>{% endif %}
+{% if plan.unreadable %}<div class="alert err"><b>Rows we cannot read</b> (left out): {{ plan.unreadable|join('; ') }}.</div>{% endif %}
+{% if plan.empty %}<div class="alert info"><b>{{ plan.empty|length }} product{{ 's' if plan.empty|length != 1 }} left blank</b>: {% for r in plan.empty %}{{ r.name }}{{ ', ' if not loop.last }}{% endfor %}. They stay as they are on the order.</div>{% endif %}
+{% if plan.unknown %}<div class="alert info"><b>Rows not on {{ ref }}</b>, left out: {{ plan.unknown|join(', ') }}.</div>{% endif %}
+
+{% if plan.rows %}
+<section class="card">
+  <div class="tbl"><table>
+    <thead><tr><th>Product</th><th>Packing</th><th>Box cm</th><th class="num">m³ per box</th><th class="num">kg per box</th><th>Check</th></tr></thead>
+    <tbody>{% for d in plan.rows %}<tr>
+      <td><b class="small">{{ d.name }}</b><div class="small muted">{{ d.codes }}</div>{% if d.before %}<div class="small muted">Before: {{ d.before.label|lower }}</div>{% endif %}</td>
+      <td class="small">{% if d.boxes_per_unit > 1 %}{{ d.boxes_per_unit }} boxes per unit{% elif d.per_box %}{{ d.per_box|num(3) }} per box{% else %}1 per box{% endif %}</td>
+      <td class="small">{% if d.length and d.width and d.height %}{{ d.length|num(1) }} × {{ d.width|num(1) }} × {{ d.height|num(1) }}{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td class="num small">{{ d.box_cbm|num(4) if d.box_cbm else '—' }}</td>
+      <td class="num small">{{ d.kg|num(2) if d.kg else '—' }}</td>
+      <td class="small">{% for c in d.checks %}<span class="pill pv-check">{{ c }}</span> {% else %}<span class="muted">OK</span>{% endfor %}{% if d.note %}<div class="muted">{{ d.note }}</div>{% endif %}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+{% endif %}
+
+<div class="row mt">
+  {% if plan.ok %}
+  <form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/volume">
+    <input type="hidden" name="data" value="{{ data }}"><input type="hidden" name="apply" value="1">
+    <button class="btn accent"><svg class="ic"><use href="#i-check"/></svg>Save the packing details of {{ plan.rows|length }} product{{ 's' if plan.rows|length != 1 }}</button>
+  </form>
+  {% endif %}
+  <a class="btn ghost" href="/p/{{ p.id }}/orders/{{ o.id }}#volume">Back to {{ ref }}</a>
+</div>
+{% endblock %}

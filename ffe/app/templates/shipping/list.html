@@ -25,6 +25,31 @@
   {% endfor %}
 </div>
 
+{% if plan.sims %}
+<section class="bu-sec" id="planned">
+  <div class="bu-sec-head"><div><h2>Planned from the orders <span class="n">{{ plan.cbm|num(2) }} m³ · {{ plan.kg|num }} kg</span></h2>
+    <p class="small muted">Every confirmed order's packing estimate together, before the shops pack.</p></div></div>
+  <div class="card pv-card">
+    <div class="pv-sum">
+      <div><span class="v">{{ plan.cbm|num(2) }}</span><span class="l">m³</span></div>
+      <div><span class="v">{{ plan.kg|num }}</span><span class="l">kg gross</span></div>
+      <div><span class="v">{{ plan.fit.text or '—' }}</span><span class="l">{% if plan.fit.by %}{{ plan.fit.vol }}% full by volume, {{ plan.fit.wt }}% by weight{% elif plan.fit.text == 'LCL' %}shares a container{% else %}how it travels{% endif %}</span></div>
+      <div><span class="v">{{ plan.known }} / {{ plan.lines }}</span><span class="l">products known · {{ plan.share }}% of the value</span></div>
+    </div>
+    {% if plan.fit.by == 'weight' %}<p class="small mb-0"><b>Weight decides:</b> the containers fill up by weight before they fill up by volume.</p>{% endif %}
+    {% if plan.missing %}<div class="alert info pv-miss"><b>{{ plan.missing }} product{{ 's' if plan.missing != 1 }} without packing details</b> are not counted in full: open the order to send the shop the packing details to fill, or type your estimate.</div>{% endif %}
+    <div class="tbl tr-stack"><table class="pv-tbl">
+      <thead><tr><th>Order</th><th class="num">m³</th><th class="num">kg</th><th>Known</th><th>Packed by the shop</th></tr></thead>
+      <tbody>{% for ov, s in plan.sims %}<tr>
+        <td class="who"><a class="b" href="/p/{{ p.id }}/orders/{{ ov.o.id }}#volume">{{ ov.ref }}</a> <span class="small muted">{{ ov.o.supplier.name if ov.o.supplier else '' }}</span></td>
+        <td class="num" data-l="m³">{{ s.cbm|num(2) }}</td><td class="num" data-l="kg">{{ s.kg|num }}</td>
+        <td class="small" data-l="Known">{{ s.known }} / {{ s.rows|length }}{% if s.missing %} <span class="pill pv-src none">{{ s.missing|length }} missing</span>{% endif %}</td>
+        <td class="small" data-l="Packed">{% if s.packed %}{{ s.packed.count }} boxes · {{ s.packed.cbm|num(2) }} m³ · {{ s.packed.kg|num }} kg{% else %}<span class="muted">—</span>{% endif %}</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+</section>
+{% endif %}
+
 <section class="bu-sec" id="waiting">
   <div class="bu-sec-head"><div><h2>Waiting at the warehouse <span class="n">{{ wait|length }}</span></h2><p class="small muted">Delivered by the shops, on no shipment yet.{% if wait_tot.fits == 'LCL' %} Together they would go <b>LCL</b>, sharing a container.{% elif wait_tot.fits %} Together they fit <b>{{ wait_tot.fits }}</b>.{% endif %}</p></div></div>
   {% if wait %}
