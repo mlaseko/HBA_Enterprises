@@ -1986,6 +1986,38 @@ def flow(c):
     from app import packing_list as _pkm
     assert _pkm.box_numbers("4-6", None)==[4,5,6] and _pkm.box_numbers(4, 3)==[4,5,6] and _pkm.box_numbers("3, 5", "")==[3,5] and _pkm.box_numbers("2~3", None)==[2,3] and _pkm.box_numbers("a", None) is None
     db=SessionLocal(); [db.delete(x) for x in db.query(_Ct).filter(_Ct.order_id==_so).all()]; db.commit(); db.close()
+    # packing estimate: the order's m³ and kg from each product's packing (the shop's Excel, your estimate, the quotation)
+    from app.models import ProductPacking as _PPk
+    from app import packing_plan as _ppm
+    from types import SimpleNamespace as _NS
+    h=c.get(f"/p/{pid_o}/orders/{_so}").text; assert 'id="volume"' in h and f'/orders/{_so}/volume.xlsx"' in h and "Missing" in h.split('id="volume"')[1][:20000]
+    r=c.get(f"/p/{pid_o}/orders/{_so}/volume.xlsx"); assert r.status_code==200 and "details" in r.headers["content-disposition"].lower()
+    _vw=openpyxl.load_workbook(io.BytesIO(r.content)); _vs=_vw.worksheets[0]; assert "每箱毛重" in str(_vs.cell(5,13).value)
+    _vrows=[r_ for r_ in range(6,_vs.max_row+1) if _vs.cell(r_,1).value]; _vpid=int(_vs.cell(_vrows[0],1).value[1:])
+    _vs.cell(_vrows[0],7).value=2; _vs.cell(_vrows[0],9).value=100; _vs.cell(_vrows[0],10).value=50; _vs.cell(_vrows[0],11).value=40; _vs.cell(_vrows[0],13).value=30
+    _vs.append(["P999999","","Not ours","",1,"pcs",1,None,None,None,None,0.1,5])
+    _buf=io.BytesIO(); _vw.save(_buf); _vfilled=_buf.getvalue()
+    r=c.post(f"/p/{pid_o}/orders/{_so}/volume", files={"file":("v.xlsx",_vfilled,"application/octet-stream")}); assert r.status_code==200 and "Save the packing details of 1 product" in r.text and "P999999" in r.text
+    db=SessionLocal(); assert db.query(_PPk).filter(_PPk.product_id==_vpid).count()==0; db.close()  # the preview saves nothing
+    r=c.post(f"/p/{pid_o}/orders/{_so}/volume", data={"data":_b64.b64encode(_vfilled).decode(),"apply":"1"}, follow_redirects=False); assert "ok=" in r.headers["location"]
+    db=SessionLocal(); _pk1=db.query(_PPk).filter(_PPk.product_id==_vpid).one(); assert _pk1.source=="shop" and _pk1.per_box==2 and abs(_pk1.box_cbm-0.2)<1e-9 and _pk1.kg==30; db.close()
+    h=c.get(f"/p/{pid_o}/orders/{_so}").text.split('id="volume"')[1]; assert "From the shop" in h
+    r=c.post(f"/p/{pid_o}/orders/{_so}/volume", files={"file":("p.xlsx",_filled,"application/octet-stream")}); assert "not the packing details file" in r.text and 'name="apply"' not in r.text
+    r=c.post(f"/p/{pid_o}/orders/{_so}/volume/{_vpid}", data={"cbm":"0.5","kg":"40","boxes_per_unit":"2"}, follow_redirects=False); assert "ok=" in r.headers["location"]
+    db=SessionLocal(); _pk1=db.query(_PPk).filter(_PPk.product_id==_vpid).one(); assert _pk1.source=="estimate" and _pk1.boxes_per_unit==2 and _pk1.cbm==0.5; db.close()
+    assert "Your estimate" in c.get(f"/p/{pid_o}/orders/{_so}").text.split('id="volume"')[1]
+    r=c.post(f"/p/{pid_o}/orders/{_so}/volume/{_vpid}", data={"kg":""}, follow_redirects=False); assert "err=" in r.headers["location"]
+    c.post(f"/p/{pid_o}/orders/{_so}/volume/{_vpid}", data={"clear":"1"}, follow_redirects=False)
+    db=SessionLocal(); assert db.query(_PPk).filter(_PPk.product_id==_vpid).count()==0; db.close()
+    # a quotation's CBM / weight are the line's totals: back to one box when it names its pack, else to one unit
+    _q=_NS(supplier=None, title="Tiles sheet")
+    _sp=_ppm.from_lines([_NS(qty=14.4, unit="m²", cbm=0.245, weight=350, pack_size=1.44, quotation=_q, quote_id=None)], "m²")
+    assert _sp.rounded and _sp.per_box==1.44 and abs(_sp.kg-35)<1e-9 and _sp.source=="quote"
+    _l=_ppm.line(dict(purchase=_NS(product_id=1), lines=[], qty=15, unit="m²", total=0), _sp); assert _l["boxes"]==11 and abs(_l["kg"]-385)<0.01
+    _sp=_ppm.from_lines([_NS(qty=2, unit="", cbm=1.0, weight=200, pack_size=0, quotation=_q, quote_id=None)], "pcs"); assert not _sp.rounded and _sp.cbm==0.5 and _sp.kg==100
+    assert _ppm.from_lines([_NS(qty=2, unit="m", cbm=1.0, weight=200, pack_size=0, quotation=_q, quote_id=None)], "pcs") is None  # another unit: not used
+    _l=_ppm.line(dict(purchase=_NS(product_id=1), lines=[], qty=3, unit="pcs", total=0), _ppm.Spec(boxes_per_unit=3, cbm=0.4, kg=20)); assert _l["boxes"]==9 and abs(_l["cbm"]-3.6)<1e-9
+    h=c.get(f"/p/{pid_o}/shipments").text; assert 'id="planned"' in h and f'/orders/{_so}#volume"' in h
     # every Chinese character the PDFs print is in the bundled subset font (tools/make_cjk_font.py rebuilds it)
     import re as _re, glob as _glob
     from reportlab.pdfbase.ttfonts import TTFont as _TTF

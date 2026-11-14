@@ -148,6 +148,51 @@
   {% endif %}
 </section>
 
+{# ---- packing estimate: m³ and kg before the shop packs (packing_plan.py) ---- #}
+<section class="bu-sec" id="volume">
+  <div class="bu-sec-head"><div><h2>Packing estimate <span class="n">{{ sim.cbm|num(2) }} m³ · {{ sim.kg|num }} kg</span></h2>
+    <p class="small muted">What this order will take in a container, from each product's box size and weight.</p></div></div>
+  <div class="card pv-card">
+    <div class="pv-sum">
+      <div><span class="v">{{ sim.cbm|num(2) }}</span><span class="l">m³</span></div>
+      <div><span class="v">{{ sim.kg|num }}</span><span class="l">kg gross</span></div>
+      <div><span class="v">{{ sim.fit.text or '—' }}</span><span class="l">{% if sim.fit.by %}{{ sim.fit.vol }}% full by volume, {{ sim.fit.wt }}% by weight{% elif sim.fit.text == 'LCL' %}shares a container{% else %}how it travels{% endif %}</span></div>
+      <div><span class="v">{{ sim.known }} / {{ sim.rows|length }}</span><span class="l">products known · {{ sim.share }}% of the value</span></div>
+    </div>
+    {% if sim.fit.by == 'weight' %}<p class="small mb-0"><b>Weight decides here:</b> the container is full by weight before it is full by volume.</p>{% endif %}
+    {% if sim.packed %}<p class="small">Packed by the shop (packing list): <b>{{ sim.packed.count }} boxes · {{ sim.packed.cbm|num(2) }} m³ · {{ sim.packed.kg|num }} kg</b>.</p>{% endif %}
+    {% if sim.missing %}<div class="alert info pv-miss"><b>{{ sim.missing|length }} product{{ 's' if sim.missing|length != 1 }} without {{ 'their' if sim.missing|length != 1 else 'its' }} size or weight</b>: not counted in full. Send the shop the packing details to fill, or type your own estimate on the row.</div>{% endif %}
+    <div class="row pv-acts">
+      <a class="btn sm sec" href="/p/{{ p.id }}/orders/{{ o.id }}/volume.xlsx"><svg class="ic"><use href="#i-download"/></svg>Packing details to fill (Excel)</a>
+      <form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/volume" enctype="multipart/form-data" class="row pk-up">
+        <input type="file" name="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+        <button class="btn sm"><svg class="ic"><use href="#i-upload"/></svg>Upload the shop's file</button></form>
+    </div>
+    <div class="tbl tr-stack"><table class="pv-tbl">
+      <thead><tr><th>Product</th><th class="num">Ordered</th><th class="num">Boxes</th><th class="num">m³</th><th class="num">kg</th><th>From</th></tr></thead>
+      <tbody>{% for r in sim.rows %}<tr class="{{ 'pv-missing' if r.missing }}">
+        <td class="who"><b class="small">{{ r.name }}</b>{% if r.detail %} <span class="small muted">{{ r.detail }}</span>{% endif %}<div class="small muted">{{ r.codes|join(', ') }}</div>
+          <details class="pv-est"><summary class="small">{{ 'Change your estimate' if r.spec and r.spec.source == 'estimate' else ('Use your own figure' if r.spec else 'Type an estimate') }}</summary>
+            <form method="post" action="/p/{{ p.id }}/orders/{{ o.id }}/volume/{{ r.pid }}" class="pv-est-f">
+              {% set sp = r.spec %}
+              <label>{{ r.unit or 'Units' }} per box<input class="in" name="per_box" inputmode="decimal" value="{{ sp.per_box|plain4 if sp and sp.per_box and sp.rounded else '' }}"></label>
+              <label>Boxes per unit<input class="in" name="boxes_per_unit" inputmode="numeric" value="{{ sp.boxes_per_unit if sp and sp.boxes_per_unit > 1 else '' }}"></label>
+              <label>Box L × W × H cm<span class="row pv-lwh"><input class="in" name="length_cm" inputmode="decimal" value="{{ sp.length|plain4 if sp and sp.length else '' }}"><input class="in" name="width_cm" inputmode="decimal" value="{{ sp.width|plain4 if sp and sp.width else '' }}"><input class="in" name="height_cm" inputmode="decimal" value="{{ sp.height|plain4 if sp and sp.height else '' }}"></span></label>
+              <label>or m³ per box<input class="in" name="cbm" inputmode="decimal" value="{{ sp.cbm|plain4 if sp and sp.cbm and sp.rounded and not sp.length else '' }}"></label>
+              <label>kg per box<input class="in" name="kg" inputmode="decimal" value="{{ sp.kg|plain4 if sp and sp.kg and sp.rounded else '' }}"></label>
+              <div class="row"><button class="btn sm">Save as your estimate</button>{% if sp and sp.source == 'estimate' %}<button class="btn sm ghost" name="clear" value="1">Remove it</button>{% endif %}</div>
+            </form></details></td>
+        <td class="num small" data-l="Ordered">{{ r.qty|num(2) }} {{ r.unit }}</td>
+        <td class="num small" data-l="Boxes">{{ r.boxes if r.boxes is not none else '—' }}</td>
+        <td class="num" data-l="m³">{{ r.cbm|num(2) if r.cbm is not none else '—' }}</td>
+        <td class="num" data-l="kg">{{ r.kg|num if r.kg is not none else '—' }}</td>
+        <td class="small" data-l="From">{% if r.spec %}<span class="pill pv-src {{ r.spec.source }}" title="{{ r.spec.note }}">{{ r.spec.label }}</span>{% if r.missing %}<div class="small muted">no {{ r.missing|join(' or ') }}</div>{% endif %}{% else %}<span class="pill pv-src none">Missing</span>{% endif %}</td>
+      </tr>{% endfor %}</tbody>
+      <tfoot><tr><td class="b">Total{% if sim.missing %} <span class="small muted">(known products)</span>{% endif %}</td><td></td><td class="num">{{ sim.rows|selectattr('boxes')|map(attribute='boxes')|sum or '—' }}</td><td class="num b">{{ sim.cbm|num(2) }}</td><td class="num b">{{ sim.kg|num }}</td><td></td></tr></tfoot>
+    </table></div>
+  </div>
+</section>
+
 {# ---- packing: the shop fills our Excel, we upload it, the stickers go back to the shop (packing_list.py) ---- #}
 <section class="bu-sec" id="packing">
   <div class="bu-sec-head"><div><h2>Packing &amp; stickers <span class="n">{{ boxes|length }} box{{ 'es' if boxes|length != 1 }}</span></h2>

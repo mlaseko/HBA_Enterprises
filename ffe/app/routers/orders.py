@@ -35,6 +35,11 @@ def _pk_boxes(p: Project, o: Order) -> list:
     return pk.order_boxes(p, o)
 
 
+def _sim(p: Project, ov):
+    from .. import packing_plan as pp
+    return pp.simulate(p, ov)
+
+
 def _to(p: Project, oid: int | None = None, anchor: str = "", ok: str = "", err: str = ""):
     q = f"?ok={urlquote(ok)}" if ok else (f"?err={urlquote(err)}" if err else "")
     return redirect(f"/p/{p.id}/orders" + (f"/{oid}" if oid else "") + q + anchor)
@@ -117,7 +122,7 @@ def order_page(request: Request, order_id: int, p: Project = Depends(get_project
     return render(request, "buying/order.html", p=p, ov=ov, o=o, more=more, addable=_addable(db, p, o), wechat=od.wechat_text(ov, p, studio), studio=studio, loose=od.loose_payments(p, o),
                   today=date.today().isoformat(), due=round(due, 2), due_kind="Deposit" if deposit_next else "Balance",
                   STAGE_COLORS=od.STAGE_COLORS, STAGE_HELP=od.STAGE_HELP, ok=ok[:200], err=err[:200], sort=sort, SORTS=od.LINE_SORTS, ch=ch, cheaper_q=cheaper_q, flags=flags,
-                  free_rooms=lambda pu: od.free_rooms(p, pu), pay_ctx=od.pay_context(o, ov), boxes=_pk_boxes(p, o), box_where=_where)
+                  free_rooms=lambda pu: od.free_rooms(p, pu), pay_ctx=od.pay_context(o, ov), boxes=_pk_boxes(p, o), box_where=_where, sim=_sim(p, ov))
 
 
 @router.post("/p/{project_id}/orders/{order_id}")
@@ -526,3 +531,66 @@ def packing_pdf(order_id: int, p: Project = Depends(get_project), db: Session = 
     ref = od.ref(o)
     data = bx.packing_list(p, get_settings(db), o, ref, pk.order_boxes(p, o))
     return Response(data, media_type="application/pdf", headers=content_disposition(f"{ref} packing list.pdf", inline=True))
+
+
+# ---- the packing estimate: m³ and kg of the order before the shop packs (packing_plan.py) ------------------------------
+@router.get("/p/{project_id}/orders/{order_id}/volume.xlsx")
+def volume_xlsx(order_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """The packing details to send the shop: a row per product on the order, the shop fills the box, its size and weight."""
+    from .. import packing_plan as pp
+    o = _order(db, p, order_id)
+    if o is None:
+        return _to(p)
+    ov = od.OrderView(o, bz.Ledger(p))
+    data = pp.workbook(p, o, ov.ref, pp.simulate(p, ov))
+    name = f"{ov.ref} packing details - {o.supplier.name if o.supplier else 'shop'}.xlsx"
+    return Response(data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers=content_disposition(name))
+
+
+@router.post("/p/{project_id}/orders/{order_id}/volume")
+async def volume_upload(request: Request, order_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """The shop's filled packing details: a preview first (the file travels in the form as base64); Save (apply=1) keeps
+    the figures on the products."""
+    import base64
+    from .. import packing_plan as pp
+    o = _order(db, p, order_id)
+    if o is None:
+        return _to(p)
+    form = await request.form()
+    f = form.get("file")
+    data = b""
+    if f is not None and hasattr(f, "read"):
+        data = await f.read()
+    elif form.get("data"):
+        try:
+            data = base64.b64decode(form.get("data"))
+        except ValueError:
+            data = b""
+    if not data:
+        return _to(p, order_id, "#volume", err="Choose the packing details the shop sent back (.xlsx).")
+    ov = od.OrderView(o, bz.Ledger(p))
+    sim = pp.simulate(p, ov)
+    try:
+        plan = pp.read(p, o, sim, data)
+    except Exception:  # not an Excel file
+        return _to(p, order_id, "#volume", err="That file could not be read: upload the packing details .xlsx we sent the shop, filled in.")
+    if form.get("apply") == "1" and plan.ok:
+        n = pp.apply(db, p, o, ov.ref, plan)
+        db.commit()
+        return _to(p, order_id, "#volume", ok=f"Packing details saved for {n} product{'s' if n != 1 else ''}.")
+    return render(request, "buying/volume_preview.html", p=p, o=o, ref=ov.ref, plan=plan, data=base64.b64encode(data).decode())
+
+
+@router.post("/p/{project_id}/orders/{order_id}/volume/{product_id}")
+async def volume_estimate(request: Request, order_id: int, product_id: int, p: Project = Depends(get_project), db: Session = Depends(get_db)):
+    """The designer's own packing figure for one product on the order, marked as an estimate (clear=1 removes it)."""
+    from .. import packing_plan as pp
+    o = _order(db, p, order_id)
+    if o is None:
+        return _to(p)
+    form = await request.form()
+    why = pp.save_estimate(db, p, product_id, form)
+    if why:
+        return _to(p, order_id, "#volume", err=why)
+    db.commit()
+    return _to(p, order_id, "#volume", ok="Estimate removed." if form.get("clear") else "Your estimate is saved.")

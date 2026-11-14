@@ -51,7 +51,9 @@ def shipments_page(request: Request, p: Project = Depends(get_project), db: Sess
     wait = sh.waiting(bx)
     shop = [c for c in bx.cartons if sh.where(c) == "shop"]
     planning = [sv for sv in svs if sv.stage == "Planning"]
-    return render(request, "shipping/list.html", p=p, svs=svs, by_stage=[(st, [sv for sv in svs if sv.stage == st]) for st in sh.STAGES],
+    from .. import buying as bz, ordering as od, packing_plan as pp
+    plan = pp.overview(p, od.views(p, bz.Ledger(p)))
+    return render(request, "shipping/list.html", p=p, plan=plan, svs=svs, by_stage=[(st, [sv for sv in svs if sv.stage == st]) for st in sh.STAGES],
                   wait=wait, wait_groups=sh.by_supplier(wait), wait_tot=sh.totals(wait), shop_groups=sh.by_supplier(shop),
                   shop_tot=sh.totals(shop), counts=bx.counts(), planning=planning, MODES=lists.ship_modes(p), STAGE_COLORS=sh.STAGE_COLORS,
                   STAGE_HELP=sh.STAGE_HELP, studio=get_settings(db), ok=ok[:200], err=err[:200])

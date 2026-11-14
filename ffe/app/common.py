@@ -212,6 +212,7 @@ templates.env.globals.update(show_usd=lambda p: show_usd(p))
 templates.env.filters["num"] = fnum
 templates.env.filters["status_label"] = lambda st: config.STATUS_LABELS.get(st, st)  # a status as people read it (stored values unchanged)
 templates.env.filters["plain"] = fplain
+templates.env.filters["plain4"] = lambda v: (f"{float(v):.4f}".rstrip("0").rstrip(".") if v else "")  # up to 4 decimals (m³ per box)
 templates.env.filters["floor_title"] = jinja2.pass_context(lambda ctx, s: drawings.floor_title(s, ctx.get("p")))  # the project's floor list decides the spelling and the kind
 templates.env.globals.update(order_ref=_order_ref)
 templates.env.globals.update(AI_ENABLED=lambda: bool(__import__('os').getenv('ANTHROPIC_API_KEY')), APP_NAME=config.APP_NAME, CATEGORIES=config.CATEGORIES, UNITS=config.UNITS,
