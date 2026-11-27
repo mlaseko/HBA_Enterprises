@@ -306,7 +306,8 @@ TIPS = {
         steps=["<b>To pay, order by order</b> lists every confirmed order with money due. Press <b>Record a payment</b>: the order opens at its form; <b>Fill in</b> puts in what is due, in yuan or dollars.",
                "<b>By supplier</b> shows what was bought, what is on orders, paid and still to pay; <b>All payments</b> every payment with its order and receipt.",
                "A payment to a shop on no order (before orders existed, say) goes in <b>Record a payment here</b>, folded at the bottom."],
-        tips=["On orders = the confirmed orders' totals. To pay = on orders − paid. Drafts count once they are confirmed.",
+        tips=["Every amount in the three tables shows both currencies: the project's first, the other in grey under it (the yuan is the amount as stored, not converted back). A Total row sums each table.",
+              "On orders = the confirmed orders' totals. To pay = on orders − paid. Drafts count once they are confirmed.",
               "An order paid in full makes its rooms Paid."]),
     "cartons": dict(
         title="Boxes", anchor="packing",

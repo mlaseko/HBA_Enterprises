@@ -1711,6 +1711,11 @@ def flow(c):
     assert 'aria-label="Design"' in h and 'class="btn sec sm sel-toggle"' in h and "Shop chosen" in h and ">Quoted</span>" not in h and 'value="Quoted"' in h  # the filter still sends the stored value
     assert 'aria-label="Orders"' in c.get(f"/p/{pid_o}/payments").text and 'aria-label="Sourcing"' in c.get(f"/p/{pid_o}/buying").text
     h=c.get(f"/p/{pid_o}/payments").text; assert 'id="due"' in h and f'/orders/{oid}#payments' in h and 'id="record"' in h  # what is owed, order by order; the form folded
+    assert h.count('class="pay-total"')>=2 and "Order total" in h and ">Amount</th>" in h  # totals under the money tables
+    from app.common import html_both as _hb
+    from types import SimpleNamespace as _NSp
+    assert str(_hb(_NSp(show_currency="USD", rate=7.1), 7100, 2))=='$1,000.00<span class="usd">¥7,100.00</span>'  # USD mode: the CNY under it, the stored figure
+    assert str(_hb(_NSp(show_currency="CNY", rate=7.1), 7100))=='¥7,100<span class="usd">$1,000</span>'
     h=c.get(f"/p/{pid_o}/items/{oi[('Bed','BED')]}").text; assert 'class="status-hand"' in h and 'moves by itself' in h  # the status is read; set by hand only on purpose
     c.post(f"/p/{pid_o}/orders/{oid}/confirm", data={"confirmed_on":"2026-10-01"}, follow_redirects=False)
     db=SessionLocal(); o=db.get(_O,oid); assert o.confirmed_total==6794.4 and o.confirmed_on==_dt.date(2026,10,1); db.close()

@@ -180,6 +180,18 @@ def html_cur(p, cny, dec=0, sym=True):
     return markupsafe.Markup('{}<span class="usd">${}</span>').format(("¥" if sym else "") + f"{v:,.{dec}f}", f"{v / _rate(p):,.{dec}f}")
 
 
+def html_both(p, cny, dec=0):
+    """An amount in both currencies whatever the project shows: the project's currency first, the other in the small grey
+    span under it ("$1,234 ¥8,762" in USD mode, "¥8,762 $1,234" in CNY mode). The CNY is the stored figure, never a
+    round trip through dollars. For money tables where the designer reads both (the Payments page)."""
+    v = _cny(cny)
+    if v is None:
+        return "-"
+    usd, cny_t = f"${v / _rate(p):,.{dec}f}", f"¥{v:,.{dec}f}"
+    first, other = (usd, cny_t) if show_usd(p) else (cny_t, usd)
+    return markupsafe.Markup('{}<span class="usd">{}</span>').format(first, other)
+
+
 def usd_of(p, amount, currency="CNY", dec=0):
     """The USD equivalent of an amount typed in a document's own currency (a quotation's CNY lines): a small grey
     span "$1,234", nothing when the amount is already in USD."""
@@ -205,6 +217,7 @@ templates.env.globals["cur_range"] = jinja2.pass_context(lambda ctx, lo, hi, dec
 templates.env.filters["cur"] = jinja2.pass_context(lambda ctx, v, dec=0: html_cur(ctx.get("p"), v, dec))  # an amount in CNY as the project shows it, with its USD
 templates.env.filters["cur_num"] = jinja2.pass_context(lambda ctx, v, dec=0: html_cur(ctx.get("p"), v, dec, sym=False))  # the same, no symbol (the column says the currency)
 templates.env.filters["cur_main"] = jinja2.pass_context(lambda ctx, v, dec=0: fmt_main(ctx.get("p"), v, dec))  # the big figure alone (cur_other under it)
+templates.env.filters["cur_both"] = jinja2.pass_context(lambda ctx, v, dec=0: html_both(ctx.get("p"), v, dec))  # both currencies, the project's first
 templates.env.filters["cur_txt"] = jinja2.pass_context(lambda ctx, v, dec=0: fmt_cur(ctx.get("p"), v, dec))  # plain text, for attributes
 templates.env.filters["cur_other"] = jinja2.pass_context(lambda ctx, v, dec=0: fmt_other(ctx.get("p"), v, dec))
 templates.env.filters["usd"] = jinja2.pass_context(lambda ctx, v, currency="CNY", dec=0: usd_of(ctx.get("p"), v, currency, dec))  # after a document's own amount

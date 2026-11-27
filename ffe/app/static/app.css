@@ -2124,3 +2124,4 @@ details.qi-s3more>summary.row::before{margin-top:2px}
 .od-tab.on{color:var(--ink);border-bottom-color:var(--accent)}
 .od-later-picks .od-pick{flex:none;display:flex;align-items:center}.od-later-picks .od-pick input{width:18px;height:18px;margin:0}
 .od-later-acts{gap:8px;flex-wrap:wrap;margin-top:10px}.od-later-acts .od-st{font-weight:500;opacity:.75;font-size:.75rem;margin-left:2px}
+.pay-total td{border-top:2px solid var(--line);background:var(--surface-2,#f7f7f8)}

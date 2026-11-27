@@ -623,7 +623,7 @@ ALTER TABLE cartons ALTER COLUMN item_codes / contents TYPE TEXT;               
   link and schedule are USD whatever the setting. Write new amounts with these filters, never `¥{{ x|money }}`.
   **Every price carries its USD.** In CNY mode `cur` / `cur_num` output `¥8,762<span class="usd">$1,234</span>` (Markup;
   `.usd` is small grey, a block line in `td.num`); `cur_main` is the figure alone for a big number with `cur_other` under it
-  (never `cur` + `cur_other`: the USD would show twice); `cur_txt` / `common.fmt_cur` are plain text "¥8,762 ($1,234)" for
+  (never `cur` + `cur_other`: the USD would show twice); `cur_both` (`common.html_both`) shows both currencies whatever the mode, the project's first and the other in the `.usd` span (the CNY is the stored figure; the Payments page's three tables, with `tr.pay-total` totals rows); `cur_txt` / `common.fmt_cur` are plain text "¥8,762 ($1,234)" for
   attributes, `<option>` and Python messages; `cur_range(lo, hi, dec, sym)` a range with one USD span; `x|usd(currency)` the
   USD span after a document's own amount (a CNY quotation's lines and totals; nothing for USD); `quotations.amt(p, cur, v)`
   for notes and warnings; the preview's and the saved quotation's scripts write `cm(v, fmt)`. The shop's PO and WeChat text
