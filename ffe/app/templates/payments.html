@@ -25,7 +25,7 @@
   <h2>To pay, order by order <span class="h-note">{{ due|length }}</span></h2>
   {% if due %}
   <div class="tbl"><table>
-    <thead><tr><th>Order</th><th>Shop</th><th>Stage</th><th>Ready by</th><th class="num">To pay</th><th></th></tr></thead>
+    <thead><tr><th>Order</th><th>Shop</th><th>Stage</th><th>Ready by</th><th class="num">Order total</th><th class="num">Paid</th><th class="num">To pay</th><th></th></tr></thead>
     <tbody>
     {% for ov in due %}
     <tr>
@@ -33,11 +33,16 @@
       <td>{{ ov.o.supplier.name if ov.o.supplier else 'Shop not known' }}</td>
       <td><span class="badge" style="--c:{{ ORDER_COLORS[ov.stage] }}">{{ ov.stage }}</span></td>
       <td class="small nowrap{{ ' red' if ov.late }}">{{ ov.o.ready_date.strftime('%d %b %Y') if ov.o.ready_date else '—' }}</td>
-      <td class="num b">{{ ov.balance|cur(2) }}</td>
+      <td class="num">{{ ov.total|cur_both(2) }}</td>
+      <td class="num">{{ ov.paid|cur_both(2) }}</td>
+      <td class="num b">{{ ov.balance|cur_both(2) }}</td>
       <td class="right"><a class="btn sm" href="/p/{{ p.id }}/orders/{{ ov.o.id }}#payments"><svg class="ic"><use href="#i-card"/></svg>Record a payment</a></td>
     </tr>
     {% endfor %}
     </tbody>
+    <tfoot><tr class="pay-total"><td colspan="4" class="b">Total · {{ due|length }} order{{ 's' if due|length != 1 }}</td>
+      <td class="num b">{{ due|sum(attribute='total')|cur_both(2) }}</td><td class="num b">{{ due|sum(attribute='paid')|cur_both(2) }}</td>
+      <td class="num b">{{ due|sum(attribute='balance')|cur_both(2) }}</td><td></td></tr></tfoot>
   </table></div>
   {% else %}<p class="muted small mb-0">Nothing to pay on a confirmed order.</p>{% endif %}
 </div>
@@ -51,22 +56,25 @@
     {% for r in s.by_sup %}
     <tr>
       <td>{% if r.key %}<a href="/suppliers/{{ r.key }}?project={{ p.id }}">{{ r.label }}</a>{% else %}<span class="muted">{{ r.label }}</span>{% endif %}</td>
-      <td class="num">{{ r.bought|cur }}</td>
-      <td class="num">{{ r.ordered|cur }}</td>
-      <td class="num">{{ r.paid|cur }}</td>
-      <td class="num b">{{ r.balance|cur }}</td>
+      <td class="num">{{ r.bought|cur_both }}</td>
+      <td class="num">{{ r.ordered|cur_both }}</td>
+      <td class="num">{{ r.paid|cur_both }}</td>
+      <td class="num b">{{ r.balance|cur_both }}</td>
     </tr>
     {% else %}
     <tr><td colspan="5" class="muted center">No items yet, so nothing to pay for.</td></tr>
     {% endfor %}
     </tbody>
+    {% if s.by_sup|length > 1 %}<tfoot><tr class="pay-total"><td class="b">Total · {{ s.by_sup|length }} suppliers</td>
+      <td class="num b">{{ s.by_sup|sum(attribute='bought')|cur_both }}</td><td class="num b">{{ s.by_sup|sum(attribute='ordered')|cur_both }}</td>
+      <td class="num b">{{ s.by_sup|sum(attribute='paid')|cur_both }}</td><td class="num b">{{ s.by_sup|sum(attribute='balance')|cur_both }}</td></tr></tfoot>{% endif %}
   </table></div>
 </div>
 
 <div class="card">
   <h2>All payments</h2>
   <div class="tbl"><table>
-    <thead><tr><th>Date</th><th>Supplier</th><th>Order</th><th>Type</th><th class="num">{{ 'USD' if show_usd(p) else 'CNY' }}</th><th>Reference</th><th>Note</th><th>Receipt</th><th></th></tr></thead>
+    <thead><tr><th>Date</th><th>Supplier</th><th>Order</th><th>Type</th><th class="num">Amount</th><th>Reference</th><th>Note</th><th>Receipt</th><th></th></tr></thead>
     <tbody>
     {% for pay in pays %}
     <tr>
@@ -74,7 +82,7 @@
       <td>{% if pay.supplier %}<a href="/suppliers/{{ pay.supplier.id }}?project={{ p.id }}">{{ pay.supplier.name }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
       <td class="nowrap">{% if pay.order_id and refs.get(pay.order_id) %}<a class="b" href="/p/{{ p.id }}/orders/{{ pay.order_id }}">{{ refs[pay.order_id] }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
       <td><span class="pill">{{ pay.kind }}</span></td>
-      <td class="num b">{{ pay.amount|cur_num(2) }}</td>
+      <td class="num b">{{ pay.amount|cur_both(2) }}</td>
       <td>{{ pay.reference }}</td>
       <td class="small muted">{{ pay.note }}</td>
       <td>{% if pay.receipt_key %}<a href="/media/{{ pay.receipt_key }}" target="_blank" data-caption="Receipt{% if pay.supplier %} · {{ pay.supplier.name }}{% endif %} · {{ pay.paid_on }}"><img class="thumb sm" src="/media/{{ pay.receipt_key }}" alt="Receipt" loading="lazy" decoding="async"></a>{% else %}<span class="muted">—</span>{% endif %}</td>
@@ -84,6 +92,8 @@
     <tr><td colspan="9" class="muted center">No payments recorded yet. Record each one on its order. <a href="#help">How payments work</a></td></tr>
     {% endfor %}
     </tbody>
+    {% if pays %}<tfoot><tr class="pay-total"><td colspan="4" class="b">Total · {{ pays|length }} payment{{ 's' if pays|length != 1 }}</td>
+      <td class="num b">{{ pays|sum(attribute='amount')|cur_both(2) }}</td><td colspan="4"></td></tr></tfoot>{% endif %}
   </table></div>
 </div>
 <details class="card fold" id="record"{{ ' open' if not ovs or err }}>
